@@ -12,6 +12,12 @@ LabBREW is a microservices-based fermentation management and control system. Thi
 | [Schedule Service](./schedule-service-api.md) | HTTP (REST) | 8768 | Multi-step fermentation schedule execution |
 | [ParameterDB](./parameterdb-api.md) | Binary (TCP) | 8765 | Parameter store with real-time scanning |
 
+## Guides
+
+| Guide | Description |
+|---|---|
+| [Schedule Excel Import](./schedule-excel-import.md) | Workbook sheet layout, column syntax, wait expressions, and validation rules for importing `.xlsx` schedules |
+
 ## Quick Navigation
 
 - **Frontend developers** — start with [BrewSupervisor Gateway API](./brewsupervisor-api.md); all browser requests go there.

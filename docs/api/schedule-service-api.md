@@ -28,7 +28,7 @@ The Schedule Service executes multi-step fermentation schedules. A schedule has 
   "name": "Dough-in",
   "enabled": true,
   "actions": [ /* array of ScheduleAction */ ],
-  "wait": { /* WaitCondition or null */ }
+  "wait": { /* WaitSpec or null — see WaitSpec section below */ }
 }
 ```
 
@@ -45,10 +45,157 @@ The Schedule Service executes multi-step fermentation schedules. A schedule has 
 }
 ```
 
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `kind` | string | yes | Action type (see below) |
+| `target` | string | yes | Parameter name to act on |
+| `value` | any | for `set`/`ramp` | Value to write or ramp to |
+| `duration_s` | number | for `ramp` | Duration of the ramp in seconds |
+| `owner` | string | no | Caller identity for ownership checks |
+| `params` | object | no | Extra type-specific parameters |
+
+**`kind` values**
+
 | `kind` | Description |
 |---|---|
-| `set` | Write `value` to `target` via the Control Service |
-| `ramp` | Ramp `target` to `value` over `duration_s` seconds |
+| `set` / `write` | Write `value` to `target` immediately via the Control Service |
+| `ramp` | Linearly ramp `target` from its current value to `value` over `duration_s` seconds |
+
+---
+
+### `WaitSpec`
+
+The `wait` field of a `ScheduleStep` is a **WaitSpec** — a possibly-nested structure evaluated each runtime tick before the scheduler advances to the next step. It is `null` / omitted when no wait is needed.
+
+#### Kind: `none`
+
+Always passes immediately. Equivalent to omitting the `wait` field entirely.
+
+```json
+{"kind": "none"}
+```
+
+#### Kind: `elapsed`
+
+Waits until at least `duration_s` seconds have passed since the step started.
+
+```json
+{"kind": "elapsed", "duration_s": 3600}
+```
+
+| Field | Type | Required |
+|---|---|---|
+| `duration_s` | number | yes |
+
+#### Kind: `condition`
+
+Waits for a single parameter condition to be true. Optionally holds for `for_s` seconds continuously before advancing.
+
+```json
+{
+  "kind": "condition",
+  "condition": {
+    "source": "reactor.temp",
+    "operator": ">=",
+    "threshold": 64.0,
+    "for_s": 60
+  }
+}
+```
+
+**`condition` fields**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes | ParameterDB parameter name to read |
+| `operator` | string | yes | Comparison operator (see table below) |
+| `threshold` | number / bool | yes | Value to compare against |
+| `for_s` | number | no | Condition must stay true for this many seconds (default `0`) |
+
+**Available operators**
+
+| Operator | Description | `threshold` type |
+|---|---|---|
+| `>` | Greater than | number |
+| `>=` | Greater than or equal | number |
+| `<` | Less than | number |
+| `<=` | Less than or equal | number |
+| `==` | Loose equality (number, bool, string) | any |
+| `!=` | Loose inequality | any |
+| `in_range` | Inclusive range — requires `params.min` and `params.max` instead of `threshold` | number |
+| `out_of_range` | Outside inclusive range — requires `params.min` and `params.max` | number |
+| `always_true` | Always passes regardless of value | any |
+
+For `in_range` / `out_of_range` use the `params` key instead of `threshold`:
+
+```json
+{
+  "source": "reactor.temp",
+  "operator": "in_range",
+  "params": {"min": 60.0, "max": 70.0}
+}
+```
+
+The condition object can also contain composite logic using `all`, `any`, and `not` keys (see below).
+
+#### Kind: `all_of`
+
+All child `WaitSpec` nodes must match before advancing.
+
+```json
+{
+  "kind": "all_of",
+  "children": [
+    {"kind": "elapsed", "duration_s": 600},
+    {
+      "kind": "condition",
+      "condition": {"source": "reactor.temp", "operator": ">=", "threshold": 64.0}
+    }
+  ]
+}
+```
+
+#### Kind: `any_of`
+
+At least one child `WaitSpec` node must match before advancing.
+
+```json
+{
+  "kind": "any_of",
+  "children": [
+    {"kind": "elapsed", "duration_s": 7200},
+    {
+      "kind": "condition",
+      "condition": {"source": "abort.flag", "operator": "==", "threshold": true}
+    }
+  ]
+}
+```
+
+#### Composite conditions inside a `condition` wait
+
+The `condition` field of a `kind: "condition"` wait can itself be a **composite condition** using `all`, `any`, or `not` keys instead of a flat `source`/`operator`/`threshold` map:
+
+```json
+{
+  "kind": "condition",
+  "condition": {
+    "all": [
+      {"source": "reactor.temp", "operator": ">=", "threshold": 63.0},
+      {"source": "agitator.rpm",  "operator": ">=", "threshold": 100}
+    ],
+    "for_s": 30
+  }
+}
+```
+
+| Composite key | Behaviour |
+|---|---|
+| `all` | All child conditions must be true |
+| `any` | At least one child condition must be true |
+| `not` | Inverts its single child condition |
+
+All composite nodes also support `for_s` to require the composite result to remain true for a minimum hold time.
 
 ### `RunStatus`
 

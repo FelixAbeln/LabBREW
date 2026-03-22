@@ -94,7 +94,7 @@ Aggregates data from multiple services into a single dashboard payload. Best-eff
 
 ## Schedule Import
 
-These endpoints parse an Excel workbook and optionally push the result to the schedule service.
+These endpoints parse an Excel workbook and optionally push the result to the schedule service. See **[Schedule Excel Import Format](./schedule-excel-import.md)** for the full workbook syntax reference.
 
 ### `PUT /fermenters/{fermenter_id}/schedule/validate-import`
 
