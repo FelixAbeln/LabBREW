@@ -1,0 +1,37 @@
+# LabBREW – Python dependencies
+#
+# The canonical dependency specification is pyproject.toml at the project root.
+# Install the project (and all dependencies) with:
+#
+#   pip install -e .        ← editable install (recommended for development)
+#   pip install .           ← regular install
+#
+# This file is kept as a convenience for environments that use pip directly:
+#
+#   pip install -r requirements.txt
+
+# Web framework & server
+fastapi
+uvicorn
+pydantic
+
+# HTTP client
+requests
+
+# Binary serialisation (parameterDB protocol)
+msgpack>=1.0
+
+# Excel schedule import
+openpyxl
+
+# CAN-bus hardware interface (BrewTools Kvaser source)
+python-can
+
+# Serial hardware interface (labps3005dn / modbus-relay sources)
+pyserial>=3.5
+
+# YAML topology & data files
+pyyaml
+
+# mDNS service discovery
+zeroconf
