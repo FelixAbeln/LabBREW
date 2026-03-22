@@ -1,0 +1,324 @@
+# ParameterDB Binary Protocol API
+
+**Transport:** TCP, default port **8765** (DB service) / **8766** (data-source service)  
+**Source:** `Services/parameterDB/parameterdb_core/`, `Services/parameterDB/parameterdb_service/`
+
+ParameterDB uses a framed binary protocol built on [MessagePack](https://msgpack.org/) for efficient, low-latency parameter storage and real-time streaming. The Python client library (`parameterdb_core/client.py`) wraps this protocol and is the recommended way to interact with the service.
+
+---
+
+## Wire Format
+
+Every message is a **length-prefixed MessagePack map**.
+
+```
+┌─────────────────────────────────────┐
+│  length  (4 bytes, big-endian uint) │
+├─────────────────────────────────────┤
+│  body    (MessagePack map)          │
+└─────────────────────────────────────┘
+```
+
+### Request Envelope
+
+```msgpack
+{
+  "v":       1,           // protocol version (must be 1)
+  "req_id":  "<uuid-hex>",// optional correlation ID (string)
+  "cmd":     "<command>", // command name
+  "payload": { ... }      // command-specific parameters
+}
+```
+
+### Success Response Envelope
+
+```msgpack
+{
+  "v":      1,
+  "req_id": "<uuid-hex>",
+  "ok":     true,
+  "result": <command-specific result>,
+  "error":  null
+}
+```
+
+### Error Response Envelope
+
+```msgpack
+{
+  "v":      1,
+  "req_id": "<uuid-hex>",
+  "ok":     false,
+  "result": null,
+  "error":  {
+    "type":    "ValueError",   // Python exception class name
+    "message": "human-readable description"
+  }
+}
+```
+
+---
+
+## Python Client
+
+Two client classes are provided. Use `SignalClient` for one-shot requests and `SignalSession` for connection reuse (recommended for high-frequency access):
+
+```python
+from Services.parameterDB.parameterdb_core.client import SignalClient, SignalSession
+
+# One-shot (new TCP connection per call)
+client = SignalClient(host="127.0.0.1", port=8765)
+value = client.get_value("reactor.temp")
+
+# Persistent session (reconnects automatically)
+with SignalSession(host="127.0.0.1", port=8765, reconnect_attempts=3) as session:
+    session.set_value("reactor.temp.setpoint", 65.0)
+    value = session.get_value("reactor.temp")
+```
+
+---
+
+## Commands
+
+### `ping`
+
+**Payload:** _(empty)_  
+**Result:** `"pong"` (string)
+
+Health check.
+
+---
+
+### `stats`
+
+**Payload:** _(empty)_  
+**Result:** scan-engine statistics plus subscriber count.
+
+```json
+{
+  "scan_count": 12345,
+  "last_scan_duration_s": 0.0003,
+  "subscriber_count": 2
+}
+```
+
+---
+
+### `snapshot`
+
+**Payload:** _(empty)_  
+**Result:** map of parameter name → current value.
+
+```json
+{
+  "reactor.temp": 30.1,
+  "reactor.temp.setpoint": 35.0
+}
+```
+
+---
+
+### `describe`
+
+**Payload:** _(empty)_  
+**Result:** map of parameter name → full record (type, config, metadata, value).
+
+---
+
+### `list_parameters`
+
+**Payload:** _(empty)_  
+**Result:** list of parameter name strings.
+
+```json
+["reactor.temp", "reactor.temp.setpoint", "heater.enable"]
+```
+
+---
+
+### `create_parameter`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Unique parameter name |
+| `parameter_type` | string | yes | Type plugin name (e.g. `static`, `pid`) |
+| `value` | any | no | Initial value |
+| `config` | object | no | Type-specific configuration |
+| `metadata` | object | no | Arbitrary metadata key-value pairs |
+
+**Result:** `true` on success.
+
+```python
+client.create_parameter(
+    "reactor.temp.setpoint",
+    "static",
+    value=25.0,
+    config={},
+    metadata={"unit": "°C", "label": "Temperature Setpoint"},
+)
+```
+
+---
+
+### `delete_parameter`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Parameter name to remove |
+
+**Result:** `true` on success.
+
+---
+
+### `get_value`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Parameter name |
+| `default` | any | no | Value returned if parameter does not exist |
+
+**Result:** Current value (any JSON-compatible type).
+
+---
+
+### `set_value`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Parameter name |
+| `value` | any | yes | New value |
+
+**Result:** `true` on success.
+
+---
+
+### `update_config`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Parameter name |
+| `changes` | object | yes | Config key-value pairs to update |
+
+**Result:** `true` on success.
+
+---
+
+### `update_metadata`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Parameter name |
+| `changes` | object | yes | Metadata key-value pairs to update |
+
+**Result:** `true` on success.
+
+---
+
+### `list_parameter_types`
+
+**Payload:** _(empty)_  
+**Result:** map of type name → type descriptor.
+
+---
+
+### `get_parameter_type_ui`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `parameter_type` | string | yes | Type name |
+
+**Result:** UI metadata for the parameter type (field descriptions, defaults).
+
+---
+
+### `load_parameter_type_folder`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `folder` | string | yes | Absolute path to a plugin folder to load at runtime |
+
+**Result:** Loaded type name (string).
+
+---
+
+### `graph_info`
+
+**Payload:** _(empty)_  
+**Result:** Dependency graph information (scan order, dependencies per parameter).
+
+---
+
+## Streaming: `subscribe`
+
+The `subscribe` command upgrades the connection to a **push stream**. After the initial acknowledgement the server pushes change events whenever a subscribed parameter's value changes. The connection is one-way (server → client) after the ACK; no further requests can be sent on this socket.
+
+### Initiating a Subscription
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `names` | array of strings | no | Parameters to watch; empty/omitted = all parameters |
+| `send_initial` | boolean | no | Push current values immediately (default `true`) |
+| `max_queue` | integer | no | Max pending events per subscriber before oldest are dropped (default `1000`) |
+
+### Server Acknowledgement (first response)
+
+```json
+{"ok": true, "result": {"status": "subscribed"}, ...}
+```
+
+### Change Event (subsequent messages)
+
+```json
+{
+  "name": "reactor.temp",
+  "value": 30.5,
+  "revision": 42
+}
+```
+
+### Python Usage
+
+```python
+with client.subscribe(names=["reactor.temp", "reactor.temp.setpoint"], send_initial=True) as sub:
+    for event in sub:
+        print(event["name"], "→", event["value"])
+```
+
+---
+
+## Concurrency Notes
+
+The ParameterDB server uses four internal locks:
+
+| Lock | Scope |
+|---|---|
+| `_lock` | Parameter dict, value mutations, revision counter |
+| `_graph_lock` | Dependency graph, scan order |
+| `_state_lock` | Scan-thread lifecycle |
+| `_broker_lock` | Subscription registry |
+
+No lock is held while doing I/O. See `Services/parameterDB/LOCKING.md` for the full concurrency policy.
+
+---
+
+## Persistence
+
+The ParameterDB periodically snapshots all parameter values to a JSON file (default interval 5 s) and reloads them on startup when `restore_snapshot` is enabled. All commands are optionally recorded to a JSONL audit log.
