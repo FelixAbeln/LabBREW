@@ -38,3 +38,6 @@ pyyaml
 
 # mDNS service discovery
 zeroconf
+
+# parquet export
+pyarrow
