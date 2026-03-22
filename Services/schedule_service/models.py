@@ -85,6 +85,7 @@ class StepRuntime:
     started_monotonic: float | None = None
     started_at_utc: str | None = None
     wait_state: Any | None = None
+    pending_exit_loadsteps: set[str] = field(default_factory=set)
 
 
 @dataclass(slots=True)

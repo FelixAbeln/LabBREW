@@ -1,36 +1,40 @@
 {
-  "current_step_index": 0,
+  "current_step_index": -1,
   "event_log": [
     "Loaded schedule Lager 1 hour sped-up fermentation",
     "Run started",
     "Applied step Request control of all actuators",
     "Entered plan phase",
+    "Moved to next step",
     "Applied step Chill wort to lager pitch temp",
-    "Ownership lost; scheduler paused",
-    "Run resumed",
-    "Run paused",
-    "Run resumed"
+    "Measurement segment finalized before step Hold at pitch temp and allow pressure to stay low",
+    "Measurement segment started for step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Measurement segment finalized before step Primary fermentation hold",
+    "Measurement segment started for step Primary fermentation hold",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep LS3 for step Primary fermentation hold",
+    "Exit loadstep completed: LS3",
+    "Measurement segment finalized before step Raise spunding pressure during active fermentation",
+    "Measurement segment started for step Raise spunding pressure during active fermentation",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Run stopped; measurement file finalized",
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped; released ownership for set_pres_Fermentor",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_allow_Gas",
+    "Run stopped"
   ],
   "last_action_result": {
-    "backend_value": 20,
-    "blocked": false,
-    "current_owner": "schedule_service",
-    "ok": true,
-    "owner": "schedule_service",
-    "target": "set_spd_Agitator",
-    "value": 20,
-    "written": true
+    "deferred": true,
+    "ok": true
   },
-  "owned_target_owners": {
-    "set_allow_Gas": "schedule_service",
-    "set_pres_Fermentor": "schedule_service"
-  },
-  "owned_targets": [
-    "set_allow_Gas",
-    "set_pres_Fermentor"
-  ],
+  "owned_target_owners": {},
+  "owned_targets": [],
   "pause_reason": null,
-  "phase": "plan",
+  "phase": "idle",
   "schedule": {
     "id": "lager-1h-test-plan",
     "name": "Lager 1 hour sped-up fermentation",
@@ -52,6 +56,41 @@
             "params": {},
             "target": "set_spd_Agitator",
             "value": 20
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS1",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -85,6 +124,41 @@
             "params": {},
             "target": "set_pres_Fermentor",
             "value": 0.3
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS2",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -126,6 +200,41 @@
             "params": {},
             "target": "set_spd_Agitator",
             "value": 18
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS3",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -143,7 +252,7 @@
               "kind": "condition"
             },
             {
-              "duration_s": 900.0,
+              "duration_s": 25.0,
               "kind": "elapsed"
             }
           ],
@@ -159,6 +268,41 @@
             "params": {},
             "target": "set_pres_Fermentor",
             "value": 1
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS4",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -200,6 +344,41 @@
             "params": {},
             "target": "set_spd_Agitator",
             "value": 10
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS5",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -217,7 +396,7 @@
               "kind": "condition"
             },
             {
-              "duration_s": 900.0,
+              "duration_s": 9.0,
               "kind": "elapsed"
             }
           ],
@@ -241,6 +420,41 @@
             "params": {},
             "target": "set_allow_Gas",
             "value": 1
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS6",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -282,6 +496,41 @@
             "params": {},
             "target": "set_spd_Agitator",
             "value": 5
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS7",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -323,6 +572,41 @@
             "params": {},
             "target": "set_spd_Agitator",
             "value": 0
+          },
+          {
+            "duration_s": null,
+            "kind": "global_measurement",
+            "owner": null,
+            "params": {
+              "hz": 10.0,
+              "output_dir": "data/measurements",
+              "output_format": "parquet",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ]
+            },
+            "target": null,
+            "value": "start"
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "loadstep_name": "LS8",
+              "parameters": [
+                "brewcan.density.0",
+                "brewcan.pressure.0",
+                "brewcan.rpm.0",
+                "brewcan.temperature.0"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -394,6 +678,6 @@
       }
     ]
   },
-  "state": "running",
-  "step_started_at_utc": "2026-03-22T11:55:05.639976Z"
+  "state": "stopped",
+  "step_started_at_utc": null
 }

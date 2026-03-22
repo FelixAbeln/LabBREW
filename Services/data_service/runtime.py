@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 import threading
+import importlib.util
 from dataclasses import dataclass, field
 from typing import Any
 from collections import deque
@@ -152,18 +153,25 @@ class DataRecordingRuntime:
             if not session_name:
                 session_name = f"measurement_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
+            selected_format = str(output_format or "parquet").lower()
+            if selected_format == "parquet" and importlib.util.find_spec("pyarrow") is None:
+                self._setup_warnings.append(
+                    "pyarrow is not installed; falling back from parquet to jsonl so data is persisted."
+                )
+                selected_format = "jsonl"
+
             self.config = MeasurementConfig(
                 parameters=parameters,
                 hz=hz,
                 output_dir=output_dir,
-                output_format=output_format,
+                output_format=selected_format,
                 session_name=session_name
             )
 
             # Initialize file writer
             os.makedirs(output_dir, exist_ok=True)
             self._file_writer = FileWriterFactory.create(
-                format_type=output_format,
+                format_type=selected_format,
                 output_dir=output_dir,
                 session_name=session_name,
                 parameters=parameters
@@ -177,7 +185,8 @@ class DataRecordingRuntime:
                 "session_name": session_name,
                 "parameters": parameters,
                 "hz": hz,
-                "output_format": output_format,
+                "output_format": selected_format,
+                "output_dir": output_dir,
                 "warnings": list(self._setup_warnings),
             }
 
@@ -366,7 +375,9 @@ class DataRecordingRuntime:
                 "config": {
                     "parameters": self.config.parameters if self.config else [],
                     "hz": self.config.hz if self.config else 0,
-                    "session_name": self.config.session_name if self.config else ""
+                    "session_name": self.config.session_name if self.config else "",
+                    "output_dir": self.config.output_dir if self.config else "",
+                    "output_format": self.config.output_format if self.config else "",
                 } if self.config else None,
                 "samples_recorded": len(self._measurement_data),
                 "active_loadsteps": active_loadsteps,

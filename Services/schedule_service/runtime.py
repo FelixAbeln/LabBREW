@@ -9,6 +9,7 @@ from typing import Any
 from .._shared.operator_engine import ConditionEngine, EvaluationState, load_registry_from_package
 from .._shared.wait_engine import WaitContext, WaitEngine, WaitState, parse_wait_spec
 from .control_client import ControlClient
+from .data_client import DataClient
 from .models import RunStatus, ScheduleDefinition, ScheduleStep, StepRuntime
 from .repository import InMemoryScheduleRepository, JsonScheduleStateStore
 
@@ -18,6 +19,7 @@ class ScheduleRuntime:
         self,
         *,
         control_client: ControlClient,
+        data_client: DataClient,
         repository: InMemoryScheduleRepository | None = None,
         state_store: JsonScheduleStateStore | None = None,
         owner: str = 'schedule_service',
@@ -27,6 +29,7 @@ class ScheduleRuntime:
         registry = load_registry_from_package(f'{package_root}._shared.operator_engine.plugins')
         self.wait_engine = WaitEngine(ConditionEngine(registry))
         self.control = control_client
+        self.data = data_client
         self.repository = repository or InMemoryScheduleRepository()
         self.state_store = state_store or JsonScheduleStateStore()
         self.owner = owner
@@ -137,15 +140,27 @@ class ScheduleRuntime:
                 return {'ok': False, 'message': 'Run is not paused'}
             self._status.state = 'running'
             self._status.pause_reason = None
-            self._status.wait_message = (
-                f'Active step: {self._status.current_step_name}' if self._status.current_step_name else 'Run resumed'
-            )
+            if self._step_runtime.pending_exit_loadsteps:
+                # If we already triggered exit loadsteps, keep waiting for those completions.
+                waiting_for = ', '.join(sorted(self._step_runtime.pending_exit_loadsteps))
+                self._status.wait_message = f'Waiting for loadstep completion: {waiting_for}'
+            else:
+                self._reset_step_wait_tracking_locked()
             self._append_event('Run resumed')
             self._persist_locked()
             return {'ok': True}
 
+    def _reset_step_wait_tracking_locked(self) -> None:
+        self._step_runtime.started_monotonic = time.monotonic()
+        self._step_runtime.started_at_utc = self._utc_now_iso()
+        self._step_runtime.wait_state = WaitState(condition_state=EvaluationState())
+        self._status.wait_message = (
+            f'Active step: {self._status.current_step_name}' if self._status.current_step_name else 'Run resumed'
+        )
+
     def stop_run(self) -> dict[str, Any]:
         with self._lock:
+            self._finalize_measurement_if_recording_locked('Run stopped')
             self._release_owned_targets_locked('Run stopped')
             self._phase = 'idle'
             self._step_index = -1
@@ -249,7 +264,9 @@ class ScheduleRuntime:
                 return
 
             if wait_result.matched:
-                self._advance_step_locked(schedule)
+                ready_for_next = self._run_exit_actions_locked(step)
+                if ready_for_next:
+                    self._advance_step_locked(schedule)
                 self._persist_locked()
                 return
 
@@ -280,6 +297,20 @@ class ScheduleRuntime:
                 last_result = self.control.release_control(action.target or '', owner)
                 if last_result.get('ok') and action.target:
                     self._discard_owned_target_locked(action.target)
+            elif action.kind == 'global_measurement':
+                mode_raw = action.params.get('mode', action.value if action.value is not None else 'start')
+                mode = str(mode_raw or 'start').strip().lower()
+                if mode in {'start', 'setup_start'}:
+                    last_result = self._start_global_measurement(action, step)
+                elif mode == 'stop':
+                    last_result = self._stop_global_measurement()
+                else:
+                    raise ValueError(f'Unsupported global_measurement mode: {mode}')
+            elif action.kind == 'take_loadstep':
+                if self._action_timing(action) in {'before_next', 'on_exit'}:
+                    last_result = {'ok': True, 'deferred': True}
+                else:
+                    last_result = self._take_data_loadstep(action, step)
             else:
                 raise ValueError(f'Unsupported action kind: {action.kind}')
 
@@ -289,6 +320,162 @@ class ScheduleRuntime:
         self._step_runtime.actions_applied = True
         self._status.last_action_result = last_result
         self._append_event(f'Applied step {step.name}')
+
+    def _run_exit_actions_locked(self, step: ScheduleStep) -> bool:
+        exit_actions = [
+            action
+            for action in step.actions
+            if action.kind == 'take_loadstep' and self._action_timing(action) in {'before_next', 'on_exit'}
+        ]
+
+        if not exit_actions:
+            return True
+
+        wait_spec = parse_wait_spec(step.wait)
+        if wait_spec is None or wait_spec.kind == 'none':
+            self._append_event(f'Skipped exit loadstep for step {step.name}: no wait criteria defined')
+            return True
+
+        # Trigger exit loadsteps exactly once when wait criteria become true.
+        if not self._step_runtime.pending_exit_loadsteps:
+            pending_names: set[str] = set()
+            for action in exit_actions:
+                result = self._take_data_loadstep(action, step)
+                if not result.get('ok', False):
+                    raise RuntimeError(f'Exit action failed for {action.kind}: {result}')
+                self._status.last_action_result = result
+                loadstep_name = str(result.get('loadstep_name') or '').strip()
+                if loadstep_name:
+                    pending_names.add(loadstep_name)
+                    self._append_event(f'Started exit loadstep {loadstep_name} for step {step.name}')
+
+            if pending_names:
+                self._step_runtime.pending_exit_loadsteps = pending_names
+                waiting_for = ', '.join(sorted(pending_names))
+                self._status.wait_message = f'Waiting for loadstep completion: {waiting_for}'
+                return False
+
+            return True
+
+        data_status = self.data.status()
+        active_names = {
+            str(item)
+            for item in (data_status.get('active_loadstep_names') or [])
+            if str(item).strip()
+        }
+        completed_names = {
+            str(item.get('name'))
+            for item in (data_status.get('completed_loadsteps') or [])
+            if isinstance(item, dict) and str(item.get('name') or '').strip()
+        }
+
+        pending = set(self._step_runtime.pending_exit_loadsteps)
+        if pending and pending.issubset(completed_names) and not (pending & active_names):
+            finished = ', '.join(sorted(pending))
+            self._append_event(f'Exit loadstep completed: {finished}')
+            self._step_runtime.pending_exit_loadsteps.clear()
+            return True
+
+        active_details = []
+        for item in (data_status.get('active_loadsteps') or []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get('name') or '').strip()
+            if not name or name not in pending:
+                continue
+            remaining = item.get('remaining_seconds')
+            if remaining is None:
+                active_details.append(name)
+            else:
+                try:
+                    active_details.append(f"{name} ({max(0, int(round(float(remaining))))}s)")
+                except (TypeError, ValueError):
+                    active_details.append(name)
+
+        if active_details:
+            self._status.wait_message = f"Waiting for loadstep completion: {', '.join(active_details)}"
+        else:
+            waiting_for = ', '.join(sorted(pending))
+            self._status.wait_message = f'Waiting for loadstep completion: {waiting_for}'
+        return False
+
+    def _action_timing(self, action: Any) -> str:
+        params = action.params if isinstance(action.params, dict) else {}
+        return str(params.get('timing', 'on_enter')).strip().lower()
+
+    def _start_global_measurement(self, action: Any, step: ScheduleStep) -> dict[str, Any]:
+        status = self.data.status()
+        if bool(status.get('recording')):
+            return {'ok': True, 'message': 'Measurement already recording; skipped setup/start'}
+
+        params = action.params if isinstance(action.params, dict) else {}
+        configured_parameters = params.get('parameters')
+        if isinstance(configured_parameters, list) and configured_parameters:
+            parameters = [str(item) for item in configured_parameters if str(item).strip()]
+        else:
+            snapshot = self.control.snapshot()
+            values = snapshot.get('values') if isinstance(snapshot, dict) else {}
+            parameters = sorted(values.keys()) if isinstance(values, dict) else []
+
+        if not parameters:
+            raise RuntimeError('global_measurement start requires parameters or a non-empty control snapshot')
+
+        hz = float(params.get('hz', 10.0))
+        output_dir = str(params.get('output_dir', 'data/measurements'))
+        output_format = str(params.get('output_format', 'parquet'))
+        session_name = str(params.get('session_name') or self._default_data_name(step, suffix=''))
+
+        setup_result = self.data.setup_measurement(
+            parameters=parameters,
+            hz=hz,
+            output_dir=output_dir,
+            output_format=output_format,
+            session_name=session_name,
+        )
+        if not setup_result.get('ok', False):
+            raise RuntimeError(f'global_measurement setup failed: {setup_result}')
+
+        start_result = self.data.measure_start()
+        if not start_result.get('ok', False):
+            raise RuntimeError(f'global_measurement start failed: {start_result}')
+        return start_result
+
+    def _stop_global_measurement(self) -> dict[str, Any]:
+        status = self.data.status()
+        if not bool(status.get('recording')):
+            return {'ok': True, 'message': 'Measurement already stopped; skipped stop'}
+        return self.data.measure_stop()
+
+    def _take_data_loadstep(self, action: Any, step: ScheduleStep) -> dict[str, Any]:
+        params = action.params if isinstance(action.params, dict) else {}
+        duration = params.get('duration_seconds', action.duration_s)
+        duration_seconds = float(duration if duration is not None else 30.0)
+        loadstep_name = str(params.get('loadstep_name') or self._default_data_name(step, suffix='ls'))
+
+        loadstep_parameters_raw = params.get('parameters')
+        loadstep_parameters = None
+        if isinstance(loadstep_parameters_raw, list):
+            parsed = [str(item) for item in loadstep_parameters_raw if str(item).strip()]
+            loadstep_parameters = parsed or None
+
+        return self.data.take_loadstep(
+            duration_seconds=duration_seconds,
+            loadstep_name=loadstep_name,
+            parameters=loadstep_parameters,
+        )
+
+    def _default_data_name(self, step: ScheduleStep, suffix: str = '') -> str:
+        schedule_slug = self._slugify(self._status.schedule_id or 'schedule')
+        step_slug = self._slugify(step.id or step.name or f'{self._phase}_{self._step_index}')
+        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+        suffix_part = f'_{suffix}' if suffix else ''
+        return f'scheduling_{schedule_slug}_{step_slug}{suffix_part}_{timestamp}'
+
+    def _slugify(self, value: str) -> str:
+        cleaned = ''.join(ch if ch.isalnum() else '_' for ch in str(value).strip().lower())
+        while '__' in cleaned:
+            cleaned = cleaned.replace('__', '_')
+        return cleaned.strip('_') or 'item'
 
     def _collect_values(self, step: ScheduleStep) -> dict[str, Any]:
         values: dict[str, Any] = {}
@@ -341,6 +528,7 @@ class ScheduleRuntime:
         steps = self._phase_steps(schedule)
         next_index = self._next_enabled_index(steps, self._step_index + 1)
         if next_index >= 0:
+            self._rollover_measurement_for_next_step_locked(steps[next_index])
             self._step_index = next_index
             self._activate_step_locked()
             if manual:
@@ -371,11 +559,15 @@ class ScheduleRuntime:
 
     def _advance_phase_or_complete_locked(self, schedule: ScheduleDefinition) -> None:
         if self._phase == 'setup' and self._enabled_steps(schedule.plan_steps):
+            first_plan_index = self._first_enabled_index(schedule.plan_steps)
+            if first_plan_index >= 0:
+                self._rollover_measurement_for_next_step_locked(schedule.plan_steps[first_plan_index])
             self._phase = 'plan'
-            self._step_index = self._first_enabled_index(schedule.plan_steps)
+            self._step_index = first_plan_index
             self._activate_step_locked()
             self._append_event('Entered plan phase')
             return
+        self._finalize_measurement_if_recording_locked('Run completed')
         self._release_owned_targets_locked('Run completed')
         self._status.state = 'completed'
         self._status.phase = self._phase
@@ -431,6 +623,60 @@ class ScheduleRuntime:
     def _append_event(self, text: str) -> None:
         self._status.event_log.append(text)
         self._status.event_log = self._status.event_log[-100:]
+
+    def _finalize_measurement_if_recording_locked(self, context: str) -> None:
+        try:
+            status = self.data.status()
+            if not bool(status.get('recording')):
+                return
+            result = self.data.measure_stop()
+            if result.get('ok', False):
+                self._append_event(f'{context}; measurement file finalized')
+            else:
+                self._append_event(f"{context}; measurement finalize failed: {result}")
+        except Exception as exc:  # pragma: no cover
+            self._append_event(f'{context}; measurement finalize failed: {exc}')
+
+    def _rollover_measurement_for_next_step_locked(self, next_step: ScheduleStep) -> None:
+        try:
+            status = self.data.status()
+        except Exception as exc:  # pragma: no cover
+            self._append_event(f'Measurement rollover skipped; status unavailable: {exc}')
+            return
+
+        if not bool(status.get('recording')):
+            return
+
+        config = status.get('config') if isinstance(status.get('config'), dict) else {}
+        parameters = [str(item) for item in (config.get('parameters') or []) if str(item).strip()]
+        hz = float(config.get('hz') or 10.0)
+        output_dir = str(config.get('output_dir') or 'data/measurements')
+        output_format = str(config.get('output_format') or 'jsonl')
+
+        stop_result = self.data.measure_stop()
+        if not stop_result.get('ok', False):
+            raise RuntimeError(f'Measurement rollover stop failed: {stop_result}')
+        self._append_event(f'Measurement segment finalized before step {next_step.name}')
+
+        if not parameters:
+            self._append_event('Measurement rollover skipped restart because parameters are missing')
+            return
+
+        session_name = self._default_data_name(next_step, suffix='')
+        setup_result = self.data.setup_measurement(
+            parameters=parameters,
+            hz=hz,
+            output_dir=output_dir,
+            output_format=output_format,
+            session_name=session_name,
+        )
+        if not setup_result.get('ok', False):
+            raise RuntimeError(f'Measurement rollover setup failed: {setup_result}')
+
+        start_result = self.data.measure_start()
+        if not start_result.get('ok', False):
+            raise RuntimeError(f'Measurement rollover start failed: {start_result}')
+        self._append_event(f'Measurement segment started for step {next_step.name}')
 
     def _persist_locked(self) -> None:
         schedule = self.repository.get_current()

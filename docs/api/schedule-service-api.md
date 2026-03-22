@@ -5,6 +5,8 @@
 
 The Schedule Service executes multi-step fermentation schedules. A schedule has two phases: **setup** (run once at start) and **plan** (the main repeating sequence). Each step can carry a list of control actions and an optional wait condition that gates progression to the next step.
 
+The runtime can call both Control Service and Data Service backends. This allows schedule steps to apply setpoints and trigger recording/loadstep operations in the same sequence.
+
 ---
 
 ## Data Models
@@ -60,6 +62,29 @@ The Schedule Service executes multi-step fermentation schedules. A schedule has 
 |---|---|
 | `set` / `write` | Write `value` to `target` immediately via the Control Service |
 | `ramp` | Linearly ramp `target` from its current value to `value` over `duration_s` seconds |
+| `request_control` | Request ownership of `target` via the Control Service |
+| `release_control` | Release ownership of `target` via the Control Service |
+| `global_measurement` | Start/stop Data Service recording session (`value` or `params.mode`: `start`, `setup_start`, `stop`) |
+| `take_loadstep` | Trigger Data Service loadstep averaging (`duration_s` / `params.duration_seconds`) |
+
+For `global_measurement=start`, optional `params` include:
+
+- `parameters`: list of parameter names (if omitted, scheduler auto-uses control snapshot keys)
+- `hz`: sample rate (default `10`)
+- `output_dir`: output directory (default `data/measurements`)
+- `output_format`: `parquet`, `csv`, `jsonl` (default `parquet`)
+- `session_name`: explicit measurement name (default is generated from schedule id + UTC time)
+
+Runtime behavior is idempotent:
+
+- If `global_measurement=start` is called while recording is already active, scheduler keeps the existing recording and does not fault.
+- If `global_measurement=stop` is called while recording is already stopped, scheduler treats it as a no-op.
+
+For `take_loadstep`, optional `params` include:
+
+- `loadstep_name`: explicit name (default is generated from schedule id + UTC time)
+- `parameters`: subset list to average (defaults to active measurement parameters)
+- `timing`: `on_enter` (default) or `before_next`/`on_exit` to capture right before step transition
 
 ---
 

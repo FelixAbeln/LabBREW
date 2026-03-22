@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-VALID_ACTION_KINDS = {'request_control', 'write', 'ramp', 'release_control'}
+VALID_ACTION_KINDS = {'request_control', 'write', 'ramp', 'release_control', 'global_measurement', 'take_loadstep'}
 VALID_WAIT_KINDS = {None, 'elapsed', 'condition', 'all_of', 'any_of'}
 VALID_OPERATORS = {'==', '!=', '>', '>=', '<', '<='}
 
@@ -24,6 +24,17 @@ def _validate_action(action: dict[str, Any], prefix: str, errors: list[str]) -> 
             errors.append(f"{prefix}: value is required for ramp")
         if action.get('duration_s') in (None, ''):
             errors.append(f"{prefix}: duration_s is required for ramp")
+
+    if kind == 'global_measurement':
+        mode = str(action.get('value') or (action.get('params') or {}).get('mode') or 'start').strip().lower()
+        if mode not in {'start', 'setup_start', 'stop'}:
+            errors.append(f"{prefix}: global_measurement mode must be one of ['start', 'setup_start', 'stop']")
+
+    if kind == 'take_loadstep':
+        if action.get('duration_s') in (None, ''):
+            params = action.get('params') if isinstance(action.get('params'), dict) else {}
+            if params.get('duration_seconds') in (None, ''):
+                errors.append(f"{prefix}: duration_s (or params.duration_seconds) is required for take_loadstep")
 
 
 def _validate_wait(wait: dict[str, Any] | None, prefix: str, errors: list[str]) -> None:

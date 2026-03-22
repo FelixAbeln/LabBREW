@@ -20,6 +20,7 @@ _ALLOWED_SERVICE_KEYS = {
     "docs",
     "listen",
     "backend",
+    "backends",
     "static_args",
     "advertise_as",
     "env",
@@ -68,16 +69,36 @@ class YamlTopologyLoader:
                 for cap_name in advertise_as
             )
 
+            backends_raw = raw.get("backends")
             backend = raw.get("backend")
-            requires = (str(backend),) if backend else ()
-            capability_arg_rules = (
+            backend_mappings: list[tuple[str, str, str]] = []
+
+            if isinstance(backends_raw, dict) and backends_raw:
+                for capability_name, mapping in backends_raw.items():
+                    if not isinstance(mapping, dict):
+                        raise ValueError(
+                            f"Service '{name}'.backends['{capability_name}'] must be a mapping"
+                        )
+                    host_flag = str(mapping.get("host_flag") or "").strip()
+                    port_flag = str(mapping.get("port_flag") or "").strip()
+                    if not host_flag or not port_flag:
+                        raise ValueError(
+                            f"Service '{name}'.backends['{capability_name}'] requires host_flag and port_flag"
+                        )
+                    backend_mappings.append((str(capability_name), host_flag, port_flag))
+            elif backend:
+                backend_mappings.append((str(backend), "--backend-host", "--backend-port"))
+
+            requires = tuple(capability for capability, _, _ in backend_mappings)
+            capability_arg_rules = tuple(
                 CapabilityArgRule(
-                    capability=str(backend),
+                    capability=capability,
                     mode="host_port",
-                    host_flag="--backend-host",
-                    port_flag="--backend-port",
-                ),
-            ) if backend else ()
+                    host_flag=host_flag,
+                    port_flag=port_flag,
+                )
+                for capability, host_flag, port_flag in backend_mappings
+            )
 
             # Bind args come from the new listen block. This is what prevents services
             # from silently falling back to their internal default port.
@@ -123,7 +144,7 @@ class YamlTopologyLoader:
             joined = ", ".join(legacy)
             raise ValueError(
                 f"Service '{service_name}' uses legacy config key(s): {joined}. "
-                "Use only the new schema: module, docs, listen, backend, static_args, advertise_as, env, "
+                "Use only the new schema: module, docs, listen, backend, backends, static_args, advertise_as, env, "
                 "startup_timeout_s, restart_backoff_s, enabled"
             )
 
@@ -157,3 +178,23 @@ class YamlTopologyLoader:
         backend = raw.get("backend")
         if backend is not None and not isinstance(backend, str):
             raise ValueError(f"Service '{service_name}'.backend must be a string or null")
+
+        backends = raw.get("backends")
+        if backends is not None:
+            if not isinstance(backends, dict):
+                raise ValueError(f"Service '{service_name}'.backends must be a mapping")
+            for capability_name, mapping in backends.items():
+                if not isinstance(mapping, dict):
+                    raise ValueError(
+                        f"Service '{service_name}'.backends['{capability_name}'] must be a mapping"
+                    )
+                host_flag = mapping.get("host_flag")
+                port_flag = mapping.get("port_flag")
+                if not isinstance(host_flag, str) or not host_flag.strip():
+                    raise ValueError(
+                        f"Service '{service_name}'.backends['{capability_name}'].host_flag must be a non-empty string"
+                    )
+                if not isinstance(port_flag, str) or not port_flag.strip():
+                    raise ValueError(
+                        f"Service '{service_name}'.backends['{capability_name}'].port_flag must be a non-empty string"
+                    )

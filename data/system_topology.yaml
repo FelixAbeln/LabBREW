@@ -48,7 +48,13 @@ services:
       port: 8768
       proto: http
       path: /
-    backend: control_service
+    backends:
+      control_service:
+        host_flag: --backend-host
+        port_flag: --backend-port
+      data_service:
+        host_flag: --data-backend-host
+        port_flag: --data-backend-port
     static_args: []
     advertise_as:
       - schedule_service
