@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parameterdb"
+version = "0.3.1"
+description = "A scan-cycle parameter service with pluggable parameter types and per-plugin UI contracts"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Felix Abeln"}]
+dependencies = ["msgpack>=1.0", "pyserial>=3.5"]
+
+[project.scripts]
+parameterdb-service = "parameterdb_service.service:main"
+parameterdb-monitor = "parameterdb_monitor.app:main"
+parameterdb-source-runner = "parameterdb_sources.runner:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["parameterdb_core*", "parameterdb_service*", "parameterdb_monitor*", "parameterdb_sources*"]

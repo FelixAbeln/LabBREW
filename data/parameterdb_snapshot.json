@@ -1,0 +1,1670 @@
+{
+  "format_version": 1,
+  "parameters": {
+    "brewcan.agitator.0.set_pwm": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "node_id": 0,
+        "node_type": "agitator",
+        "owner": "brewtools_can_demo",
+        "role": "command",
+        "source_type": "brewtools_kvaser",
+        "unit": "%"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 5.498384188973128
+    },
+    "brewcan.connected": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "owner": "brewtools_can_demo",
+        "role": "status",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": true
+    },
+    "brewcan.density.0": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "kind": "density",
+        "node_id": 0,
+        "owner": "brewtools_can_demo",
+        "role": "measurement",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 1.052157998085022
+    },
+    "brewcan.last_can_id": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "owner": "brewtools_can_demo",
+        "role": "status",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": "0x8304011"
+    },
+    "brewcan.last_error": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "owner": "brewtools_can_demo",
+        "role": "status",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": ""
+    },
+    "brewcan.last_frame_utc": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "owner": "brewtools_can_demo",
+        "role": "status",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": "2026-03-22T14:59:07.224086Z"
+    },
+    "brewcan.last_msg_type": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "owner": "brewtools_can_demo",
+        "role": "status",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 17
+    },
+    "brewcan.last_node_id": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "owner": "brewtools_can_demo",
+        "role": "status",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0
+    },
+    "brewcan.level.0": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "kind": "level",
+        "node_id": 0,
+        "owner": "brewtools_can_demo",
+        "role": "measurement",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.6208950281143188
+    },
+    "brewcan.pressure.0": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "kind": "pressure",
+        "node_id": 0,
+        "owner": "brewtools_can_demo",
+        "role": "measurement",
+        "source_type": "brewtools_kvaser",
+        "unit": "bar"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.2937631905078888
+    },
+    "brewcan.rpm.0": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "kind": "rpm",
+        "node_id": 0,
+        "owner": "brewtools_can_demo",
+        "role": "measurement",
+        "source_type": "brewtools_kvaser",
+        "unit": "rpm"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 21.0
+    },
+    "brewcan.temperature.0": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "kind": "temperature",
+        "node_id": 0,
+        "owner": "brewtools_can_demo",
+        "role": "measurement",
+        "source_type": "brewtools_kvaser",
+        "unit": "C"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 14.002314567565918
+    },
+    "dbc_press_Fermenter_Hi": {
+      "config": {
+        "direction": "above",
+        "enable_param": "",
+        "off_offset": 0.1,
+        "on_offset": 0.15,
+        "output_params": "relay.ch4",
+        "pv": "brewcan.pressure.0",
+        "sp": "set_pres_Fermentor"
+      },
+      "metadata": {},
+      "parameter_type": "deadband",
+      "state": {
+        "direction": "above",
+        "enabled": true,
+        "off_offset": 0.1,
+        "off_threshold": 0.30000000000000004,
+        "on_offset": 0.15,
+        "on_threshold": 0.35,
+        "output_targets": [
+          "relay.ch4"
+        ],
+        "pv": 0.2937631905078888,
+        "sp": 0.2
+      },
+      "value": false
+    },
+    "dbc_press_Fermenter_Lo": {
+      "config": {
+        "direction": "below",
+        "enable_param": "set_allow_Gas",
+        "off_offset": 0.1,
+        "on_offset": 0.15,
+        "output_params": "relay.ch3",
+        "pv": "brewcan.pressure.0",
+        "sp": "set_pres_Fermentor"
+      },
+      "metadata": {},
+      "parameter_type": "deadband",
+      "state": {
+        "direction": "below",
+        "enabled": true,
+        "off_offset": 0.1,
+        "off_threshold": 0.1,
+        "on_offset": 0.15,
+        "on_threshold": 0.05000000000000002,
+        "output_targets": [
+          "relay.ch3"
+        ],
+        "pv": 0.2937631905078888,
+        "sp": 0.2
+      },
+      "value": false
+    },
+    "dbc_temp_Fermentor_Hi": {
+      "config": {
+        "direction": "above",
+        "enable_param": "",
+        "off_offset": 0.5,
+        "on_offset": 1.0,
+        "output_params": "relay.ch2",
+        "pv": "brewcan.temperature.0",
+        "sp": "set_temp_Fermentor"
+      },
+      "metadata": {},
+      "parameter_type": "deadband",
+      "state": {
+        "direction": "above",
+        "enabled": true,
+        "off_offset": 0.5,
+        "off_threshold": 10.5,
+        "on_offset": 1.0,
+        "on_threshold": 11.0,
+        "output_targets": [
+          "relay.ch2"
+        ],
+        "pv": 14.002314567565918,
+        "sp": 10.0
+      },
+      "value": true
+    },
+    "dbc_temp_Fermentter_Lo": {
+      "config": {
+        "direction": "below",
+        "enable_param": "",
+        "off_offset": 0.5,
+        "on_offset": 1.0,
+        "output_params": "relay.ch1",
+        "pv": "brewcan.temperature.0",
+        "sp": "set_temp_Fermentor"
+      },
+      "metadata": {},
+      "parameter_type": "deadband",
+      "state": {
+        "direction": "below",
+        "enabled": true,
+        "off_offset": 0.5,
+        "off_threshold": 9.5,
+        "on_offset": 1.0,
+        "on_threshold": 9.0,
+        "output_targets": [
+          "relay.ch1"
+        ],
+        "pv": 14.002314567565918,
+        "sp": 10.0
+      },
+      "value": false
+    },
+    "pid_agitator": {
+      "config": {
+        "bias": 0.0,
+        "enable_param": "",
+        "kd": 0.0,
+        "ki": 0.02,
+        "kp": 0.02,
+        "manual_out": 0.0,
+        "manual_out_param": "",
+        "mode_param": "",
+        "out_max": 100.0,
+        "out_min": 0.0,
+        "output_params": "brewcan.agitator.0.set_pwm",
+        "pv": "brewcan.rpm.0",
+        "sp": "set_spd_Agitator"
+      },
+      "metadata": {},
+      "parameter_type": "pid",
+      "state": {
+        "enabled": true,
+        "error": -1.0,
+        "integral": 275.9192094486564,
+        "mode": "auto",
+        "output_targets": [
+          "brewcan.agitator.0.set_pwm"
+        ],
+        "prev_error": -1.0,
+        "pv": 21.0,
+        "sp": 20.0
+      },
+      "value": 5.498384188973128
+    },
+    "psu.connected": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": true
+    },
+    "psu.idn": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": "QJE3005PV1.0"
+    },
+    "psu.last_error": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": ""
+    },
+    "psu.meas_current": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "measurement",
+        "source_type": "labps3005dn",
+        "unit": "A"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.026
+    },
+    "psu.meas_voltage": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "measurement",
+        "source_type": "labps3005dn",
+        "unit": "V"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 24.0
+    },
+    "psu.mode": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": "CV"
+    },
+    "psu.output_state": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "psu.protection": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "psu.set_current": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "command",
+        "source_type": "labps3005dn",
+        "unit": "A"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 5
+    },
+    "psu.set_enable": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "command",
+        "source_type": "labps3005dn",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "psu.set_voltage": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "command",
+        "source_type": "labps3005dn",
+        "unit": "V"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 24
+    },
+    "psu.status_raw": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": "100"
+    },
+    "relay.ch1": {
+      "config": {},
+      "metadata": {
+        "channel": 1,
+        "comment": "",
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "relay.ch2": {
+      "config": {},
+      "metadata": {
+        "channel": 2,
+        "comment": "",
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": true
+    },
+    "relay.ch3": {
+      "config": {},
+      "metadata": {
+        "channel": 3,
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "relay.ch4": {
+      "config": {},
+      "metadata": {
+        "channel": 4,
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "relay.ch5": {
+      "config": {},
+      "metadata": {
+        "channel": 5,
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "relay.ch6": {
+      "config": {},
+      "metadata": {
+        "channel": 6,
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "relay.ch7": {
+      "config": {},
+      "metadata": {
+        "channel": 7,
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "relay.ch8": {
+      "config": {},
+      "metadata": {
+        "channel": 8,
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "relay_state",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "relay.connected": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "status",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": true
+    },
+    "relay.last_error": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "status",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": ""
+    },
+    "relay.last_sync": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "modbus_relay",
+        "owner": "relay_demo",
+        "role": "status",
+        "source_type": "modbus_relay"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": "2026-03-22T14:59:06.988942Z"
+    },
+    "set_allow_Gas": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 1
+    },
+    "set_pres_Fermentor": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.2
+    },
+    "set_spd_Agitator": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "unit": "rpm"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 20
+    },
+    "set_temp_Fermentor": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 10.0
+    },
+    "system.time.iso": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "owner": "clock_main",
+        "role": "timestamp",
+        "source_type": "system_time"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": "2026-03-22T14:59:07.111332+00:00"
+    },
+    "test": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0
+    },
+    "twin.connected": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "owner": "twin",
+        "role": "status",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": true
+    },
+    "twin.last_error": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "owner": "twin",
+        "role": "status",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": ""
+    },
+    "twin.outputs.est_AA": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_AA",
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 4.884588330308373
+    },
+    "twin.outputs.est_ABV": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_ABV",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.35202428698539734
+    },
+    "twin.outputs.est_ABV_Balling": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_ABV_Balling",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.3755308077192914
+    },
+    "twin.outputs.est_BiomassAllocationFraction": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_BiomassAllocationFraction",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 3.5267752811229554e-10
+    },
+    "twin.outputs.est_OG": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_OG",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 1.0549092292785645
+    },
+    "twin.outputs.est_RA": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_RA",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 3.826411305196516
+    },
+    "twin.outputs.est_T1": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_T1",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -0.1994235265923955
+    },
+    "twin.outputs.est_T2": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_T2",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -284.0259149942209
+    },
+    "twin.outputs.est_concYeastCells": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_concYeastCells",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 3.749999985305106e+17
+    },
+    "twin.outputs.est_m3Beer": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_m3Beer",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -3.4836742481005016
+    },
+    "twin.outputs.est_m3Headspace": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_m3Headspace",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 3.9577892563351513
+    },
+    "twin.outputs.est_mCO2Added": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2Added",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.24561686940121652
+    },
+    "twin.outputs.est_mCO2Addflow": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2Addflow",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.0
+    },
+    "twin.outputs.est_mCO2Bubbles": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2Bubbles",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.0
+    },
+    "twin.outputs.est_mCO2Dissolved": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2Dissolved",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -284.0312300518193
+    },
+    "twin.outputs.est_mCO2DissolvedEQ": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2DissolvedEQ",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -0.003888990769247011
+    },
+    "twin.outputs.est_mCO2FromGasModel": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2FromGasModel",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -284.2253385208133
+    },
+    "twin.outputs.est_mCO2Head": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2Head",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -0.1933081785369675
+    },
+    "twin.outputs.est_mCO2ProducedFromSugar": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2ProducedFromSugar",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -6.537225364716006
+    },
+    "twin.outputs.est_mCO2ProductionRate": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2ProductionRate",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.03761655238849471
+    },
+    "twin.outputs.est_mCO2Vented": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2Vented",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 71.36740809656204
+    },
+    "twin.outputs.est_mCO2Ventflow": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mCO2Ventflow",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.0
+    },
+    "twin.outputs.est_mEthanolFomSugar": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mEthanolFomSugar",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -6.842465459566559
+    },
+    "twin.outputs.est_mEthanolProductionRate": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mEthanolProductionRate",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.03937296728601202
+    },
+    "twin.outputs.est_mSugarConsumed": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mSugarConsumed",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -12.7183372854397
+    },
+    "twin.outputs.est_mSugarConusmptionRate": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mSugarConusmptionRate",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.05
+    },
+    "twin.outputs.est_mSugarRemaining": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mSugarRemaining",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": -453.8041887019983
+    },
+    "twin.outputs.est_mYeastBiomas": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mYeastBiomas",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 0.017999999929464508
+    },
+    "twin.outputs.est_mYeastGrowthRate": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_mYeastGrowthRate",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 1.763387640561478e-12
+    },
+    "twin.outputs.est_nYeastCells": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_nYeastCells",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 374999998530.5106
+    },
+    "twin.outputs.est_oxygenIndex": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "fmu_output": "est_oxygenIndex",
+        "managed_output": true,
+        "owner": "twin",
+        "role": "twin_output",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": 7.053550811008797e-09
+    },
+    "twin.reset": {
+      "config": {},
+      "metadata": {
+        "comment": "",
+        "control_action": "reset_twin",
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "owner": "twin",
+        "role": "control",
+        "source_type": "digital_twin",
+        "unit": ""
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": false
+    },
+    "twin.status": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "owner": "twin",
+        "role": "status",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {},
+      "value": {
+        "discovered_inputs": [
+          {
+            "causality": "input",
+            "description": "",
+            "name": "in_T_c",
+            "type": "Real",
+            "value_reference": 127
+          },
+          {
+            "causality": "input",
+            "description": "",
+            "name": "in_gravity_sg",
+            "type": "Real",
+            "value_reference": 128
+          },
+          {
+            "causality": "input",
+            "description": "",
+            "name": "in_level",
+            "type": "Real",
+            "value_reference": 129
+          },
+          {
+            "causality": "input",
+            "description": "",
+            "name": "in_pressure_bar",
+            "type": "Real",
+            "value_reference": 130
+          },
+          {
+            "causality": "input",
+            "description": "",
+            "name": "in_GasOpen",
+            "type": "Boolean",
+            "value_reference": 10
+          },
+          {
+            "causality": "input",
+            "description": "",
+            "name": "in_VentOpen",
+            "type": "Boolean",
+            "value_reference": 11
+          }
+        ],
+        "discovered_outputs": [
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_AA",
+            "type": "Real",
+            "value_reference": 68
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_ABV",
+            "type": "Real",
+            "value_reference": 69
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_ABV_Balling",
+            "type": "Real",
+            "value_reference": 70
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_BiomassAllocationFraction",
+            "type": "Real",
+            "value_reference": 71
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_OG",
+            "type": "Real",
+            "value_reference": 72
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_RA",
+            "type": "Real",
+            "value_reference": 73
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_T1",
+            "type": "Real",
+            "value_reference": 74
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_T2",
+            "type": "Real",
+            "value_reference": 75
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_concYeastCells",
+            "type": "Real",
+            "value_reference": 76
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_m3Beer",
+            "type": "Real",
+            "value_reference": 77
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_m3Headspace",
+            "type": "Real",
+            "value_reference": 78
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2Added",
+            "type": "Real",
+            "value_reference": 79
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2Addflow",
+            "type": "Real",
+            "value_reference": 80
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2Bubbles",
+            "type": "Real",
+            "value_reference": 81
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2Dissolved",
+            "type": "Real",
+            "value_reference": 82
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2DissolvedEQ",
+            "type": "Real",
+            "value_reference": 83
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2FromGasModel",
+            "type": "Real",
+            "value_reference": 84
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2Head",
+            "type": "Real",
+            "value_reference": 85
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2ProducedFromSugar",
+            "type": "Real",
+            "value_reference": 86
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2ProductionRate",
+            "type": "Real",
+            "value_reference": 87
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2Vented",
+            "type": "Real",
+            "value_reference": 88
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mCO2Ventflow",
+            "type": "Real",
+            "value_reference": 89
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mEthanolFomSugar",
+            "type": "Real",
+            "value_reference": 90
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mEthanolProductionRate",
+            "type": "Real",
+            "value_reference": 91
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mSugarConsumed",
+            "type": "Real",
+            "value_reference": 92
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mSugarConusmptionRate",
+            "type": "Real",
+            "value_reference": 93
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mSugarRemaining",
+            "type": "Real",
+            "value_reference": 94
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mYeastBiomas",
+            "type": "Real",
+            "value_reference": 95
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_mYeastGrowthRate",
+            "type": "Real",
+            "value_reference": 96
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_nYeastCells",
+            "type": "Real",
+            "value_reference": 97
+          },
+          {
+            "causality": "output",
+            "description": "",
+            "name": "est_oxygenIndex",
+            "type": "Real",
+            "value_reference": 98
+          }
+        ],
+        "fmu_path": "f:\\brewsys\\brewtools lib\\brewtools_testutil_modular\\controller.fmu",
+        "input_count": 6,
+        "inputs": {
+          "in_GasOpen": 0.0,
+          "in_T_c": 13.99781608581543,
+          "in_VentOpen": 0.0,
+          "in_gravity_sg": 1.0522109270095825,
+          "in_level": 13.99781608581543,
+          "in_pressure_bar": 0.2916356325149536
+        },
+        "last_dt_s": 0.29645179997896776,
+        "last_reset_reason": "",
+        "last_status_text": "Estimator running (Controller)",
+        "last_step_age_s": 0.004574400023557246,
+        "managed_output_targets": {
+          "est_AA": "twin.outputs.est_AA",
+          "est_ABV": "twin.outputs.est_ABV",
+          "est_ABV_Balling": "twin.outputs.est_ABV_Balling",
+          "est_BiomassAllocationFraction": "twin.outputs.est_BiomassAllocationFraction",
+          "est_OG": "twin.outputs.est_OG",
+          "est_RA": "twin.outputs.est_RA",
+          "est_T1": "twin.outputs.est_T1",
+          "est_T2": "twin.outputs.est_T2",
+          "est_concYeastCells": "twin.outputs.est_concYeastCells",
+          "est_m3Beer": "twin.outputs.est_m3Beer",
+          "est_m3Headspace": "twin.outputs.est_m3Headspace",
+          "est_mCO2Added": "twin.outputs.est_mCO2Added",
+          "est_mCO2Addflow": "twin.outputs.est_mCO2Addflow",
+          "est_mCO2Bubbles": "twin.outputs.est_mCO2Bubbles",
+          "est_mCO2Dissolved": "twin.outputs.est_mCO2Dissolved",
+          "est_mCO2DissolvedEQ": "twin.outputs.est_mCO2DissolvedEQ",
+          "est_mCO2FromGasModel": "twin.outputs.est_mCO2FromGasModel",
+          "est_mCO2Head": "twin.outputs.est_mCO2Head",
+          "est_mCO2ProducedFromSugar": "twin.outputs.est_mCO2ProducedFromSugar",
+          "est_mCO2ProductionRate": "twin.outputs.est_mCO2ProductionRate",
+          "est_mCO2Vented": "twin.outputs.est_mCO2Vented",
+          "est_mCO2Ventflow": "twin.outputs.est_mCO2Ventflow",
+          "est_mEthanolFomSugar": "twin.outputs.est_mEthanolFomSugar",
+          "est_mEthanolProductionRate": "twin.outputs.est_mEthanolProductionRate",
+          "est_mSugarConsumed": "twin.outputs.est_mSugarConsumed",
+          "est_mSugarConusmptionRate": "twin.outputs.est_mSugarConusmptionRate",
+          "est_mSugarRemaining": "twin.outputs.est_mSugarRemaining",
+          "est_mYeastBiomas": "twin.outputs.est_mYeastBiomas",
+          "est_mYeastGrowthRate": "twin.outputs.est_mYeastGrowthRate",
+          "est_nYeastCells": "twin.outputs.est_nYeastCells",
+          "est_oxygenIndex": "twin.outputs.est_oxygenIndex"
+        },
+        "missing_inputs": [],
+        "missing_output_targets": {},
+        "model_name": "Controller",
+        "output_count": 31,
+        "output_targets": {
+          "est_AA": [
+            "twin.outputs.est_AA"
+          ],
+          "est_ABV": [
+            "twin.outputs.est_ABV"
+          ],
+          "est_ABV_Balling": [
+            "twin.outputs.est_ABV_Balling"
+          ],
+          "est_BiomassAllocationFraction": [
+            "twin.outputs.est_BiomassAllocationFraction"
+          ],
+          "est_OG": [
+            "twin.outputs.est_OG"
+          ],
+          "est_RA": [
+            "twin.outputs.est_RA"
+          ],
+          "est_T1": [
+            "twin.outputs.est_T1"
+          ],
+          "est_T2": [
+            "twin.outputs.est_T2"
+          ],
+          "est_concYeastCells": [
+            "twin.outputs.est_concYeastCells"
+          ],
+          "est_m3Beer": [
+            "twin.outputs.est_m3Beer"
+          ],
+          "est_m3Headspace": [
+            "twin.outputs.est_m3Headspace"
+          ],
+          "est_mCO2Added": [
+            "twin.outputs.est_mCO2Added"
+          ],
+          "est_mCO2Addflow": [
+            "twin.outputs.est_mCO2Addflow"
+          ],
+          "est_mCO2Bubbles": [
+            "twin.outputs.est_mCO2Bubbles"
+          ],
+          "est_mCO2Dissolved": [
+            "twin.outputs.est_mCO2Dissolved"
+          ],
+          "est_mCO2DissolvedEQ": [
+            "twin.outputs.est_mCO2DissolvedEQ"
+          ],
+          "est_mCO2FromGasModel": [
+            "twin.outputs.est_mCO2FromGasModel"
+          ],
+          "est_mCO2Head": [
+            "twin.outputs.est_mCO2Head"
+          ],
+          "est_mCO2ProducedFromSugar": [
+            "twin.outputs.est_mCO2ProducedFromSugar"
+          ],
+          "est_mCO2ProductionRate": [
+            "twin.outputs.est_mCO2ProductionRate"
+          ],
+          "est_mCO2Vented": [
+            "twin.outputs.est_mCO2Vented"
+          ],
+          "est_mCO2Ventflow": [
+            "twin.outputs.est_mCO2Ventflow"
+          ],
+          "est_mEthanolFomSugar": [
+            "twin.outputs.est_mEthanolFomSugar"
+          ],
+          "est_mEthanolProductionRate": [
+            "twin.outputs.est_mEthanolProductionRate"
+          ],
+          "est_mSugarConsumed": [
+            "twin.outputs.est_mSugarConsumed"
+          ],
+          "est_mSugarConusmptionRate": [
+            "twin.outputs.est_mSugarConusmptionRate"
+          ],
+          "est_mSugarRemaining": [
+            "twin.outputs.est_mSugarRemaining"
+          ],
+          "est_mYeastBiomas": [
+            "twin.outputs.est_mYeastBiomas"
+          ],
+          "est_mYeastGrowthRate": [
+            "twin.outputs.est_mYeastGrowthRate"
+          ],
+          "est_nYeastCells": [
+            "twin.outputs.est_nYeastCells"
+          ],
+          "est_oxygenIndex": [
+            "twin.outputs.est_oxygenIndex"
+          ]
+        },
+        "outputs": {
+          "est_AA": 4.884588330308373,
+          "est_ABV": 0.35202428698539734,
+          "est_ABV_Balling": 0.3755308077192914,
+          "est_BiomassAllocationFraction": 3.5267752811229554e-10,
+          "est_OG": 1.0549092292785645,
+          "est_RA": 3.826411305196516,
+          "est_T1": -0.1994235265923955,
+          "est_T2": -284.0259149942209,
+          "est_concYeastCells": 3.749999985305106e+17,
+          "est_m3Beer": -3.4836742481005016,
+          "est_m3Headspace": 3.9577892563351513,
+          "est_mCO2Added": 0.24561686940121652,
+          "est_mCO2Addflow": 0.0,
+          "est_mCO2Bubbles": 0.0,
+          "est_mCO2Dissolved": -284.0312300518193,
+          "est_mCO2DissolvedEQ": -0.003888990769247011,
+          "est_mCO2FromGasModel": -284.2253385208133,
+          "est_mCO2Head": -0.1933081785369675,
+          "est_mCO2ProducedFromSugar": -6.537225364716006,
+          "est_mCO2ProductionRate": 0.03761655238849471,
+          "est_mCO2Vented": 71.36740809656204,
+          "est_mCO2Ventflow": 0.0,
+          "est_mEthanolFomSugar": -6.842465459566559,
+          "est_mEthanolProductionRate": 0.03937296728601202,
+          "est_mSugarConsumed": -12.7183372854397,
+          "est_mSugarConusmptionRate": 0.05,
+          "est_mSugarRemaining": -453.8041887019983,
+          "est_mYeastBiomas": 0.017999999929464508,
+          "est_mYeastGrowthRate": 1.763387640561478e-12,
+          "est_nYeastCells": 374999998530.5106,
+          "est_oxygenIndex": 7.053550811008797e-09
+        },
+        "reset_count": 0,
+        "reset_nonce": null,
+        "reset_param": "twin.reset",
+        "reset_param_value": false,
+        "runtime_mode": "runtime",
+        "sim_time_s": 12908.80898799994,
+        "step_count": 45841
+      }
+    }
+  },
+  "saved_at": 1774191547.3141174,
+  "store_revision": 1828997
+}

@@ -1,0 +1,27 @@
+from __future__ import annotations
+
+from typing import Any
+
+import requests
+from requests.adapters import HTTPAdapter
+
+
+class HttpServiceProxy:
+    def __init__(self, timeout_s: float = 8.0, pool_connections: int = 32, pool_maxsize: int = 64) -> None:
+        self.timeout_s = timeout_s
+        self._session = requests.Session()
+        adapter = HTTPAdapter(pool_connections=pool_connections, pool_maxsize=pool_maxsize, max_retries=0)
+        self._session.mount('http://', adapter)
+        self._session.mount('https://', adapter)
+
+    def request(self, *, method: str, url: str, params: dict[str, Any] | None = None, json_body: Any = None) -> tuple[int, Any]:
+        response = self._session.request(method=method.upper(), url=url, params=params, json=json_body, timeout=self.timeout_s)
+        content_type = response.headers.get('content-type', '')
+        if 'application/json' in content_type:
+            payload: Any = response.json()
+        else:
+            payload = {'text': response.text}
+        return response.status_code, payload
+
+    def close(self) -> None:
+        self._session.close()

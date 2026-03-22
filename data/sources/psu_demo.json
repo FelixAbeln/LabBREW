@@ -1,0 +1,27 @@
+{
+  "config": {
+    "baudrate": 9600,
+    "connected_param": "",
+    "current_meas_param": "",
+    "idn_param": "",
+    "initial_current": 0.0,
+    "initial_voltage": 0.0,
+    "last_error_param": "",
+    "mode_param": "",
+    "output_state_param": "",
+    "parameter_prefix": "psu",
+    "port": "COM3",
+    "protection_param": "",
+    "reconnect_delay_s": 2.0,
+    "set_current_param": "",
+    "set_enable_param": "",
+    "set_voltage_param": "",
+    "settle_time": 0.08,
+    "status_raw_param": "",
+    "timeout": 1.0,
+    "update_interval_s": 0.25,
+    "voltage_meas_param": ""
+  },
+  "name": "bench_psu",
+  "source_type": "labps3005dn"
+}

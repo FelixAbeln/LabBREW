@@ -1,0 +1,50 @@
+advertise_service_type: _fcs._tcp.local.
+
+services:
+  ParameterDB:
+    module: Services.parameterDB.serviceDB
+    listen:
+      host: 127.0.0.1
+      port: 8765
+      proto: ParameterDB_Binary
+      path: /
+    backend: null
+    static_args: []
+    advertise_as:
+      - ParameterDB
+
+  ParameterDB_DataSource:
+    module: Services.parameterDB.serviceDS
+    listen:
+      host: 127.0.0.1
+      port: 8766
+      proto: ParameterDB_Binary
+      path: /
+    backend: ParameterDB
+    static_args: []
+    advertise_as:
+      - ParameterDB_DataSource
+
+  control_service:
+    module: Services.control_service.service
+    listen:
+      host: 127.0.0.1
+      port: 8767
+      proto: http
+      path: /
+    backend: ParameterDB
+    static_args: []
+    advertise_as:
+      - control_service
+
+  schedule_service:
+    module: Services.schedule_service.service
+    listen:
+      host: 127.0.0.1
+      port: 8768
+      proto: http
+      path: /
+    backend: control_service
+    static_args: []
+    advertise_as:
+      - schedule_service
