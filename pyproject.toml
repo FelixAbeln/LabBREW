@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "labbrew"
+version = "0.1.0"
+description = "Laboratory Bioreactor Real-time Execution and Workflow system"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Felix Abeln"}]
+dependencies = [
+    # Web framework & ASGI server
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    # HTTP client (inter-service communication)
+    "requests",
+    # Binary serialisation (ParameterDB protocol)
+    "msgpack>=1.0",
+    # Excel schedule import
+    "openpyxl",
+    # CAN-bus hardware interface (BrewTools Kvaser source)
+    "python-can",
+    # Serial hardware interface (labps3005dn / modbus-relay sources)
+    "pyserial>=3.5",
+    # YAML topology & config files
+    "pyyaml",
+    # mDNS service discovery
+    "zeroconf",
+]
+
+[project.scripts]
+# Node supervisor (starts ParameterDB, Control, Schedule services + Supervisor Agent)
+labbrew-supervisor          = "Supervisor.supervisor:main"
+# Central API gateway + React frontend
+labbrew-brew-supervisor     = "BrewSupervisor.run_api:main"
+# Control service (ownership, ramp, rules)
+labbrew-control             = "Services.control_service.service:main"
+# Schedule execution engine
+labbrew-scheduler           = "Services.schedule_service.service:main"
+# ParameterDB parameter-store service
+labbrew-parameterdb         = "Services.parameterDB.serviceDB:main"
+# ParameterDB data-source runner
+labbrew-parameterds         = "Services.parameterDB.serviceDS:main"
+# ParameterDB terminal monitor / DB editor
+labbrew-dbedit              = "Services.parameterDB.parameterdb_monitor.app:main"
+# Backwards-compatible aliases (previously installed via Services/parameterDB/pyproject.toml)
+parameterdb-service         = "Services.parameterDB.parameterdb_service.service:main"
+parameterdb-monitor         = "Services.parameterDB.parameterdb_monitor.app:main"
+parameterdb-source-runner   = "Services.parameterDB.parameterdb_sources.service:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+namespaces = true

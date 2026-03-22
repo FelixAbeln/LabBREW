@@ -1,11 +1,14 @@
 # LabBREW – Python dependencies
 #
-# Install with:
-#   pip install -r requirements.txt
+# The canonical dependency specification is pyproject.toml at the project root.
+# Install the project (and all dependencies) with:
 #
-# The parameterDB sub-package (Services/parameterDB/) also has its own
-# pyproject.toml for editable / wheel installs; the constraints from that
-# file are reflected here.
+#   pip install -e .        ← editable install (recommended for development)
+#   pip install .           ← regular install
+#
+# This file is kept as a convenience for environments that use pip directly:
+#
+#   pip install -r requirements.txt
 
 # Web framework & server
 fastapi
