@@ -27,6 +27,9 @@ openpyxl
 # CAN-bus hardware interface (BrewTools Kvaser source)
 python-can
 
+# FMU Runner (Digital Twin source)
+fmpy
+
 # Serial hardware interface (labps3005dn / modbus-relay sources)
 pyserial>=3.5
 
