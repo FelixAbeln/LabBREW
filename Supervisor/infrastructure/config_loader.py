@@ -17,6 +17,7 @@ from ..domain.models import (
 _LEGACY_SERVICE_KEYS = {"provides", "requires", "capability_args"}
 _ALLOWED_SERVICE_KEYS = {
     "module",
+    "docs",
     "listen",
     "backend",
     "static_args",
@@ -95,6 +96,7 @@ class YamlTopologyLoader:
                 ServiceSpec(
                     name=name,
                     module=str(raw["module"]),
+                    docs=str(raw["docs"]) if raw.get("docs") else None,
                     provides=provides,
                     requires=requires,
                     capability_arg_rules=capability_arg_rules,
@@ -121,7 +123,7 @@ class YamlTopologyLoader:
             joined = ", ".join(legacy)
             raise ValueError(
                 f"Service '{service_name}' uses legacy config key(s): {joined}. "
-                "Use only the new schema: module, listen, backend, static_args, advertise_as, env, "
+                "Use only the new schema: module, docs, listen, backend, static_args, advertise_as, env, "
                 "startup_timeout_s, restart_backoff_s, enabled"
             )
 
@@ -147,6 +149,10 @@ class YamlTopologyLoader:
         advertise_as = raw.get("advertise_as") or []
         if not isinstance(advertise_as, list):
             raise ValueError(f"Service '{service_name}'.advertise_as must be a list")
+
+        docs = raw.get("docs")
+        if docs is not None and not isinstance(docs, str):
+            raise ValueError(f"Service '{service_name}'.docs must be a string if provided")
 
         backend = raw.get("backend")
         if backend is not None and not isinstance(backend, str):

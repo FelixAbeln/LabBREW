@@ -259,6 +259,11 @@ def build_router() -> APIRouter:
     async def proxy_system(fermenter_id: str, request: Request, service_path: str = ''):
         return await _proxy_via_agent(request, fermenter_id, 'control_service', f'system/{service_path}'.rstrip('/'))
 
+    @router.api_route('/fermenters/{fermenter_id}/data/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @router.api_route('/fermenters/{fermenter_id}/data', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_data(fermenter_id: str, request: Request, service_path: str = ''):
+        return await _proxy_via_agent(request, fermenter_id, 'data_service', service_path.rstrip('/'))
+
     @router.api_route('/fermenters/{fermenter_id}/ws/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
     @router.api_route('/fermenters/{fermenter_id}/ws', methods=['GET', 'POST', 'PUT', 'DELETE'])
     async def proxy_ws(fermenter_id: str, request: Request, service_path: str = ''):

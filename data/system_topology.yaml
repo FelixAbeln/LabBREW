@@ -3,6 +3,7 @@ advertise_service_type: _fcs._tcp.local.
 services:
   ParameterDB:
     module: Services.parameterDB.serviceDB
+    docs: docs/api/parameterdb-api.md
     listen:
       host: 127.0.0.1
       port: 8765
@@ -15,6 +16,7 @@ services:
 
   ParameterDB_DataSource:
     module: Services.parameterDB.serviceDS
+    docs: docs/api/parameterdb-api.md
     listen:
       host: 127.0.0.1
       port: 8766
@@ -27,6 +29,7 @@ services:
 
   control_service:
     module: Services.control_service.service
+    docs: docs/api/control-service-api.md
     listen:
       host: 127.0.0.1
       port: 8767
@@ -39,6 +42,7 @@ services:
 
   schedule_service:
     module: Services.schedule_service.service
+    docs: docs/api/schedule-service-api.md
     listen:
       host: 127.0.0.1
       port: 8768
@@ -48,3 +52,16 @@ services:
     static_args: []
     advertise_as:
       - schedule_service
+
+  data_service:
+    module: Services.data_service.service
+    docs: docs/api/data-service-api.md
+    listen:
+      host: 127.0.0.1
+      port: 8769
+      proto: http
+      path: /
+    backend: ParameterDB
+    static_args: []
+    advertise_as:
+      - data_service

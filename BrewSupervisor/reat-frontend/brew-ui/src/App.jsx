@@ -136,6 +136,29 @@ function formatCollapsedDataValue(value) {
   return text.length > 96 ? `${text.slice(0, 96)}…` : text
 }
 
+function sanitizeSessionSegment(value) {
+  return String(value || 'node')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'node'
+}
+
+function buildMeasurementSessionName(fermenter) {
+  const now = new Date()
+  const pad = (value) => String(value).padStart(2, '0')
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `${sanitizeSessionSegment(fermenter?.name)}_${sanitizeSessionSegment(fermenter?.id)}_${stamp}`
+}
+
+function AvailabilityTag({ label, value }) {
+  return (
+    <span className={`pill ${value ? 'pill-ok' : 'pill-bad'}`}>
+      {label}: {value ? 'yes' : 'no'}
+    </span>
+  )
+}
+
 
 function JsonTreeNode({ label = null, value, depth = 0, defaultExpanded = false }) {
   const isObject = value !== null && typeof value === 'object'
@@ -241,7 +264,6 @@ function App() {
   const [followLogBottom, setFollowLogBottom] = useState(true)
   const logRef = useRef(null)
   const [rules, setRules] = useState([])
-  const [rulesLoading, setRulesLoading] = useState(false)
   const [rulesModalOpen, setRulesModalOpen] = useState(false)
   const [rulesEditorLoading, setRulesEditorLoading] = useState(false)
   const [savingRule, setSavingRule] = useState(false)
@@ -250,7 +272,10 @@ function App() {
   const [snapshotKeys, setSnapshotKeys] = useState([])
   const [rulesSnapshot, setRulesSnapshot] = useState(null)
   const [dataSearch, setDataSearch] = useState('')
-  const [dataLoading, setDataLoading] = useState(false)
+  const [dataActionLoading, setDataActionLoading] = useState(false)
+  const [dataServiceStatus, setDataServiceStatus] = useState(null)
+  const [dataHz, setDataHz] = useState('10')
+  const [loadstepSeconds, setLoadstepSeconds] = useState('30')
   const [starredParams, setStarredParams] = useState(() => {
     try {
       const raw = window.localStorage.getItem('brew-ui.starred-params')
@@ -319,31 +344,96 @@ function App() {
     })
   }
 
-  async function loadSystemSnapshot(id = selectedId, { silent = false } = {}) {
+  async function loadDataTab(id = selectedId) {
     if (!id) return null
-    if (!silent) setDataLoading(true)
+    const snapshotPromise = api(`/fermenters/${id}/system/snapshot`)
+    const statusPromise = dataServiceHealthy
+      ? api(`/fermenters/${id}/data/status`).catch(() => null)
+      : Promise.resolve(null)
+
+    const [snapshotPayload, statusPayload] = await Promise.all([snapshotPromise, statusPromise])
+    setRulesSnapshot(snapshotPayload && typeof snapshotPayload === 'object' ? snapshotPayload : null)
+    setDataServiceStatus(statusPayload && typeof statusPayload === 'object' ? statusPayload : null)
+    return { snapshotPayload, statusPayload }
+  }
+
+  async function toggleMeasurementRecording() {
+    if (!selected?.id || dataActionLoading) return
+
     try {
-      const snapshotPayload = await api(`/fermenters/${id}/system/snapshot`)
-      setRulesSnapshot(snapshotPayload && typeof snapshotPayload === 'object' ? snapshotPayload : null)
-      return snapshotPayload
+      setDataActionLoading(true)
+      setError('')
+
+      if (isRecording) {
+        await api(`/fermenters/${selected.id}/data/measurement/stop`, {
+          method: 'POST',
+        })
+      } else {
+        if (!dataServiceHealthy) {
+          setError('Data service is not available for this fermenter')
+          return
+        }
+
+        if (!selectedStarredParams.length) {
+          setError('Star at least one parameter in the Data tab before starting a recording')
+          return
+        }
+
+        await api(`/fermenters/${selected.id}/data/measurement/setup`, {
+          method: 'POST',
+          body: JSON.stringify({
+            parameters: selectedStarredParams,
+            hz: Number(dataHz),
+            output_format: 'parquet',
+            session_name: buildMeasurementSessionName(selected),
+          }),
+        })
+
+        await api(`/fermenters/${selected.id}/data/measurement/start`, {
+          method: 'POST',
+        })
+      }
+
+      await Promise.all([loadFermenters(), loadDataTab(selected.id)])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
-      if (!silent) setDataLoading(false)
+      setDataActionLoading(false)
+    }
+  }
+
+  async function takeDataLoadstep() {
+    if (!selected?.id || dataActionLoading) return
+    if (!isLoadstepDurationValid) {
+      setError('Loadstep duration must be a number greater than 0 seconds')
+      return
+    }
+
+    try {
+      setDataActionLoading(true)
+      setError('')
+      await api(`/fermenters/${selected.id}/data/loadstep/take`, {
+        method: 'POST',
+        body: JSON.stringify({
+          duration_seconds: loadstepDurationSeconds,
+        }),
+      })
+      await loadDataTab(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setDataActionLoading(false)
     }
   }
 
   async function loadRules(id = selectedId) {
     if (!id) return
-    setRulesLoading(true)
-    try {
-      const [rulesPayload, snapshotPayload] = await Promise.all([
-        api(`/fermenters/${id}/rules/`),
-        api(`/fermenters/${id}/system/snapshot`),
-      ])
-      setRules(Array.isArray(rulesPayload) ? rulesPayload : [])
-      setRulesSnapshot(snapshotPayload && typeof snapshotPayload === 'object' ? snapshotPayload : null)
-    } finally {
-      setRulesLoading(false)
-    }
+    const [rulesPayload, snapshotPayload] = await Promise.all([
+      api(`/fermenters/${id}/rules/`),
+      api(`/fermenters/${id}/system/snapshot`),
+    ])
+    setRules(Array.isArray(rulesPayload) ? rulesPayload : [])
+    setRulesSnapshot(snapshotPayload && typeof snapshotPayload === 'object' ? snapshotPayload : null)
   }
 
   async function loadRuleEditorData(id = selectedId) {
@@ -546,6 +636,34 @@ function App() {
     const services = Object.entries(selected?.services || {})
     return services.filter(([, service]) => service?.healthy)
   }, [selected])
+
+  const selectedStarredParams = useMemo(() => {
+    const values = rulesSnapshot?.values && typeof rulesSnapshot.values === 'object' ? rulesSnapshot.values : {}
+    const availableKeys = new Set(Object.keys(values))
+    return starredParams.filter((name) => availableKeys.has(name))
+  }, [rulesSnapshot, starredParams])
+
+  const dataServiceHealthy = Boolean(selected?.services?.data_service?.healthy)
+  const isRecording = Boolean(dataServiceStatus?.recording)
+  const activeLoadsteps = Array.isArray(dataServiceStatus?.active_loadsteps)
+    ? dataServiceStatus.active_loadsteps.filter((item) => item && typeof item === 'object')
+    : []
+  const completedLoadsteps = Array.isArray(dataServiceStatus?.completed_loadsteps)
+    ? dataServiceStatus.completed_loadsteps.filter((item) => item && typeof item === 'object')
+    : []
+  const currentLoadstep = activeLoadsteps[0] || null
+  const latestCompletedLoadstep = completedLoadsteps[completedLoadsteps.length - 1] || null
+  const isTakingLoadstep = activeLoadsteps.length > 0
+  const loadstepRemainingSeconds = currentLoadstep?.remaining_seconds != null
+    ? Math.max(0, Math.ceil(Number(currentLoadstep.remaining_seconds) || 0))
+    : null
+  const loadstepDurationSeconds = Number(loadstepSeconds)
+  const isLoadstepDurationValid = Number.isFinite(loadstepDurationSeconds) && loadstepDurationSeconds > 0
+  const latestLoadstepEntries = useMemo(() => {
+    const average = latestCompletedLoadstep?.average
+    if (!average || typeof average !== 'object') return []
+    return Object.entries(average).sort(([a], [b]) => a.localeCompare(b))
+  }, [latestCompletedLoadstep])
 
   const activeRuleIds = useMemo(
     () => new Set(Object.keys(rulesSnapshot?.active_rules || {})),
@@ -754,7 +872,7 @@ function App() {
       if (cancelled || inFlight) return
       inFlight = true
       try {
-        await loadSystemSnapshot(selected.id, { silent: false })
+        await loadDataTab(selected.id)
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Unknown error')
@@ -873,14 +991,18 @@ function App() {
                   <div className="small-text">{fermenter.id}</div>
                   <div className="small-text">{fermenter.address}</div>
                   <div className="tag-row">
-                    <span className="tag">
-                      schedule:{' '}
-                      {String(fermenter.summary?.schedule_available ?? false)}
-                    </span>
-                    <span className="tag">
-                      control:{' '}
-                      {String(fermenter.summary?.control_available ?? false)}
-                    </span>
+                    <AvailabilityTag
+                      label="schedule"
+                      value={Boolean(fermenter.summary?.schedule_available)}
+                    />
+                    <AvailabilityTag
+                      label="control"
+                      value={Boolean(fermenter.summary?.control_available)}
+                    />
+                    <AvailabilityTag
+                      label="data"
+                      value={Boolean(fermenter.summary?.data_available)}
+                    />
                   </div>
                 </button>
               ))}
@@ -904,12 +1026,12 @@ function App() {
                   Schedule
                 </button>
                 <button
-                  className={`tab-button ${activeTab === 'system' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('system')}
+                  className={`tab-button ${activeTab === 'data' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('data')}
                   role="tab"
-                  aria-selected={activeTab === 'system'}
+                  aria-selected={activeTab === 'data'}
                 >
-                  System
+                  Data
                 </button>
                 <button
                   className={`tab-button ${activeTab === 'rules' ? 'active' : ''}`}
@@ -920,12 +1042,12 @@ function App() {
                   Rules
                 </button>
                 <button
-                  className={`tab-button ${activeTab === 'data' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('data')}
+                  className={`tab-button ${activeTab === 'system' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('system')}
                   role="tab"
-                  aria-selected={activeTab === 'data'}
+                  aria-selected={activeTab === 'system'}
                 >
-                  Data
+                  System
                 </button>
               </div>
             </div>
@@ -1154,19 +1276,102 @@ function App() {
             ) : activeTab === 'data' ? (
               <div className="tab-content-grid data-tab-layout">
                 <div className="info-card data-card">
+                  <div className="control-bar">
+                    <div className="control-bar-copy">
+                      <strong>Data recording</strong>
+                      <span>
+                        {dataServiceHealthy
+                          ? isRecording
+                            ? `Recording ${dataServiceStatus?.config?.parameters?.length || 0} parameter(s) at ${dataServiceStatus?.config?.hz || dataHz} Hz`
+                            : `Ready to record ${selectedStarredParams.length} favorite parameter(s)`
+                          : 'Data service unavailable for this fermenter'}
+                      </span>
+                    </div>
+                    <div className="data-action-group">
+                      <select
+                        className="data-control"
+                        aria-label="Recording frequency"
+                        value={dataHz}
+                        onChange={(event) => setDataHz(event.target.value)}
+                        disabled={isRecording || dataActionLoading || !dataServiceHealthy}
+                      >
+                        {['1', '2', '5', '10', '20', '50', '100', '150'].map((value) => (
+                          <option key={value} value={value}>{value} Hz</option>
+                        ))}
+                      </select>
+                      <div className="data-control-group">
+                        <input
+                          className="data-control data-control-number"
+                          aria-label="Loadstep duration"
+                          type="number"
+                          min="0.1"
+                          step="0.1"
+                          placeholder="30"
+                          value={loadstepSeconds}
+                          onChange={(event) => setLoadstepSeconds(event.target.value)}
+                          disabled={dataActionLoading || !dataServiceHealthy}
+                        />
+                        <span className="data-control-unit">s</span>
+                      </div>
+                      <button
+                        className={isRecording ? 'danger-button' : 'primary-button is-running'}
+                        disabled={dataActionLoading || !dataServiceHealthy || (!isRecording && !selectedStarredParams.length)}
+                        onClick={toggleMeasurementRecording}
+                      >
+                        {dataActionLoading ? 'Working…' : isRecording ? 'Stop recording' : 'Start recording'}
+                      </button>
+                      <button
+                        className={isTakingLoadstep ? 'danger-button' : 'secondary-button'}
+                        disabled={dataActionLoading || !dataServiceHealthy || !isRecording || isTakingLoadstep || !isLoadstepDurationValid}
+                        onClick={takeDataLoadstep}
+                      >
+                        {isTakingLoadstep
+                          ? loadstepRemainingSeconds != null
+                            ? `Loadstep active (${loadstepRemainingSeconds}s)`
+                            : 'Loadstep active'
+                          : 'Take loadstep'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {latestCompletedLoadstep && (
+                    <div className="data-loadstep-status">
+                      <strong>Latest loadstep: {latestCompletedLoadstep?.name || 'completed'}</strong>
+                      <span>
+                        {latestCompletedLoadstep?.duration_seconds || '-'}s window
+                        {' • '}
+                        {latestLoadstepEntries.length} value{latestLoadstepEntries.length === 1 ? '' : 's'}
+                        {' • '}
+                        {latestCompletedLoadstep?.timestamp
+                          ? new Date(latestCompletedLoadstep.timestamp).toLocaleTimeString()
+                          : 'time unknown'}
+                      </span>
+
+                      {latestLoadstepEntries.length > 0 && (
+                        <div className="data-loadstep-row" title="Latest loadstep values">
+                          {latestLoadstepEntries.map(([name, value]) => (
+                            <span key={name} className="data-loadstep-chip">
+                              <strong>{name}</strong>
+                              <span>{stringifyDataValue(value)}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="rules-toolbar">
                     <div>
                       <h3>Data</h3>
-                      <div className="small-text">Live snapshot values. Search anything and star parameters to pin them to the top.</div>
+                      <div className="small-text">Live snapshot values. Search anything and star parameters to pin them to the top and use them for recording setup.</div>
                     </div>
                     <div className="button-row compact-actions">
-                      <button
-                        className="secondary-button"
-                        disabled={!selected || dataLoading}
-                        onClick={() => loadSystemSnapshot(selected.id)}
-                      >
-                        {dataLoading ? 'Refreshing…' : 'Refresh data'}
-                      </button>
+                      <span className={`pill ${dataServiceHealthy ? 'pill-ok' : 'pill-bad'}`}>
+                        data service {dataServiceHealthy ? 'available' : 'unavailable'}
+                      </span>
+                      <span className={`pill ${selectedStarredParams.length ? 'pill-ok' : 'pill-neutral'}`}>
+                        favorites {selectedStarredParams.length}
+                      </span>
                     </div>
                   </div>
 
@@ -1242,13 +1447,6 @@ function App() {
                       <div className="small-text">Manual override rules. Opens snapshot and operator data only when editing.</div>
                     </div>
                     <div className="button-row compact-actions">
-                      <button
-                        className="secondary-button"
-                        disabled={!selected || rulesLoading}
-                        onClick={() => loadRules(selected.id)}
-                      >
-                        {rulesLoading ? 'Refreshing…' : 'Refresh rules'}
-                      </button>
                       <button
                         className="primary-button"
                         disabled={!selected}

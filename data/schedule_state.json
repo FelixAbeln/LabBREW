@@ -5,7 +5,11 @@
     "Run started",
     "Applied step Request control of all actuators",
     "Entered plan phase",
-    "Applied step Chill wort to lager pitch temp"
+    "Applied step Chill wort to lager pitch temp",
+    "Ownership lost; scheduler paused",
+    "Run resumed",
+    "Run paused",
+    "Run resumed"
   ],
   "last_action_result": {
     "backend_value": 20,
@@ -19,15 +23,11 @@
   },
   "owned_target_owners": {
     "set_allow_Gas": "schedule_service",
-    "set_pres_Fermentor": "schedule_service",
-    "set_spd_Agitator": "schedule_service",
-    "set_temp_Fermentor": "schedule_service"
+    "set_pres_Fermentor": "schedule_service"
   },
   "owned_targets": [
-    "set_temp_Fermentor",
-    "set_pres_Fermentor",
-    "set_spd_Agitator",
-    "set_allow_Gas"
+    "set_allow_Gas",
+    "set_pres_Fermentor"
   ],
   "pause_reason": null,
   "phase": "plan",

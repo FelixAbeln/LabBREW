@@ -24,18 +24,18 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 │  – mDNS advertisement (_fcs._tcp.local.)    │
 │  – /proxy/* → individual services          │
 └──────┬──────────┬──────────────────────────┘
-       │          │
-  port 8767   port 8768
-       │          │
-┌──────▼──────┐  ┌▼─────────────────────────┐
-│  Control    │  │  Schedule Service         │
-│  Service    │←─│  – Step execution         │
-│  – Ownership│  │  – Wait conditions        │
-│  – Rules    │  │  – Phase management       │
-│  – Ramping  │  └──────────────────────────┘
-│  – WebSocket│
-└──────┬──────┘
-       │ Binary TCP  (port 8765)
+      │          │          │
+      port 8767   port 8768   port 8769
+      │          │          │
+    ┌──────▼──────┐  ┌▼─────────────────────────┐  ┌▼─────────────────────────┐
+    │  Control    │  │  Schedule Service         │  │  Data Service            │
+    │  Service    │←─│  – Step execution         │  │  – Parameter logging     │
+    │  – Ownership│  │  – Wait conditions        │  │  – File recording        │
+    │  – Rules    │  │  – Phase management       │  │  – Loadstep averaging    │
+    │  – Ramping  │  └──────────────────────────┘  └──────────┬──────────────┘
+    │  – WebSocket│                                           │
+    └──────┬──────┘                                           │
+      │ Binary TCP  (port 8765)                          │ HTTP setup + Binary TCP reads
 ┌──────▼──────────────────────────────────────┐
 │  ParameterDB                                │
 │  – Parameter store (thread-safe)            │
@@ -52,8 +52,9 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 |---|---|---|---|
 | Frontend ↔ Gateway | HTTP REST / multipart | 8782 | React UI |
 | Gateway ↔ Agent | HTTP REST | 8780 | BrewSupervisor |
-| Agent ↔ Services | HTTP proxy | 8767, 8768 | Agent |
+| Agent ↔ Services | HTTP proxy | 8767, 8768, 8769 | Agent |
 | Control ↔ ParameterDB | Custom binary over TCP | 8765 | Control Service |
+| Data ↔ ParameterDB | Custom binary over TCP | 8765 | Data Service |
 | Data source ↔ ParameterDB | Custom binary over TCP | 8766 | Data sources |
 | Service discovery | mDNS (Zeroconf) | 5353 UDP | Supervisor, BrewSupervisor |
 
@@ -121,15 +122,23 @@ advertise_service_type: _fcs._tcp.local.
 services:
   ParameterDB:
     module: Services.parameterDB.serviceDB
+    docs: docs/api/parameterdb-api.md
     listen: {host: 127.0.0.1, port: 8765, proto: ParameterDB_Binary, path: /}
   control_service:
     module: Services.control_service.service
+    docs: docs/api/control-service-api.md
     listen: {host: 127.0.0.1, port: 8767, proto: http, path: /}
     backend: ParameterDB
   schedule_service:
     module: Services.schedule_service.service
+    docs: docs/api/schedule-service-api.md
     listen: {host: 127.0.0.1, port: 8768, proto: http, path: /}
     backend: control_service
+  data_service:
+    module: Services.data_service.service
+    docs: docs/api/data-service-api.md
+    listen: {host: 127.0.0.1, port: 8769, proto: http, path: /}
+    backend: ParameterDB
 ```
 
-The Supervisor resolves the dependency graph, starts services in the correct order, and performs TCP health checks before marking each service as healthy.
+The optional `docs` field is surfaced by the Supervisor Agent so clients can link each running service back to its reference documentation. The Supervisor resolves the dependency graph, starts services in the correct order, and performs TCP health checks before marking each service as healthy.

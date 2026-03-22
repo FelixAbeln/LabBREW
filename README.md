@@ -20,6 +20,7 @@ A microservices-based fermentation management and control platform for laborator
 | **BrewSupervisor** | Central API gateway + React frontend. Aggregates all fermenter nodes, proxies service requests, and serves the browser UI. |
 | **Control Service** | Handles parameter ownership, write protection, linear ramping, and a condition-based rules engine. |
 | **Schedule Service** | Loads and executes multi-step fermentation schedules with setup and plan phases, pause/resume, and complex wait conditions. |
+| **Data Service** | Records parameter values to files at configurable rates and computes loadstep averages for timed capture windows. |
 | **ParameterDB** | High-performance binary TCP parameter store with a real-time scan engine, plugin system, and snapshot persistence. |
 | **Supervisor Agent** | Per-node process supervisor that advertises services over mDNS and proxies requests to local services. |
 | **Excel Schedule Import** | Upload a `.xlsx` workbook to BrewSupervisor; it is validated and forwarded as canonical JSON to the schedule service. |
@@ -82,6 +83,7 @@ A microservices-based fermentation management and control platform for laborator
 | [Supervisor Agent API](./docs/api/agent-api.md) | Per-node agent: health, service proxy, mDNS registration |
 | [Control Service API](./docs/api/control-service-api.md) | Ownership, read/write/ramp, rules engine, WebSocket streaming |
 | [Schedule Service API](./docs/api/schedule-service-api.md) | Schedule load, execution control, status |
+| [Data Service API](./docs/api/data-service-api.md) | Measurement setup/start/stop, file logging, loadstep capture |
 | [ParameterDB Binary Protocol](./docs/api/parameterdb-api.md) | Low-level TCP binary protocol and Python client |
 | [Schedule Excel Import Guide](./docs/api/schedule-excel-import.md) | Workbook sheet layout, column syntax, wait expressions, validation rules |
 
@@ -95,6 +97,7 @@ A microservices-based fermentation management and control platform for laborator
 | Supervisor Agent | 8780 | HTTP REST |
 | Control Service | 8767 | HTTP REST + WebSocket |
 | Schedule Service | 8768 | HTTP REST |
+| Data Service | 8769 | HTTP REST |
 | ParameterDB | 8765 | Binary TCP (MessagePack) |
 | ParameterDB DataSource | 8766 | Binary TCP |
 
@@ -107,7 +110,7 @@ All launch scripts are run from the **project root**.
 ```bash
 # 1. Start the backend node supervisor
 #    Reads data/system_topology.yaml, starts ParameterDB, Control Service,
-#    Schedule Service, and the Supervisor Agent (port 8780).
+#    Schedule Service, Data Service, and the Supervisor Agent (port 8780).
 python run_supervisor.py
 
 # 2. Start the frontend API supervisor (BrewSupervisor gateway on port 8782)
@@ -129,6 +132,7 @@ LabBREW/
 │   ├── parameterDB/      # Parameter store & scan engine
 │   ├── control_service/  # Ownership, ramp, rules
 │   ├── schedule_service/ # Schedule execution engine
+│   ├── data_service/     # Parameter recording and loadstep capture
 │   └── _shared/          # Shared operator & wait engines
 ├── Supervisor/           # Per-node process supervisor
 ├── Other/Sims/           # Hardware simulators / test harnesses

@@ -21,15 +21,23 @@ Returns static node metadata and the current service map.
   "services": {
     "control_service": {
       "healthy": true,
-      "base_url": "http://127.0.0.1:8767"
+      "base_url": "http://127.0.0.1:8767",
+      "docs": "docs/api/control-service-api.md"
     },
     "schedule_service": {
       "healthy": true,
-      "base_url": "http://127.0.0.1:8768"
+      "base_url": "http://127.0.0.1:8768",
+      "docs": "docs/api/schedule-service-api.md"
+    },
+    "data_service": {
+      "healthy": true,
+      "base_url": "http://127.0.0.1:8769",
+      "docs": "docs/api/data-service-api.md"
     },
     "ParameterDB": {
       "healthy": true,
-      "base_url": "http://127.0.0.1:8765"
+      "base_url": "http://127.0.0.1:8765",
+      "docs": "docs/api/parameterdb-api.md"
     }
   }
 }
@@ -47,7 +55,8 @@ Returns a high-level availability summary computed by the Supervisor.
 ```json
 {
   "schedule_available": true,
-  "control_available": true
+  "control_available": true,
+  "data_available": true
 }
 ```
 
