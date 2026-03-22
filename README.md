@@ -102,13 +102,19 @@ A microservices-based fermentation management and control platform for laborator
 
 ## Quick Start
 
-```bash
-# Install dependencies for each service
-pip install -r BrewSupervisor/requirements.txt
+All launch scripts are run from the **project root**.
 
-# Start the API gateway (spins up BrewSupervisor on port 8782)
-python BrewSupervisor/run_api.py
+```bash
+# 1. Start the backend node supervisor
+#    Reads data/system_topology.yaml, starts ParameterDB, Control Service,
+#    Schedule Service, and the Supervisor Agent (port 8780).
+python run_supervisor.py
+
+# 2. Start the frontend API supervisor (BrewSupervisor gateway on port 8782)
+python run_FrontEndsupervisor.py
 ```
+
+> **React frontend** — the browser UI source lives in `BrewSupervisor/reat-frontend/` but does not yet have a dedicated launch script. Start it manually with your preferred dev server (e.g. `npm start` inside that directory) or build it and serve the static output.
 
 Node topology is configured in [`data/system_topology.yaml`](./data/system_topology.yaml). An example fermentation schedule is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
 
