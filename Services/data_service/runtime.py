@@ -244,7 +244,7 @@ class DataRecordingRuntime:
             # Write remaining data to file
             if self._file_writer:
                 filepath = self._file_writer.finalize()
-                total_samples = len(self._measurement_data)
+                total_samples = getattr(self._file_writer, "sample_count", len(self._measurement_data))
 
                 return {
                     "ok": True,
