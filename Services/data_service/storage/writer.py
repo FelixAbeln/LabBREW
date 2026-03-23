@@ -55,6 +55,7 @@ class ParquetWriter(FileWriter):
         super().__init__(output_dir, session_name, parameters)
         self._sample_buffer = []
         self._buffer_size = 100  # Write in batches
+        self._parquet_writer = None
 
     def _get_filepath(self) -> str:
         """Get the output file path."""
@@ -90,15 +91,16 @@ class ParquetWriter(FileWriter):
             return
 
         try:
-            # Convert to table
+            # Convert current batch to a row group table.
             table = pa.Table.from_pylist(self._sample_buffer)
 
-            # Write or append
-            if os.path.exists(self.filepath):
-                existing_table = pq.read_table(self.filepath)
-                table = pa.concat_tables([existing_table, table])
+            # First write creates the file; subsequent writes append row groups.
+            if self._parquet_writer is None:
+                if os.path.exists(self.filepath):
+                    os.remove(self.filepath)
+                self._parquet_writer = pq.ParquetWriter(self.filepath, table.schema)
 
-            pq.write_table(table, self.filepath)
+            self._parquet_writer.write_table(table)
             self._sample_buffer.clear()
 
         except Exception as e:
@@ -107,6 +109,9 @@ class ParquetWriter(FileWriter):
     def finalize(self) -> str:
         """Finalize and write all remaining samples."""
         self._write_batch()
+        if self._parquet_writer is not None:
+            self._parquet_writer.close()
+            self._parquet_writer = None
         return self.filepath
 
 

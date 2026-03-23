@@ -7,6 +7,7 @@ saves to files, and supports loadstep averaging.
 from __future__ import annotations
 
 import os
+import json
 import time
 import threading
 import importlib.util
@@ -70,6 +71,8 @@ class DataRecordingRuntime:
         self._active_loadsteps: list[LoadstepConfig] = []
         self._loadstep_averagers: dict[str, LoadstepAverager] = {}
         self._completed_loadsteps: list[dict] = []
+        self._loadsteps_archive_path: str = ""
+        self._loadsteps_archive_format: str = "jsonl"
 
     def run(self) -> None:
         """Main runtime loop - runs in background thread."""
@@ -167,6 +170,11 @@ class DataRecordingRuntime:
                 output_format=selected_format,
                 session_name=session_name
             )
+            self._loadsteps_archive_format = selected_format
+            self._loadsteps_archive_path = os.path.join(
+                output_dir,
+                f"{session_name}.loadsteps.{self._loadsteps_archive_format}",
+            )
 
             # Initialize file writer
             os.makedirs(output_dir, exist_ok=True)
@@ -209,6 +217,7 @@ class DataRecordingRuntime:
             self._active_loadsteps = []
             self._completed_loadsteps = []
             self._missing_parameters = set()
+            self._initialize_loadstep_archive_file()
             
             return {
                 "ok": True,
@@ -241,6 +250,7 @@ class DataRecordingRuntime:
                     "message": f"Recording stopped: {self.config.session_name}",
                     "samples_recorded": total_samples,
                     "file": filepath,
+                    "loadsteps_file": self._loadsteps_archive_path,
                     "completed_loadsteps": len(self._completed_loadsteps),
                     "loadsteps": self._completed_loadsteps,
                     "missing_parameters": sorted(self._missing_parameters),
@@ -344,12 +354,94 @@ class DataRecordingRuntime:
         averager = self._loadstep_averagers.get(ls_config.name)
         if averager:
             averaged_data = averager.get_average()
-            self._completed_loadsteps.append({
+            loadstep_record = {
                 "name": ls_config.name,
                 "duration_seconds": ls_config.duration_seconds,
                 "average": averaged_data,
                 "timestamp": ls_config.timestamp.isoformat()
-            })
+            }
+            self._completed_loadsteps.append(loadstep_record)
+            self._append_loadstep_archive_record(loadstep_record)
+
+    def _append_loadstep_archive_record(self, loadstep_record: dict[str, Any]) -> None:
+        """Append a finalized loadstep record to the session archive file."""
+        if not self._loadsteps_archive_path:
+            return
+        try:
+            if self._loadsteps_archive_format == 'jsonl':
+                with open(self._loadsteps_archive_path, 'a', encoding='utf-8') as handle:
+                    handle.write(json.dumps(loadstep_record, ensure_ascii=False) + '\n')
+                return
+
+            if self._loadsteps_archive_format == 'csv':
+                average_json = json.dumps(loadstep_record.get('average', {}), ensure_ascii=False)
+                row = [
+                    str(loadstep_record.get('name', '')),
+                    str(loadstep_record.get('duration_seconds', '')),
+                    str(loadstep_record.get('timestamp', '')),
+                    average_json,
+                ]
+                with open(self._loadsteps_archive_path, 'a', encoding='utf-8') as handle:
+                    handle.write(','.join(self._csv_escape(item) for item in row) + '\n')
+                return
+
+            if self._loadsteps_archive_format == 'parquet':
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+
+                table = pa.Table.from_pylist([
+                    {
+                        'name': loadstep_record.get('name'),
+                        'duration_seconds': float(loadstep_record.get('duration_seconds') or 0.0),
+                        'timestamp': loadstep_record.get('timestamp'),
+                        'average_json': json.dumps(loadstep_record.get('average', {}), ensure_ascii=False),
+                    }
+                ])
+
+                if os.path.exists(self._loadsteps_archive_path):
+                    existing = pq.read_table(self._loadsteps_archive_path)
+                    table = pa.concat_tables([existing, table])
+                pq.write_table(table, self._loadsteps_archive_path)
+                return
+
+            # Fallback if an unknown format string appears.
+            with open(self._loadsteps_archive_path, 'a', encoding='utf-8') as handle:
+                handle.write(json.dumps(loadstep_record, ensure_ascii=False) + '\n')
+        except Exception as exc:
+            print(f"Error writing loadstep archive record: {exc}")
+
+    def _initialize_loadstep_archive_file(self) -> None:
+        """Create/reset the loadstep archive file using the same format as measurement output."""
+        if not self._loadsteps_archive_path:
+            return
+        try:
+            if self._loadsteps_archive_format == 'jsonl':
+                with open(self._loadsteps_archive_path, 'w', encoding='utf-8') as handle:
+                    handle.write('')
+                return
+
+            if self._loadsteps_archive_format == 'csv':
+                with open(self._loadsteps_archive_path, 'w', encoding='utf-8') as handle:
+                    handle.write('name,duration_seconds,timestamp,average_json\n')
+                return
+
+            if self._loadsteps_archive_format == 'parquet':
+                if os.path.exists(self._loadsteps_archive_path):
+                    os.remove(self._loadsteps_archive_path)
+                return
+
+            # Unknown format fallback.
+            with open(self._loadsteps_archive_path, 'w', encoding='utf-8') as handle:
+                handle.write('')
+        except Exception as exc:
+            print(f"Error initializing loadstep archive file: {exc}")
+
+    def _csv_escape(self, text: str) -> str:
+        """Escape a CSV value with quotes when needed."""
+        value = str(text)
+        if any(ch in value for ch in [',', '"', '\n', '\r']):
+            return '"' + value.replace('"', '""') + '"'
+        return value
 
     def _build_active_loadstep_status(self, ls_config: LoadstepConfig, now: datetime) -> dict[str, Any]:
         """Return a status payload for an active loadstep."""

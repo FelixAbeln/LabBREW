@@ -165,6 +165,13 @@ print(f"Loadsteps: {result['loadsteps']}")
 
 Recorded data is saved to `data/measurements/` with filename: `{session_name}.{format}`
 
+Loadstep archive data is saved as a sidecar file using the same format as the
+main recording: `{session_name}.loadsteps.{format}`.
+
+- Includes both scheduler-triggered and manual loadsteps.
+- For parquet output, rows are appended as parquet row groups (no full-file
+    read/concat on each batch).
+
 ### File Formats
 - **Parquet**: Binary, columnar, highly compressed
 - **CSV**: Text-based with headers, human-readable

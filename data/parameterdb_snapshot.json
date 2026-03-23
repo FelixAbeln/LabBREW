@@ -192,14 +192,14 @@
         "direction": "above",
         "enabled": true,
         "off_offset": 0.1,
-        "off_threshold": 0.43499082371938846,
+        "off_threshold": 0.9753572216289693,
         "on_offset": 0.15,
-        "on_threshold": 0.4849908237193884,
+        "on_threshold": 1.0253572216289693,
         "output_targets": [
           "relay.ch4"
         ],
         "pv": 0.2937631905078888,
-        "sp": 0.33499082371938843
+        "sp": 0.8753572216289693
       },
       "value": false
     },
@@ -219,16 +219,16 @@
         "direction": "below",
         "enabled": true,
         "off_offset": 0.1,
-        "off_threshold": 0.23499082371938843,
+        "off_threshold": 0.7753572216289694,
         "on_offset": 0.15,
-        "on_threshold": 0.18499082371938844,
+        "on_threshold": 0.7253572216289693,
         "output_targets": [
           "relay.ch3"
         ],
         "pv": 0.2937631905078888,
-        "sp": 0.33499082371938843
+        "sp": 0.8753572216289693
       },
-      "value": false
+      "value": true
     },
     "dbc_temp_Fermentor_Hi": {
       "config": {
@@ -246,14 +246,14 @@
         "direction": "above",
         "enabled": true,
         "off_offset": 0.5,
-        "off_threshold": 10.79702547166671,
+        "off_threshold": 11.44656526491503,
         "on_offset": 1.0,
-        "on_threshold": 11.29702547166671,
+        "on_threshold": 11.94656526491503,
         "output_targets": [
           "relay.ch2"
         ],
         "pv": 14.002314567565918,
-        "sp": 10.29702547166671
+        "sp": 10.94656526491503
       },
       "value": true
     },
@@ -273,14 +273,14 @@
         "direction": "below",
         "enabled": true,
         "off_offset": 0.5,
-        "off_threshold": 9.79702547166671,
+        "off_threshold": 10.44656526491503,
         "on_offset": 1.0,
-        "on_threshold": 9.29702547166671,
+        "on_threshold": 9.94656526491503,
         "output_targets": [
           "relay.ch1"
         ],
         "pv": 14.002314567565918,
-        "sp": 10.29702547166671
+        "sp": 10.94656526491503
       },
       "value": false
     },
@@ -524,7 +524,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": false
+      "value": true
     },
     "relay.ch4": {
       "config": {},
@@ -653,7 +653,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.33499082371938843
+      "value": 0.8753572216289693
     },
     "set_spd_Agitator": {
       "config": {},
@@ -673,7 +673,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 10.29702547166671
+      "value": 10.94656526491503
     },
     "system.time.iso": {
       "config": {},
@@ -685,7 +685,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": "2026-03-22T21:54:09.134002+00:00"
+      "value": "2026-03-23T19:43:16.263404+00:00"
     },
     "test": {
       "config": {},
@@ -825,7 +825,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 1.0663377774787053
+      "value": 7.125866915648784
     },
     "twin.outputs.est_T2": {
       "config": {},
@@ -840,7 +840,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -9.306063831680772
+      "value": -7.044381773573855
     },
     "twin.outputs.est_concYeastCells": {
       "config": {},
@@ -900,7 +900,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 2.638603769305428
+      "value": 10.589604829712995
     },
     "twin.outputs.est_mCO2Addflow": {
       "config": {},
@@ -915,7 +915,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.0
+      "value": 0.041698303007827904
     },
     "twin.outputs.est_mCO2Bubbles": {
       "config": {},
@@ -945,7 +945,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -18.582834351668556
+      "value": -16.32115229356164
     },
     "twin.outputs.est_mCO2DissolvedEQ": {
       "config": {},
@@ -960,7 +960,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -0.9363082795244797
+      "value": -3.969095342940587
     },
     "twin.outputs.est_mCO2FromGasModel": {
       "config": {},
@@ -975,7 +975,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -8.239726054202066
+      "value": 0.08148514207492852
     },
     "twin.outputs.est_mCO2Head": {
       "config": {},
@@ -990,7 +990,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 1.0703439194449007
+      "value": 7.129873057614979
     },
     "twin.outputs.est_mCO2ProducedFromSugar": {
       "config": {},
@@ -1020,7 +1020,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -0.005518805704493289
+      "value": -0.011623681861310561
     },
     "twin.outputs.est_mCO2Vented": {
       "config": {},
@@ -1080,7 +1080,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -0.005776493130384457
+      "value": -0.012166421870399477
     },
     "twin.outputs.est_mSugarConsumed": {
       "config": {},
@@ -1110,7 +1110,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -0.010736976078781369
+      "value": -0.022614167045351078
     },
     "twin.outputs.est_mSugarRemaining": {
       "config": {},
@@ -1481,17 +1481,17 @@
         "fmu_path": "f:\\brewsys\\brewtools lib\\brewtools_testutil_modular\\controller.fmu",
         "input_count": 6,
         "inputs": {
-          "in_GasOpen": 0.0,
+          "in_GasOpen": 1.0,
           "in_T_c": 14.002314567565918,
           "in_VentOpen": 0.0,
           "in_gravity_sg": 1.04,
           "in_level": 14.002314567565918,
           "in_pressure_bar": 0.2937631905078888
         },
-        "last_dt_s": 0.28004260000307113,
+        "last_dt_s": 0.28344820003258064,
         "last_reset_reason": "",
         "last_status_text": "Estimator running (Controller)",
-        "last_step_age_s": 0.003453000041190535,
+        "last_step_age_s": 0.0036367999855428934,
         "managed_output_targets": {
           "est_AA": "twin.outputs.est_AA",
           "est_ABV": "twin.outputs.est_ABV",
@@ -1631,26 +1631,26 @@
           "est_BiomassAllocationFraction": 0.008333333333333333,
           "est_OG": 1.04,
           "est_RA": 0.0,
-          "est_T1": 1.0663377774787053,
-          "est_T2": -9.306063831680772,
+          "est_T1": 7.125866915648784,
+          "est_T2": -7.044381773573855,
           "est_concYeastCells": 1.666666666666667e+17,
           "est_m3Beer": -3.4849461638502692,
           "est_m3Headspace": 3.959061172084919,
-          "est_mCO2Added": 2.638603769305428,
-          "est_mCO2Addflow": 0.0,
+          "est_mCO2Added": 10.589604829712995,
+          "est_mCO2Addflow": 0.041698303007827904,
           "est_mCO2Bubbles": 0.0,
-          "est_mCO2Dissolved": -18.582834351668556,
-          "est_mCO2DissolvedEQ": -0.9363082795244797,
-          "est_mCO2FromGasModel": -8.239726054202066,
-          "est_mCO2Head": 1.0703439194449007,
+          "est_mCO2Dissolved": -16.32115229356164,
+          "est_mCO2DissolvedEQ": -3.969095342940587,
+          "est_mCO2FromGasModel": 0.08148514207492852,
+          "est_mCO2Head": 7.129873057614979,
           "est_mCO2ProducedFromSugar": -24.591884242184182,
-          "est_mCO2ProductionRate": -0.005518805704493289,
+          "est_mCO2ProductionRate": -0.011623681861310561,
           "est_mCO2Vented": 0.0,
           "est_mCO2Ventflow": 0.0,
           "est_mEthanolFomSugar": -25.74014342858967,
-          "est_mEthanolProductionRate": -0.005776493130384457,
+          "est_mEthanolProductionRate": -0.012166421870399477,
           "est_mSugarConsumed": -47.84413276689529,
-          "est_mSugarConusmptionRate": -0.010736976078781369,
+          "est_mSugarConusmptionRate": -0.022614167045351078,
           "est_mSugarRemaining": -363.35407217843294,
           "est_mYeastBiomas": 0.008,
           "est_mYeastGrowthRate": 0.0,
@@ -1662,11 +1662,11 @@
         "reset_param": "twin.reset",
         "reset_param_value": false,
         "runtime_mode": "runtime",
-        "sim_time_s": 299.01021780000303,
-        "step_count": 1066
+        "sim_time_s": 253.95769289999734,
+        "step_count": 903
       }
     }
   },
-  "saved_at": 1774216449.6012602,
-  "store_revision": 10488
+  "saved_at": 1774294997.0271904,
+  "store_revision": 8957
 }

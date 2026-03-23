@@ -16,6 +16,21 @@ The Data Service records selected parameter values from ParameterDB to files at 
 
 The service requires an active ParameterDB backend connection before setup is accepted.
 
+### Where Loadsteps Are Stored
+
+Loadsteps are **not embedded as special rows/objects inside the measurement sample file**.
+
+- The measurement file (`parquet`, `csv`, or `jsonl`) contains the raw time-series samples collected during recording.
+- Loadstep results are also persisted to a per-session sidecar archive file:
+  - `<output_dir>/<session_name>.loadsteps.<output_format>`
+  - archive format matches the main measurement `output_format` (`parquet`, `csv`, or `jsonl`)
+- This includes both schedule-triggered and manual `POST /loadstep/take` calls.
+- Those summaries are returned via:
+  - `GET /status` as `active_loadsteps` and `completed_loadsteps`
+  - `POST /measurement/stop` as `loadsteps`
+
+So, canonical loadstep outputs are the sidecar archive file plus API responses, not an inline section inside the measurement sample file.
+
 ---
 
 ## Data Model Notes
@@ -107,6 +122,7 @@ Stops recording, flushes the file writer, finalizes any active loadsteps, and re
   "message": "Recording stopped: example_001",
   "samples_recorded": 91,
   "file": "data/measurements\\example_001.parquet",
+  "loadsteps_file": "data/measurements\\example_001.loadsteps.parquet",
   "completed_loadsteps": 0,
   "loadsteps": [],
   "missing_parameters": [],

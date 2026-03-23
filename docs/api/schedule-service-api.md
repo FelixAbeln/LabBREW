@@ -7,6 +7,13 @@ The Schedule Service executes multi-step fermentation schedules. A schedule has 
 
 The runtime can call both Control Service and Data Service backends. This allows schedule steps to apply setpoints and trigger recording/loadstep operations in the same sequence.
 
+Measurement lifecycle with scheduler state:
+
+- `start`: scheduler auto-starts global measurement.
+- `pause`: measurement continues running (fermentation is still active).
+- `resume`: scheduler ensures measurement is running; if it stopped while paused, it is auto-started again.
+- `stop`: scheduler stops/finalizes measurement.
+
 ---
 
 ## Data Models
@@ -85,6 +92,12 @@ For `take_loadstep`, optional `params` include:
 - `loadstep_name`: explicit name (default is generated from schedule id + UTC time)
 - `parameters`: subset list to average (defaults to active measurement parameters)
 - `timing`: `on_enter` (default) or `before_next`/`on_exit` to capture right before step transition
+
+Loadstep persistence note:
+
+- `take_loadstep` triggers Data Service averaging windows.
+- The averaged loadstep summaries are exposed by Data Service status/stop responses.
+- They are persisted by Data Service to `<output_dir>/<session_name>.loadsteps.<output_format>` (same format as the main recording) and are not written as dedicated records inside the measurement sample file format.
 
 ---
 
