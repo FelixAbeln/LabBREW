@@ -116,26 +116,12 @@ Start recording a loadstep (averaged data over time).
 
 ### Parameter Discovery
 
-#### `GET /parameters/available`
-List all available parameters from parameterDB that can be recorded.
-
-**Response:**
-```json
-{
-  "count": 42,
-  "parameters": [
-    "sensor_temp",
-    "pressure_psi",
-    "flow_rate",
-    "pH_value",
-    "stirrer_rpm",
-    ...
-  ]
-}
-```
-
-This endpoint is useful for discovering which parameters are available before setting up measurements.
-
+The data service does not currently expose a dedicated HTTP endpoint for listing
+available parameters. Instead, it relies on the same ParameterDB used by
+`control_service`. To discover which parameters can be recorded, query
+ParameterDB directly (or use whatever discovery mechanisms are provided by
+`control_service`), then configure the data service with the desired parameter
+names.
 ### Status & Health
 
 #### `GET /status`
