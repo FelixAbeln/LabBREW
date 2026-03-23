@@ -276,6 +276,9 @@ class DataRecordingRuntime:
             if not self._recording:
                 return {"ok": False, "error": "No measurement in progress"}
 
+            if duration_seconds <= 0:
+                return {"ok": False, "error": f"duration_seconds must be greater than 0, got {duration_seconds}"}
+
             # Use measurement parameters if not specified
             params = parameters if parameters else self.config.parameters
 
