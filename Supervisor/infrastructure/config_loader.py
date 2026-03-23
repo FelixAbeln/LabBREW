@@ -180,6 +180,11 @@ class YamlTopologyLoader:
             raise ValueError(f"Service '{service_name}'.backend must be a string or null")
 
         backends = raw.get("backends")
+        if backend is not None and backends is not None:
+            raise ValueError(
+                f"Service '{service_name}' specifies both 'backend' and 'backends'; use one or the other"
+            )
+
         if backends is not None:
             if not isinstance(backends, dict):
                 raise ValueError(f"Service '{service_name}'.backends must be a mapping")
