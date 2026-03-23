@@ -641,6 +641,66 @@ input {
   font-weight: 600;
 }
 
+.validation-code-block {
+  margin-top: 10px;
+}
+
+.validation-code-title {
+  font-size: 12px;
+  color: #9fb0c0;
+  margin-bottom: 6px;
+}
+
+.validation-code-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.validation-code-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  border: 1px solid #2a3644;
+  background: #0f1720;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.validation-code-chip.is-error {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fecaca;
+}
+
+.validation-code-chip.is-warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fde68a;
+}
+
+.validation-issue-block {
+  margin-top: 10px;
+}
+
+.validation-issue-block ul {
+  margin-top: 6px;
+}
+
+.validation-details {
+  margin-top: 6px;
+}
+
+.validation-details summary {
+  cursor: pointer;
+  color: #9fb0c0;
+  font-size: 12px;
+}
+
+.validation-details[open] summary {
+  margin-bottom: 6px;
+}
+
 @media (max-width: 1100px) {
   .main-grid,
   .schedule-layout,

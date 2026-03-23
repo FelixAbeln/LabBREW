@@ -256,6 +256,8 @@ Measurement starts automatically when the run begins and records throughout all 
 
 Before the JSON payload is forwarded to the Schedule Service the parser runs validation checks. Errors block import; warnings are informational only.
 
+Validation is also checked against the live backend parameter namespace (via control snapshot). If a referenced parameter does not exist in backend values, the schedule is marked invalid.
+
 **Hard errors (block import)**
 - Missing or empty `id` / `name` in the `meta` sheet
 - Missing `step_id` or `name` in a step row
@@ -265,6 +267,61 @@ Before the JSON payload is forwarded to the Schedule Service the parser runs val
 - `take_loadstep` value is not a positive number
 - `condition` wait missing `source`, `operator`, or `threshold`
 - Unknown wait or action kind
+- Any referenced parameter is not present in backend values (`UNKNOWN_PARAMETER`)
 
 **Warnings (allow import)**
 - A step has no actions
+
+---
+
+## Validation Response Contract
+
+`PUT /fermenters/{id}/schedule/validate-import` and failed `PUT /fermenters/{id}/schedule/import` responses include machine-readable issue metadata for frontend display.
+
+### Response fields
+
+| Field | Type | Description |
+|---|---|---|
+| `valid` | bool | `true` only when no error-level issues exist |
+| `errors` | string[] | Human-readable error messages |
+| `warnings` | string[] | Human-readable warning messages |
+| `error_codes` | string[] | Unique set of error codes present |
+| `warning_codes` | string[] | Unique set of warning codes present |
+| `issues` | object[] | Structured issues (`level`, `code`, `path`, `message`, optional extras) |
+
+### Example invalid response
+
+```json
+{
+	"ok": false,
+	"valid": false,
+	"errors": [
+		"Unknown parameter 'pressure' referenced in wait.condition.source"
+	],
+	"warnings": [],
+	"error_codes": ["UNKNOWN_PARAMETER"],
+	"warning_codes": [],
+	"issues": [
+		{
+			"level": "error",
+			"code": "UNKNOWN_PARAMETER",
+			"path": "plan_steps[3].wait.condition.source",
+			"message": "Unknown parameter 'pressure' referenced in wait.condition.source",
+			"parameter": "pressure",
+			"source": "wait.condition.source"
+		}
+	]
+}
+```
+
+### Error code reference
+
+| Code | Meaning |
+|---|---|
+| `UNKNOWN_PARAMETER` | A parameter referenced by actions, waits, measurement params, loadstep params, or workbook selection lists does not exist in backend values |
+| `BACKEND_UNREACHABLE` | Gateway could not reach control backend for parameter validation |
+| `BACKEND_VALIDATION_REQUEST_FAILED` | Control backend responded with non-2xx status for validation snapshot request |
+| `BACKEND_SNAPSHOT_INVALID` | Control backend response did not contain a valid `values` object |
+| `MISSING_*` / `INVALID_*` | Structural/schema validation failures (step/action/wait payload issues) |
+
+Frontend should prioritize `issues` for detailed display and use `error_codes` / `warning_codes` for stable UI mapping.

@@ -7,115 +7,429 @@ VALID_WAIT_KINDS = {None, 'elapsed', 'condition', 'all_of', 'any_of'}
 VALID_OPERATORS = {'==', '!=', '>', '>=', '<', '<='}
 
 
-def _validate_action(action: dict[str, Any], prefix: str, errors: list[str]) -> None:
+def _add_issue(
+    issues: list[dict[str, Any]],
+    *,
+    level: str,
+    code: str,
+    path: str,
+    message: str,
+    **extra: Any,
+) -> None:
+    issue = {
+        'level': level,
+        'code': code,
+        'path': path,
+        'message': message,
+    }
+    issue.update(extra)
+    issues.append(issue)
+
+
+def _require_parameter(
+    *,
+    parameter: str,
+    path: str,
+    source: str,
+    available_parameters: set[str] | None,
+    issues: list[dict[str, Any]],
+) -> None:
+    if available_parameters is None:
+        return
+    if parameter in available_parameters:
+        return
+    _add_issue(
+        issues,
+        level='error',
+        code='UNKNOWN_PARAMETER',
+        path=path,
+        message=f"Unknown parameter '{parameter}' referenced in {source}",
+        parameter=parameter,
+        source=source,
+    )
+
+
+def _validate_action(
+    action: dict[str, Any],
+    prefix: str,
+    issues: list[dict[str, Any]],
+    *,
+    available_parameters: set[str] | None,
+) -> None:
     kind = action.get('kind')
     if kind not in VALID_ACTION_KINDS:
-        errors.append(f"{prefix}: invalid action kind '{kind}'")
+        _add_issue(
+            issues,
+            level='error',
+            code='INVALID_ACTION_KIND',
+            path=prefix,
+            message=f"{prefix}: invalid action kind '{kind}'",
+            kind=kind,
+        )
         return
 
     if kind in {'request_control', 'write', 'ramp', 'release_control'} and not action.get('target'):
-        errors.append(f"{prefix}: target is required for action kind '{kind}'")
+        _add_issue(
+            issues,
+            level='error',
+            code='MISSING_ACTION_TARGET',
+            path=prefix,
+            message=f"{prefix}: target is required for action kind '{kind}'",
+            kind=kind,
+        )
+
+    if kind in {'request_control', 'write', 'ramp', 'release_control'} and action.get('target'):
+        _require_parameter(
+            parameter=str(action.get('target')),
+            path=f'{prefix}.target',
+            source=f'action.{kind}',
+            available_parameters=available_parameters,
+            issues=issues,
+        )
 
     if kind == 'write' and action.get('value') is None:
-        errors.append(f"{prefix}: value is required for write")
+        _add_issue(
+            issues,
+            level='error',
+            code='MISSING_WRITE_VALUE',
+            path=f'{prefix}.value',
+            message=f"{prefix}: value is required for write",
+        )
 
     if kind == 'ramp':
         if action.get('value') is None:
-            errors.append(f"{prefix}: value is required for ramp")
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_RAMP_VALUE',
+                path=f'{prefix}.value',
+                message=f"{prefix}: value is required for ramp",
+            )
         if action.get('duration_s') in (None, ''):
-            errors.append(f"{prefix}: duration_s is required for ramp")
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_RAMP_DURATION',
+                path=f'{prefix}.duration_s',
+                message=f"{prefix}: duration_s is required for ramp",
+            )
 
     if kind == 'global_measurement':
         mode = str(action.get('value') or (action.get('params') or {}).get('mode') or 'start').strip().lower()
         if mode not in {'start', 'setup_start', 'stop'}:
-            errors.append(f"{prefix}: global_measurement mode must be one of ['start', 'setup_start', 'stop']")
+            _add_issue(
+                issues,
+                level='error',
+                code='INVALID_GLOBAL_MEASUREMENT_MODE',
+                path=f'{prefix}.value',
+                message=f"{prefix}: global_measurement mode must be one of ['start', 'setup_start', 'stop']",
+                mode=mode,
+            )
+
+        params = action.get('params') if isinstance(action.get('params'), dict) else {}
+        listed = params.get('parameters')
+        if isinstance(listed, list):
+            for idx, param in enumerate(listed):
+                _require_parameter(
+                    parameter=str(param),
+                    path=f'{prefix}.params.parameters[{idx}]',
+                    source='global_measurement.parameters',
+                    available_parameters=available_parameters,
+                    issues=issues,
+                )
 
     if kind == 'take_loadstep':
         if action.get('duration_s') in (None, ''):
             params = action.get('params') if isinstance(action.get('params'), dict) else {}
             if params.get('duration_seconds') in (None, ''):
-                errors.append(f"{prefix}: duration_s (or params.duration_seconds) is required for take_loadstep")
+                _add_issue(
+                    issues,
+                    level='error',
+                    code='MISSING_LOADSTEP_DURATION',
+                    path=prefix,
+                    message=f"{prefix}: duration_s (or params.duration_seconds) is required for take_loadstep",
+                )
+
+        params = action.get('params') if isinstance(action.get('params'), dict) else {}
+        listed = params.get('parameters')
+        if isinstance(listed, list):
+            for idx, param in enumerate(listed):
+                _require_parameter(
+                    parameter=str(param),
+                    path=f'{prefix}.params.parameters[{idx}]',
+                    source='take_loadstep.parameters',
+                    available_parameters=available_parameters,
+                    issues=issues,
+                )
 
 
-def _validate_wait(wait: dict[str, Any] | None, prefix: str, errors: list[str]) -> None:
+def _validate_wait(
+    wait: dict[str, Any] | None,
+    prefix: str,
+    issues: list[dict[str, Any]],
+    *,
+    available_parameters: set[str] | None,
+) -> None:
     if wait is None:
         return
 
     kind = wait.get('kind')
     if kind not in VALID_WAIT_KINDS:
-        errors.append(f"{prefix}: invalid wait kind '{kind}'")
+        _add_issue(
+            issues,
+            level='error',
+            code='INVALID_WAIT_KIND',
+            path=prefix,
+            message=f"{prefix}: invalid wait kind '{kind}'",
+            kind=kind,
+        )
         return
 
     if kind == 'elapsed':
         if wait.get('duration_s') in (None, ''):
-            errors.append(f"{prefix}: duration_s is required for elapsed wait")
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_ELAPSED_DURATION',
+                path=f'{prefix}.duration_s',
+                message=f"{prefix}: duration_s is required for elapsed wait",
+            )
         return
 
     if kind == 'condition':
         cond = wait.get('condition') or {}
         if not cond.get('source'):
-            errors.append(f"{prefix}.condition: source is required")
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_CONDITION_SOURCE',
+                path=f'{prefix}.condition.source',
+                message=f"{prefix}.condition: source is required",
+            )
         if cond.get('operator') not in VALID_OPERATORS:
-            errors.append(f"{prefix}.condition: operator must be one of {sorted(VALID_OPERATORS)}")
+            _add_issue(
+                issues,
+                level='error',
+                code='INVALID_CONDITION_OPERATOR',
+                path=f'{prefix}.condition.operator',
+                message=f"{prefix}.condition: operator must be one of {sorted(VALID_OPERATORS)}",
+                operator=cond.get('operator'),
+            )
         if cond.get('threshold') in (None, ''):
-            errors.append(f"{prefix}.condition: threshold is required")
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_CONDITION_THRESHOLD',
+                path=f'{prefix}.condition.threshold',
+                message=f"{prefix}.condition: threshold is required",
+            )
+        source = cond.get('source')
+        if source:
+            _require_parameter(
+                parameter=str(source),
+                path=f'{prefix}.condition.source',
+                source='wait.condition.source',
+                available_parameters=available_parameters,
+                issues=issues,
+            )
         if cond.get('for_s') not in (None, ''):
             try:
                 float(cond.get('for_s'))
             except (TypeError, ValueError):
-                errors.append(f"{prefix}.condition: for_s must be numeric")
+                _add_issue(
+                    issues,
+                    level='error',
+                    code='INVALID_CONDITION_FOR_SECONDS',
+                    path=f'{prefix}.condition.for_s',
+                    message=f"{prefix}.condition: for_s must be numeric",
+                )
         return
 
     children = wait.get('children')
     if not isinstance(children, list) or not children:
-        errors.append(f"{prefix}: {kind} requires at least one child wait")
+        _add_issue(
+            issues,
+            level='error',
+            code='MISSING_WAIT_CHILDREN',
+            path=f'{prefix}.children',
+            message=f"{prefix}: {kind} requires at least one child wait",
+            kind=kind,
+        )
         return
     for index, child in enumerate(children):
-        _validate_wait(child, f"{prefix}.children[{index}]", errors)
+        _validate_wait(
+            child,
+            f"{prefix}.children[{index}]",
+            issues,
+            available_parameters=available_parameters,
+        )
 
 
-def _validate_step(step: dict[str, Any], phase: str, index: int, errors: list[str], warnings: list[str]) -> None:
+def _validate_step(
+    step: dict[str, Any],
+    phase: str,
+    index: int,
+    issues: list[dict[str, Any]],
+    *,
+    available_parameters: set[str] | None,
+) -> None:
     prefix = f"{phase}[{index}]"
     if not step.get('id'):
-        errors.append(f"{prefix}: step id is required")
+        _add_issue(
+            issues,
+            level='error',
+            code='MISSING_STEP_ID',
+            path=f'{prefix}.id',
+            message=f"{prefix}: step id is required",
+        )
     if not step.get('name'):
-        errors.append(f"{prefix}: step name is required")
+        _add_issue(
+            issues,
+            level='error',
+            code='MISSING_STEP_NAME',
+            path=f'{prefix}.name',
+            message=f"{prefix}: step name is required",
+        )
 
     actions = step.get('actions', [])
     if not isinstance(actions, list):
-        errors.append(f"{prefix}: actions must be a list")
+        _add_issue(
+            issues,
+            level='error',
+            code='INVALID_ACTIONS_TYPE',
+            path=f'{prefix}.actions',
+            message=f"{prefix}: actions must be a list",
+        )
     else:
         for action_index, action in enumerate(actions):
-            _validate_action(action, f"{prefix}.actions[{action_index}]", errors)
+            _validate_action(
+                action,
+                f"{prefix}.actions[{action_index}]",
+                issues,
+                available_parameters=available_parameters,
+            )
 
     if not actions:
-        warnings.append(f"{prefix}: step has no actions")
+        _add_issue(
+            issues,
+            level='warning',
+            code='STEP_HAS_NO_ACTIONS',
+            path=f'{prefix}.actions',
+            message=f"{prefix}: step has no actions",
+        )
 
-    _validate_wait(step.get('wait'), f"{prefix}.wait", errors)
+    _validate_wait(
+        step.get('wait'),
+        f"{prefix}.wait",
+        issues,
+        available_parameters=available_parameters,
+    )
 
 
-def validate_schedule_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    errors: list[str] = []
-    warnings: list[str] = []
+def _validate_measurement_config(
+    payload: dict[str, Any],
+    issues: list[dict[str, Any]],
+    *,
+    available_parameters: set[str] | None,
+) -> None:
+    measurement = payload.get('measurement_config')
+    if not isinstance(measurement, dict):
+        return
+    params = measurement.get('parameters')
+    if not isinstance(params, list):
+        return
+    for idx, name in enumerate(params):
+        _require_parameter(
+            parameter=str(name),
+            path=f'measurement_config.parameters[{idx}]',
+            source='measurement_config.parameters',
+            available_parameters=available_parameters,
+            issues=issues,
+        )
+
+
+def validate_schedule_payload(
+    payload: dict[str, Any],
+    *,
+    available_parameters: set[str] | None = None,
+    extra_parameter_references: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
 
     if not payload.get('id'):
-        errors.append('schedule id is required')
+        _add_issue(
+            issues,
+            level='error',
+            code='MISSING_SCHEDULE_ID',
+            path='id',
+            message='schedule id is required',
+        )
     if not payload.get('name'):
-        errors.append('schedule name is required')
+        _add_issue(
+            issues,
+            level='error',
+            code='MISSING_SCHEDULE_NAME',
+            path='name',
+            message='schedule name is required',
+        )
+
+    _validate_measurement_config(
+        payload,
+        issues,
+        available_parameters=available_parameters,
+    )
 
     for phase in ('setup_steps', 'plan_steps'):
         steps = payload.get(phase)
         if steps is None:
-            errors.append(f'{phase} is required')
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_PHASE',
+                path=phase,
+                message=f'{phase} is required',
+            )
             continue
         if not isinstance(steps, list):
-            errors.append(f'{phase} must be a list')
+            _add_issue(
+                issues,
+                level='error',
+                code='INVALID_PHASE_TYPE',
+                path=phase,
+                message=f'{phase} must be a list',
+            )
             continue
         for index, step in enumerate(steps):
-            _validate_step(step, phase, index, errors, warnings)
+            _validate_step(
+                step,
+                phase,
+                index,
+                issues,
+                available_parameters=available_parameters,
+            )
+
+    for item in extra_parameter_references or []:
+        parameter = str(item.get('parameter') or '').strip()
+        if not parameter:
+            continue
+        _require_parameter(
+            parameter=parameter,
+            path=str(item.get('path') or 'schedule_import'),
+            source=str(item.get('source') or 'workbook_reference'),
+            available_parameters=available_parameters,
+            issues=issues,
+        )
+
+    errors = [item['message'] for item in issues if item.get('level') == 'error']
+    warnings = [item['message'] for item in issues if item.get('level') == 'warning']
+    error_codes = sorted({str(item.get('code')) for item in issues if item.get('level') == 'error'})
+    warning_codes = sorted({str(item.get('code')) for item in issues if item.get('level') == 'warning'})
 
     return {
         'valid': not errors,
         'errors': errors,
         'warnings': warnings,
+        'error_codes': error_codes,
+        'warning_codes': warning_codes,
+        'issues': issues,
     }

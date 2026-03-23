@@ -3,6 +3,15 @@ import './App.css'
 
 const API_BASE = 'http://127.0.0.1:8782'
 
+class ApiResponseError extends Error {
+  constructor(message, status, payload) {
+    super(message)
+    this.name = 'ApiResponseError'
+    this.status = status
+    this.payload = payload
+  }
+}
+
 async function api(path, options = {}) {
   const headers = {
     ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -21,12 +30,38 @@ async function api(path, options = {}) {
 
   if (!response.ok) {
     if (typeof payload === 'string') {
-      throw new Error(payload || `HTTP ${response.status}`)
+      throw new ApiResponseError(payload || `HTTP ${response.status}`, response.status, payload)
     }
-    throw new Error(payload?.detail || payload?.error || JSON.stringify(payload) || `HTTP ${response.status}`)
+    throw new ApiResponseError(
+      payload?.detail || payload?.error || JSON.stringify(payload) || `HTTP ${response.status}`,
+      response.status,
+      payload,
+    )
   }
 
   return payload
+}
+
+function isImportValidationPayload(payload) {
+  return Boolean(
+    payload &&
+      typeof payload === 'object' &&
+      ('valid' in payload || 'errors' in payload || 'issues' in payload),
+  )
+}
+
+function collectIssues(payload, level) {
+  if (!payload || !Array.isArray(payload.issues)) return []
+  const filtered = payload.issues.filter((issue) => issue?.level === level)
+  const seen = new Set()
+  const deduped = []
+  for (const issue of filtered) {
+    const key = `${issue.code || ''}::${issue.path || ''}::${issue.message || ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(issue)
+  }
+  return deduped
 }
 
 
@@ -631,6 +666,8 @@ function App() {
   }, [fermenters, selectedId])
 
   const runToggle = useMemo(() => getRunToggle(schedule?.state || null), [schedule?.state])
+  const importErrorIssues = useMemo(() => collectIssues(importResult, 'error'), [importResult])
+  const importWarningIssues = useMemo(() => collectIssues(importResult, 'warning'), [importResult])
 
   const healthyServices = useMemo(() => {
     const services = Object.entries(selected?.services || {})
@@ -785,7 +822,11 @@ function App() {
       await loadFermenters()
       await loadDetails(selected.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      if (err instanceof ApiResponseError && isImportValidationPayload(err.payload)) {
+        setImportResult(err.payload)
+      } else {
+        setError(err instanceof Error ? err.message : 'Unknown error')
+      }
     } finally {
       setLoadingAction(false)
     }
@@ -1220,22 +1261,76 @@ function App() {
                       ) : (
                         <>
                           <div className="error">✖ Validation failed</div>
-                          <ul>
-                            {importResult.errors?.map((e, i) => (
-                              <li key={i}>{e}</li>
-                            ))}
-                          </ul>
+                          {Array.isArray(importResult.error_codes) && importResult.error_codes.length > 0 && (
+                            <div className="validation-code-block">
+                              <div className="validation-code-title">Error codes</div>
+                              <div className="validation-code-list">
+                                {importResult.error_codes.map((code) => (
+                                  <span key={code} className="validation-code-chip is-error">{code}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {importErrorIssues.length > 0 ? (
+                            <div className="validation-issue-block">
+                              <div className="validation-code-title">{importErrorIssues.length} issue{importErrorIssues.length === 1 ? '' : 's'} found</div>
+                              <details className="validation-details" open={importErrorIssues.length <= 4}>
+                                <summary>Show issue details</summary>
+                                <ul>
+                                  {importErrorIssues.map((issue, i) => (
+                                    <li key={`${issue.code || 'error'}-${issue.path || 'path'}-${i}`}>
+                                      [{issue.code || 'UNKNOWN'}] {issue.message}
+                                      {issue.path ? ` (${issue.path})` : ''}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            </div>
+                          ) : (
+                            <ul>
+                              {importResult.errors?.map((e, i) => (
+                                <li key={i}>{e}</li>
+                              ))}
+                            </ul>
+                          )}
                         </>
                       )}
 
                       {importResult.warnings?.length > 0 && (
                         <>
                           <div className="warning">⚠ Warnings</div>
-                          <ul>
-                            {importResult.warnings.map((w, i) => (
-                              <li key={i}>{w}</li>
-                            ))}
-                          </ul>
+                          {Array.isArray(importResult.warning_codes) && importResult.warning_codes.length > 0 && (
+                            <div className="validation-code-block">
+                              <div className="validation-code-title">Warning codes</div>
+                              <div className="validation-code-list">
+                                {importResult.warning_codes.map((code) => (
+                                  <span key={code} className="validation-code-chip is-warning">{code}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {importWarningIssues.length > 0 ? (
+                            <div className="validation-issue-block">
+                              <div className="validation-code-title">{importWarningIssues.length} warning issue{importWarningIssues.length === 1 ? '' : 's'}</div>
+                              <details className="validation-details" open={importWarningIssues.length <= 3}>
+                                <summary>Show warning details</summary>
+                                <ul>
+                                  {importWarningIssues.map((issue, i) => (
+                                    <li key={`${issue.code || 'warning'}-${issue.path || 'path'}-${i}`}>
+                                      [{issue.code || 'UNKNOWN'}] {issue.message}
+                                      {issue.path ? ` (${issue.path})` : ''}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            </div>
+                          ) : (
+                            <ul>
+                              {importResult.warnings.map((w, i) => (
+                                <li key={i}>{w}</li>
+                              ))}
+                            </ul>
+                          )}
                         </>
                       )}
                     </div>

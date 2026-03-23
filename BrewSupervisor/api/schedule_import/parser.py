@@ -301,3 +301,54 @@ def parse_schedule_workbook(file_bytes: bytes, filename: str = 'schedule.xlsx') 
             for row in plan_rows
         ],
     }
+
+
+def collect_workbook_parameter_references(file_bytes: bytes) -> list[dict[str, str]]:
+    """Collect workbook-declared parameter references for validation.
+
+    This includes legacy/user-authored selection-list sheets and optional
+    per-step parameter columns that may exist in imported workbooks.
+    """
+    wb = load_workbook(BytesIO(file_bytes), data_only=True)
+    refs: list[dict[str, str]] = []
+
+    def _push(path: str, source: str, parameter: str) -> None:
+        text = _cell_str(parameter)
+        if not text:
+            return
+        refs.append({
+            'path': path,
+            'source': source,
+            'parameter': text,
+        })
+
+    m_selection = _read_selection_sheet(wb, 'M-SelectionList')
+    for idx, item in enumerate(m_selection):
+        _push(f'meta.M-SelectionList[{idx}]', 'measurement_selection_list', item)
+
+    ls_selection = _read_selection_sheet(wb, 'LS-Selection List')
+    if not ls_selection:
+        ls_selection = _read_selection_sheet(wb, 'LS-SelectionList')
+    for idx, item in enumerate(ls_selection):
+        _push(f'meta.LS-Selection List[{idx}]', 'loadstep_selection_list', item)
+
+    for phase in ('setup_steps', 'plan_steps'):
+        rows = _read_steps_sheet(wb, phase)
+        for row_index, row in enumerate(rows):
+            measurement_params = _cell_list(row.get('measurement_parameters'))
+            for param_index, item in enumerate(measurement_params):
+                _push(
+                    f'{phase}[{row_index}].measurement_parameters[{param_index}]',
+                    'measurement_parameters_column',
+                    item,
+                )
+
+            loadstep_params = _cell_list(row.get('loadstep_parameters'))
+            for param_index, item in enumerate(loadstep_params):
+                _push(
+                    f'{phase}[{row_index}].loadstep_parameters[{param_index}]',
+                    'loadstep_parameters_column',
+                    item,
+                )
+
+    return refs
