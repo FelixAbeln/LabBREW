@@ -248,7 +248,12 @@ def _build_step(
     take_loadstep_raw = row.get('take_loadstep')
     try:
         take_loadstep_seconds = _cell_float(take_loadstep_raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        # If the cell is non-empty but cannot be parsed as a float, surface this as a validation error.
+        if _cell_str(take_loadstep_raw) is not None:
+            raise ValueError(
+                f"Invalid take_loadstep value {take_loadstep_raw!r}: expected a numeric duration in seconds."
+            ) from exc
         take_loadstep_seconds = None
 
     if take_loadstep_seconds is not None and take_loadstep_seconds > 0:
