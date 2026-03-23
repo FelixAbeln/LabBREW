@@ -20,6 +20,10 @@ from .._shared.parameterDB.paremeterDB import SignalStoreBackend
 from .storage.writer import FileWriter, FileWriterFactory
 from .storage.loadstep import LoadstepAverager
 
+# Sleep durations for the recording loop
+_IDLE_SLEEP_INTERVAL = 0.1      # 100ms when not recording (reduces idle CPU usage)
+_MIN_SAMPLE_SLEEP = 0.0005      # 0.5ms minimum sleep floor to prevent busy-waiting
+
 
 @dataclass
 class MeasurementConfig:
@@ -82,6 +86,8 @@ class DataRecordingRuntime:
         while self._running:
             try:
                 current_time = time.time()
+                sleep_time = _IDLE_SLEEP_INTERVAL  # Default: 100ms when not recording
+
                 # Synchronize access to shared measurement/loadstep state with API handlers
                 with self._lock:
                     if self._recording and self.config:
@@ -96,8 +102,13 @@ class DataRecordingRuntime:
                             # Check and finalize completed loadsteps
                             self._check_loadsteps()
 
-                # Sleep briefly to avoid busy-waiting
-                time.sleep(0.001)
+                            # Sleep until the next sample is due
+                            sleep_time = target_interval
+                        else:
+                            # Sleep for remaining time until the next sample
+                            sleep_time = max(_MIN_SAMPLE_SLEEP, target_interval - elapsed)
+
+                time.sleep(sleep_time)
 
             except Exception as e:
                 print(f"Error in recording loop: {e}")
