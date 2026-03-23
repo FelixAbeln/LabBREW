@@ -362,6 +362,9 @@ class DataRecordingRuntime:
             }
             self._completed_loadsteps.append(loadstep_record)
             self._append_loadstep_archive_record(loadstep_record)
+            # Once finalized and archived, remove the averager to avoid
+            # accumulating further samples for this completed loadstep.
+            self._loadstep_averagers.pop(ls_config.name, None)
 
     def _append_loadstep_archive_record(self, loadstep_record: dict[str, Any]) -> None:
         """Append a finalized loadstep record to the session archive file."""
