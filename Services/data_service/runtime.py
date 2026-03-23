@@ -82,18 +82,19 @@ class DataRecordingRuntime:
         while self._running:
             try:
                 current_time = time.time()
+                # Synchronize access to shared measurement/loadstep state with API handlers
+                with self._lock:
+                    if self._recording and self.config:
+                        # Calculate time since last recording
+                        elapsed = current_time - last_write_time
+                        target_interval = 1.0 / self.config.hz
 
-                if self._recording and self.config:
-                    # Calculate time since last recording
-                    elapsed = current_time - last_write_time
-                    target_interval = 1.0 / self.config.hz
+                        if elapsed >= target_interval:
+                            self._record_sample()
+                            last_write_time = current_time
 
-                    if elapsed >= target_interval:
-                        self._record_sample()
-                        last_write_time = current_time
-                        
-                        # Check and finalize completed loadsteps
-                        self._check_loadsteps()
+                            # Check and finalize completed loadsteps
+                            self._check_loadsteps()
 
                 # Sleep briefly to avoid busy-waiting
                 time.sleep(0.001)
