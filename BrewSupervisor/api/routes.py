@@ -7,7 +7,7 @@ import requests
 from fastapi.responses import JSONResponse
 
 from .models import FermenterView
-from .schedule_import.parser import parse_schedule_workbook
+from .schedule_import.parser import collect_workbook_parameter_references, parse_schedule_workbook
 from .schedule_import.validator import validate_schedule_payload
 
 
@@ -51,6 +51,42 @@ def _build_service_proxy_url(node: Any, service_name: str, suffix: str = '') -> 
     if suffix:
         url += f"/{suffix}"
     return url
+
+
+def _get_available_backend_parameters(proxy: Any, node: Any) -> tuple[set[str] | None, dict[str, Any] | None]:
+    status_code, payload = _read_best_effort(
+        proxy,
+        method='GET',
+        url=_build_service_proxy_url(node, 'control_service', 'system/snapshot'),
+    )
+    if status_code is None:
+        return None, {
+            'level': 'error',
+            'code': 'BACKEND_UNREACHABLE',
+            'path': 'backend.control_service.system/snapshot',
+            'message': 'Could not reach control backend for parameter validation',
+            'detail': payload.get('detail') if isinstance(payload, dict) else str(payload),
+        }
+    if not (200 <= status_code < 300) or not isinstance(payload, dict):
+        return None, {
+            'level': 'error',
+            'code': 'BACKEND_VALIDATION_REQUEST_FAILED',
+            'path': 'backend.control_service.system/snapshot',
+            'message': 'Control backend rejected parameter validation request',
+            'status_code': status_code,
+            'detail': payload,
+        }
+
+    values = payload.get('values')
+    if not isinstance(values, dict):
+        return None, {
+            'level': 'error',
+            'code': 'BACKEND_SNAPSHOT_INVALID',
+            'path': 'backend.control_service.system/snapshot.values',
+            'message': 'Control backend snapshot does not contain a values object',
+        }
+
+    return {str(name) for name in values.keys()}, None
 
 
 def build_router() -> APIRouter:
@@ -127,17 +163,34 @@ def build_router() -> APIRouter:
     @router.put('/fermenters/{fermenter_id}/schedule/validate-import')
     async def validate_schedule_import(fermenter_id: str, request: Request, file: UploadFile = File(...)):
         registry = request.app.state.registry
+        proxy = request.app.state.proxy
         node = registry.get_node(fermenter_id)
         if node is None:
             raise HTTPException(status_code=404, detail='Fermenter not found')
 
-        payload = parse_schedule_workbook(await file.read(), filename=file.filename or 'schedule.xlsx')
-        result = validate_schedule_payload(payload)
+        file_bytes = await file.read()
+        payload = parse_schedule_workbook(file_bytes, filename=file.filename or 'schedule.xlsx')
+        refs = collect_workbook_parameter_references(file_bytes)
+        available_parameters, backend_issue = _get_available_backend_parameters(proxy, node)
+        result = validate_schedule_payload(
+            payload,
+            available_parameters=available_parameters,
+            extra_parameter_references=refs,
+        )
+        if backend_issue is not None:
+            result['valid'] = False
+            result['issues'].append(backend_issue)
+            result['errors'].append(backend_issue['message'])
+            result['error_codes'] = sorted({*result.get('error_codes', []), str(backend_issue['code'])})
+
         return {
             'ok': result['valid'],
             'valid': result['valid'],
             'errors': result['errors'],
             'warnings': result['warnings'],
+            'error_codes': result.get('error_codes', []),
+            'warning_codes': result.get('warning_codes', []),
+            'issues': result.get('issues', []),
             'schedule': payload,
             'summary': {
                 'setup_step_count': len(payload.get('setup_steps', [])),
@@ -153,14 +206,30 @@ def build_router() -> APIRouter:
         if node is None:
             raise HTTPException(status_code=404, detail='Fermenter not found')
 
-        payload = parse_schedule_workbook(await file.read(), filename=file.filename or 'schedule.xlsx')
-        result = validate_schedule_payload(payload)
+        file_bytes = await file.read()
+        payload = parse_schedule_workbook(file_bytes, filename=file.filename or 'schedule.xlsx')
+        refs = collect_workbook_parameter_references(file_bytes)
+        available_parameters, backend_issue = _get_available_backend_parameters(proxy, node)
+        result = validate_schedule_payload(
+            payload,
+            available_parameters=available_parameters,
+            extra_parameter_references=refs,
+        )
+        if backend_issue is not None:
+            result['valid'] = False
+            result['issues'].append(backend_issue)
+            result['errors'].append(backend_issue['message'])
+            result['error_codes'] = sorted({*result.get('error_codes', []), str(backend_issue['code'])})
+
         if not result['valid']:
             return JSONResponse(status_code=422, content={
                 'ok': False,
                 'valid': False,
                 'errors': result['errors'],
                 'warnings': result['warnings'],
+                'error_codes': result.get('error_codes', []),
+                'warning_codes': result.get('warning_codes', []),
+                'issues': result.get('issues', []),
                 'schedule': payload,
             })
 
@@ -175,6 +244,9 @@ def build_router() -> APIRouter:
             'valid': True,
             'errors': [],
             'warnings': result['warnings'],
+            'error_codes': [],
+            'warning_codes': result.get('warning_codes', []),
+            'issues': [item for item in result.get('issues', []) if item.get('level') == 'warning'],
             'schedule': payload,
             'forwarded': forwarded,
         })
@@ -258,6 +330,11 @@ def build_router() -> APIRouter:
     @router.api_route('/fermenters/{fermenter_id}/system', methods=['GET', 'POST', 'PUT', 'DELETE'])
     async def proxy_system(fermenter_id: str, request: Request, service_path: str = ''):
         return await _proxy_via_agent(request, fermenter_id, 'control_service', f'system/{service_path}'.rstrip('/'))
+
+    @router.api_route('/fermenters/{fermenter_id}/data/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @router.api_route('/fermenters/{fermenter_id}/data', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_data(fermenter_id: str, request: Request, service_path: str = ''):
+        return await _proxy_via_agent(request, fermenter_id, 'data_service', service_path.rstrip('/'))
 
     @router.api_route('/fermenters/{fermenter_id}/ws/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
     @router.api_route('/fermenters/{fermenter_id}/ws', methods=['GET', 'POST', 'PUT', 'DELETE'])

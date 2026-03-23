@@ -70,6 +70,7 @@ class ExternalCapability:
 class ServiceSpec:
     name: str
     module: str
+    docs: str | None = None
     provides: tuple[ProvidedCapability, ...] = ()
     requires: tuple[str, ...] = ()
     capability_arg_rules: tuple[CapabilityArgRule, ...] = ()

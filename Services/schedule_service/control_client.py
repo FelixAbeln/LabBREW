@@ -36,6 +36,13 @@ class ControlClient:
     def ownership(self) -> dict[str, Any]:
         return self._get('/control/ownership')
 
+    def snapshot(self, targets: list[str] | None = None) -> dict[str, Any]:
+        query = ''
+        if targets:
+            joined = ','.join(targets)
+            query = f'?targets={joined}'
+        return self._get(f'/system/snapshot{query}')
+
     def _get(self, path: str) -> dict[str, Any]:
         response = self._session.get(f'{self.base_url}{path}', timeout=self.timeout_s)
         response.raise_for_status()

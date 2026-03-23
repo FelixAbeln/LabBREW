@@ -354,6 +354,9 @@ vite.config.ts.timestamp-*
 .vite/
 
 
-# Vite files
+# local stored files not for runtime
 ./logs
 parameterdb_audit.jsonl
+.parquet
+./data/measurements/
+/data/measurements

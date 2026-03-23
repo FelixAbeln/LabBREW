@@ -15,7 +15,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 5.498384188973128
+      "value": 0.0
     },
     "brewcan.connected": {
       "config": {},
@@ -33,17 +33,19 @@
     "brewcan.density.0": {
       "config": {},
       "metadata": {
+        "comment": "",
         "created_by": "data_source",
         "device": "brewtools_can",
         "kind": "density",
         "node_id": 0,
         "owner": "brewtools_can_demo",
         "role": "measurement",
-        "source_type": "brewtools_kvaser"
+        "source_type": "brewtools_kvaser",
+        "unit": ""
       },
       "parameter_type": "static",
       "state": {},
-      "value": 1.052157998085022
+      "value": 1.04
     },
     "brewcan.last_can_id": {
       "config": {},
@@ -190,14 +192,14 @@
         "direction": "above",
         "enabled": true,
         "off_offset": 0.1,
-        "off_threshold": 0.30000000000000004,
+        "off_threshold": 1.1,
         "on_offset": 0.15,
-        "on_threshold": 0.35,
+        "on_threshold": 1.15,
         "output_targets": [
           "relay.ch4"
         ],
         "pv": 0.2937631905078888,
-        "sp": 0.2
+        "sp": 1.0
       },
       "value": false
     },
@@ -217,16 +219,16 @@
         "direction": "below",
         "enabled": true,
         "off_offset": 0.1,
-        "off_threshold": 0.1,
+        "off_threshold": 0.9,
         "on_offset": 0.15,
-        "on_threshold": 0.05000000000000002,
+        "on_threshold": 0.85,
         "output_targets": [
           "relay.ch3"
         ],
         "pv": 0.2937631905078888,
-        "sp": 0.2
+        "sp": 1.0
       },
-      "value": false
+      "value": true
     },
     "dbc_temp_Fermentor_Hi": {
       "config": {
@@ -244,14 +246,14 @@
         "direction": "above",
         "enabled": true,
         "off_offset": 0.5,
-        "off_threshold": 10.5,
+        "off_threshold": 11.5,
         "on_offset": 1.0,
-        "on_threshold": 11.0,
+        "on_threshold": 12.0,
         "output_targets": [
           "relay.ch2"
         ],
         "pv": 14.002314567565918,
-        "sp": 10.0
+        "sp": 11.0
       },
       "value": true
     },
@@ -271,14 +273,14 @@
         "direction": "below",
         "enabled": true,
         "off_offset": 0.5,
-        "off_threshold": 9.5,
+        "off_threshold": 10.5,
         "on_offset": 1.0,
-        "on_threshold": 9.0,
+        "on_threshold": 10.0,
         "output_targets": [
           "relay.ch1"
         ],
         "pv": 14.002314567565918,
-        "sp": 10.0
+        "sp": 11.0
       },
       "value": false
     },
@@ -302,17 +304,17 @@
       "parameter_type": "pid",
       "state": {
         "enabled": true,
-        "error": -1.0,
-        "integral": 275.9192094486564,
+        "error": -3.0,
+        "integral": 1.0237979487058055,
         "mode": "auto",
         "output_targets": [
           "brewcan.agitator.0.set_pwm"
         ],
-        "prev_error": -1.0,
+        "prev_error": -3.0,
         "pv": 21.0,
-        "sp": 20.0
+        "sp": 18.0
       },
-      "value": 5.498384188973128
+      "value": 0.0
     },
     "psu.connected": {
       "config": {},
@@ -522,7 +524,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": false
+      "value": true
     },
     "relay.ch4": {
       "config": {},
@@ -605,7 +607,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": true
+      "value": false
     },
     "relay.last_error": {
       "config": {},
@@ -618,7 +620,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": ""
+      "value": "timed out"
     },
     "relay.last_sync": {
       "config": {},
@@ -651,7 +653,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.2
+      "value": 1.0
     },
     "set_spd_Agitator": {
       "config": {},
@@ -661,7 +663,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 20
+      "value": 18
     },
     "set_temp_Fermentor": {
       "config": {},
@@ -671,7 +673,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 10.0
+      "value": 11.0
     },
     "system.time.iso": {
       "config": {},
@@ -683,7 +685,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": "2026-03-22T14:59:07.111332+00:00"
+      "value": "2026-03-23T20:25:46.337246+00:00"
     },
     "test": {
       "config": {},
@@ -733,7 +735,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 4.884588330308373
+      "value": 0.0
     },
     "twin.outputs.est_ABV": {
       "config": {},
@@ -748,7 +750,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.35202428698539734
+      "value": 0.0
     },
     "twin.outputs.est_ABV_Balling": {
       "config": {},
@@ -763,7 +765,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.3755308077192914
+      "value": 0.0
     },
     "twin.outputs.est_BiomassAllocationFraction": {
       "config": {},
@@ -778,7 +780,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 3.5267752811229554e-10
+      "value": 0.008333333333333333
     },
     "twin.outputs.est_OG": {
       "config": {},
@@ -793,7 +795,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 1.0549092292785645
+      "value": 1.04
     },
     "twin.outputs.est_RA": {
       "config": {},
@@ -808,7 +810,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 3.826411305196516
+      "value": 0.0
     },
     "twin.outputs.est_T1": {
       "config": {},
@@ -823,7 +825,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -0.1994235265923955
+      "value": 15.71192458135013
     },
     "twin.outputs.est_T2": {
       "config": {},
@@ -838,7 +840,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -284.0259149942209
+      "value": 0.869747931977022
     },
     "twin.outputs.est_concYeastCells": {
       "config": {},
@@ -853,7 +855,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 3.749999985305106e+17
+      "value": 1.666666666666667e+17
     },
     "twin.outputs.est_m3Beer": {
       "config": {},
@@ -868,7 +870,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -3.4836742481005016
+      "value": -3.4849461638502692
     },
     "twin.outputs.est_m3Headspace": {
       "config": {},
@@ -883,7 +885,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 3.9577892563351513
+      "value": 3.959061172084919
     },
     "twin.outputs.est_mCO2Added": {
       "config": {},
@@ -898,7 +900,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.24561686940121652
+      "value": 27.792413946933316
     },
     "twin.outputs.est_mCO2Addflow": {
       "config": {},
@@ -913,7 +915,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.0
+      "value": 0.041698303007827904
     },
     "twin.outputs.est_mCO2Bubbles": {
       "config": {},
@@ -943,7 +945,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -284.0312300518193
+      "value": -8.407022588010761
     },
     "twin.outputs.est_mCO2DissolvedEQ": {
       "config": {},
@@ -958,7 +960,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -0.003888990769247011
+      "value": -5.77390165262468
     },
     "twin.outputs.est_mCO2FromGasModel": {
       "config": {},
@@ -973,7 +975,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -284.2253385208133
+      "value": 16.581672513327153
     },
     "twin.outputs.est_mCO2Head": {
       "config": {},
@@ -988,7 +990,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -0.1933081785369675
+      "value": 15.715930723316326
     },
     "twin.outputs.est_mCO2ProducedFromSugar": {
       "config": {},
@@ -1003,7 +1005,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -6.537225364716006
+      "value": -24.591884242184182
     },
     "twin.outputs.est_mCO2ProductionRate": {
       "config": {},
@@ -1018,7 +1020,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.03761655238849471
+      "value": -1.2844871604356046e-06
     },
     "twin.outputs.est_mCO2Vented": {
       "config": {},
@@ -1033,7 +1035,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 71.36740809656204
+      "value": 0.0
     },
     "twin.outputs.est_mCO2Ventflow": {
       "config": {},
@@ -1063,7 +1065,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -6.842465459566559
+      "value": -25.74014342858967
     },
     "twin.outputs.est_mEthanolProductionRate": {
       "config": {},
@@ -1078,7 +1080,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.03937296728601202
+      "value": -1.3444632145177525e-06
     },
     "twin.outputs.est_mSugarConsumed": {
       "config": {},
@@ -1093,7 +1095,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -12.7183372854397
+      "value": -47.84413276689529
     },
     "twin.outputs.est_mSugarConusmptionRate": {
       "config": {},
@@ -1108,7 +1110,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.05
+      "value": -2.4990022577293332e-06
     },
     "twin.outputs.est_mSugarRemaining": {
       "config": {},
@@ -1123,7 +1125,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": -453.8041887019983
+      "value": -363.35407217843294
     },
     "twin.outputs.est_mYeastBiomas": {
       "config": {},
@@ -1138,7 +1140,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 0.017999999929464508
+      "value": 0.008
     },
     "twin.outputs.est_mYeastGrowthRate": {
       "config": {},
@@ -1153,7 +1155,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 1.763387640561478e-12
+      "value": 0.0
     },
     "twin.outputs.est_nYeastCells": {
       "config": {},
@@ -1168,7 +1170,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 374999998530.5106
+      "value": 166666666666.6667
     },
     "twin.outputs.est_oxygenIndex": {
       "config": {},
@@ -1183,7 +1185,7 @@
       },
       "parameter_type": "static",
       "state": {},
-      "value": 7.053550811008797e-09
+      "value": 1.0
     },
     "twin.reset": {
       "config": {},
@@ -1479,17 +1481,17 @@
         "fmu_path": "f:\\brewsys\\brewtools lib\\brewtools_testutil_modular\\controller.fmu",
         "input_count": 6,
         "inputs": {
-          "in_GasOpen": 0.0,
-          "in_T_c": 13.99781608581543,
+          "in_GasOpen": 1.0,
+          "in_T_c": 14.002314567565918,
           "in_VentOpen": 0.0,
-          "in_gravity_sg": 1.0522109270095825,
-          "in_level": 13.99781608581543,
-          "in_pressure_bar": 0.2916356325149536
+          "in_gravity_sg": 1.04,
+          "in_level": 14.002314567565918,
+          "in_pressure_bar": 0.2937631905078888
         },
-        "last_dt_s": 0.29645179997896776,
+        "last_dt_s": 0.2691624000435695,
         "last_reset_reason": "",
         "last_status_text": "Estimator running (Controller)",
-        "last_step_age_s": 0.004574400023557246,
+        "last_step_age_s": 0.0032310999813489616,
         "managed_output_targets": {
           "est_AA": "twin.outputs.est_AA",
           "est_ABV": "twin.outputs.est_ABV",
@@ -1623,48 +1625,48 @@
           ]
         },
         "outputs": {
-          "est_AA": 4.884588330308373,
-          "est_ABV": 0.35202428698539734,
-          "est_ABV_Balling": 0.3755308077192914,
-          "est_BiomassAllocationFraction": 3.5267752811229554e-10,
-          "est_OG": 1.0549092292785645,
-          "est_RA": 3.826411305196516,
-          "est_T1": -0.1994235265923955,
-          "est_T2": -284.0259149942209,
-          "est_concYeastCells": 3.749999985305106e+17,
-          "est_m3Beer": -3.4836742481005016,
-          "est_m3Headspace": 3.9577892563351513,
-          "est_mCO2Added": 0.24561686940121652,
-          "est_mCO2Addflow": 0.0,
+          "est_AA": 0.0,
+          "est_ABV": 0.0,
+          "est_ABV_Balling": 0.0,
+          "est_BiomassAllocationFraction": 0.008333333333333333,
+          "est_OG": 1.04,
+          "est_RA": 0.0,
+          "est_T1": 15.71192458135013,
+          "est_T2": 0.869747931977022,
+          "est_concYeastCells": 1.666666666666667e+17,
+          "est_m3Beer": -3.4849461638502692,
+          "est_m3Headspace": 3.959061172084919,
+          "est_mCO2Added": 27.792413946933316,
+          "est_mCO2Addflow": 0.041698303007827904,
           "est_mCO2Bubbles": 0.0,
-          "est_mCO2Dissolved": -284.0312300518193,
-          "est_mCO2DissolvedEQ": -0.003888990769247011,
-          "est_mCO2FromGasModel": -284.2253385208133,
-          "est_mCO2Head": -0.1933081785369675,
-          "est_mCO2ProducedFromSugar": -6.537225364716006,
-          "est_mCO2ProductionRate": 0.03761655238849471,
-          "est_mCO2Vented": 71.36740809656204,
+          "est_mCO2Dissolved": -8.407022588010761,
+          "est_mCO2DissolvedEQ": -5.77390165262468,
+          "est_mCO2FromGasModel": 16.581672513327153,
+          "est_mCO2Head": 15.715930723316326,
+          "est_mCO2ProducedFromSugar": -24.591884242184182,
+          "est_mCO2ProductionRate": -1.2844871604356046e-06,
+          "est_mCO2Vented": 0.0,
           "est_mCO2Ventflow": 0.0,
-          "est_mEthanolFomSugar": -6.842465459566559,
-          "est_mEthanolProductionRate": 0.03937296728601202,
-          "est_mSugarConsumed": -12.7183372854397,
-          "est_mSugarConusmptionRate": 0.05,
-          "est_mSugarRemaining": -453.8041887019983,
-          "est_mYeastBiomas": 0.017999999929464508,
-          "est_mYeastGrowthRate": 1.763387640561478e-12,
-          "est_nYeastCells": 374999998530.5106,
-          "est_oxygenIndex": 7.053550811008797e-09
+          "est_mEthanolFomSugar": -25.74014342858967,
+          "est_mEthanolProductionRate": -1.3444632145177525e-06,
+          "est_mSugarConsumed": -47.84413276689529,
+          "est_mSugarConusmptionRate": -2.4990022577293332e-06,
+          "est_mSugarRemaining": -363.35407217843294,
+          "est_mYeastBiomas": 0.008,
+          "est_mYeastGrowthRate": 0.0,
+          "est_nYeastCells": 166666666666.6667,
+          "est_oxygenIndex": 1.0
         },
         "reset_count": 0,
         "reset_nonce": null,
         "reset_param": "twin.reset",
         "reset_param_value": false,
         "runtime_mode": "runtime",
-        "sim_time_s": 12908.80898799994,
-        "step_count": 45841
+        "sim_time_s": 800.2908006000449,
+        "step_count": 2879
       }
     }
   },
-  "saved_at": 1774191547.3141174,
-  "store_revision": 1828997
+  "saved_at": 1774297547.222954,
+  "store_revision": 33464
 }

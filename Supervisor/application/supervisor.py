@@ -123,6 +123,7 @@ class TopologySupervisor:
                 'healthy': ok,
                 'reason': reason,
                 'base_url': f"http://{binding.endpoint.host}:{binding.endpoint.port}",
+                'docs': state.service.docs,
                 'provides': [provided.name for provided in state.service.provides],
             }
         return mapped
@@ -130,12 +131,14 @@ class TopologySupervisor:
     def summary(self) -> dict[str, Any]:
         schedule = self.service_map().get('schedule_service')
         control = self.service_map().get('control_service')
+        data = self.service_map().get('data_service')
         return {
             'node_id': self.node_id,
             'node_name': self.node_name,
             'services': self.service_map(),
             'schedule_available': bool(schedule and schedule['healthy']),
             'control_available': bool(control and control['healthy']),
+            'data_available': bool(data and data['healthy']),
         }
 
     def _publish_node(self) -> None:

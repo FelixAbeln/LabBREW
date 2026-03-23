@@ -10,6 +10,7 @@ LabBREW is a microservices-based fermentation management and control system. Thi
 | [Supervisor Agent](./agent-api.md) | HTTP (REST) | 8780 | Per-node agent: health, discovery, service proxy |
 | [Control Service](./control-service-api.md) | HTTP (REST + WebSocket) | 8767 | Parameter ownership, ramping, rules engine |
 | [Schedule Service](./schedule-service-api.md) | HTTP (REST) | 8768 | Multi-step fermentation schedule execution |
+| [Data Service](./data-service-api.md) | HTTP (REST) | 8769 | High-rate parameter logging and loadstep averaging |
 | [ParameterDB](./parameterdb-api.md) | Binary (TCP) | 8765 | Parameter store with real-time scanning |
 
 ## Guides

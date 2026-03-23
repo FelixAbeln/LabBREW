@@ -32,6 +32,13 @@ def _cell_float(value: Any) -> float | None:
     return float(value)
 
 
+def _cell_list(value: Any) -> list[str]:
+    text = _cell_str(value)
+    if not text:
+        return []
+    return [part.strip() for part in text.split(',') if part and part.strip()]
+
+
 def _read_meta_sheet(wb) -> dict[str, str]:
     if 'meta' not in wb.sheetnames:
         raise ValueError("Workbook must contain a 'meta' sheet")
@@ -43,6 +50,54 @@ def _read_meta_sheet(wb) -> dict[str, str]:
             continue
         meta[str(key).strip()] = '' if value is None else str(value).strip()
     return meta
+
+
+def _read_selection_sheet(wb, sheet_name: str) -> list[str]:
+    if sheet_name not in wb.sheetnames:
+        return []
+
+    ws = wb[sheet_name]
+    values: list[str] = []
+    for row in ws.iter_rows(min_row=1, values_only=True):
+        raw = row[0] if row else None
+        text = _cell_str(raw)
+        if not text:
+            continue
+        if text.lower() in {'parameter', 'parameters', 'name'}:
+            continue
+        values.append(text)
+
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for item in values:
+        if item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+    return deduped
+
+
+def _meta_get(meta: dict[str, str], *keys: str) -> str | None:
+    lower = {str(k).strip().lower(): v for k, v in meta.items()}
+    for key in keys:
+        value = lower.get(key.lower())
+        if value is not None and str(value).strip() != '':
+            return str(value).strip()
+    return None
+
+
+def _build_meta_defaults(meta: dict[str, str]) -> dict[str, Any]:
+    measurement_hz_text = _meta_get(meta, 'measurement_hz', 'measurement.hz')
+    measurement_hz = float(measurement_hz_text) if measurement_hz_text is not None else 10.0
+
+    return {
+        'measurement': {
+            'hz': measurement_hz,
+            'output_dir': _meta_get(meta, 'measurement_output_dir', 'measurement.output_dir') or 'data/measurements',
+            'output_format': _meta_get(meta, 'measurement_output_format', 'measurement.output_format') or 'parquet',
+            'session_name': _meta_get(meta, 'measurement_name', 'measurement.name', 'measurement.session_name'),
+        },
+    }
 
 
 def _read_steps_sheet(wb, sheet_name: str) -> list[dict[str, Any]]:
@@ -181,11 +236,40 @@ def _parse_wait_expr(expr: str) -> dict[str, Any]:
     )
 
 
-def _build_step(row: dict[str, Any]) -> dict[str, Any]:
+def _build_step(
+    row: dict[str, Any],
+    *,
+    defaults: dict[str, Any],
+) -> dict[str, Any]:
+    actions = _parse_actions(row.get('actions'))
+
+    # take_loadstep: blank / 0 = no loadstep; any positive number = duration in seconds.
+    # Capture happens after the step's wait condition is met (before_next timing).
+    take_loadstep_raw = row.get('take_loadstep')
+    try:
+        take_loadstep_seconds = _cell_float(take_loadstep_raw)
+    except (TypeError, ValueError) as exc:
+        # If the cell is non-empty but cannot be parsed as a float, surface this as a validation error.
+        if _cell_str(take_loadstep_raw) is not None:
+            raise ValueError(
+                f"Invalid take_loadstep value {take_loadstep_raw!r}: expected a numeric duration in seconds."
+            ) from exc
+        take_loadstep_seconds = None
+
+    if take_loadstep_seconds is not None and take_loadstep_seconds > 0:
+        actions.append({
+            'kind': 'take_loadstep',
+            'target': None,
+            'value': None,
+            'duration_s': take_loadstep_seconds,
+            'owner': None,
+            'params': {'timing': 'before_next'},
+        })
+
     return {
         'id': _cell_str(row.get('step_id')),
         'name': _cell_str(row.get('name')),
-        'actions': _parse_actions(row.get('actions')),
+        'actions': actions,
         'wait': _parse_wait_expr(_cell_str(row.get('wait')) or ''),
         'enabled': _cell_bool(row.get('enabled'), True),
     }
@@ -194,12 +278,77 @@ def _build_step(row: dict[str, Any]) -> dict[str, Any]:
 def parse_schedule_workbook(file_bytes: bytes, filename: str = 'schedule.xlsx') -> dict[str, Any]:
     wb = load_workbook(BytesIO(file_bytes), data_only=True)
     meta = _read_meta_sheet(wb)
+    defaults = _build_meta_defaults(meta)
     setup_rows = _read_steps_sheet(wb, 'setup_steps')
     plan_rows = _read_steps_sheet(wb, 'plan_steps')
 
     return {
         'id': meta.get('id') or filename.rsplit('.', 1)[0],
         'name': meta.get('name') or meta.get('id') or filename,
-        'setup_steps': [_build_step(row) for row in setup_rows],
-        'plan_steps': [_build_step(row) for row in plan_rows],
+        'measurement_config': defaults['measurement'],
+        'setup_steps': [
+            _build_step(
+                row,
+                defaults=defaults,
+            )
+            for row in setup_rows
+        ],
+        'plan_steps': [
+            _build_step(
+                row,
+                defaults=defaults,
+            )
+            for row in plan_rows
+        ],
     }
+
+
+def collect_workbook_parameter_references(file_bytes: bytes) -> list[dict[str, str]]:
+    """Collect workbook-declared parameter references for validation.
+
+    This includes legacy/user-authored selection-list sheets and optional
+    per-step parameter columns that may exist in imported workbooks.
+    """
+    wb = load_workbook(BytesIO(file_bytes), data_only=True)
+    refs: list[dict[str, str]] = []
+
+    def _push(path: str, source: str, parameter: str) -> None:
+        text = _cell_str(parameter)
+        if not text:
+            return
+        refs.append({
+            'path': path,
+            'source': source,
+            'parameter': text,
+        })
+
+    m_selection = _read_selection_sheet(wb, 'M-SelectionList')
+    for idx, item in enumerate(m_selection):
+        _push(f'meta.M-SelectionList[{idx}]', 'measurement_selection_list', item)
+
+    ls_selection = _read_selection_sheet(wb, 'LS-Selection List')
+    if not ls_selection:
+        ls_selection = _read_selection_sheet(wb, 'LS-SelectionList')
+    for idx, item in enumerate(ls_selection):
+        _push(f'meta.LS-Selection List[{idx}]', 'loadstep_selection_list', item)
+
+    for phase in ('setup_steps', 'plan_steps'):
+        rows = _read_steps_sheet(wb, phase)
+        for row_index, row in enumerate(rows):
+            measurement_params = _cell_list(row.get('measurement_parameters'))
+            for param_index, item in enumerate(measurement_params):
+                _push(
+                    f'{phase}[{row_index}].measurement_parameters[{param_index}]',
+                    'measurement_parameters_column',
+                    item,
+                )
+
+            loadstep_params = _cell_list(row.get('loadstep_parameters'))
+            for param_index, item in enumerate(loadstep_params):
+                _push(
+                    f'{phase}[{row_index}].loadstep_parameters[{param_index}]',
+                    'loadstep_parameters_column',
+                    item,
+                )
+
+    return refs

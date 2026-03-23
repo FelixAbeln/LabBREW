@@ -1,21 +1,120 @@
 {
-  "current_step_index": 0,
+  "current_step_index": 3,
   "event_log": [
-    "Loaded schedule Lager 1 hour sped-up fermentation",
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260323_190121 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260323_190121",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Run stopped; measurement file finalized",
+    "Run stopped; released ownership for set_allow_Gas",
+    "Run stopped; released ownership for set_pres_Fermentor",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260323_190248)",
     "Run started",
     "Applied step Request control of all actuators",
     "Entered plan phase",
-    "Applied step Chill wort to lager pitch temp"
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260323_190311 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260323_190311",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Ownership lost; scheduler paused",
+    "Run resumed",
+    "Run paused for previous step",
+    "Moved to previous step",
+    "Run resumed",
+    "Applied step Primary fermentation hold",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260323_191159)",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260323_191224 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260323_191224",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Ownership lost; scheduler paused",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260323_191540)",
+    "Run resumed",
+    "Run paused for previous step",
+    "Moved to previous step",
+    "Global measurement already recording; skipped auto-start",
+    "Run resumed",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260323_191602 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260323_191602",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Ownership lost; scheduler paused",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260323_192340)",
+    "Run resumed",
+    "Run paused for previous step",
+    "Moved to previous step",
+    "Global measurement already recording; skipped auto-start",
+    "Run resumed",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260323_192435 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260323_192435",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Ownership lost; scheduler paused",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260323_193928)",
+    "Run resumed",
+    "Run paused for previous step",
+    "Moved to previous step",
+    "Global measurement already recording; skipped auto-start",
+    "Run resumed",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260323_193948 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260323_193948",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped; released ownership for set_pres_Fermentor",
+    "Run stopped",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260323_201245)",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260323_201308 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260323_201308",
+    "Applied step Raise spunding pressure during active fermentation"
   ],
   "last_action_result": {
-    "backend_value": 20,
-    "blocked": false,
-    "current_owner": "schedule_service",
     "ok": true,
-    "owner": "schedule_service",
-    "target": "set_spd_Agitator",
-    "value": 20,
-    "written": true
+    "started": {
+      "set_pres_Fermentor": {
+        "duration": 300.0,
+        "end": 1,
+        "owner": "schedule_service",
+        "start": 0.23894941349998894
+      }
+    },
+    "targets": [
+      "set_pres_Fermentor"
+    ]
   },
   "owned_target_owners": {
     "set_allow_Gas": "schedule_service",
@@ -33,6 +132,7 @@
   "phase": "plan",
   "schedule": {
     "id": "lager-1h-test-plan",
+    "measurement_config": {},
     "name": "Lager 1 hour sped-up fermentation",
     "plan_steps": [
       {
@@ -52,6 +152,20 @@
             "params": {},
             "target": "set_spd_Agitator",
             "value": 20
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "parameters": [
+                "reactor.temp",
+                "reactor.temp.setpoint"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -126,6 +240,20 @@
             "params": {},
             "target": "set_spd_Agitator",
             "value": 18
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "parameters": [
+                "reactor.temp",
+                "reactor.temp.setpoint"
+              ],
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
           }
         ],
         "enabled": true,
@@ -135,7 +263,7 @@
           "children": [
             {
               "condition": {
-                "for_s": 60.0,
+                "for_s": 15.0,
                 "operator": "<=",
                 "source": "brewcan.density.0",
                 "threshold": 1.04
@@ -143,7 +271,7 @@
               "kind": "condition"
             },
             {
-              "duration_s": 900.0,
+              "duration_s": 15.0,
               "kind": "elapsed"
             }
           ],
@@ -395,5 +523,5 @@
     ]
   },
   "state": "running",
-  "step_started_at_utc": "2026-03-22T11:55:05.639976Z"
+  "step_started_at_utc": "2026-03-23T20:13:38.620644Z"
 }

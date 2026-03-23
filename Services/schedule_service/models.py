@@ -53,6 +53,7 @@ class ScheduleStep:
 class ScheduleDefinition:
     id: str
     name: str
+    measurement_config: dict[str, Any] = field(default_factory=dict)
     setup_steps: list[ScheduleStep] = field(default_factory=list)
     plan_steps: list[ScheduleStep] = field(default_factory=list)
 
@@ -71,6 +72,7 @@ class ScheduleDefinition:
         return cls(
             id=str(payload.get('id', 'schedule') or 'schedule'),
             name=str(payload.get('name', 'Schedule') or 'Schedule'),
+            measurement_config=dict(payload.get('measurement_config') or {}),
             setup_steps=setup,
             plan_steps=plan,
         )
@@ -85,6 +87,7 @@ class StepRuntime:
     started_monotonic: float | None = None
     started_at_utc: str | None = None
     wait_state: Any | None = None
+    pending_exit_loadsteps: set[str] = field(default_factory=set)
 
 
 @dataclass(slots=True)
