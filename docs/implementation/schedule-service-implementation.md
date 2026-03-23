@@ -81,7 +81,6 @@ Services/schedule_service/
 
 ### Persistence
 
-- [x] Atomic JSON state written on every tick (via `state_store.save`)
 - [x] Full schedule definition serialised alongside run state
 - [x] Step elapsed time restored via UTC offset on restart
 
