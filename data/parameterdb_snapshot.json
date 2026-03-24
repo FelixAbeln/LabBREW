@@ -17,7 +17,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 100.0
     },
@@ -34,7 +34,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": true
     },
@@ -55,7 +55,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 1.04
     },
@@ -72,7 +72,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": "0x8304011"
     },
@@ -89,7 +89,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": ""
     },
@@ -106,7 +106,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": "2026-03-22T14:59:07.224086Z"
     },
@@ -123,7 +123,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 17
     },
@@ -140,7 +140,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0
     },
@@ -157,7 +157,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": ""
     },
@@ -176,7 +176,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.6208950281143188
     },
@@ -197,7 +197,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.2937631905078888
     },
@@ -218,7 +218,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0
     },
@@ -238,7 +238,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 14.002314567565918
     },
@@ -254,7 +254,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": true
     },
@@ -270,7 +270,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": ""
     },
@@ -286,9 +286,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": "2026-03-24T19:58:44.293962+00:00"
+      "value": "2026-03-24T20:14:37.604698+00:00"
     },
     "dbc_press_Fermenter_Hi": {
       "config": {
@@ -307,7 +307,7 @@
         "direction": "above",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00",
+        "last_sync": "2026-03-24T20:14:38.212204+00:00",
         "off_offset": 0.1,
         "off_threshold": 0.4791756316690672,
         "on_offset": 0.15,
@@ -337,7 +337,7 @@
         "direction": "below",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00",
+        "last_sync": "2026-03-24T20:14:38.212204+00:00",
         "off_offset": 0.1,
         "off_threshold": 0.2791756316690672,
         "on_offset": 0.15,
@@ -367,7 +367,7 @@
         "direction": "above",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00",
+        "last_sync": "2026-03-24T20:14:38.212204+00:00",
         "off_offset": 0.5,
         "off_threshold": 10.832998335000205,
         "on_offset": 1.0,
@@ -397,7 +397,7 @@
         "direction": "below",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00",
+        "last_sync": "2026-03-24T20:14:38.212204+00:00",
         "off_offset": 0.5,
         "off_threshold": 9.832998335000205,
         "on_offset": 1.0,
@@ -434,7 +434,7 @@
         "error": 100.0,
         "integral": 4899.852010744135,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00",
+        "last_sync": "2026-03-24T20:14:38.212204+00:00",
         "mode": "auto",
         "output_targets": [
           "brewcan.agitator.0.set_pwm"
@@ -458,7 +458,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": true
     },
@@ -475,7 +475,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": "QJE3005PV1.0"
     },
@@ -492,7 +492,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": ""
     },
@@ -509,9 +509,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": "2026-03-24T19:58:44.789977Z"
+      "value": "2026-03-24T20:14:37.843497Z"
     },
     "psu.meas_current": {
       "config": {},
@@ -527,7 +527,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.026
     },
@@ -545,7 +545,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 24.0
     },
@@ -562,7 +562,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": "CV"
     },
@@ -579,7 +579,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -596,7 +596,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -615,7 +615,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 5
     },
@@ -634,7 +634,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -653,7 +653,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 24
     },
@@ -670,7 +670,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": "100"
     },
@@ -690,7 +690,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -710,7 +710,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": true
     },
@@ -728,7 +728,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -746,7 +746,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -764,7 +764,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -782,7 +782,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -800,7 +800,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -818,7 +818,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -835,7 +835,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -852,7 +852,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": "timed out"
     },
@@ -869,7 +869,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": "2026-03-22T14:59:06.988942Z"
     },
@@ -883,7 +883,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 1
     },
@@ -897,7 +897,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.3791756316690672
     },
@@ -911,7 +911,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 100
     },
@@ -925,7 +925,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 10.332998335000205
     },
@@ -941,9 +941,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": "2026-03-24T19:58:44.293526+00:00"
+      "value": "2026-03-24T20:14:37.602765+00:00"
     },
     "test": {
       "config": {},
@@ -955,7 +955,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0
     },
@@ -972,7 +972,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": true
     },
@@ -989,7 +989,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": ""
     },
@@ -1006,9 +1006,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": "2026-03-24T19:58:44.878569+00:00"
+      "value": "2026-03-24T20:14:37.941143+00:00"
     },
     "twin.outputs.est_AA": {
       "config": {},
@@ -1024,7 +1024,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1043,7 +1043,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1062,7 +1062,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1081,9 +1081,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.007893050081926816
+      "value": 0.007701507984877077
     },
     "twin.outputs.est_OG": {
       "config": {},
@@ -1100,7 +1100,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 1.04
     },
@@ -1119,7 +1119,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1138,9 +1138,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.33434898824117737
+      "value": 1.4879088476434168
     },
     "twin.outputs.est_T2": {
       "config": {},
@@ -1157,9 +1157,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 1.0820262955789608
+      "value": 0.6187945583722266
     },
     "twin.outputs.est_concYeastCells": {
       "config": {},
@@ -1176,9 +1176,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 733211.608820752
+      "value": 788409.5143063362
     },
     "twin.outputs.est_m3Beer": {
       "config": {},
@@ -1195,7 +1195,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.29856107492694495
     },
@@ -1214,7 +1214,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.17555393330770505
     },
@@ -1233,7 +1233,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1252,7 +1252,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1271,9 +1271,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.16912396587097284
+      "value": 7.373537708568785e-05
     },
     "twin.outputs.est_mCO2Dissolved": {
       "config": {},
@@ -1290,9 +1290,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 1.0823600931839144
+      "value": 0.6191283559771802
     },
     "twin.outputs.est_mCO2DissolvedEQ": {
       "config": {},
@@ -1309,9 +1309,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.3510699747887505
+      "value": 0.6189165306734282
     },
     "twin.outputs.est_mCO2FromGasModel": {
       "config": {},
@@ -1328,9 +1328,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 1.5854992496911111
+      "value": 2.106777141392729
     },
     "twin.outputs.est_mCO2Head": {
       "config": {},
@@ -1347,9 +1347,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.334526629845837
+      "value": 1.4880864892480763
     },
     "twin.outputs.est_mCO2ProducedFromSugar": {
       "config": {},
@@ -1366,7 +1366,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 2.1068272072569574
     },
@@ -1385,9 +1385,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.008080409074307317
+      "value": 1.1190716041215112e-09
     },
     "twin.outputs.est_mCO2Vented": {
       "config": {},
@@ -1404,7 +1404,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1423,7 +1423,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 0.0
     },
@@ -1442,7 +1442,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 2.2052004620705117
     },
@@ -1461,9 +1461,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.008457704439644637
+      "value": 1.17132395894378e-09
     },
     "twin.outputs.est_mSugarConsumed": {
       "config": {},
@@ -1480,7 +1480,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 4.098885617231434
     },
@@ -1499,9 +1499,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.015720640222387797
+      "value": 2.1771821359545708e-09
     },
     "twin.outputs.est_mSugarRemaining": {
       "config": {},
@@ -1518,7 +1518,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": 31.12914153279777
     },
@@ -1537,9 +1537,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.010507605411765044
+      "value": 0.011298642819548654
     },
     "twin.outputs.est_mYeastGrowthRate": {
       "config": {},
@@ -1556,9 +1556,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 1.2408380059526e-05
+      "value": 1.6767585604585857e-12
     },
     "twin.outputs.est_nYeastCells": {
       "config": {},
@@ -1575,9 +1575,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 218908446078.43842
+      "value": 235388392073.9303
     },
     "twin.outputs.est_oxygenIndex": {
       "config": {},
@@ -1594,9 +1594,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
-      "value": 0.7492394588234975
+      "value": 0.6701357180451377
     },
     "twin.reset": {
       "config": {},
@@ -1614,7 +1614,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": false
     },
@@ -1631,7 +1631,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+        "last_sync": "2026-03-24T20:14:38.212204+00:00"
       },
       "value": {
         "discovered_inputs": [
@@ -1907,10 +1907,10 @@
           "in_level": 0.6208950281143188,
           "in_pressure_bar": 0.2937631905078888
         },
-        "last_dt_s": 0.42407519998960197,
+        "last_dt_s": 0.42383390001486987,
         "last_reset_reason": "",
         "last_status_text": "Estimator running (Controller)",
-        "last_step_age_s": 0.08041030005551875,
+        "last_step_age_s": 0.06874240003526211,
         "managed_output_targets": {
           "est_AA": "twin.outputs.est_AA",
           "est_ABV": "twin.outputs.est_ABV",
@@ -2047,45 +2047,45 @@
           "est_AA": 0.0,
           "est_ABV": 0.0,
           "est_ABV_Balling": 0.0,
-          "est_BiomassAllocationFraction": 0.007893050081926816,
+          "est_BiomassAllocationFraction": 0.007701507984877077,
           "est_OG": 1.04,
           "est_RA": 0.0,
-          "est_T1": 0.33434898824117737,
-          "est_T2": 1.0820262955789608,
-          "est_concYeastCells": 733211.608820752,
+          "est_T1": 1.4879088476434168,
+          "est_T2": 0.6187945583722266,
+          "est_concYeastCells": 788409.5143063362,
           "est_m3Beer": 0.29856107492694495,
           "est_m3Headspace": 0.17555393330770505,
           "est_mCO2Added": 0.0,
           "est_mCO2Addflow": 0.0,
-          "est_mCO2Bubbles": 0.16912396587097284,
-          "est_mCO2Dissolved": 1.0823600931839144,
-          "est_mCO2DissolvedEQ": 0.3510699747887505,
-          "est_mCO2FromGasModel": 1.5854992496911111,
-          "est_mCO2Head": 0.334526629845837,
+          "est_mCO2Bubbles": 7.373537708568785e-05,
+          "est_mCO2Dissolved": 0.6191283559771802,
+          "est_mCO2DissolvedEQ": 0.6189165306734282,
+          "est_mCO2FromGasModel": 2.106777141392729,
+          "est_mCO2Head": 1.4880864892480763,
           "est_mCO2ProducedFromSugar": 2.1068272072569574,
-          "est_mCO2ProductionRate": 0.008080409074307317,
+          "est_mCO2ProductionRate": 1.1190716041215112e-09,
           "est_mCO2Vented": 0.0,
           "est_mCO2Ventflow": 0.0,
           "est_mEthanolFomSugar": 2.2052004620705117,
-          "est_mEthanolProductionRate": 0.008457704439644637,
+          "est_mEthanolProductionRate": 1.17132395894378e-09,
           "est_mSugarConsumed": 4.098885617231434,
-          "est_mSugarConusmptionRate": 0.015720640222387797,
+          "est_mSugarConusmptionRate": 2.1771821359545708e-09,
           "est_mSugarRemaining": 31.12914153279777,
-          "est_mYeastBiomas": 0.010507605411765044,
-          "est_mYeastGrowthRate": 1.2408380059526e-05,
-          "est_nYeastCells": 218908446078.43842,
-          "est_oxygenIndex": 0.7492394588234975
+          "est_mYeastBiomas": 0.011298642819548654,
+          "est_mYeastGrowthRate": 1.6767585604585857e-12,
+          "est_nYeastCells": 235388392073.9303,
+          "est_oxygenIndex": 0.6701357180451377
         },
         "reset_count": 0,
         "reset_nonce": null,
         "reset_param": "twin.reset",
         "reset_param_value": false,
         "runtime_mode": "runtime",
-        "sim_time_s": 120.96115259991493,
-        "step_count": 285
+        "sim_time_s": 1074.035445299954,
+        "step_count": 2559
       }
     }
   },
-  "saved_at": 1774382325.1740956,
-  "store_revision": 5782
+  "saved_at": 1774383278.2132585,
+  "store_revision": 50451
 }
