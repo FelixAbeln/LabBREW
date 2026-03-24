@@ -16,6 +16,7 @@ A valid workbook must contain these sheets (all names are case-sensitive):
 | `meta` | **yes** | Schedule identity fields (id, name) |
 | `setup_steps` | no | Steps executed once at schedule start |
 | `plan_steps` | no | Steps executed as the main sequence |
+| `data` | no | Parameters to record during the schedule (optional; if omitted, all available parameters are recorded) |
 
 ---
 
@@ -54,6 +55,27 @@ When a run starts, the scheduler **automatically begins a measurement session** 
 - There is **no per-step start/stop**. All measurement lifecycle is handled by the runtime.
 
 If the `meta` sheet omits `measurement_hz`, `measurement_output_dir`, and `measurement_output_format`, the defaults above apply.
+
+---
+
+## Sheet: `data` (optional)
+
+This sheet defines which parameters to record during the schedule. If omitted, **all parameters available from the control snapshot are recorded**.
+
+**Format:** A single-column list of parameter names. Row 1 may contain a header (e.g., "Parameter", "Parameters", "name"); it is skipped. Subsequent rows list the exact parameter names to record, one per row.
+
+**Example:**
+
+| Parameter |
+|---|
+| reactor.temp.setpoint |
+| reactor.temp.reading |
+| heater.power.percent |
+
+If the `data` sheet is empty or missing, the system will auto-discover all available parameters at schedule start. This is useful for:
+- **Manual measurement (Data tab):** Only starred parameters are recorded
+- **Schedules from this workbook:** Only listed parameters are recorded (avoid huge data files)
+- **Schedules without a data sheet:** All parameters are recorded
 
 ---
 

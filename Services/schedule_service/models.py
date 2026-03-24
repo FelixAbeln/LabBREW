@@ -102,6 +102,7 @@ class RunStatus:
     pause_reason: str | None = None
     owned_targets: list[str] = field(default_factory=list)
     last_action_result: dict[str, Any] = field(default_factory=dict)
+    data_records: list[dict[str, Any]] = field(default_factory=list)
     event_log: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

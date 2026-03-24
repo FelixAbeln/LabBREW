@@ -70,6 +70,8 @@ class ScheduleRuntime(
         self._step_index = -1
         self._step_runtime = StepRuntime(wait_state=WaitState(condition_state=EvaluationState()))
         self._owned_target_owners: dict[str, str] = {}
+        self._run_log_path: str | None = None
+        self._schedule_export_path: str | None = None
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
@@ -107,6 +109,8 @@ class ScheduleRuntime(
                 wait_message='Idle',
             )
             self._owned_target_owners = {}
+            self._run_log_path = None
+            self._schedule_export_path = None
             self._phase = 'idle'
             self._step_index = -1
             self._step_runtime = StepRuntime(wait_state=WaitState(condition_state=EvaluationState()))
@@ -124,6 +128,8 @@ class ScheduleRuntime(
             self.repository.clear()
             self._status = RunStatus(wait_message='Schedule cleared')
             self._owned_target_owners = {}
+            self._run_log_path = None
+            self._schedule_export_path = None
             self._phase = 'idle'
             self._step_index = -1
             self._step_runtime = StepRuntime(wait_state=WaitState(condition_state=EvaluationState()))

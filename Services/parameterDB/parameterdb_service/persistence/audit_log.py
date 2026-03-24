@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -34,3 +35,5 @@ class AuditLogger:
         with self._lock:
             with self.path.open("a", encoding="utf-8") as f:
                 f.write(line + "\n")
+                f.flush()
+                os.fsync(f.fileno())

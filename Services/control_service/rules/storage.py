@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 
@@ -14,8 +16,18 @@ def get_rule_dir() -> Path:
     return RULE_DIR
 
 
+def _cleanup_stale_rule_tmp_files(rule_dir: Path) -> None:
+    for tmp_path in rule_dir.glob("*.json.*.tmp"):
+        try:
+            if tmp_path.is_file():
+                tmp_path.unlink()
+        except OSError:
+            pass
+
+
 def load_rules() -> list[dict]:
     rule_dir = get_rule_dir()
+    _cleanup_stale_rule_tmp_files(rule_dir)
     rules: list[dict] = []
 
     for file in sorted(rule_dir.glob("*.json")):
@@ -37,8 +49,34 @@ def save_rule(rule: dict) -> Path:
 
     path = rule_dir / f"{rule_id}.json"
 
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(rule, f, indent=2, ensure_ascii=False)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f"{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(rule, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(tmp_name, path)
+
+        try:
+            dir_fd = os.open(str(path.parent), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            pass
+    except Exception:
+        try:
+            if os.path.exists(tmp_name):
+                os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
     return path
 

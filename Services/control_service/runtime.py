@@ -53,6 +53,18 @@ class ControlRuntime:
 
     def reload_rules(self):
         self.rules = load_rules()
+        active_rule_ids = {
+            str(rule.get("id"))
+            for rule in self.rules
+            if isinstance(rule, dict) and rule.get("id")
+        }
+        # Prevent long-lived growth from deleted/renamed rules.
+        self._rule_states = {
+            rule_id: state
+            for rule_id, state in self._rule_states.items()
+            if rule_id in active_rule_ids
+        }
+        self.rule_engine.prune_rules(active_rule_ids)
 
     def _drop_target_from_rule_tracking(self, target: str, *, rule_id: str | None = None) -> None:
         states = [self._rule_states.get(rule_id)] if rule_id is not None else self._rule_states.values()

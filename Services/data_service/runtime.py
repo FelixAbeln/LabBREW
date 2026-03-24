@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import os
 import json
+import shutil
 import time
 import threading
 import importlib.util
+import tempfile
+import zipfile
 from dataclasses import dataclass, field
 from typing import Any
 from collections import deque
@@ -33,6 +36,7 @@ class MeasurementConfig:
     output_dir: str = "data/measurements"
     output_format: str = "parquet"  # "parquet", "csv", or "jsonl"
     session_name: str = ""  # Auto-generated if empty
+    include_files: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -121,7 +125,8 @@ class DataRecordingRuntime:
     def setup_measurement(self, parameters: list[str], hz: float = 10.0,
                          output_dir: str = "data/measurements",
                          output_format: str = "parquet",
-                         session_name: str = "") -> dict:
+                         session_name: str = "",
+                         include_files: list[str] | None = None) -> dict:
         """Configure a measurement session.
         
         Args:
@@ -180,7 +185,8 @@ class DataRecordingRuntime:
                 hz=hz,
                 output_dir=output_dir,
                 output_format=selected_format,
-                session_name=session_name
+                session_name=session_name,
+                include_files=[str(item) for item in (include_files or []) if str(item).strip()],
             )
             self._loadsteps_archive_format = selected_format
             self._loadsteps_archive_path = os.path.join(
@@ -207,6 +213,7 @@ class DataRecordingRuntime:
                 "hz": hz,
                 "output_format": selected_format,
                 "output_dir": output_dir,
+                "include_files": list(self.config.include_files),
                 "warnings": list(self._setup_warnings),
             }
 
@@ -256,13 +263,25 @@ class DataRecordingRuntime:
             if self._file_writer:
                 filepath = self._file_writer.finalize()
                 total_samples = getattr(self._file_writer, "sample_count", len(self._measurement_data))
+                try:
+                    archive = self._build_session_archive(
+                        measurement_file=filepath,
+                        loadsteps_file=self._loadsteps_archive_path,
+                        extra_files=self.config.include_files if self.config else [],
+                    )
+                except Exception as exc:
+                    archive = {"archive_path": None, "members": [], "missing": []}
+                    self._setup_warnings.append(f"Archive build failed: {exc}")
 
                 return {
                     "ok": True,
                     "message": f"Recording stopped: {self.config.session_name}",
                     "samples_recorded": total_samples,
-                    "file": filepath,
+                    "file": archive.get("archive_path") or filepath,
                     "loadsteps_file": self._loadsteps_archive_path,
+                    "archive_file": archive.get("archive_path"),
+                    "archived_members": archive.get("members", []),
+                    "archived_missing": archive.get("missing", []),
                     "completed_loadsteps": len(self._completed_loadsteps),
                     "loadsteps": self._completed_loadsteps,
                     "missing_parameters": sorted(self._missing_parameters),
@@ -434,13 +453,14 @@ class DataRecordingRuntime:
             return
         try:
             if self._loadsteps_archive_format == 'jsonl':
-                with open(self._loadsteps_archive_path, 'w', encoding='utf-8') as handle:
-                    handle.write('')
+                self._atomic_write_text_file(self._loadsteps_archive_path, '')
                 return
 
             if self._loadsteps_archive_format == 'csv':
-                with open(self._loadsteps_archive_path, 'w', encoding='utf-8') as handle:
-                    handle.write('name,duration_seconds,timestamp,average_json\n')
+                self._atomic_write_text_file(
+                    self._loadsteps_archive_path,
+                    'name,duration_seconds,timestamp,average_json\n',
+                )
                 return
 
             if self._loadsteps_archive_format == 'parquet':
@@ -449,10 +469,44 @@ class DataRecordingRuntime:
                 return
 
             # Unknown format fallback.
-            with open(self._loadsteps_archive_path, 'w', encoding='utf-8') as handle:
-                handle.write('')
+            self._atomic_write_text_file(self._loadsteps_archive_path, '')
         except Exception as exc:
             print(f"Error initializing loadstep archive file: {exc}")
+
+    def _atomic_write_text_file(self, path: str, text: str) -> None:
+        """Write a full text file atomically to avoid partial content on crashes."""
+        target = os.path.abspath(path)
+        target_dir = os.path.dirname(target) or '.'
+        os.makedirs(target_dir, exist_ok=True)
+
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{os.path.basename(target)}.",
+            suffix='.tmp',
+            dir=target_dir,
+        )
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            os.replace(tmp_name, target)
+
+            try:
+                dir_fd = os.open(target_dir, os.O_RDONLY)
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
+            except OSError:
+                pass
+        except Exception:
+            try:
+                if os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
 
     def _csv_escape(self, text: str) -> str:
         """Escape a CSV value with quotes when needed."""
@@ -460,6 +514,61 @@ class DataRecordingRuntime:
         if any(ch in value for ch in [',', '"', '\n', '\r']):
             return '"' + value.replace('"', '""') + '"'
         return value
+
+    def _build_session_archive(self, *, measurement_file: str, loadsteps_file: str, extra_files: list[str]) -> dict[str, Any]:
+        """Create a single archive for measurement outputs and optional sidecar files."""
+        if not self.config:
+            return {"archive_path": None, "members": [], "missing": []}
+
+        output_dir = os.path.abspath(self.config.output_dir)
+        archive_path = os.path.join(output_dir, f"{self.config.session_name}.archive.zip")
+        tmp_archive_path = f"{archive_path}.tmp"
+
+        candidates = [measurement_file, loadsteps_file, *list(extra_files or [])]
+        existing: list[str] = []
+        missing: list[str] = []
+        seen: set[str] = set()
+        for raw in candidates:
+            path = os.path.abspath(str(raw or '').strip())
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            if os.path.isfile(path):
+                existing.append(path)
+            else:
+                missing.append(path)
+
+        if not existing:
+            return {"archive_path": None, "members": [], "missing": missing}
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        members: list[str] = []
+        try:
+            with zipfile.ZipFile(tmp_archive_path, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+                for file_path in existing:
+                    arcname = os.path.basename(file_path)
+                    zf.write(file_path, arcname=arcname)
+                    members.append(arcname)
+
+            os.replace(tmp_archive_path, archive_path)
+        except Exception:
+            try:
+                if os.path.exists(tmp_archive_path):
+                    os.remove(tmp_archive_path)
+            except OSError:
+                pass
+            raise
+
+        # Best-effort cleanup: keep only the archive by removing included source files.
+        for file_path in existing:
+            try:
+                if os.path.abspath(file_path) != os.path.abspath(archive_path):
+                    os.remove(file_path)
+            except OSError:
+                pass
+
+        return {"archive_path": archive_path, "members": members, "missing": missing}
 
     def _build_active_loadstep_status(self, ls_config: LoadstepConfig, now: datetime) -> dict[str, Any]:
         """Return a status payload for an active loadstep."""
@@ -473,6 +582,83 @@ class DataRecordingRuntime:
             "elapsed_seconds": round(elapsed_seconds, 3),
             "remaining_seconds": round(remaining_seconds, 3),
         }
+
+    def _resolve_output_dir(self, output_dir: str | None = None) -> str:
+        if output_dir and str(output_dir).strip():
+            return os.path.abspath(str(output_dir).strip())
+        if self.config and self.config.output_dir:
+            return os.path.abspath(self.config.output_dir)
+        return os.path.abspath("data/measurements")
+
+    def _safe_archive_name(self, archive_name: str) -> str:
+        name = os.path.basename(str(archive_name or "").strip())
+        if not name:
+            raise ValueError("archive_name is required")
+        if not name.endswith(".archive.zip"):
+            raise ValueError("archive_name must end with '.archive.zip'")
+        return name
+
+    def resolve_archive_path(self, *, archive_name: str, output_dir: str | None = None) -> dict[str, Any]:
+        try:
+            name = self._safe_archive_name(archive_name)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+
+        archive_dir = self._resolve_output_dir(output_dir)
+        path = os.path.join(archive_dir, name)
+        if not os.path.isfile(path):
+            return {"ok": False, "error": "archive not found"}
+        return {"ok": True, "name": name, "path": path, "output_dir": archive_dir}
+
+    def list_archives(self, *, output_dir: str | None = None, limit: int = 200) -> dict[str, Any]:
+        archive_dir = self._resolve_output_dir(output_dir)
+        os.makedirs(archive_dir, exist_ok=True)
+
+        entries: list[dict[str, Any]] = []
+        for name in os.listdir(archive_dir):
+            if not name.endswith(".archive.zip"):
+                continue
+            path = os.path.join(archive_dir, name)
+            if not os.path.isfile(path):
+                continue
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            entries.append({
+                "name": name,
+                "size_bytes": int(stat.st_size),
+                "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "path": path,
+            })
+
+        entries.sort(key=lambda item: item["modified_at"], reverse=True)
+        max_items = max(1, min(int(limit), 1000))
+        entries = entries[:max_items]
+
+        usage = shutil.disk_usage(archive_dir)
+        return {
+            "ok": True,
+            "output_dir": archive_dir,
+            "archives": entries,
+            "disk": {
+                "total_bytes": int(usage.total),
+                "used_bytes": int(usage.used),
+                "free_bytes": int(usage.free),
+            },
+        }
+
+    def delete_archive(self, *, archive_name: str, output_dir: str | None = None) -> dict[str, Any]:
+        resolved = self.resolve_archive_path(archive_name=archive_name, output_dir=output_dir)
+        if not resolved.get("ok"):
+            return resolved
+
+        path = resolved["path"]
+        try:
+            os.remove(path)
+        except OSError as exc:
+            return {"ok": False, "error": f"failed to delete archive: {exc}"}
+        return {"ok": True, "deleted": resolved["name"], "path": path}
 
     def get_status(self) -> dict:
         """Get current runtime status."""
@@ -488,6 +674,7 @@ class DataRecordingRuntime:
                     "session_name": self.config.session_name if self.config else "",
                     "output_dir": self.config.output_dir if self.config else "",
                     "output_format": self.config.output_format if self.config else "",
+                    "include_files": list(self.config.include_files) if self.config else [],
                 } if self.config else None,
                 "samples_recorded": len(self._measurement_data),
                 "active_loadsteps": active_loadsteps,

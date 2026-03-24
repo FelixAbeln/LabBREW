@@ -54,6 +54,13 @@ class _UtilsMixin:
     def _append_event(self, text: str) -> None:
         self._status.event_log.append(text)
         self._status.event_log = self._status.event_log[-100:]
+        run_log_path = getattr(self, '_run_log_path', None)
+        if run_log_path:
+            try:
+                with open(run_log_path, 'a', encoding='utf-8') as handle:
+                    handle.write(f"{self._utc_now_iso()} {text}\n")
+            except OSError:
+                pass
 
     # ------------------------------------------------------------------ wait-source collection
 

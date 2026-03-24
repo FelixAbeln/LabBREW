@@ -153,9 +153,25 @@ The gateway provides convenience proxy routes that forward requests to named ser
 | `/fermenters/{id}/system[/{path}]` | `control_service` — `system/{path}` |
 | `/fermenters/{id}/ws[/{path}]` | `control_service` — `ws/{path}` |
 | `/fermenters/{id}/schedule[/{path}]` | `schedule_service` — `schedule/{path}` |
+| `/fermenters/{id}/data[/{path}]` | `data_service` — `{path}` |
 | `/fermenters/{id}/services/{service}[/{path}]` | `{service}` — `{path}` |
 
 See [Control Service API](./control-service-api.md) and [Schedule Service API](./schedule-service-api.md) for the full endpoint reference.
+
+For Data Service endpoints, see [Data Service API](./data-service-api.md).
+
+---
+
+## Archive Download Convenience Route
+
+### `GET /fermenters/{fermenter_id}/data/archives/download/{name}`
+
+Streams an archive file from the Data Service as a binary response (`application/zip`).
+
+This route is provided as a convenience path for browser downloads. It forwards to Data Service `GET /archives/download/{name}` and preserves non-JSON payloads.
+
+**Query params**
+- `output_dir` (optional) — forwarded to Data Service.
 
 ---
 

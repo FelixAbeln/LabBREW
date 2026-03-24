@@ -1,35 +1,129 @@
 {
   "current_step_index": -1,
+  "data_records": [
+    {
+      "kind": "measurement_started",
+      "output_dir": "data/measurements",
+      "output_format": "parquet",
+      "parameters_count": 81,
+      "session_name": "scheduling_lager_1h_test_plan_20260324_185533",
+      "source": "schedule_auto_start",
+      "timestamp": "2026-03-24T18:55:33.601496Z"
+    },
+    {
+      "duration_seconds": 30.0,
+      "kind": "loadstep_started",
+      "name": "scheduling_lager_1h_test_plan_ls_20260324_185607",
+      "parameters_count": null,
+      "timestamp": "2026-03-24T18:56:07.392435Z"
+    },
+    {
+      "archive_file": "F:\\BrewSys\\LabBREW\\LabBREW\\data\\measurements\\scheduling_lager_1h_test_plan_20260324_185533.archive.zip",
+      "archive_members": [
+        "scheduling_lager_1h_test_plan_20260324_185533.parquet",
+        "scheduling_lager_1h_test_plan_20260324_185533.loadsteps.parquet",
+        "scheduling_lager_1h_test_plan_20260324_185533.schedule.json",
+        "scheduling_lager_1h_test_plan_20260324_185533.run.log"
+      ],
+      "completed_loadsteps": 1,
+      "kind": "measurement_finalized",
+      "samples_recorded": 517,
+      "session_name": "scheduling_lager_1h_test_plan_20260324_185533",
+      "source": "Run stopped",
+      "timestamp": "2026-03-24T18:57:32.450771Z"
+    }
+  ],
   "event_log": [
-    "Loaded schedule Proper API test plan",
-    "Global measurement started (scheduling_proper_api_test_plan_20260324_165011)",
+    "Loaded schedule Lager 1 hour sped-up fermentation",
+    "Global measurement start failed: 500 Server Error: Internal Server Error for url: http://127.0.0.1:8769/measurement/setup",
     "Run started",
-    "Applied step Request control of test",
+    "Applied step Request control of all actuators",
     "Entered plan phase",
-    "Applied step Write zero then ramp to 10 over 4 seconds",
-    "Run paused",
     "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped; released ownership for set_pres_Fermentor",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_allow_Gas",
+    "Run stopped",
+    "Global measurement start failed: 500 Server Error: Internal Server Error for url: http://127.0.0.1:8769/measurement/setup",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
+    "Applied step Chill wort to lager pitch temp",
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped; released ownership for set_pres_Fermentor",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_allow_Gas",
+    "Run stopped",
+    "Global measurement start failed: 500 Server Error: Internal Server Error for url: http://127.0.0.1:8769/measurement/setup",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped; released ownership for set_pres_Fermentor",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_allow_Gas",
+    "Run stopped",
+    "Global measurement start failed: 500 Server Error: Internal Server Error for url: http://127.0.0.1:8769/measurement/setup",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
     "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Moved to next step",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Moved to next step",
+    "Applied step Diacetyl rest",
+    "Run paused for previous step",
     "Moved to previous step",
     "Moved to previous step",
     "Moved to previous step",
-    "Global measurement already recording; skipped auto-start",
+    "Moved to previous step",
+    "Global measurement start failed: 500 Server Error: Internal Server Error for url: http://127.0.0.1:8769/measurement/setup",
     "Run resumed",
-    "Run stopped; measurement file finalized",
+    "Applied step Chill wort to lager pitch temp",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Global measurement start failed: 500 Server Error: Internal Server Error for url: http://127.0.0.1:8769/measurement/setup",
+    "Fault: take_loadstep requires an active measurement session, and auto-start failed",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260324_185533)",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Moved to next step",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Moved to next step",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260324_185607 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260324_185607",
+    "Applied step Raise spunding pressure during active fermentation",
+    "Run stopped; measurement archive finalized",
+    "Run stopped; released ownership for set_allow_Gas",
+    "Run stopped; released ownership for set_pres_Fermentor",
+    "Run stopped; released ownership for set_spd_Agitator",
+    "Run stopped; released ownership for set_temp_Fermentor",
     "Run stopped"
   ],
   "last_action_result": {
     "ok": true,
     "started": {
-      "test": {
-        "duration": 4.0,
-        "end": 10,
+      "set_pres_Fermentor": {
+        "duration": 300.0,
+        "end": 1,
         "owner": "schedule_service",
-        "start": 0
+        "start": 0.24133679508338296
       }
     },
     "targets": [
-      "test"
+      "set_pres_Fermentor"
     ]
   },
   "owned_target_owners": {},
@@ -37,10 +131,349 @@
   "pause_reason": null,
   "phase": "idle",
   "schedule": {
-    "id": "proper-api-test-plan",
-    "measurement_config": {},
-    "name": "Proper API test plan",
+    "id": "lager-1h-test-plan",
+    "measurement_config": {
+      "hz": 10.0,
+      "output_dir": "data/measurements",
+      "output_format": "parquet",
+      "session_name": null
+    },
+    "name": "Lager 1 hour sped-up fermentation",
     "plan_steps": [
+      {
+        "actions": [
+          {
+            "duration_s": 300.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_temp_Fermentor",
+            "value": 10
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_spd_Agitator",
+            "value": 20
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
+          }
+        ],
+        "enabled": true,
+        "id": "plan-1",
+        "name": "Chill wort to lager pitch temp",
+        "wait": {
+          "children": [
+            {
+              "duration_s": 300.0,
+              "kind": "elapsed"
+            },
+            {
+              "condition": {
+                "for_s": 30.0,
+                "operator": "<=",
+                "source": "brewcan.temperature.0",
+                "threshold": 14.1
+              },
+              "kind": "condition"
+            }
+          ],
+          "kind": "all_of"
+        }
+      },
+      {
+        "actions": [
+          {
+            "duration_s": 120.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_pres_Fermentor",
+            "value": 0.3
+          }
+        ],
+        "enabled": true,
+        "id": "plan-2",
+        "name": "Hold at pitch temp and allow pressure to stay low",
+        "wait": {
+          "children": [
+            {
+              "duration_s": 600.0,
+              "kind": "elapsed"
+            },
+            {
+              "condition": {
+                "for_s": 60.0,
+                "operator": "<=",
+                "source": "brewcan.pressure.0",
+                "threshold": 0.5
+              },
+              "kind": "condition"
+            }
+          ],
+          "kind": "all_of"
+        }
+      },
+      {
+        "actions": [
+          {
+            "duration_s": 300.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_temp_Fermentor",
+            "value": 11
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_spd_Agitator",
+            "value": 18
+          },
+          {
+            "duration_s": 30.0,
+            "kind": "take_loadstep",
+            "owner": null,
+            "params": {
+              "timing": "before_next"
+            },
+            "target": null,
+            "value": null
+          }
+        ],
+        "enabled": true,
+        "id": "plan-3",
+        "name": "Primary fermentation hold",
+        "wait": {
+          "children": [
+            {
+              "condition": {
+                "for_s": 15.0,
+                "operator": "<=",
+                "source": "brewcan.density.0",
+                "threshold": 1.04
+              },
+              "kind": "condition"
+            },
+            {
+              "duration_s": 15.0,
+              "kind": "elapsed"
+            }
+          ],
+          "kind": "any_of"
+        }
+      },
+      {
+        "actions": [
+          {
+            "duration_s": 300.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_pres_Fermentor",
+            "value": 1
+          }
+        ],
+        "enabled": true,
+        "id": "plan-4",
+        "name": "Raise spunding pressure during active fermentation",
+        "wait": {
+          "children": [
+            {
+              "duration_s": 600.0,
+              "kind": "elapsed"
+            },
+            {
+              "condition": {
+                "for_s": 60.0,
+                "operator": ">=",
+                "source": "brewcan.pressure.0",
+                "threshold": 0.9
+              },
+              "kind": "condition"
+            }
+          ],
+          "kind": "all_of"
+        }
+      },
+      {
+        "actions": [
+          {
+            "duration_s": 600.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_temp_Fermentor",
+            "value": 15
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_spd_Agitator",
+            "value": 10
+          }
+        ],
+        "enabled": true,
+        "id": "plan-5",
+        "name": "Diacetyl rest",
+        "wait": {
+          "children": [
+            {
+              "condition": {
+                "for_s": 120.0,
+                "operator": "<=",
+                "source": "brewcan.density.0",
+                "threshold": 1.018
+              },
+              "kind": "condition"
+            },
+            {
+              "duration_s": 900.0,
+              "kind": "elapsed"
+            }
+          ],
+          "kind": "any_of"
+        }
+      },
+      {
+        "actions": [
+          {
+            "duration_s": 180.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_pres_Fermentor",
+            "value": 1.2
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_allow_Gas",
+            "value": 1
+          }
+        ],
+        "enabled": true,
+        "id": "plan-6",
+        "name": "Stabilize before crash",
+        "wait": {
+          "children": [
+            {
+              "duration_s": 300.0,
+              "kind": "elapsed"
+            },
+            {
+              "condition": {
+                "for_s": 60.0,
+                "operator": ">=",
+                "source": "brewcan.pressure.0",
+                "threshold": 1.1
+              },
+              "kind": "condition"
+            }
+          ],
+          "kind": "all_of"
+        }
+      },
+      {
+        "actions": [
+          {
+            "duration_s": 900.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_temp_Fermentor",
+            "value": 2
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_spd_Agitator",
+            "value": 5
+          }
+        ],
+        "enabled": true,
+        "id": "plan-7",
+        "name": "Cold crash ramp",
+        "wait": {
+          "children": [
+            {
+              "duration_s": 1200.0,
+              "kind": "elapsed"
+            },
+            {
+              "condition": {
+                "for_s": 120.0,
+                "operator": "<=",
+                "source": "brewcan.temperature.0",
+                "threshold": 14.1
+              },
+              "kind": "condition"
+            }
+          ],
+          "kind": "all_of"
+        }
+      },
+      {
+        "actions": [
+          {
+            "duration_s": 120.0,
+            "kind": "ramp",
+            "owner": null,
+            "params": {},
+            "target": "set_pres_Fermentor",
+            "value": 0.8
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_spd_Agitator",
+            "value": 0
+          }
+        ],
+        "enabled": true,
+        "id": "plan-8",
+        "name": "Final cold crash hold",
+        "wait": {
+          "children": [
+            {
+              "duration_s": 900.0,
+              "kind": "elapsed"
+            },
+            {
+              "condition": {
+                "for_s": 120.0,
+                "operator": "<=",
+                "source": "brewcan.density.0",
+                "threshold": 1.012
+              },
+              "kind": "condition"
+            }
+          ],
+          "kind": "all_of"
+        }
+      }
+    ],
+    "setup_steps": [
       {
         "actions": [
           {
@@ -48,73 +481,41 @@
             "kind": "write",
             "owner": null,
             "params": {},
-            "target": "test",
-            "value": 0
-          },
-          {
-            "duration_s": 4.0,
-            "kind": "ramp",
-            "owner": null,
-            "params": {},
-            "target": "test",
+            "target": "set_temp_Fermentor",
             "value": 10
-          }
-        ],
-        "enabled": true,
-        "id": "plan-1",
-        "name": "Write zero then ramp to 10 over 4 seconds",
-        "wait": {
-          "condition": {
-            "for_s": 0.5,
-            "operator": ">=",
-            "source": "test",
-            "threshold": 9.8
           },
-          "kind": "condition"
-        }
-      },
-      {
-        "actions": [],
-        "enabled": true,
-        "id": "plan-2",
-        "name": "Wait 5 seconds before next ramp",
-        "wait": {
-          "duration_s": 5.0,
-          "kind": "elapsed"
-        }
-      },
-      {
-        "actions": [
           {
-            "duration_s": 4.0,
-            "kind": "ramp",
+            "duration_s": null,
+            "kind": "write",
             "owner": null,
             "params": {},
-            "target": "test",
-            "value": 20
+            "target": "set_pres_Fermentor",
+            "value": 0.2
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_spd_Agitator",
+            "value": 15
+          },
+          {
+            "duration_s": null,
+            "kind": "write",
+            "owner": null,
+            "params": {},
+            "target": "set_allow_Gas",
+            "value": 1
           }
         ],
-        "enabled": true,
-        "id": "plan-3",
-        "name": "Ramp to 20 over 4 seconds",
-        "wait": {
-          "condition": {
-            "for_s": 0.5,
-            "operator": ">=",
-            "source": "test",
-            "threshold": 19.8
-          },
-          "kind": "condition"
-        }
-      }
-    ],
-    "setup_steps": [
-      {
-        "actions": [],
         "enabled": true,
         "id": "setup-1",
-        "name": "Request control of test",
-        "wait": null
+        "name": "Request control of all actuators",
+        "wait": {
+          "duration_s": 30.0,
+          "kind": "elapsed"
+        }
       }
     ]
   },

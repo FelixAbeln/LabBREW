@@ -6,6 +6,7 @@ from typing import Callable, Any
 import requests
 from requests.adapters import HTTPAdapter
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
 import uvicorn
 
 
@@ -67,8 +68,18 @@ def build_agent_app(
 
         content_type = resp.headers.get('content-type', 'application/json')
         if 'application/json' in content_type:
-            return resp.json()
-        return {'status_code': resp.status_code, 'text': resp.text}
+            return JSONResponse(status_code=resp.status_code, content=resp.json())
+
+        passthrough_headers = {}
+        content_disposition = resp.headers.get('content-disposition')
+        if content_disposition:
+            passthrough_headers['content-disposition'] = content_disposition
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type=content_type,
+            headers=passthrough_headers,
+        )
 
     return app
 

@@ -251,12 +251,29 @@ Returned by `GET /schedule/status`.
   "pause_reason": null,
   "owned_targets": ["reactor.temp.setpoint"],
   "last_action_result": {"ok": true},
+  "data_records": [
+    {
+      "kind": "measurement_started",
+      "session_name": "scheduling_standard_lager_20260324_120000",
+      "output_format": "parquet",
+      "parameters_count": 18,
+      "timestamp": "2026-03-24T12:00:00Z"
+    },
+    {
+      "kind": "measurement_finalized",
+      "file": "data/measurements/scheduling_standard_lager_20260324_120000.parquet",
+      "samples_recorded": 864000,
+      "timestamp": "2026-03-25T12:00:01Z"
+    }
+  ],
   "event_log": [
     "2024-01-15T10:00:00Z  [setup] Step 'Dough-in' actions applied",
     "2024-01-15T10:05:00Z  [plan]  Step 'Protein rest' started"
   ]
 }
 ```
+
+`data_records` keeps a bounded history (latest 200 entries) of scheduler-triggered data lifecycle events (measurement starts/finalization and loadstep starts). This list is persisted in `data/schedule_state.json` and restored on scheduler restart.
 
 **`state` values**
 

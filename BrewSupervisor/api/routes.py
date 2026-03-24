@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 import requests
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from .models import FermenterView
 from .schedule_import.parser import collect_workbook_parameter_references, parse_schedule_workbook
@@ -14,6 +14,13 @@ from .schedule_import.validator import validate_schedule_payload
 def _read_json_response(proxy: Any, *, method: str, url: str, params: dict[str, Any] | None = None, json_body: Any = None) -> tuple[int, Any]:
     try:
         return proxy.request(method=method, url=url, params=params, json_body=json_body)
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f'Upstream request failed: {exc}') from exc
+
+
+def _read_raw_response(proxy: Any, *, method: str, url: str, params: dict[str, Any] | None = None, json_body: Any = None):
+    try:
+        return proxy.request_raw(method=method, url=url, params=params, json_body=json_body)
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f'Upstream request failed: {exc}') from exc
 
@@ -330,6 +337,35 @@ def build_router() -> APIRouter:
     @router.api_route('/fermenters/{fermenter_id}/system', methods=['GET', 'POST', 'PUT', 'DELETE'])
     async def proxy_system(fermenter_id: str, request: Request, service_path: str = ''):
         return await _proxy_via_agent(request, fermenter_id, 'control_service', f'system/{service_path}'.rstrip('/'))
+
+    @router.get('/fermenters/{fermenter_id}/data/archives/download/{archive_name}')
+    def download_data_archive(fermenter_id: str, archive_name: str, request: Request):
+        registry = request.app.state.registry
+        proxy = request.app.state.proxy
+        node = registry.get_node(fermenter_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail='Fermenter not found')
+
+        response = _read_raw_response(
+            proxy,
+            method='GET',
+            url=_build_service_proxy_url(node, 'data_service', f'archives/download/{archive_name}'),
+            params=dict(request.query_params),
+        )
+        try:
+            content_type = response.headers.get('content-type', 'application/octet-stream')
+            passthrough_headers = {}
+            content_disposition = response.headers.get('content-disposition')
+            if content_disposition:
+                passthrough_headers['content-disposition'] = content_disposition
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                media_type=content_type,
+                headers=passthrough_headers,
+            )
+        finally:
+            response.close()
 
     @router.api_route('/fermenters/{fermenter_id}/data/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
     @router.api_route('/fermenters/{fermenter_id}/data', methods=['GET', 'POST', 'PUT', 'DELETE'])

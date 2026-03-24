@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -103,14 +105,41 @@ def build_snapshot_payload(store: ParameterStore) -> dict[str, Any]:
 def write_snapshot_file(path: str | Path, payload: dict[str, Any]) -> None:
     snapshot_path = Path(path)
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = snapshot_path.with_suffix(snapshot_path.suffix + ".tmp")
-    with tmp_path.open("w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2, sort_keys=True)
-    tmp_path.replace(snapshot_path)
+    cleanup_stale_snapshot_tmp_files(snapshot_path)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f"{snapshot_path.name}.",
+        suffix=".tmp",
+        dir=str(snapshot_path.parent),
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True)
+            fh.flush()
+            os.fsync(fh.fileno())
+
+        os.replace(tmp_name, snapshot_path)
+
+        # Best-effort durability of directory entry updates.
+        try:
+            dir_fd = os.open(str(snapshot_path.parent), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            pass
+    except Exception:
+        try:
+            if os.path.exists(tmp_name):
+                os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def load_snapshot_file(path: str | Path) -> dict[str, Any] | None:
     snapshot_path = Path(path)
+    cleanup_stale_snapshot_tmp_files(snapshot_path)
     if not snapshot_path.exists():
         return None
     with snapshot_path.open("r", encoding="utf-8") as fh:
@@ -162,3 +191,15 @@ def load_snapshot_into_store(
         restored += 1
 
     return restored
+
+
+def cleanup_stale_snapshot_tmp_files(snapshot_path: str | Path) -> None:
+    """Best-effort cleanup for orphaned temp files from interrupted atomic writes."""
+    path = Path(snapshot_path)
+    pattern = f"{path.name}.*.tmp"
+    for tmp_path in path.parent.glob(pattern):
+        try:
+            if tmp_path.is_file():
+                tmp_path.unlink()
+        except OSError:
+            pass

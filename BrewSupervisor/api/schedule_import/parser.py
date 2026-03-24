@@ -86,17 +86,27 @@ def _meta_get(meta: dict[str, str], *keys: str) -> str | None:
     return None
 
 
-def _build_meta_defaults(meta: dict[str, str]) -> dict[str, Any]:
+def _build_meta_defaults(meta: dict[str, str], wb=None) -> dict[str, Any]:
     measurement_hz_text = _meta_get(meta, 'measurement_hz', 'measurement.hz')
     measurement_hz = float(measurement_hz_text) if measurement_hz_text is not None else 10.0
 
+    # Read parameters from 'data' sheet if present
+    parameters = []
+    if wb is not None:
+        parameters = _read_selection_sheet(wb, 'data')
+
+    measurement_config = {
+        'hz': measurement_hz,
+        'output_dir': _meta_get(meta, 'measurement_output_dir', 'measurement.output_dir') or 'data/measurements',
+        'output_format': _meta_get(meta, 'measurement_output_format', 'measurement.output_format') or 'parquet',
+        'session_name': _meta_get(meta, 'measurement_name', 'measurement.name', 'measurement.session_name'),
+    }
+
+    if parameters:
+        measurement_config['parameters'] = parameters
+
     return {
-        'measurement': {
-            'hz': measurement_hz,
-            'output_dir': _meta_get(meta, 'measurement_output_dir', 'measurement.output_dir') or 'data/measurements',
-            'output_format': _meta_get(meta, 'measurement_output_format', 'measurement.output_format') or 'parquet',
-            'session_name': _meta_get(meta, 'measurement_name', 'measurement.name', 'measurement.session_name'),
-        },
+        'measurement': measurement_config,
     }
 
 
@@ -278,7 +288,7 @@ def _build_step(
 def parse_schedule_workbook(file_bytes: bytes, filename: str = 'schedule.xlsx') -> dict[str, Any]:
     wb = load_workbook(BytesIO(file_bytes), data_only=True)
     meta = _read_meta_sheet(wb)
-    defaults = _build_meta_defaults(meta)
+    defaults = _build_meta_defaults(meta, wb)
     setup_rows = _read_steps_sheet(wb, 'setup_steps')
     plan_rows = _read_steps_sheet(wb, 'plan_steps')
 

@@ -1,6 +1,7 @@
 """API routes for the data service."""
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -21,6 +22,7 @@ class SetupMeasurementRequest(BaseModel):
     output_dir: str = "data/measurements"
     output_format: str = "parquet"
     session_name: Optional[str] = None
+    include_files: Optional[List[str]] = None
 
 
 class TakeLoadstepRequest(BaseModel):
@@ -44,7 +46,8 @@ async def setup_measurement(request: SetupMeasurementRequest):
         hz=request.hz,
         output_dir=request.output_dir,
         output_format=request.output_format,
-        session_name=request.session_name or ""
+        session_name=request.session_name or "",
+        include_files=request.include_files,
     )
 
     if not result.get("ok"):
@@ -120,6 +123,44 @@ async def get_status():
         raise HTTPException(status_code=500, detail="Runtime not initialized")
 
     return _runtime.get_status()
+
+
+@router.get("/archives")
+async def list_archives(output_dir: Optional[str] = None, limit: int = 200):
+    """List archive files and disk usage for the archive directory."""
+    if _runtime is None:
+        raise HTTPException(status_code=500, detail="Runtime not initialized")
+
+    result = _runtime.list_archives(output_dir=output_dir, limit=limit)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@router.delete("/archives/{archive_name}")
+async def delete_archive(archive_name: str, output_dir: Optional[str] = None):
+    """Delete one archive file by name."""
+    if _runtime is None:
+        raise HTTPException(status_code=500, detail="Runtime not initialized")
+
+    result = _runtime.delete_archive(archive_name=archive_name, output_dir=output_dir)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@router.get("/archives/download/{archive_name}")
+async def download_archive(archive_name: str, output_dir: Optional[str] = None):
+    """Download an archive file by name."""
+    if _runtime is None:
+        raise HTTPException(status_code=500, detail="Runtime not initialized")
+
+    resolved = _runtime.resolve_archive_path(archive_name=archive_name, output_dir=output_dir)
+    if not resolved.get("ok"):
+        raise HTTPException(status_code=404, detail=resolved.get("error", "Archive not found"))
+
+    path = resolved["path"]
+    return FileResponse(path=path, filename=resolved["name"], media_type="application/zip")
 
 
 @router.get("/health")
