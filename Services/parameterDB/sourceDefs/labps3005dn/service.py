@@ -140,6 +140,7 @@ class LabPsuSource(DataSourceBase):
             "status_raw": f"{prefix}.status_raw",
             "connected": f"{prefix}.connected",
             "last_error": f"{prefix}.last_error",
+            "last_sync": f"{prefix}.last_sync",
             "idn": f"{prefix}.idn",
         }
         return default_map[key]
@@ -175,8 +176,8 @@ class LabPsuSource(DataSourceBase):
         if drv is not None:
             try:
                 drv.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._set_error(f"Disconnect failed: {exc}")
 
     @staticmethod
     def _coerce_bool(value: Any) -> bool:
@@ -208,6 +209,7 @@ class LabPsuSource(DataSourceBase):
         self.ensure_parameter(self._param_name("status_raw"), "static", value="", metadata={**owned, "role": "status"})
         self.ensure_parameter(self._param_name("connected"), "static", value=False, metadata={**owned, "role": "status"})
         self.ensure_parameter(self._param_name("last_error"), "static", value="", metadata={**owned, "role": "status"})
+        self.ensure_parameter(self._param_name("last_sync"), "static", value="", metadata={**owned, "role": "status"})
         self.ensure_parameter(self._param_name("idn"), "static", value="", metadata={**owned, "role": "status"})
 
     def _read_commands(self) -> tuple[bool, float, float]:
@@ -248,6 +250,7 @@ class LabPsuSource(DataSourceBase):
         status = drv.get_status()
         self._set_readback("connected", True)
         self._set_readback("last_error", "")
+        self._set_readback("last_sync", __import__("datetime").datetime.utcnow().isoformat() + "Z")
         self._set_readback("voltage_meas", drv.measure_voltage())
         self._set_readback("current_meas", drv.measure_current())
         self._set_readback("output_state", bool(status.get("output")))

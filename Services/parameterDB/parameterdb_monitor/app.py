@@ -517,6 +517,94 @@ class SourceManager(tk.Toplevel):
             self.detail_text.insert("1.0", json.dumps(record, indent=2, sort_keys=True))
 
 
+class RelationsDialog(tk.Toplevel):
+    """Focused view of parameter dependencies, dependents, write targets, and warnings."""
+    def __init__(self, master: tk.Misc, name: str, graph: dict[str, Any], app_ref: MonitorApp | None = None) -> None:
+        super().__init__(master)
+        self.title(f"Relations: {name}")
+        self.geometry("640x500")
+        self.transient(master)
+        self.grab_set()
+        self.name = name
+        self.graph = graph
+        self.app_ref = app_ref
+
+        root = ttk.Frame(self, padding=10)
+        root.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(root, text=f"Parameter: {name}", font=("TkDefaultFont", 11, "bold")).pack(anchor="w", pady=(0, 8))
+
+        # Dependencies section
+        deps_frame = ttk.LabelFrame(root, text="Dependencies (↑ requires)", padding=8)
+        deps_frame.pack(fill=tk.BOTH, expand=False, pady=4)
+        self.deps_listbox = tk.Listbox(deps_frame, height=4, selectmode=tk.SINGLE)
+        self.deps_listbox.pack(fill=tk.BOTH, expand=True)
+        self.deps_listbox.bind("<Double-1>", self._navigate_deps)
+        for dep in (self.graph.get("dependencies") or {}).get(name, []):
+            self.deps_listbox.insert(tk.END, dep)
+
+        # Dependents section
+        deps = self.graph.get("dependencies") or {}
+        dependents = sorted([param for param, values in deps.items() if name in values])
+        dependents_frame = ttk.LabelFrame(root, text="Dependents (↓ depends on this)", padding=8)
+        dependents_frame.pack(fill=tk.BOTH, expand=False, pady=4)
+        self.dependents_listbox = tk.Listbox(dependents_frame, height=4, selectmode=tk.SINGLE)
+        self.dependents_listbox.pack(fill=tk.BOTH, expand=True)
+        self.dependents_listbox.bind("<Double-1>", self._navigate_dependents)
+        for dep in dependents:
+            self.dependents_listbox.insert(tk.END, dep)
+
+        # Write targets section
+        write_targets = (self.graph.get("write_targets") or {}).get(name, [])
+        writes_frame = ttk.LabelFrame(root, text="Write Targets (→ writes to)", padding=8)
+        writes_frame.pack(fill=tk.BOTH, expand=False, pady=4)
+        self.writes_listbox = tk.Listbox(writes_frame, height=4, selectmode=tk.SINGLE)
+        self.writes_listbox.pack(fill=tk.BOTH, expand=True)
+        self.writes_listbox.bind("<Double-1>", self._navigate_writes)
+        for target in write_targets:
+            self.writes_listbox.insert(tk.END, target)
+
+        # Warnings section
+        warnings = self.graph.get("warnings") or []
+        param_warnings = [item for item in warnings if name in str(item)]
+        warnings_frame = ttk.LabelFrame(root, text="Graph Warnings", padding=8)
+        warnings_frame.pack(fill=tk.BOTH, expand=True, pady=4)
+        self.warnings_text = tk.Text(warnings_frame, height=6, wrap="word", state="disabled")
+        self.warnings_text.pack(fill=tk.BOTH, expand=True)
+        if param_warnings:
+            self.warnings_text.configure(state="normal")
+            for warn in param_warnings:
+                self.warnings_text.insert(tk.END, f"• {warn}\n")
+            self.warnings_text.configure(state="disabled")
+        else:
+            self.warnings_text.configure(state="normal")
+            self.warnings_text.insert(tk.END, "(no warnings)")
+            self.warnings_text.configure(state="disabled")
+
+        # Button bar
+        bar = ttk.Frame(root)
+        bar.pack(fill=tk.X, pady=(8, 0))
+        ttk.Button(bar, text="Close", command=self.destroy).pack(side=tk.RIGHT)
+
+    def _navigate_deps(self, event: Any = None) -> None:
+        sel = self.deps_listbox.curselection()
+        if sel and self.app_ref:
+            param_name = self.deps_listbox.get(sel[0])
+            self.app_ref.select_parameter(param_name)
+
+    def _navigate_dependents(self, event: Any = None) -> None:
+        sel = self.dependents_listbox.curselection()
+        if sel and self.app_ref:
+            param_name = self.dependents_listbox.get(sel[0])
+            self.app_ref.select_parameter(param_name)
+
+    def _navigate_writes(self, event: Any = None) -> None:
+        sel = self.writes_listbox.curselection()
+        if sel and self.app_ref:
+            param_name = self.writes_listbox.get(sel[0])
+            self.app_ref.select_parameter(param_name)
+
+
 class MonitorApp:
     def __init__(self, root: tk.Tk, client: SignalClient, source_client: SignalClient | None = None) -> None:
         self.root = root
@@ -536,6 +624,7 @@ class MonitorApp:
         ttk.Button(toolbar, text="Create", command=self.create_parameter).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Edit", command=self.edit_selected).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Delete", command=self.delete_selected).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Relations", command=self.show_relations).pack(side=tk.LEFT, padx=(12, 2))
         if self.source_client is not None:
             ttk.Button(toolbar, text="Sources", command=self.manage_sources).pack(side=tk.LEFT, padx=(12, 2))
         ttk.Button(toolbar, text="Refresh Graph", command=self.refresh_graph).pack(side=tk.LEFT, padx=10)
@@ -549,9 +638,9 @@ class MonitorApp:
         self.status_var = tk.StringVar(value="Connecting...")
         ttk.Label(toolbar, textvariable=self.status_var).pack(side=tk.RIGHT)
 
-        cols = ("name", "parameter_type", "value", "deps", "dependents", "config", "state", "metadata")
+        cols = ("name", "parameter_type", "scan", "value", "deps", "dependents", "writes", "config", "state", "metadata")
         self.tree = ttk.Treeview(root, columns=cols, show="headings", height=20)
-        widths = {"name": 180, "parameter_type": 100, "value": 140, "deps": 170, "dependents": 170, "config": 280, "state": 260, "metadata": 180}
+        widths = {"name": 180, "parameter_type": 100, "scan": 55, "value": 140, "deps": 170, "dependents": 170, "writes": 170, "config": 260, "state": 260, "metadata": 180}
         for col in cols:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=widths[col], anchor="w")
@@ -598,15 +687,52 @@ class MonitorApp:
         deps = self.graph.get("dependencies") or {}
         return sorted([param for param, values in deps.items() if name in values])
 
+    def write_targets_for(self, name: str) -> list[str]:
+        return list((self.graph.get("write_targets") or {}).get(name, []))
+
+    def scan_index_for(self, name: str) -> int | None:
+        scan_order = self.graph.get("scan_order") or []
+        try:
+            return int(scan_order.index(name))
+        except ValueError:
+            return None
+
+    def graph_warnings_for(self, name: str) -> list[str]:
+        warnings = self.graph.get("warnings") or []
+        needle = f"{name}"
+        return [item for item in warnings if needle in str(item)]
+
     def row_values(self, name: str, desc: dict[str, Any]) -> tuple[Any, ...]:
-        return (name, desc.get("parameter_type", ""), repr(desc.get("value")), ", ".join(self.deps_for(name)), ", ".join(self.dependents_for(name)), json.dumps(desc.get("config", {}), sort_keys=True), json.dumps(desc.get("state", {}), sort_keys=True), json.dumps(desc.get("metadata", {}), sort_keys=True))
+        scan_index = self.scan_index_for(name)
+        return (
+            name,
+            desc.get("parameter_type", ""),
+            "" if scan_index is None else scan_index,
+            repr(desc.get("value")),
+            ", ".join(self.deps_for(name)),
+            ", ".join(self.dependents_for(name)),
+            ", ".join(self.write_targets_for(name)),
+            json.dumps(desc.get("config", {}), sort_keys=True),
+            json.dumps(desc.get("state", {}), sort_keys=True),
+            json.dumps(desc.get("metadata", {}), sort_keys=True),
+        )
 
     def refresh_tree(self) -> None:
         needle = self.filter_var.get().strip().lower()
         existing = set(self.tree.get_children())
         wanted = set()
         for name, desc in sorted(self.rows.items()):
-            hay = " ".join([name, str(desc.get("parameter_type", "")), json.dumps(desc.get("config", {}), sort_keys=True), json.dumps(desc.get("metadata", {}), sort_keys=True)]).lower()
+            hay = " ".join([
+                name,
+                str(desc.get("parameter_type", "")),
+                json.dumps(desc.get("config", {}), sort_keys=True),
+                json.dumps(desc.get("metadata", {}), sort_keys=True),
+                json.dumps(desc.get("state", {}), sort_keys=True),
+                " ".join(self.deps_for(name)),
+                " ".join(self.dependents_for(name)),
+                " ".join(self.write_targets_for(name)),
+                " ".join(self.graph_warnings_for(name)),
+            ]).lower()
             if needle and needle not in hay:
                 continue
             wanted.add(name)
@@ -693,19 +819,57 @@ class MonitorApp:
         txt.pack(fill=tk.BOTH, expand=True)
         txt.insert("1.0", json.dumps(data, indent=2, sort_keys=True))
 
+    def show_relations(self) -> None:
+        """Show relations (dependencies, dependents, writes, warnings) for selected parameter."""
+        name = self.selected_name()
+        if not name:
+            messagebox.showwarning("No selection", "Please select a parameter first.", parent=self.root)
+            return
+        dlg = RelationsDialog(self.root, name, self.graph, app_ref=self)
+        self.root.wait_window(dlg)
+
+    def select_parameter(self, name: str) -> None:
+        """Select and scroll to parameter in the tree view."""
+        if name and self.tree.exists(name):
+            self.tree.selection_set(name)
+            self.tree.see(name)
+            self.update_details()
+
     def update_details(self) -> None:
         self.detail_text.delete("1.0", "end")
         record = self.selected_record()
         if not record:
             return
         name = record["name"]
-        payload = {"name": name, "parameter_type": record.get("parameter_type"), "value": record.get("value"), "config": record.get("config", {}), "state": record.get("state", {}), "metadata": record.get("metadata", {}), "dependencies": self.deps_for(name), "dependents": self.dependents_for(name)}
+        payload = {
+            "name": name,
+            "parameter_type": record.get("parameter_type"),
+            "scan_index": self.scan_index_for(name),
+            "value": record.get("value"),
+            "config": record.get("config", {}),
+            "state": record.get("state", {}),
+            "metadata": record.get("metadata", {}),
+            "dependencies": self.deps_for(name),
+            "dependents": self.dependents_for(name),
+            "write_targets": self.write_targets_for(name),
+            "graph_warnings": self.graph_warnings_for(name),
+        }
         self.detail_text.insert("1.0", json.dumps(payload, indent=2, sort_keys=True))
 
     def update_status(self) -> None:
         try:
             stats = self.client.stats()
-            self.status_var.set(f"Connected | params={len(self.rows)} | cycles={stats.get('cycle_count')} | last_scan={stats.get('last_scan_duration_s'):.6f}s | warnings={len(self.graph.get('warnings', []))}")
+            last_scan = float(stats.get('last_scan_duration_s') or 0.0)
+            avg_scan = float(stats.get('avg_scan_duration_s') or last_scan)
+            estimated_hz = stats.get('estimated_cycle_rate_hz')
+            utilization = stats.get('estimated_utilization')
+            overrun_count = int(stats.get('overrun_count') or 0)
+            mode = str(stats.get('mode') or 'fixed')
+            hz_text = f"{float(estimated_hz):.1f}Hz" if estimated_hz else "-"
+            util_text = f"{float(utilization) * 100:.0f}%" if utilization is not None else "-"
+            self.status_var.set(
+                f"Connected | params={len(self.rows)} | mode={mode} | rate={hz_text} | last={last_scan:.4f}s | avg={avg_scan:.4f}s | util={util_text} | overruns={overrun_count} | warnings={len(self.graph.get('warnings', []))}"
+            )
         except Exception as exc:
             self.status_var.set(f"Disconnected: {exc}")
 

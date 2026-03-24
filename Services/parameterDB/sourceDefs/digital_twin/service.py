@@ -7,6 +7,7 @@ import time
 import zipfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -40,6 +41,7 @@ class DigitalTwinSource(DataSourceBase):
         self.loaded_fmu_path: str = ''
         self.model_name: str = ''
         self.last_status_text: str = 'No FMU loaded'
+        self._last_error: str = ''
         self.input_vars: list[TwinVariable] = []
         self.output_vars: list[TwinVariable] = []
         self._runtime_mode = 'none'
@@ -76,6 +78,9 @@ class DigitalTwinSource(DataSourceBase):
         if explicit:
             return str(explicit)
         return f'{self._prefix()}.{key}'
+
+    def _set_status(self, key: str, value: Any) -> None:
+        self.client.set_value(self._status_param(key), value)
 
     def _input_bindings(self) -> dict[str, str]:
         raw = self.config.get('input_bindings') or {}
@@ -130,9 +135,19 @@ class DigitalTwinSource(DataSourceBase):
             'last_reset_reason': self._last_reset_reason,
         }
         payload.update(extra)
-        self.client.set_value(self._status_param('status'), dict(payload))
-        self.client.set_value(self._status_param('connected'), bool(self.loaded_fmu_path))
-        self.client.set_value(self._status_param('last_error'), '' if not str(self.last_status_text).lower().startswith(('fmu not found', 'not an fmu', 'failed to read fmu')) else self.last_status_text)
+        explicit_error = str(extra.get('last_error', '') or '').strip()
+        if explicit_error:
+            self._last_error = explicit_error
+        self._set_status('status', dict(payload))
+        self._set_status('connected', bool(self.loaded_fmu_path))
+        self._set_status('last_error', self._last_error)
+        self._set_status('last_sync', datetime.now(timezone.utc).isoformat())
+
+    def _set_error(self, message: str) -> None:
+        self._last_error = str(message)
+
+    def _clear_error(self) -> None:
+        self._last_error = ''
 
     @staticmethod
     def _variable_info(var: TwinVariable) -> dict[str, Any]:
@@ -170,6 +185,7 @@ class DigitalTwinSource(DataSourceBase):
         owned = self.build_owned_metadata(device='digital_twin')
         self.ensure_parameter(self._status_param('connected'), 'static', value=False, metadata={**owned, 'role': 'status'})
         self.ensure_parameter(self._status_param('last_error'), 'static', value='', metadata={**owned, 'role': 'status'})
+        self.ensure_parameter(self._status_param('last_sync'), 'static', value='', metadata={**owned, 'role': 'status'})
         self.ensure_parameter(self._status_param('status'), 'static', value={}, metadata={**owned, 'role': 'status'})
         self.ensure_parameter(self._reset_param_name(), 'static', value=False, metadata={**owned, 'role': 'control', 'control_action': 'reset_twin'})
         self._sync_managed_outputs(owned)
@@ -244,6 +260,7 @@ class DigitalTwinSource(DataSourceBase):
         if not _HAS_FMPY:
             self._runtime_mode = 'metadata'
             self.last_status_text = f'FMU loaded: {p.name} (metadata only - install fmpy for runtime)'
+            self._clear_error()
             return
         try:
             self._model_description = read_model_description(str(p))
@@ -262,10 +279,12 @@ class DigitalTwinSource(DataSourceBase):
             self._output_map = {v.name: v for v in self.output_vars if v.value_reference is not None}
             self._runtime_mode = 'runtime'
             self.last_status_text = f'Estimator running ({self.model_name})'
+            self._clear_error()
         except Exception as exc:
             self._cleanup_runtime()
             self._runtime_mode = 'metadata'
             self.last_status_text = f'FMU loaded: {p.name} (metadata only, runtime error: {exc})'
+            self._set_error(str(exc))
 
     def load_model(self, path: str) -> tuple[bool, str]:
         path = str(path or '').strip()
@@ -275,6 +294,7 @@ class DigitalTwinSource(DataSourceBase):
             self.loaded_fmu_path = ''
             self.model_name = ''
             self.last_status_text = 'No FMU loaded'
+            self._clear_error()
             self.input_vars = []
             self.output_vars = []
             return False, self.last_status_text
@@ -285,6 +305,7 @@ class DigitalTwinSource(DataSourceBase):
             self.input_vars = []
             self.output_vars = []
             self.last_status_text = f'FMU not found: {p.name}'
+            self._set_error(self.last_status_text)
             return False, self.last_status_text
         if p.suffix.lower() != '.fmu':
             self.loaded_fmu_path = ''
@@ -292,6 +313,7 @@ class DigitalTwinSource(DataSourceBase):
             self.input_vars = []
             self.output_vars = []
             self.last_status_text = f'Not an FMU file: {p.name}'
+            self._set_error(self.last_status_text)
             return False, self.last_status_text
         try:
             model_name, inputs, outputs = self._parse_fmu_variables(p)
@@ -301,6 +323,7 @@ class DigitalTwinSource(DataSourceBase):
             self.input_vars = []
             self.output_vars = []
             self.last_status_text = f'Failed to read FMU: {exc}'
+            self._set_error(self.last_status_text)
             return False, self.last_status_text
         self.loaded_fmu_path = normalized_path
         self.model_name = model_name
@@ -309,6 +332,8 @@ class DigitalTwinSource(DataSourceBase):
         self._initialize_runtime(p)
         if self._runtime_mode != 'runtime' and 'metadata only' not in self.last_status_text.lower():
             self.last_status_text = f'FMU loaded: {p.name} ({len(inputs)} inputs, {len(outputs)} outputs)'
+        if self._runtime_mode in {'runtime', 'metadata'} and not self._last_error:
+            self._clear_error()
         return True, self.last_status_text
 
     def _coerce_input_value(self, binding: str | None) -> Optional[float]:
@@ -427,6 +452,7 @@ class DigitalTwinSource(DataSourceBase):
         missing: dict[str, list[str]] = {}
         managed = self._desired_managed_outputs()
         explicit = self._output_params()
+        owned = self.build_owned_metadata(device='digital_twin')
         for output_name in sorted(set(managed) | set(explicit)):
             targets: list[str] = []
             managed_target = str(managed.get(output_name, '') or '').strip()
@@ -441,6 +467,19 @@ class DigitalTwinSource(DataSourceBase):
                 missing[output_name] = targets
                 continue
             for target_name in targets:
+                # Output targets must remain auto-created even if the FMU was
+                # loaded during this cycle after ensure_parameters() already ran.
+                self.ensure_parameter(
+                    target_name,
+                    'static',
+                    value=None,
+                    metadata={
+                        **owned,
+                        'role': 'twin_output',
+                        'fmu_output': output_name,
+                        **({'managed_output': True} if target_name == managed_target else {}),
+                    },
+                )
                 self.client.set_value(target_name, outputs[output_name])
             written[output_name] = targets
         return {'written': written, 'missing': missing}
@@ -474,10 +513,12 @@ class DigitalTwinSource(DataSourceBase):
                 self._last_step_wallclock = now
                 outputs = self._get_runtime_outputs()
                 self.last_status_text = f'Estimator running ({self.model_name})'
+                self._clear_error()
             except Exception as exc:
                 self._cleanup_runtime()
                 self._runtime_mode = 'metadata'
                 self.last_status_text = f'FMU runtime failed; metadata only ({exc})'
+                self._set_error(str(exc))
 
         if not outputs:
             if missing_inputs:
@@ -503,7 +544,8 @@ class DigitalTwinSource(DataSourceBase):
                     break
             except Exception as exc:
                 self.last_status_text = f'Digital twin error: {exc}'
-                self._publish_status(inputs={}, outputs={}, missing_inputs=[], output_targets={}, missing_output_targets={}, last_error=str(exc))
+                self._set_error(str(exc))
+                self._publish_status(inputs={}, outputs={}, missing_inputs=[], output_targets={}, missing_output_targets={})
                 if self.sleep(reconnect_delay):
                     break
         self._cleanup_runtime()

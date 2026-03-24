@@ -113,8 +113,8 @@ class BrewtoolsKvaserSource(DataSourceBase):
         if bus is not None:
             try:
                 bus.shutdown()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._set_error(f"Disconnect failed: {exc}")
 
     def _ensure_codec_ready(self) -> None:
         if self._codec_ready:
@@ -158,6 +158,7 @@ class BrewtoolsKvaserSource(DataSourceBase):
         owned = self.build_owned_metadata(device="brewtools_can")
         self._ensure_parameter_once(self._status_param("connected"), "static", value=False, metadata={**owned, "role": "status"})
         self._ensure_parameter_once(self._status_param("last_error"), "static", value="", metadata={**owned, "role": "status"})
+        self._ensure_parameter_once(self._status_param("last_sync"), "static", value="", metadata={**owned, "role": "status"})
         self._ensure_parameter_once(self._status_param("last_frame_utc"), "static", value="", metadata={**owned, "role": "status"})
         self._ensure_parameter_once(self._status_param("last_can_id"), "static", value="", metadata={**owned, "role": "status"})
         self._ensure_parameter_once(self._status_param("last_msg_type"), "static", value="", metadata={**owned, "role": "status"})
@@ -278,7 +279,9 @@ class BrewtoolsKvaserSource(DataSourceBase):
         obj = event.obj
         self._set_status("connected", True)
         self._set_status("last_error", "")
-        self._set_status("last_frame_utc", self._utc_now())
+        now_utc = self._utc_now()
+        self._set_status("last_sync", now_utc)
+        self._set_status("last_frame_utc", now_utc)
         self._set_status("last_can_id", hex(int(event.arbitration_id)))
         self._set_status("last_msg_type", int(frame.can_id.msg_type))
         self._set_status("last_node_id", int(frame.can_id.secondary_node_id))

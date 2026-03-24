@@ -14,8 +14,12 @@
         "unit": "%"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 0.0
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 100.0
     },
     "brewcan.connected": {
       "config": {},
@@ -27,7 +31,11 @@
         "source_type": "brewtools_kvaser"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": true
     },
     "brewcan.density.0": {
@@ -44,7 +52,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 1.04
     },
     "brewcan.last_can_id": {
@@ -57,7 +69,11 @@
         "source_type": "brewtools_kvaser"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": "0x8304011"
     },
     "brewcan.last_error": {
@@ -70,7 +86,11 @@
         "source_type": "brewtools_kvaser"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": ""
     },
     "brewcan.last_frame_utc": {
@@ -83,7 +103,11 @@
         "source_type": "brewtools_kvaser"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": "2026-03-22T14:59:07.224086Z"
     },
     "brewcan.last_msg_type": {
@@ -96,7 +120,11 @@
         "source_type": "brewtools_kvaser"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 17
     },
     "brewcan.last_node_id": {
@@ -109,8 +137,29 @@
         "source_type": "brewtools_kvaser"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0
+    },
+    "brewcan.last_sync": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "brewtools_can",
+        "owner": "brewtools_can_demo",
+        "role": "status",
+        "source_type": "brewtools_kvaser"
+      },
+      "parameter_type": "static",
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": ""
     },
     "brewcan.level.0": {
       "config": {},
@@ -124,7 +173,11 @@
         "source_type": "brewtools_kvaser"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.6208950281143188
     },
     "brewcan.pressure.0": {
@@ -141,12 +194,17 @@
         "unit": "bar"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.2937631905078888
     },
     "brewcan.rpm.0": {
       "config": {},
       "metadata": {
+        "comment": "",
         "created_by": "data_source",
         "device": "brewtools_can",
         "kind": "rpm",
@@ -157,8 +215,12 @@
         "unit": "rpm"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 21.0
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0
     },
     "brewcan.temperature.0": {
       "config": {},
@@ -173,8 +235,60 @@
         "unit": "C"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 14.002314567565918
+    },
+    "clock_main.connected": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "owner": "clock_main",
+        "role": "status",
+        "source_type": "system_time"
+      },
+      "parameter_type": "static",
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": true
+    },
+    "clock_main.last_error": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "owner": "clock_main",
+        "role": "status",
+        "source_type": "system_time"
+      },
+      "parameter_type": "static",
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": ""
+    },
+    "clock_main.last_sync": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "owner": "clock_main",
+        "role": "status",
+        "source_type": "system_time"
+      },
+      "parameter_type": "static",
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": "2026-03-24T19:58:44.293962+00:00"
     },
     "dbc_press_Fermenter_Hi": {
       "config": {
@@ -189,8 +303,11 @@
       "metadata": {},
       "parameter_type": "deadband",
       "state": {
+        "connected": true,
         "direction": "above",
         "enabled": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00",
         "off_offset": 0.1,
         "off_threshold": 0.4791756316690672,
         "on_offset": 0.15,
@@ -216,8 +333,11 @@
       "metadata": {},
       "parameter_type": "deadband",
       "state": {
+        "connected": true,
         "direction": "below",
         "enabled": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00",
         "off_offset": 0.1,
         "off_threshold": 0.2791756316690672,
         "on_offset": 0.15,
@@ -243,8 +363,11 @@
       "metadata": {},
       "parameter_type": "deadband",
       "state": {
+        "connected": true,
         "direction": "above",
         "enabled": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00",
         "off_offset": 0.5,
         "off_threshold": 10.832998335000205,
         "on_offset": 1.0,
@@ -270,8 +393,11 @@
       "metadata": {},
       "parameter_type": "deadband",
       "state": {
+        "connected": true,
         "direction": "below",
         "enabled": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00",
         "off_offset": 0.5,
         "off_threshold": 9.832998335000205,
         "on_offset": 1.0,
@@ -303,18 +429,21 @@
       "metadata": {},
       "parameter_type": "pid",
       "state": {
+        "connected": true,
         "enabled": true,
-        "error": -3.0,
-        "integral": 1.0237307487761882,
+        "error": 100.0,
+        "integral": 4899.852010744135,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00",
         "mode": "auto",
         "output_targets": [
           "brewcan.agitator.0.set_pwm"
         ],
-        "prev_error": -3.0,
-        "pv": 21.0,
-        "sp": 18.0
+        "prev_error": 100.0,
+        "pv": 0.0,
+        "sp": 100.0
       },
-      "value": 0.0
+      "value": 100.0
     },
     "psu.connected": {
       "config": {},
@@ -326,7 +455,11 @@
         "source_type": "labps3005dn"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": true
     },
     "psu.idn": {
@@ -339,7 +472,11 @@
         "source_type": "labps3005dn"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": "QJE3005PV1.0"
     },
     "psu.last_error": {
@@ -352,8 +489,29 @@
         "source_type": "labps3005dn"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": ""
+    },
+    "psu.last_sync": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "bench_psu",
+        "owner": "bench_psu",
+        "role": "status",
+        "source_type": "labps3005dn"
+      },
+      "parameter_type": "static",
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": "2026-03-24T19:58:44.789977Z"
     },
     "psu.meas_current": {
       "config": {},
@@ -366,7 +524,11 @@
         "unit": "A"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.026
     },
     "psu.meas_voltage": {
@@ -380,7 +542,11 @@
         "unit": "V"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 24.0
     },
     "psu.mode": {
@@ -393,7 +559,11 @@
         "source_type": "labps3005dn"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": "CV"
     },
     "psu.output_state": {
@@ -406,7 +576,11 @@
         "source_type": "labps3005dn"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "psu.protection": {
@@ -419,7 +593,11 @@
         "source_type": "labps3005dn"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "psu.set_current": {
@@ -434,7 +612,11 @@
         "unit": "A"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 5
     },
     "psu.set_enable": {
@@ -449,7 +631,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "psu.set_voltage": {
@@ -464,7 +650,11 @@
         "unit": "V"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 24
     },
     "psu.status_raw": {
@@ -477,7 +667,11 @@
         "source_type": "labps3005dn"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": "100"
     },
     "relay.ch1": {
@@ -493,7 +687,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.ch2": {
@@ -509,7 +707,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": true
     },
     "relay.ch3": {
@@ -523,7 +725,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.ch4": {
@@ -537,7 +743,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.ch5": {
@@ -551,7 +761,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.ch6": {
@@ -565,7 +779,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.ch7": {
@@ -579,7 +797,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.ch8": {
@@ -593,7 +815,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.connected": {
@@ -606,7 +832,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "relay.last_error": {
@@ -619,7 +849,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": "timed out"
     },
     "relay.last_sync": {
@@ -632,7 +866,11 @@
         "source_type": "modbus_relay"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": "2026-03-22T14:59:06.988942Z"
     },
     "set_allow_Gas": {
@@ -642,7 +880,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 1
     },
     "set_pres_Fermentor": {
@@ -652,7 +894,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.3791756316690672
     },
     "set_spd_Agitator": {
@@ -662,8 +908,12 @@
         "unit": "rpm"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 18
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 100
     },
     "set_temp_Fermentor": {
       "config": {},
@@ -672,7 +922,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 10.332998335000205
     },
     "system.time.iso": {
@@ -684,8 +938,12 @@
         "source_type": "system_time"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": "2026-03-24T19:13:00.706583+00:00"
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": "2026-03-24T19:58:44.293526+00:00"
     },
     "test": {
       "config": {},
@@ -694,7 +952,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0
     },
     "twin.connected": {
@@ -707,7 +969,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": true
     },
     "twin.last_error": {
@@ -720,8 +986,29 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": ""
+    },
+    "twin.last_sync": {
+      "config": {},
+      "metadata": {
+        "created_by": "data_source",
+        "device": "digital_twin",
+        "owner": "twin",
+        "role": "status",
+        "source_type": "digital_twin"
+      },
+      "parameter_type": "static",
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": "2026-03-24T19:58:44.878569+00:00"
     },
     "twin.outputs.est_AA": {
       "config": {},
@@ -734,7 +1021,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_ABV": {
@@ -749,7 +1040,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_ABV_Balling": {
@@ -764,7 +1059,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_BiomassAllocationFraction": {
@@ -779,8 +1078,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 0.008333333333333333
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.007893050081926816
     },
     "twin.outputs.est_OG": {
       "config": {},
@@ -794,7 +1097,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 1.04
     },
     "twin.outputs.est_RA": {
@@ -809,7 +1116,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_T1": {
@@ -824,8 +1135,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -0.002961842613644669
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.33434898824117737
     },
     "twin.outputs.est_T2": {
       "config": {},
@@ -839,8 +1154,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -11.105115338189494
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 1.0820262955789608
     },
     "twin.outputs.est_concYeastCells": {
       "config": {},
@@ -854,8 +1173,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 1.666666666666667e+17
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 733211.608820752
     },
     "twin.outputs.est_m3Beer": {
       "config": {},
@@ -869,8 +1192,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -3.4849461638502692
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.29856107492694495
     },
     "twin.outputs.est_m3Headspace": {
       "config": {},
@@ -884,8 +1211,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 3.959061172084919
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.17555393330770505
     },
     "twin.outputs.est_mCO2Added": {
       "config": {},
@@ -899,7 +1230,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_mCO2Addflow": {
@@ -914,7 +1249,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_mCO2Bubbles": {
@@ -929,8 +1268,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 0.0
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.16912396587097284
     },
     "twin.outputs.est_mCO2Dissolved": {
       "config": {},
@@ -944,8 +1287,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -20.381885858177277
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 1.0823600931839144
     },
     "twin.outputs.est_mCO2DissolvedEQ": {
       "config": {},
@@ -959,8 +1306,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -0.0010159671222326032
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.3510699747887505
     },
     "twin.outputs.est_mCO2FromGasModel": {
       "config": {},
@@ -974,8 +1325,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -11.10807718080314
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 1.5854992496911111
     },
     "twin.outputs.est_mCO2Head": {
       "config": {},
@@ -989,8 +1344,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 0.0010442993525507703
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.334526629845837
     },
     "twin.outputs.est_mCO2ProducedFromSugar": {
       "config": {},
@@ -1004,8 +1363,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -24.591884242184182
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 2.1068272072569574
     },
     "twin.outputs.est_mCO2ProductionRate": {
       "config": {},
@@ -1019,8 +1382,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -0.0009564694719064602
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.008080409074307317
     },
     "twin.outputs.est_mCO2Vented": {
       "config": {},
@@ -1034,7 +1401,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_mCO2Ventflow": {
@@ -1049,7 +1420,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": 0.0
     },
     "twin.outputs.est_mEthanolFomSugar": {
@@ -1064,8 +1439,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -25.74014342858967
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 2.2052004620705117
     },
     "twin.outputs.est_mEthanolProductionRate": {
       "config": {},
@@ -1079,8 +1458,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -0.001001129525069208
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.008457704439644637
     },
     "twin.outputs.est_mSugarConsumed": {
       "config": {},
@@ -1094,8 +1477,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -47.84413276689529
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 4.098885617231434
     },
     "twin.outputs.est_mSugarConusmptionRate": {
       "config": {},
@@ -1109,8 +1496,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -0.0018608355484553238
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.015720640222387797
     },
     "twin.outputs.est_mSugarRemaining": {
       "config": {},
@@ -1124,8 +1515,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": -363.35407217843294
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 31.12914153279777
     },
     "twin.outputs.est_mYeastBiomas": {
       "config": {},
@@ -1139,8 +1534,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 0.008
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.010507605411765044
     },
     "twin.outputs.est_mYeastGrowthRate": {
       "config": {},
@@ -1154,8 +1553,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 0.0
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 1.2408380059526e-05
     },
     "twin.outputs.est_nYeastCells": {
       "config": {},
@@ -1169,8 +1572,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 166666666666.6667
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 218908446078.43842
     },
     "twin.outputs.est_oxygenIndex": {
       "config": {},
@@ -1184,8 +1591,12 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
-      "value": 1.0
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
+      "value": 0.7492394588234975
     },
     "twin.reset": {
       "config": {},
@@ -1200,7 +1611,11 @@
         "unit": ""
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": false
     },
     "twin.status": {
@@ -1213,7 +1628,11 @@
         "source_type": "digital_twin"
       },
       "parameter_type": "static",
-      "state": {},
+      "state": {
+        "connected": true,
+        "last_error": "",
+        "last_sync": "2026-03-24T19:58:45.173023+00:00"
+      },
       "value": {
         "discovered_inputs": [
           {
@@ -1485,13 +1904,13 @@
           "in_T_c": 14.002314567565918,
           "in_VentOpen": 0.0,
           "in_gravity_sg": 1.04,
-          "in_level": 14.002314567565918,
+          "in_level": 0.6208950281143188,
           "in_pressure_bar": 0.2937631905078888
         },
-        "last_dt_s": 0.3281821000855416,
+        "last_dt_s": 0.42407519998960197,
         "last_reset_reason": "",
         "last_status_text": "Estimator running (Controller)",
-        "last_step_age_s": 0.003197999903932214,
+        "last_step_age_s": 0.08041030005551875,
         "managed_output_targets": {
           "est_AA": "twin.outputs.est_AA",
           "est_ABV": "twin.outputs.est_ABV",
@@ -1628,45 +2047,45 @@
           "est_AA": 0.0,
           "est_ABV": 0.0,
           "est_ABV_Balling": 0.0,
-          "est_BiomassAllocationFraction": 0.008333333333333333,
+          "est_BiomassAllocationFraction": 0.007893050081926816,
           "est_OG": 1.04,
           "est_RA": 0.0,
-          "est_T1": -0.002961842613644669,
-          "est_T2": -11.105115338189494,
-          "est_concYeastCells": 1.666666666666667e+17,
-          "est_m3Beer": -3.4849461638502692,
-          "est_m3Headspace": 3.959061172084919,
+          "est_T1": 0.33434898824117737,
+          "est_T2": 1.0820262955789608,
+          "est_concYeastCells": 733211.608820752,
+          "est_m3Beer": 0.29856107492694495,
+          "est_m3Headspace": 0.17555393330770505,
           "est_mCO2Added": 0.0,
           "est_mCO2Addflow": 0.0,
-          "est_mCO2Bubbles": 0.0,
-          "est_mCO2Dissolved": -20.381885858177277,
-          "est_mCO2DissolvedEQ": -0.0010159671222326032,
-          "est_mCO2FromGasModel": -11.10807718080314,
-          "est_mCO2Head": 0.0010442993525507703,
-          "est_mCO2ProducedFromSugar": -24.591884242184182,
-          "est_mCO2ProductionRate": -0.0009564694719064602,
+          "est_mCO2Bubbles": 0.16912396587097284,
+          "est_mCO2Dissolved": 1.0823600931839144,
+          "est_mCO2DissolvedEQ": 0.3510699747887505,
+          "est_mCO2FromGasModel": 1.5854992496911111,
+          "est_mCO2Head": 0.334526629845837,
+          "est_mCO2ProducedFromSugar": 2.1068272072569574,
+          "est_mCO2ProductionRate": 0.008080409074307317,
           "est_mCO2Vented": 0.0,
           "est_mCO2Ventflow": 0.0,
-          "est_mEthanolFomSugar": -25.74014342858967,
-          "est_mEthanolProductionRate": -0.001001129525069208,
-          "est_mSugarConsumed": -47.84413276689529,
-          "est_mSugarConusmptionRate": -0.0018608355484553238,
-          "est_mSugarRemaining": -363.35407217843294,
-          "est_mYeastBiomas": 0.008,
-          "est_mYeastGrowthRate": 0.0,
-          "est_nYeastCells": 166666666666.6667,
-          "est_oxygenIndex": 1.0
+          "est_mEthanolFomSugar": 2.2052004620705117,
+          "est_mEthanolProductionRate": 0.008457704439644637,
+          "est_mSugarConsumed": 4.098885617231434,
+          "est_mSugarConusmptionRate": 0.015720640222387797,
+          "est_mSugarRemaining": 31.12914153279777,
+          "est_mYeastBiomas": 0.010507605411765044,
+          "est_mYeastGrowthRate": 1.2408380059526e-05,
+          "est_nYeastCells": 218908446078.43842,
+          "est_oxygenIndex": 0.7492394588234975
         },
         "reset_count": 0,
         "reset_nonce": null,
         "reset_param": "twin.reset",
         "reset_param_value": false,
         "runtime_mode": "runtime",
-        "sim_time_s": 404.14808710003274,
-        "step_count": 1205
+        "sim_time_s": 120.96115259991493,
+        "step_count": 285
       }
     }
   },
-  "saved_at": 1774379581.6387181,
-  "store_revision": 11053
+  "saved_at": 1774382325.1740956,
+  "store_revision": 5782
 }

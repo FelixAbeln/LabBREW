@@ -9,7 +9,7 @@
       "in_T_c": "brewcan.temperature.0",
       "in_VentOpen": "dbc_press_Fermenter_Hi",
       "in_gravity_sg": "brewcan.density.0",
-      "in_level": "brewcan.temperature.0",
+      "in_level": "brewcan.level.0",
       "in_pressure_bar": "brewcan.pressure.0"
     },
     "managed_output_prefix": "",
