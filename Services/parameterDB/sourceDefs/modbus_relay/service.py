@@ -3,6 +3,7 @@ from __future__ import annotations
 import socket
 import struct
 import threading
+from datetime import datetime, timezone
 from typing import Any
 
 from ...parameterdb_core.client import SupportsSignalRequests
@@ -245,7 +246,7 @@ class ModbusRelaySource(DataSourceBase):
         self._publish_states(refreshed)
         self.client.set_value(self._status_param("connected"), True)
         self.client.set_value(self._status_param("last_error"), "")
-        self.client.set_value(self._status_param("last_sync"), __import__("datetime").datetime.utcnow().isoformat() + "Z")
+        self.client.set_value(self._status_param("last_sync"), datetime.now(timezone.utc).isoformat())
 
     def run(self) -> None:
         interval = float(self.config.get("update_interval_s", 0.25))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -323,7 +324,7 @@ class BrewtoolsKvaserSource(DataSourceBase):
                 event = self._receive_once(bus, recv_timeout_s)
                 if event is not None:
                     self._handle_event(event)
-                self._poll_density_requests(bus, __import__("time").monotonic())
+                self._poll_density_requests(bus, time.monotonic())
             except Exception as exc:
                 self._disconnect_bus()
                 self._last_pwm_by_node.clear()

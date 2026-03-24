@@ -29,7 +29,10 @@ def _cell_bool(value: Any, default: bool = True) -> bool:
 def _cell_float(value: Any) -> float | None:
     if value is None or value == '':
         return None
-    return float(value)
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def _cell_list(value: Any) -> list[str]:
@@ -88,7 +91,10 @@ def _meta_get(meta: dict[str, str], *keys: str) -> str | None:
 
 def _build_meta_defaults(meta: dict[str, str]) -> dict[str, Any]:
     measurement_hz_text = _meta_get(meta, 'measurement_hz', 'measurement.hz')
-    measurement_hz = float(measurement_hz_text) if measurement_hz_text is not None else 10.0
+    try:
+        measurement_hz = float(measurement_hz_text) if measurement_hz_text is not None else 10.0
+    except (ValueError, TypeError):
+        measurement_hz = 10.0
 
     return {
         'measurement': {
