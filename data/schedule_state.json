@@ -1,5 +1,5 @@
 {
-  "current_step_index": -1,
+  "current_step_index": 3,
   "data_records": [
     {
       "kind": "measurement_started",
@@ -30,7 +30,39 @@
       "samples_recorded": 2330,
       "session_name": "scheduling_lager_1h_test_plan_20260325_180415",
       "source": "Run stopped",
-      "timestamp": "2026-03-25T18:15:19.953681Z"
+      "timestamp": "2026-03-24T18:57:32.450771Z"
+    },
+    {
+      "kind": "measurement_started",
+      "output_dir": "data/measurements",
+      "output_format": "parquet",
+      "parameters_count": 87,
+      "session_name": "scheduling_lager_1h_test_plan_20260325_160505",
+      "source": "schedule_auto_start",
+      "timestamp": "2026-03-25T16:05:05.455029Z"
+    },
+    {
+      "kind": "measurement_started",
+      "output_dir": "data/measurements",
+      "output_format": "parquet",
+      "parameters_count": 87,
+      "session_name": "scheduling_lager_1h_test_plan_20260325_161144",
+      "source": "schedule_auto_start",
+      "timestamp": "2026-03-25T16:11:44.449617Z"
+    },
+    {
+      "duration_seconds": 30.0,
+      "kind": "loadstep_started",
+      "name": "scheduling_lager_1h_test_plan_ls_20260325_161648",
+      "parameters_count": null,
+      "timestamp": "2026-03-25T16:16:48.135769Z"
+    },
+    {
+      "duration_seconds": 30.0,
+      "kind": "loadstep_started",
+      "name": "scheduling_lager_1h_test_plan_ls_20260325_162733",
+      "parameters_count": null,
+      "timestamp": "2026-03-25T16:27:33.574829Z"
     }
   ],
   "event_log": [
@@ -48,26 +80,55 @@
     "Run stopped; released ownership for set_temp_Fermentor",
     "Run stopped; released ownership for set_pres_Fermentor",
     "Run stopped; released ownership for set_spd_Agitator",
-    "Run stopped; released ownership for set_allow_Gas",
-    "Run stopped; released ownership for twin.reset",
-    "Run stopped"
+    "Run stopped; released ownership for set_temp_Fermentor",
+    "Run stopped",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260325_160505)",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Fault: [WinError 5] Access is denied: 'F:\\\\BrewSys\\\\LabBREW\\\\LabBREW\\\\data\\\\schedule_state.json.4us2s1cg.tmp' -> 'F:\\\\BrewSys\\\\LabBREW\\\\LabBREW\\\\data\\\\schedule_state.json'",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260325_161144)",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260325_161648 for step Chill wort to lager pitch temp",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260325_161648",
+    "Applied step Hold at pitch temp and allow pressure to stay low",
+    "Applied step Primary fermentation hold",
+    "Started exit loadstep scheduling_lager_1h_test_plan_ls_20260325_162733 for step Primary fermentation hold",
+    "Exit loadstep completed: scheduling_lager_1h_test_plan_ls_20260325_162733",
+    "Applied step Raise spunding pressure during active fermentation"
   ],
   "last_action_result": {
     "ok": true,
     "started": {
       "set_pres_Fermentor": {
-        "duration": 120.0,
-        "end": 0.3,
+        "duration": 300.0,
+        "end": 1,
         "owner": "schedule_service",
-        "start": 0.2
+        "start": 0.3
       }
     },
     "targets": [
       "set_pres_Fermentor"
     ]
   },
-  "owned_target_owners": {},
-  "owned_targets": [],
+  "owned_target_owners": {
+    "set_allow_Gas": "schedule_service",
+    "set_pres_Fermentor": "schedule_service",
+    "set_spd_Agitator": "schedule_service",
+    "set_temp_Fermentor": "schedule_service"
+  },
+  "owned_targets": [
+    "set_allow_Gas",
+    "set_pres_Fermentor",
+    "set_spd_Agitator",
+    "set_temp_Fermentor"
+  ],
   "pause_reason": null,
   "phase": "idle",
   "schedule": {
@@ -478,6 +539,6 @@
       }
     ]
   },
-  "state": "stopped",
-  "step_started_at_utc": null
+  "state": "running",
+  "step_started_at_utc": "2026-03-25T16:28:03.872528Z"
 }
