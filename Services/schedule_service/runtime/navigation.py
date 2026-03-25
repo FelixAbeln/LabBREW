@@ -23,7 +23,10 @@ class _NavigationMixin:
         schedule = self.repository.get_current()
         if schedule is None:
             return
-        step = self._phase_steps(schedule)[self._step_index]
+        steps = self._phase_steps(schedule)
+        if not (0 <= self._step_index < len(steps)):
+            return
+        step = steps[self._step_index]
         self._step_runtime = StepRuntime(
             actions_applied=False,
             started_monotonic=time.monotonic(),
