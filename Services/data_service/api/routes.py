@@ -145,7 +145,7 @@ async def delete_archive(archive_name: str, output_dir: Optional[str] = None):
 
     result = _runtime.delete_archive(archive_name=archive_name, output_dir=output_dir)
     if not result.get("ok"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
+        raise HTTPException(status_code=404, detail=result.get("error", "Unknown error"))
     return result
 
 

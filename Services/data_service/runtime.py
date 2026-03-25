@@ -629,7 +629,6 @@ class DataRecordingRuntime:
                 "name": name,
                 "size_bytes": int(stat.st_size),
                 "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                "path": path,
             })
 
         entries.sort(key=lambda item: item["modified_at"], reverse=True)
@@ -639,7 +638,6 @@ class DataRecordingRuntime:
         usage = shutil.disk_usage(archive_dir)
         return {
             "ok": True,
-            "output_dir": archive_dir,
             "archives": entries,
             "disk": {
                 "total_bytes": int(usage.total),
@@ -658,7 +656,7 @@ class DataRecordingRuntime:
             os.remove(path)
         except OSError as exc:
             return {"ok": False, "error": f"failed to delete archive: {exc}"}
-        return {"ok": True, "deleted": resolved["name"], "path": path}
+        return {"ok": True, "deleted": resolved["name"]}
 
     def get_status(self) -> dict:
         """Get current runtime status."""

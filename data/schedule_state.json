@@ -1,5 +1,5 @@
 {
-  "current_step_index": -1,
+  "current_step_index": 0,
   "data_records": [
     {
       "kind": "measurement_started",
@@ -31,6 +31,15 @@
       "session_name": "scheduling_lager_1h_test_plan_20260324_185533",
       "source": "Run stopped",
       "timestamp": "2026-03-24T18:57:32.450771Z"
+    },
+    {
+      "kind": "measurement_started",
+      "output_dir": "data/measurements",
+      "output_format": "parquet",
+      "parameters_count": 87,
+      "session_name": "scheduling_lager_1h_test_plan_20260325_160505",
+      "source": "schedule_auto_start",
+      "timestamp": "2026-03-25T16:05:05.455029Z"
     }
   ],
   "event_log": [
@@ -110,26 +119,32 @@
     "Run stopped; released ownership for set_pres_Fermentor",
     "Run stopped; released ownership for set_spd_Agitator",
     "Run stopped; released ownership for set_temp_Fermentor",
-    "Run stopped"
+    "Run stopped",
+    "Global measurement started (scheduling_lager_1h_test_plan_20260325_160505)",
+    "Run started",
+    "Applied step Request control of all actuators",
+    "Entered plan phase",
+    "Moved to next step",
+    "Applied step Chill wort to lager pitch temp"
   ],
   "last_action_result": {
-    "ok": true,
-    "started": {
-      "set_pres_Fermentor": {
-        "duration": 300.0,
-        "end": 1,
-        "owner": "schedule_service",
-        "start": 0.24133679508338296
-      }
-    },
-    "targets": [
-      "set_pres_Fermentor"
-    ]
+    "deferred": true,
+    "ok": true
   },
-  "owned_target_owners": {},
-  "owned_targets": [],
+  "owned_target_owners": {
+    "set_allow_Gas": "schedule_service",
+    "set_pres_Fermentor": "schedule_service",
+    "set_spd_Agitator": "schedule_service",
+    "set_temp_Fermentor": "schedule_service"
+  },
+  "owned_targets": [
+    "set_temp_Fermentor",
+    "set_pres_Fermentor",
+    "set_spd_Agitator",
+    "set_allow_Gas"
+  ],
   "pause_reason": null,
-  "phase": "idle",
+  "phase": "plan",
   "schedule": {
     "id": "lager-1h-test-plan",
     "measurement_config": {
@@ -519,6 +534,6 @@
       }
     ]
   },
-  "state": "stopped",
-  "step_started_at_utc": null
+  "state": "running",
+  "step_started_at_utc": "2026-03-25T16:05:07.251138Z"
 }

@@ -232,7 +232,6 @@ Lists archive files in the output directory.
 ```json
 {
   "ok": true,
-  "output_dir": "data/measurements",
   "disk": {
     "free_bytes": 17343913984,
     "used_bytes": 1227001856,

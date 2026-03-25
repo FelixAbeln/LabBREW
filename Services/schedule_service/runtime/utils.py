@@ -59,8 +59,14 @@ class _UtilsMixin:
             try:
                 with open(run_log_path, 'a', encoding='utf-8') as handle:
                     handle.write(f"{self._utc_now_iso()} {text}\n")
-            except OSError:
-                pass
+            except OSError as exc:
+                # Emit one warning into the in-memory event log to avoid flooding while
+                # still giving operators visibility that file logging is currently broken.
+                if not getattr(self, '_run_log_write_error_reported', False):
+                    self._run_log_write_error_reported = True
+                    warning = f"Run log write failed ({run_log_path}): {exc}"
+                    self._status.event_log.append(warning)
+                    self._status.event_log = self._status.event_log[-100:]
 
     # ------------------------------------------------------------------ wait-source collection
 

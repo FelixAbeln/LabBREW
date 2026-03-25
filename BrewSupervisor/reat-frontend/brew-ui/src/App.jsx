@@ -627,8 +627,8 @@ function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <h1>Brew UI</h1>
-          <p>Fermenter dashboard through BrewSupervisor</p>
+          <h1>LabBREW</h1>
+          <p>Fermenter dashboard through LabBREW</p>
         </div>
         <button className="primary-button" onClick={refreshAll}>
           Refresh
