@@ -5,11 +5,14 @@ import json
 import os
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .models import ScheduleDefinition
+
+_STALE_TMP_AGE_SECS: float = 60.0  # Only delete temp files older than this threshold
 
 
 @dataclass(slots=True)
@@ -36,31 +39,41 @@ class JsonScheduleStateStore:
         self._lock = threading.RLock()
 
     def _cleanup_stale_tmp_files(self) -> None:
+        """Delete leftover temp files older than _STALE_TMP_AGE_SECS.
+
+        Must be called with ``self._lock`` held so that in-progress temp files
+        created by a concurrent ``save()`` (which are younger than the threshold)
+        are never deleted.
+        """
         pattern = f"{self.path.name}.*.tmp"
+        now = time.time()
         for tmp_path in self.path.parent.glob(pattern):
             try:
-                if tmp_path.is_file():
+                if tmp_path.is_file() and (now - tmp_path.stat().st_mtime) > _STALE_TMP_AGE_SECS:
                     tmp_path.unlink()
             except OSError:
                 # Non-fatal: keep startup/load resilient.
                 pass
 
     def load(self) -> dict[str, Any] | None:
-        self._cleanup_stale_tmp_files()
-        if not self.path.exists():
-            return None
-        try:
-            return json.loads(self.path.read_text(encoding='utf-8'))
-        except json.JSONDecodeError:
-            return None
+        with self._lock:
+            self._cleanup_stale_tmp_files()
+            if not self.path.exists():
+                return None
+            try:
+                return json.loads(self.path.read_text(encoding='utf-8'))
+            except json.JSONDecodeError:
+                return None
 
     def save(self, payload: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         data = json.dumps(payload, indent=2, sort_keys=True)
-        self._cleanup_stale_tmp_files()
 
         # Atomic write: write to temp file in same directory, fsync, then replace.
+        # Stale-tmp cleanup runs inside the lock so a concurrent save's in-progress
+        # temp file is never mistakenly deleted.
         with self._lock:
+            self._cleanup_stale_tmp_files()
             fd, tmp_name = tempfile.mkstemp(
                 prefix=f"{self.path.name}.",
                 suffix=".tmp",
