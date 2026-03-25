@@ -33,10 +33,26 @@ class JsonScheduleStateStore:
     def __init__(self, path: str | Path | None = None) -> None:
         if path is None:
             ROOT = Path(__file__).resolve().parents[2]
-            STATE_FILE = ROOT / "data" / "schedule_state.json"
-        self.path = Path(STATE_FILE)
+            state_file = ROOT / "data" / "schedule_state.json"
+        else:
+            state_file = Path(path)
+        self.path = Path(state_file)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+
+    def _replace_with_retry(self, tmp_name: str, destination: Path) -> None:
+        """Retry replace on Windows where transient file locks can cause WinError 5."""
+        attempts = 6
+        delay_s = 0.02
+        for attempt in range(attempts):
+            try:
+                os.replace(tmp_name, destination)
+                return
+            except PermissionError:
+                if attempt >= attempts - 1:
+                    raise
+                time.sleep(delay_s)
+                delay_s *= 2
 
     def _cleanup_stale_tmp_files(self) -> None:
         """Delete leftover temp files older than _STALE_TMP_AGE_SECS.
@@ -85,7 +101,20 @@ class JsonScheduleStateStore:
                     handle.flush()
                     os.fsync(handle.fileno())
 
-                os.replace(tmp_name, self.path)
+                try:
+                    self._replace_with_retry(tmp_name, self.path)
+                except PermissionError:
+                    # Fallback for Windows lock contention: overwrite in-place so
+                    # schedule execution can continue even if atomic replace is blocked.
+                    with open(self.path, 'w', encoding='utf-8') as handle:
+                        handle.write(data)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    try:
+                        if os.path.exists(tmp_name):
+                            os.unlink(tmp_name)
+                    except OSError:
+                        pass
 
                 # Best-effort durability of directory metadata.
                 try:
