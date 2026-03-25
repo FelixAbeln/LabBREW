@@ -176,6 +176,27 @@ def build_router() -> APIRouter:
         )
         return JSONResponse(status_code=status_code, content=payload)
 
+    async def _proxy_agent_path(request: Request, fermenter_id: str, agent_path: str):
+        registry = request.app.state.registry
+        proxy = request.app.state.proxy
+        node = registry.get_node(fermenter_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail='Fermenter not found')
+        body = None
+        if request.method in {'POST', 'PUT', 'PATCH'}:
+            try:
+                body = await request.json()
+            except Exception:
+                body = None
+        status_code, payload = _read_json_response(
+            proxy,
+            method=request.method,
+            url=_build_agent_proxy_url(node, f'/parameterdb/{agent_path.lstrip("/")}'),
+            params=dict(request.query_params),
+            json_body=body,
+        )
+        return JSONResponse(status_code=status_code, content=payload)
+
     @router.put('/fermenters/{fermenter_id}/schedule/validate-import')
     async def validate_schedule_import(fermenter_id: str, request: Request, file: UploadFile = File(...)):
         registry = request.app.state.registry
@@ -387,5 +408,10 @@ def build_router() -> APIRouter:
     @router.api_route('/fermenters/{fermenter_id}/ws', methods=['GET', 'POST', 'PUT', 'DELETE'])
     async def proxy_ws(fermenter_id: str, request: Request, service_path: str = ''):
         return await _proxy_via_agent(request, fermenter_id, 'control_service', f'ws/{service_path}'.rstrip('/'))
+
+    @router.api_route('/fermenters/{fermenter_id}/parameterdb/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @router.api_route('/fermenters/{fermenter_id}/parameterdb', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_parameterdb(fermenter_id: str, request: Request, service_path: str = ''):
+        return await _proxy_agent_path(request, fermenter_id, service_path)
 
     return router

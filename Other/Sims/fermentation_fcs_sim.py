@@ -20,7 +20,6 @@ try:
 except Exception:  # pragma: no cover
     tk = None
     ttk = None
-
 try:
     import matplotlib
     matplotlib.use("TkAgg")

@@ -1,24 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import './features/parameterdb/parameterdb.css'
+import './features/data/data.css'
+import './features/archive/archive.css'
+import './features/rules/rules.css'
 import { api, ApiResponseError } from './api/client'
 import { createBrewApi } from './api/brewApi'
 import { buildMeasurementSessionName } from './features/data/dataValueUtils'
-import { DataTab } from './features/data/DataTab'
 import { loadDataTabPayload } from './features/data/loaders'
-import { ArchiveTab } from './features/archive/ArchiveTab'
 import { loadArchiveTabPayload } from './features/archive/loaders'
-import { FermenterSidebar } from './features/fermenters/FermenterSidebar'
-import { FermenterTabsHeader } from './features/fermenters/FermenterTabsHeader'
 import { loadDashboardData, loadFermentersData } from './features/fermenters/loaders'
-import { RuleEditorModal } from './features/rules/RuleEditorModal'
 import { loadRuleEditorPayload, loadRulesTabPayload } from './features/rules/loaders'
 import { makeEmptyRuleForm, normalizeRuleForm } from './features/rules/ruleUtils'
 import { useRuleForm } from './features/rules/useRuleForm'
-import { RulesTab } from './features/rules/RulesTab'
-import { ScheduleTab } from './features/schedule/ScheduleTab'
 import { collectIssues, isImportValidationPayload } from './features/schedule/importValidation'
 import { getRunToggle } from './features/schedule/scheduleUtils'
-import { SystemTab } from './features/system/SystemTab'
+import { AppShell } from './features/app/AppShell'
+import { FermenterTabContent } from './features/app/FermenterTabContent'
 import { useAdaptivePolling } from './hooks/useAdaptivePolling'
 
 function App() {
@@ -39,6 +37,7 @@ function App() {
   const [scheduleDefinition, setScheduleDefinition] = useState(null)
   const dashboardRequestRef = useRef(0)
   const [activeTab, setActiveTab] = useState('schedule')
+  const [globalView, setGlobalView] = useState(null)
   const [rules, setRules] = useState([])
   const [rulesModalOpen, setRulesModalOpen] = useState(false)
   const [rulesEditorLoading, setRulesEditorLoading] = useState(false)
@@ -623,120 +622,111 @@ function App() {
     )
   }
 
+  const scheduleTabProps = {
+    schedule,
+    scheduleDefinition,
+    runToggle,
+    loadingAction,
+    selected,
+    runAction,
+    ownedTargetValues,
+    scheduleFile,
+    setScheduleFile,
+    uploadWorkbook,
+    importResult,
+    importErrorIssues,
+    importWarningIssues,
+  }
+
+  const dataTabProps = {
+    dataServiceHealthy,
+    isRecording,
+    dataServiceStatus,
+    dataHz,
+    setDataHz,
+    dataActionLoading,
+    selectedStarredParams,
+    loadstepSeconds,
+    setLoadstepSeconds,
+    isTakingLoadstep,
+    isLoadstepDurationValid,
+    loadstepRemainingSeconds,
+    toggleMeasurementRecording,
+    takeDataLoadstep,
+    latestCompletedLoadstep,
+    latestLoadstepEntries,
+    rulesSnapshot,
+    starredParams,
+    toggleStarredParam,
+  }
+
+  const archiveTabProps = {
+    selected,
+    archivePayload,
+    deletingArchiveName,
+    onDelete: deleteArchive,
+  }
+
+  const rulesTabProps = {
+    selected,
+    rules,
+    activeRuleIds,
+    heldRuleIds,
+    rulesSnapshot,
+    loadingAction,
+    deletingRuleId,
+    openAddRule,
+    openEditRule,
+    releaseHeldRule,
+    deleteRule,
+  }
+
+  const systemTabProps = {
+    selected,
+    healthyServices,
+    onOpenParameterDB: () => setGlobalView('parameterdb'),
+  }
+
+  const ruleEditorProps = {
+    rulesModalOpen,
+    ruleForm,
+    savingRule,
+    closeRuleModal,
+    rulesEditorLoading,
+    updateRuleForm,
+    operators,
+    selectedOperator,
+    updateRuleParam,
+    addRuleAction,
+    removeRuleAction,
+    updateRuleAction,
+    snapshotKeys,
+    saveRule,
+  }
+
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div>
-          <h1>LabBREW</h1>
-          <p>Fermenter dashboard through LabBREW</p>
-        </div>
-        <button className="primary-button" onClick={refreshAll}>
-          Refresh
-        </button>
-      </header>
-
-      {error && <div className="error-banner">{error}</div>}
-
-      <div className="main-grid">
-        <FermenterSidebar
-          fermenters={fermenters}
-          selectedId={selected?.id || null}
-          onSelect={setSelectedId}
-        />
-
-        <section className="content-column">
-          <div className="panel selected-panel">
-            <FermenterTabsHeader
-              selected={selected}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
-
-            {!selected ? (
-              <p className="muted">Select a fermenter.</p>
-            ) : activeTab === 'schedule' ? (
-              <ScheduleTab
-                schedule={schedule}
-                scheduleDefinition={scheduleDefinition}
-                runToggle={runToggle}
-                loadingAction={loadingAction}
-                selected={selected}
-                runAction={runAction}
-                ownedTargetValues={ownedTargetValues}
-                scheduleFile={scheduleFile}
-                setScheduleFile={setScheduleFile}
-                uploadWorkbook={uploadWorkbook}
-                importResult={importResult}
-                importErrorIssues={importErrorIssues}
-                importWarningIssues={importWarningIssues}
-              />
-            ) : activeTab === 'data' ? (
-              <DataTab
-                dataServiceHealthy={dataServiceHealthy}
-                isRecording={isRecording}
-                dataServiceStatus={dataServiceStatus}
-                dataHz={dataHz}
-                setDataHz={setDataHz}
-                dataActionLoading={dataActionLoading}
-                selectedStarredParams={selectedStarredParams}
-                loadstepSeconds={loadstepSeconds}
-                setLoadstepSeconds={setLoadstepSeconds}
-                isTakingLoadstep={isTakingLoadstep}
-                isLoadstepDurationValid={isLoadstepDurationValid}
-                loadstepRemainingSeconds={loadstepRemainingSeconds}
-                toggleMeasurementRecording={toggleMeasurementRecording}
-                takeDataLoadstep={takeDataLoadstep}
-                latestCompletedLoadstep={latestCompletedLoadstep}
-                latestLoadstepEntries={latestLoadstepEntries}
-                rulesSnapshot={rulesSnapshot}
-                starredParams={starredParams}
-                toggleStarredParam={toggleStarredParam}
-              />
-            ) : activeTab === 'archive' ? (
-              <ArchiveTab
-                selected={selected}
-                archivePayload={archivePayload}
-                deletingArchiveName={deletingArchiveName}
-                onDelete={deleteArchive}
-              />
-            ) : activeTab === 'rules' ? (
-              <RulesTab
-                selected={selected}
-                rules={rules}
-                activeRuleIds={activeRuleIds}
-                heldRuleIds={heldRuleIds}
-                rulesSnapshot={rulesSnapshot}
-                loadingAction={loadingAction}
-                deletingRuleId={deletingRuleId}
-                openAddRule={openAddRule}
-                openEditRule={openEditRule}
-                releaseHeldRule={releaseHeldRule}
-                deleteRule={deleteRule}
-              />
-            ) : (
-              <SystemTab selected={selected} healthyServices={healthyServices} />
-            )}
-
-            <RuleEditorModal
-              rulesModalOpen={rulesModalOpen}
-              ruleForm={ruleForm}
-              savingRule={savingRule}
-              closeRuleModal={closeRuleModal}
-              rulesEditorLoading={rulesEditorLoading}
-              updateRuleForm={updateRuleForm}
-              operators={operators}
-              selectedOperator={selectedOperator}
-              updateRuleParam={updateRuleParam}
-              addRuleAction={addRuleAction}
-              removeRuleAction={removeRuleAction}
-              updateRuleAction={updateRuleAction}
-              snapshotKeys={snapshotKeys}
-              saveRule={saveRule}
-            />
-          </div>
-        </section>
-      </div>
-    </div>
+    <AppShell
+      fermenters={fermenters}
+      selected={selected}
+      onSelect={setSelectedId}
+      onRefresh={refreshAll}
+      error={error}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+    >
+      <FermenterTabContent
+        selected={selected}
+        activeTab={activeTab}
+        scheduleProps={scheduleTabProps}
+        dataProps={dataTabProps}
+        archiveProps={archiveTabProps}
+        rulesProps={rulesTabProps}
+        systemProps={systemTabProps}
+        globalView={globalView}
+        setGlobalView={setGlobalView}
+        ruleEditorProps={ruleEditorProps}
+      />
+    </AppShell>
   )
 }
 

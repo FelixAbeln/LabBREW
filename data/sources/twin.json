@@ -14,7 +14,7 @@
     },
     "managed_output_prefix": "",
     "output_params": {
-      "est_AA": "twin.outputs.est_AA",
+      "est_AA": "",
       "est_ABV": "",
       "est_ABV_Balling": "",
       "est_BiomassAllocationFraction": "",

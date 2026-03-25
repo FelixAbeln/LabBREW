@@ -46,3 +46,22 @@ Each datasource must publish these status fields as `static` parameters under it
 
 - Additional status fields are allowed (`status`, `last_frame_utc`, etc.), but the required core fields above must always exist.
 - Custom parameter names via config (`*_param`) are allowed, as long as the semantic contract is preserved.
+
+## Ownership Metadata Contract
+
+Every parameter created or owned by a datasource should include ownership metadata so UIs and tooling can group published parameters back to the datasource instance.
+
+Required metadata keys for datasource-owned parameters:
+
+- `created_by = "data_source"`
+- `owner = <datasource instance name>`
+- `source_type = <datasource type>`
+
+Recommended metadata keys when applicable:
+
+- `device = <device family or logical device name>`
+- `role = <measurement|status|command|...>`
+- `node_id = <hardware node/channel id>`
+- `kind = <temperature|pressure|level|...>`
+
+This metadata is the canonical way for higher-level tools to determine which datasource publishes which parameters.

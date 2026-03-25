@@ -7,8 +7,11 @@ import requests
 from requests.adapters import HTTPAdapter
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 from starlette.background import BackgroundTask
 import uvicorn
+
+from Services.parameterDB.parameterdb_core.client import SignalClient
 
 
 def _build_session() -> requests.Session:
@@ -29,6 +32,44 @@ def build_agent_app(
 ) -> FastAPI:
     app = FastAPI(title=f"Fermenter Agent {node_name}")
 
+    db_host = '127.0.0.1'
+    db_port = 8765
+    ds_port = 8766
+    db_timeout = 5.0
+
+    def _db() -> SignalClient:
+        return SignalClient(db_host, db_port, timeout=db_timeout)
+
+    def _ds() -> SignalClient:
+        return SignalClient(db_host, ds_port, timeout=db_timeout)
+
+    def _wrap(fn: Callable[[], Any]) -> Any:
+        try:
+            return fn()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    class CreateParamBody(BaseModel):
+        name: str
+        parameter_type: str
+        value: Any = None
+        config: dict[str, Any] = {}
+        metadata: dict[str, Any] = {}
+
+    class SetValueBody(BaseModel):
+        value: Any
+
+    class UpdateConfigBody(BaseModel):
+        config: dict[str, Any]
+
+    class UpdateMetadataBody(BaseModel):
+        metadata: dict[str, Any]
+
+    class CreateSourceBody(BaseModel):
+        name: str
+        source_type: str
+        config: dict[str, Any] = {}
+
     @app.get('/agent/info')
     def agent_info() -> dict[str, Any]:
         return {
@@ -44,6 +85,82 @@ def build_agent_app(
     @app.get('/agent/summary')
     def agent_summary() -> dict[str, Any]:
         return summary_provider()
+
+    @app.get('/parameterdb/params')
+    def list_params() -> dict[str, Any]:
+        return {'ok': True, 'params': _wrap(lambda: _db().describe())}
+
+    @app.get('/parameterdb/graph')
+    def get_graph() -> dict[str, Any]:
+        return {'ok': True, 'graph': _wrap(lambda: _db().graph_info())}
+
+    @app.get('/parameterdb/stats')
+    def get_stats() -> dict[str, Any]:
+        return {'ok': True, 'stats': _wrap(lambda: _db().stats())}
+
+    @app.get('/parameterdb/param-types')
+    def list_param_types() -> dict[str, Any]:
+        return {'ok': True, 'types': _wrap(lambda: _db().list_parameter_type_ui())}
+
+    @app.get('/parameterdb/param-types/{parameter_type}/ui')
+    def get_param_type_ui(parameter_type: str) -> dict[str, Any]:
+        return {'ok': True, 'ui': _wrap(lambda: _db().get_parameter_type_ui(parameter_type))}
+
+    @app.post('/parameterdb/params')
+    def create_param(body: CreateParamBody) -> dict[str, Any]:
+        ok = _wrap(lambda: _db().create_parameter(
+            body.name,
+            body.parameter_type,
+            value=body.value,
+            config=body.config,
+            metadata=body.metadata,
+        ))
+        if not ok:
+            raise HTTPException(status_code=400, detail='create_parameter returned False')
+        return {'ok': True}
+
+    @app.put('/parameterdb/params/{name:path}/value')
+    def set_value(name: str, body: SetValueBody) -> dict[str, Any]:
+        return {'ok': bool(_wrap(lambda: _db().set_value(name, body.value)))}
+
+    @app.put('/parameterdb/params/{name:path}/config')
+    def update_config(name: str, body: UpdateConfigBody) -> dict[str, Any]:
+        return {'ok': bool(_wrap(lambda: _db().update_config(name, **body.config)))}
+
+    @app.put('/parameterdb/params/{name:path}/metadata')
+    def update_metadata(name: str, body: UpdateMetadataBody) -> dict[str, Any]:
+        return {'ok': bool(_wrap(lambda: _db().update_metadata(name, **body.metadata)))}
+
+    @app.delete('/parameterdb/params/{name:path}')
+    def delete_param(name: str) -> dict[str, Any]:
+        return {'ok': bool(_wrap(lambda: _db().delete_parameter(name)))}
+
+    @app.get('/parameterdb/source-types')
+    def list_source_types() -> dict[str, Any]:
+        return {'ok': True, 'types': _wrap(lambda: _ds().list_source_types_ui())}
+
+    @app.get('/parameterdb/source-types/{source_type}/ui')
+    def get_source_type_ui(source_type: str, name: str | None = None, mode: str | None = None) -> dict[str, Any]:
+        return {'ok': True, 'ui': _wrap(lambda: _ds().get_source_type_ui(source_type, name=name, mode=mode))}
+
+    @app.get('/parameterdb/sources')
+    def list_sources() -> dict[str, Any]:
+        return {'ok': True, 'sources': _wrap(lambda: _ds().list_sources())}
+
+    @app.post('/parameterdb/sources')
+    def create_source(body: CreateSourceBody) -> dict[str, Any]:
+        _wrap(lambda: _ds().create_source(body.name, body.source_type, config=body.config))
+        return {'ok': True}
+
+    @app.put('/parameterdb/sources/{name}')
+    def update_source(name: str, body: UpdateConfigBody) -> dict[str, Any]:
+        _wrap(lambda: _ds().update_source(name, config=body.config))
+        return {'ok': True}
+
+    @app.delete('/parameterdb/sources/{name}')
+    def delete_source(name: str) -> dict[str, Any]:
+        _wrap(lambda: _ds().delete_source(name))
+        return {'ok': True}
 
     @app.api_route('/proxy/{service_name}/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
     async def proxy(service_name: str, service_path: str, request: Request):

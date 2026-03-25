@@ -1,0 +1,280 @@
+import dagre from '@dagrejs/dagre';
+import { deriveSourceLinks } from '../schemaUtils.js';
+
+const NODE_W = 220;
+const NODE_H = 72;
+
+const TYPE_COLORS = {
+  static: '#3b82f6',
+  deadband: '#10b981',
+  pid: '#8b5cf6',
+  default: '#6b7280',
+};
+
+const SOURCE_COLORS = {
+  brewtools_kvaser: '#f59e0b',
+  modbus_relay: '#ef4444',
+  labps3005dn: '#14b8a6',
+  digital_twin: '#22c55e',
+  system_time: '#eab308',
+  default: '#64748b',
+};
+
+export function typeColor(t) {
+  return TYPE_COLORS[t] ?? TYPE_COLORS.default;
+}
+
+export function sourceColor(sourceType) {
+  return SOURCE_COLORS[sourceType] ?? SOURCE_COLORS.default;
+}
+
+function applyLayout(nodes, edges) {
+  const g = new dagre.graphlib.Graph({ multigraph: true });
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: 'TB', ranksep: 70, nodesep: 30, marginx: 20, marginy: 20 });
+
+  nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  edges.forEach((e) => g.setEdge(e.source, e.target, {}, e.id));
+
+  dagre.layout(g);
+
+  return nodes.map((n) => {
+    const pos = g.node(n.id);
+    return { ...n, position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 } };
+  });
+}
+
+export function buildGraph(params, graph, sources, sourceUiByName) {
+  const deps = graph?.dependencies ?? {};
+  const writesMap = graph?.write_targets ?? {};
+  const scanOrder = graph?.scan_order ?? [];
+  const warnings = graph?.warnings ?? [];
+
+  const warnSet = new Set(
+    warnings.flatMap((w) => {
+      const m = String(w).match(/['"]([^'"]+)['"]/g);
+      return m ? m.map((s) => s.replace(/['"]/g, '')) : [];
+    }),
+  );
+
+  const nodes = Object.entries(params).map(([name, rec]) => ({
+    id: name,
+    type: 'parameter',
+    position: { x: 0, y: 0 },
+    data: {
+      name,
+      paramType: rec.parameter_type ?? 'unknown',
+      value: rec.value,
+      scanIndex: scanOrder.indexOf(name) >= 0 ? scanOrder.indexOf(name) : null,
+      hasWarning: warnSet.has(name),
+      config: rec.config,
+      state: rec.state,
+      metadata: rec.metadata,
+    },
+  }));
+
+  const sourceNodes = new Map();
+  Object.entries(params).forEach(([name, rec]) => {
+    const metadata = rec?.metadata ?? {};
+    if (metadata?.created_by !== 'data_source') return;
+    const owner = String(metadata?.owner ?? '').trim();
+    if (!owner) return;
+    if (!sourceNodes.has(owner)) {
+      sourceNodes.set(owner, {
+        id: `source:${owner}`,
+        type: 'source',
+        position: { x: 0, y: 0 },
+        data: {
+          name: owner,
+          kind: 'source',
+          sourceType: String(metadata?.source_type ?? 'data_source'),
+          device: metadata?.device ? String(metadata.device) : '',
+          publishedCount: 0,
+          publishedParams: [],
+        },
+      });
+    }
+    sourceNodes.get(owner).data.publishedCount += 1;
+    sourceNodes.get(owner).data.publishedParams.push(name);
+  });
+
+  Object.entries(sources ?? {}).forEach(([sourceName, sourceRecord]) => {
+    if (!sourceNodes.has(sourceName)) {
+      sourceNodes.set(sourceName, {
+        id: `source:${sourceName}`,
+        type: 'source',
+        position: { x: 0, y: 0 },
+        data: {
+          name: sourceName,
+          kind: 'source',
+          sourceType: String(sourceRecord?.source_type ?? 'data_source'),
+          device: '',
+          publishedCount: 0,
+          publishedParams: [],
+          feedsFrom: [],
+        },
+      });
+    }
+  });
+  nodes.push(...sourceNodes.values());
+
+  const edges = [];
+  for (const [target, depList] of Object.entries(deps)) {
+    for (const dep of depList) {
+      if (params[dep]) {
+        edges.push({
+          id: `dep:${dep}→${target}`,
+          source: dep,
+          target,
+          type: 'smoothstep',
+          animated: false,
+          style: { stroke: '#475569', strokeWidth: 1.5 },
+          markerEnd: { type: 'arrowclosed', color: '#475569' },
+        });
+      }
+    }
+  }
+
+  for (const [src, targets] of Object.entries(writesMap)) {
+    for (const tgt of targets) {
+      if (params[tgt]) {
+        edges.push({
+          id: `wt:${src}→${tgt}`,
+          source: src,
+          target: tgt,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '5 3' },
+          markerEnd: { type: 'arrowclosed', color: '#f59e0b' },
+          label: 'writes',
+          labelStyle: { fill: '#f59e0b', fontSize: 10 },
+        });
+      }
+    }
+  }
+
+  Object.entries(params).forEach(([name, rec]) => {
+    const metadata = rec?.metadata ?? {};
+    if (metadata?.created_by !== 'data_source') return;
+    const owner = String(metadata?.owner ?? '').trim();
+    if (!owner || !sourceNodes.has(owner)) return;
+    const ownerColor = sourceColor(String(metadata?.source_type ?? 'data_source'));
+    edges.push({
+      id: `src:${owner}→${name}`,
+      source: `source:${owner}`,
+      target: name,
+      type: 'smoothstep',
+      animated: false,
+      style: { stroke: ownerColor, strokeWidth: 1.5 },
+      markerEnd: { type: 'arrowclosed', color: ownerColor },
+    });
+  });
+
+  Object.entries(sources ?? {}).forEach(([sourceName, sourceRecord]) => {
+    const links = deriveSourceLinks({ name: sourceName, ...sourceRecord }, sourceUiByName?.[sourceName]);
+    if (sourceNodes.has(sourceName)) {
+      sourceNodes.get(sourceName).data.feedsFrom = links.feedsFrom;
+    }
+
+    links.feedsFrom.forEach((paramName) => {
+      if (!params[paramName] || !sourceNodes.has(sourceName)) return;
+      edges.push({
+        id: `feed:${paramName}→${sourceName}`,
+        source: paramName,
+        target: `source:${sourceName}`,
+        type: 'smoothstep',
+        animated: false,
+        style: { stroke: '#38bdf8', strokeWidth: 1.5, strokeDasharray: '4 3' },
+        markerEnd: { type: 'arrowclosed', color: '#38bdf8' },
+      });
+    });
+  });
+
+  return { nodes: applyLayout(nodes, edges), edges };
+}
+
+function collectLineage(edgeList, startId) {
+  if (!startId) return { nodes: new Set(), edges: new Set() };
+
+  const incoming = new Map();
+  const outgoing = new Map();
+
+  edgeList.forEach((edge) => {
+    if (!outgoing.has(edge.source)) outgoing.set(edge.source, []);
+    if (!incoming.has(edge.target)) incoming.set(edge.target, []);
+    outgoing.get(edge.source).push(edge);
+    incoming.get(edge.target).push(edge);
+  });
+
+  const nodeIds = new Set([startId]);
+  const edgeIds = new Set();
+
+  function walk(adjacency, nextKey) {
+    const queue = [startId];
+    const seen = new Set([startId]);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const edge of adjacency.get(current) ?? []) {
+        edgeIds.add(edge.id);
+        nodeIds.add(edge.source);
+        nodeIds.add(edge.target);
+        const next = nextKey(edge);
+        if (!seen.has(next)) {
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+    }
+  }
+
+  walk(incoming, (edge) => edge.source);
+  walk(outgoing, (edge) => edge.target);
+
+  return { nodes: nodeIds, edges: edgeIds };
+}
+
+export function decorateGraph(nodes, edges, selectedNodeId) {
+  if (!selectedNodeId) return { nodes, edges };
+
+  const lineage = collectLineage(edges, selectedNodeId);
+
+  return {
+    nodes: nodes.map((node) => {
+      const isSelected = node.id === selectedNodeId;
+      const isRelated = lineage.nodes.has(node.id);
+      return {
+        ...node,
+        selected: isSelected,
+        zIndex: isSelected ? 3 : isRelated ? 2 : 1,
+        data: {
+          ...node.data,
+          isSelected,
+          isRelated,
+          isDimmed: !isRelated,
+        },
+      };
+    }),
+    edges: edges.map((edge) => {
+      const isRelated = lineage.edges.has(edge.id);
+      const baseStyle = edge.style ?? {};
+      const baseLabelStyle = edge.labelStyle ?? {};
+      return {
+        ...edge,
+        animated: isRelated ? edge.animated : false,
+        zIndex: isRelated ? 2 : 0,
+        style: {
+          ...baseStyle,
+          opacity: isRelated ? 1 : 0.12,
+          strokeWidth: isRelated
+            ? Math.max(baseStyle.strokeWidth ?? 1.5, 2.5)
+            : Math.max((baseStyle.strokeWidth ?? 1.5) - 0.5, 1),
+        },
+        labelStyle: {
+          ...baseLabelStyle,
+          opacity: isRelated ? 1 : 0.25,
+        },
+      };
+    }),
+  };
+}

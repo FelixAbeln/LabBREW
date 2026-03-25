@@ -1,6 +1,18 @@
-export function SystemTab({ selected, healthyServices }) {
+export function SystemTab({ selected, healthyServices, onOpenParameterDB }) {
   return (
     <div className="tab-content-grid system-layout">
+      {onOpenParameterDB && (
+        <div className="control-bar pdb-open-btn-card pdb-open-btn-sticky">
+          <div className="control-bar-copy">
+            <strong>ParameterDB</strong>
+            <span>View and manage the local ParameterDB - parameters, dependencies graph and data sources.</span>
+          </div>
+          <div className="control-button-group">
+            <button className="primary-button" onClick={onOpenParameterDB}>ParameterDB</button>
+          </div>
+        </div>
+      )}
+
       <div className="info-card system-node-card">
         <h3>Node</h3>
         <div className="info-row">
@@ -50,6 +62,7 @@ export function SystemTab({ selected, healthyServices }) {
           </div>
         )}
       </div>
+
     </div>
   )
 }
