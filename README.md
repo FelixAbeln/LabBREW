@@ -68,8 +68,16 @@ A microservices-based fermentation management and control platform for laborator
 - Python client library included
 
 ### 🌐 React Frontend
-- Browser UI backed by the BrewSupervisor gateway
-- Connects over standard HTTP and WebSocket
+- Browser UI backed by the BrewSupervisor gateway at port 8782
+- Connects over standard HTTP REST and WebSocket
+- **Schedule tab** — upload an Excel workbook, validate it, and drive step-by-step execution (play · pause · next · previous · stop)
+- **System tab** — at-a-glance health and service-status overview for the selected fermenter node
+- **Data tab** — configure recording rate (Hz), start/stop parameter logging, and trigger loadstep captures
+- **ParameterDB tab** — browse, create, and edit parameters; visualise relationships in an interactive graph; manage data sources
+- **Rules tab** — build condition → action automation rules evaluated continuously against the live parameter snapshot
+- **Archive tab** — browse and delete historical recording sessions
+
+→ See the [Frontend Documentation](./docs/frontend/README.md) for a full feature reference, tech-stack details, and setup instructions.
 
 ---
 
@@ -79,6 +87,7 @@ A microservices-based fermentation management and control platform for laborator
 |---|---|
 | [API Overview](./docs/api/README.md) | Index of all service APIs and quick navigation guide |
 | [Architecture](./docs/api/architecture.md) | Service dependency chain, communication protocols, data-flow diagrams |
+| [Frontend Documentation](./docs/frontend/README.md) | React UI — features, tech stack, setup, and source layout |
 | [BrewSupervisor Gateway API](./docs/api/brewsupervisor-api.md) | Central gateway: fermenter discovery, dashboard, schedule import — **start here for frontend work** |
 | [Supervisor Agent API](./docs/api/agent-api.md) | Per-node agent: health, service proxy, mDNS registration |
 | [Control Service API](./docs/api/control-service-api.md) | Ownership, read/write/ramp, rules engine, WebSocket streaming |
