@@ -1,16 +1,29 @@
-# React + Vite
+# brew-ui — LabBREW React Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Browser UI for the LabBREW fermentation management platform.
 
-Currently, two official plugins are available:
+For full documentation — features, architecture, and setup instructions — see the [Frontend Documentation](../../../../docs/frontend/README.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Quick Start
 
-## React Compiler
+```bash
+npm install
+npm run dev      # development server at http://localhost:5173
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The backend must be running before the UI is useful:
 
-## Expanding the ESLint configuration
+```bash
+# from the project root
+python run_supervisor.py           # node supervisor
+python run_FrontEndsupervisor.py   # BrewSupervisor gateway (port 8782)
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Vite development server with HMR |
+| `npm run build` | Production build (output in `dist/`) |
+| `npm run preview` | Locally preview the production build |
+| `npm run lint` | Run ESLint |
