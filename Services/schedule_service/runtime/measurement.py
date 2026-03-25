@@ -10,6 +10,9 @@ All methods are mixed into ScheduleRuntime via _MeasurementMixin.
 """
 from __future__ import annotations
 
+import json
+import os
+import tempfile
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -18,13 +21,73 @@ if TYPE_CHECKING:
 
 class _MeasurementMixin:
 
+    def _append_data_record(self, record: dict[str, Any]) -> None:
+        """Append a scheduler data-record entry and keep a bounded history."""
+        self._status.data_records.append(record)
+        self._status.data_records = self._status.data_records[-200:]
+
+    def _prepare_scheduler_sidecar_files(
+        self,
+        *,
+        schedule: ScheduleDefinition,
+        output_dir: str,
+        session_name: str,
+    ) -> list[str]:
+        """Create scheduler run sidecars to be archived with measurement data."""
+        os.makedirs(output_dir, exist_ok=True)
+
+        schedule_export_path = os.path.join(output_dir, f"{session_name}.schedule.json")
+        run_log_path = os.path.join(output_dir, f"{session_name}.run.log")
+
+        # Export the exact schedule payload that is being executed.
+        self._atomic_write_json_file(schedule_export_path, schedule.to_dict())
+
+        # Initialize run log with existing in-memory event history.
+        bootstrap_lines = [f"{self._utc_now_iso()} scheduler log initialized"]
+        bootstrap_lines.extend(f"{self._utc_now_iso()} {entry}" for entry in self._status.event_log)
+        self._atomic_write_text_file(run_log_path, "\n".join(bootstrap_lines) + "\n")
+
+        self._schedule_export_path = schedule_export_path
+        self._run_log_path = run_log_path
+
+        return [schedule_export_path, run_log_path]
+
+    def _atomic_write_json_file(self, path: str, payload: dict[str, Any]) -> None:
+        self._atomic_write_text_file(path, json.dumps(payload, indent=2, sort_keys=True))
+
+    def _atomic_write_text_file(self, path: str, text: str) -> None:
+        target = os.path.abspath(path)
+        target_dir = os.path.dirname(target) or '.'
+        os.makedirs(target_dir, exist_ok=True)
+
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{os.path.basename(target)}.",
+            suffix='.tmp',
+            dir=target_dir,
+        )
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            os.replace(tmp_name, target)
+        except Exception:
+            try:
+                if os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+
     # ------------------------------------------------------------------ run-level auto-start
 
     def _auto_start_measurement_locked(self, schedule: ScheduleDefinition) -> None:
         """Start global measurement at run start using schedule.measurement_config.
 
         Idempotent: does nothing if measurement_config is empty or already recording.
-        Parameters are auto-discovered from the control snapshot.
+        If measurement_config contains a 'parameters' list, those specific parameters are used.
+        Otherwise, parameters are auto-discovered from the control snapshot.
         """
         # Global measurement is always expected while a run is active.
         # If a schedule has no explicit config, defaults are used.
@@ -40,12 +103,17 @@ class _MeasurementMixin:
             self._append_event('Global measurement already recording; skipped auto-start')
             return
 
-        snapshot = self.control.snapshot()
-        values = snapshot.get('values') if isinstance(snapshot, dict) else {}
-        parameters = sorted(values.keys()) if isinstance(values, dict) else []
+        # Use configured parameters if available, otherwise auto-discover from snapshot
+        configured_parameters = config.get('parameters')
+        if isinstance(configured_parameters, list) and configured_parameters:
+            parameters = [str(p).strip() for p in configured_parameters if str(p).strip()]
+        else:
+            snapshot = self.control.snapshot()
+            values = snapshot.get('values') if isinstance(snapshot, dict) else {}
+            parameters = sorted(values.keys()) if isinstance(values, dict) else []
 
         if not parameters:
-            self._append_event('Global measurement skipped: no parameters available from control snapshot')
+            self._append_event('Global measurement skipped: no parameters configured or available from control snapshot')
             return
 
         hz = float(config.get('hz') or 10.0)
@@ -57,6 +125,12 @@ class _MeasurementMixin:
             or self._default_data_name()
         )
 
+        include_files = self._prepare_scheduler_sidecar_files(
+            schedule=schedule,
+            output_dir=output_dir,
+            session_name=session_name,
+        )
+
         try:
             setup = self.data.setup_measurement(
                 parameters=parameters,
@@ -64,12 +138,22 @@ class _MeasurementMixin:
                 output_dir=output_dir,
                 output_format=output_format,
                 session_name=session_name,
+                include_files=include_files,
             )
             if not setup.get('ok', False):
                 self._append_event(f'Global measurement setup failed: {setup}')
                 return
             start = self.data.measure_start()
             if start.get('ok', False):
+                self._append_data_record({
+                    'kind': 'measurement_started',
+                    'source': 'schedule_auto_start',
+                    'session_name': session_name,
+                    'output_dir': output_dir,
+                    'output_format': output_format,
+                    'parameters_count': len(parameters),
+                    'timestamp': self._utc_now_iso(),
+                })
                 self._append_event(f'Global measurement started ({session_name})')
             else:
                 self._append_event(f'Global measurement start failed: {start}')
@@ -167,11 +251,21 @@ class _MeasurementMixin:
             parsed = [str(item) for item in loadstep_parameters_raw if str(item).strip()]
             loadstep_parameters = parsed or None
 
-        return self.data.take_loadstep(
+        result = self.data.take_loadstep(
             duration_seconds=duration_seconds,
             loadstep_name=loadstep_name,
             parameters=loadstep_parameters,
         )
+        if result.get('ok', False):
+            selected_parameters = loadstep_parameters if loadstep_parameters is not None else None
+            self._append_data_record({
+                'kind': 'loadstep_started',
+                'name': str(result.get('loadstep_name') or loadstep_name),
+                'duration_seconds': duration_seconds,
+                'parameters_count': len(selected_parameters) if isinstance(selected_parameters, list) else None,
+                'timestamp': self._utc_now_iso(),
+            })
+        return result
 
     # ------------------------------------------------------------------ file lifecycle
 
@@ -181,9 +275,24 @@ class _MeasurementMixin:
             status = self.data.status()
             if not bool(status.get('recording')):
                 return
+            config = status.get('config') if isinstance(status.get('config'), dict) else {}
+            # After finalization, data service keeps only the archive, so avoid
+            # appending to removed sidecar files from subsequent events.
+            self._run_log_path = None
+            self._schedule_export_path = None
             result = self.data.measure_stop()
             if result.get('ok', False):
-                self._append_event(f'{context}; measurement file finalized')
+                self._append_data_record({
+                    'kind': 'measurement_finalized',
+                    'source': context,
+                    'session_name': str(config.get('session_name') or ''),
+                    'archive_file': result.get('archive_file') or result.get('file'),
+                    'archive_members': result.get('archived_members', []),
+                    'samples_recorded': result.get('samples_recorded'),
+                    'completed_loadsteps': result.get('completed_loadsteps'),
+                    'timestamp': self._utc_now_iso(),
+                })
+                self._append_event(f'{context}; measurement archive finalized')
             else:
                 self._append_event(f'{context}; measurement finalize failed: {result}')
         except Exception as exc:  # pragma: no cover

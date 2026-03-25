@@ -23,5 +23,23 @@ class HttpServiceProxy:
             payload = {'text': response.text}
         return response.status_code, payload
 
+    def request_raw(
+        self,
+        *,
+        method: str,
+        url: str,
+        params: dict[str, Any] | None = None,
+        json_body: Any = None,
+        stream: bool = False,
+    ) -> requests.Response:
+        return self._session.request(
+            method=method.upper(),
+            url=url,
+            params=params,
+            json=json_body,
+            timeout=self.timeout_s,
+            stream=stream,
+        )
+
     def close(self) -> None:
         self._session.close()

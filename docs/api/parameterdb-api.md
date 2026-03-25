@@ -1,5 +1,9 @@
 # ParameterDB Binary Protocol API
 
+Related implementation contracts:
+- [Datasource Status Contract](../requirements/parameterdb-datasource-status-contract.md)
+- [Plugin Runtime State Contract](../requirements/parameterdb-plugin-state-contract.md)
+
 **Transport:** TCP, default port **8765** (DB service) / **8766** (data-source service)  
 **Source:** `Services/parameterDB/parameterdb_core/`, `Services/parameterDB/parameterdb_service/`
 

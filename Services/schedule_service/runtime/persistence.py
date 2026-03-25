@@ -28,6 +28,7 @@ class _PersistenceMixin:
             'owned_targets': list(self._status.owned_targets),
             'owned_target_owners': dict(self._owned_target_owners),
             'last_action_result': dict(self._status.last_action_result),
+            'data_records': list(self._status.data_records),
             'event_log': list(self._status.event_log),
         }
         self.state_store.save(payload)
@@ -63,6 +64,11 @@ class _PersistenceMixin:
             }
         self._refresh_owned_targets_locked()
         self._status.last_action_result = dict(payload.get('last_action_result') or {})
+        self._status.data_records = [
+            dict(item)
+            for item in (payload.get('data_records') or [])
+            if isinstance(item, dict)
+        ][-200:]
         self._status.event_log = [str(item) for item in (payload.get('event_log') or [])][-100:]
         self._step_runtime = StepRuntime(
             actions_applied=True,

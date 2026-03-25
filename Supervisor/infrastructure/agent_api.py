@@ -6,6 +6,8 @@ from typing import Callable, Any
 import requests
 from requests.adapters import HTTPAdapter
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 import uvicorn
 
 
@@ -61,14 +63,32 @@ def build_agent_app(
                 data=body,
                 headers=headers,
                 timeout=10,
+                stream=True,
             )
         except requests.RequestException as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
         content_type = resp.headers.get('content-type', 'application/json')
         if 'application/json' in content_type:
-            return resp.json()
-        return {'status_code': resp.status_code, 'text': resp.text}
+            try:
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+            finally:
+                resp.close()
+
+        passthrough_headers = {}
+        content_disposition = resp.headers.get('content-disposition')
+        if content_disposition:
+            passthrough_headers['content-disposition'] = content_disposition
+        content_length = resp.headers.get('content-length')
+        if content_length:
+            passthrough_headers['content-length'] = content_length
+        return StreamingResponse(
+            resp.iter_content(chunk_size=64 * 1024),
+            status_code=resp.status_code,
+            media_type=content_type,
+            headers=passthrough_headers,
+            background=BackgroundTask(resp.close),
+        )
 
     return app
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
+from datetime import datetime, timezone
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any
@@ -18,14 +19,33 @@ class ScanContext:
 
 
 class ScanEngine:
-    def __init__(self, period_s: float, store: ParameterStore | None = None) -> None:
-        self.period_s = period_s
+    def __init__(
+        self,
+        period_s: float,
+        store: ParameterStore | None = None,
+        *,
+        mode: str = 'fixed',
+        target_utilization: float = 0.7,
+        min_period_s: float = 0.002,
+        max_period_s: float = 0.05,
+    ) -> None:
+        self.period_s = max(0.0, float(period_s))
+        self.mode = str(mode or 'fixed').strip().lower()
+        if self.mode not in {'fixed', 'adaptive'}:
+            self.mode = 'fixed'
+        self.target_utilization = min(0.95, max(0.05, float(target_utilization)))
+        self.min_period_s = max(0.0, float(min_period_s))
+        self.max_period_s = max(self.min_period_s, float(max_period_s))
         self.store = store or ParameterStore()
         self._running = False
         self._thread: threading.Thread | None = None
         self._cycle_count = 0
         self._last_scan_started_at: float | None = None
         self._last_scan_duration_s = 0.0
+        self._avg_scan_duration_s = 0.0
+        self._last_sleep_s = 0.0
+        self._last_effective_period_s = self.period_s
+        self._overrun_count = 0
         self._graph_lock = threading.RLock()
         self._state_lock = threading.RLock()
         self._cached_store_revision = -1
@@ -33,6 +53,12 @@ class ScanEngine:
         self._graph_warnings: list[str] = []
         self._dependency_map: dict[str, list[str]] = {}
         self._write_target_map: dict[str, list[str]] = {}
+
+    def _desired_period_s(self, elapsed_s: float) -> float:
+        if self.mode == 'adaptive':
+            adaptive_period = elapsed_s / self.target_utilization if self.target_utilization > 0 else elapsed_s
+            return max(self.min_period_s, min(self.max_period_s, adaptive_period))
+        return max(self.min_period_s, self.period_s)
 
     def _rebuild_graph_if_needed(self) -> None:
         rev = self.store.revision()
@@ -136,7 +162,18 @@ class ScanEngine:
                 param.scan(ctx)
             except Exception as exc:
                 param.state["last_error"] = str(exc)
+                param.state["connected"] = False
             new_value = param.get_value()
+            error_text = str(param.state.get("last_error", "") or "").strip()
+            if error_text:
+                param.state["connected"] = False
+            elif param.state.get("enabled") is False:
+                param.state["last_error"] = ""
+                param.state["connected"] = False
+            else:
+                param.state["last_error"] = ""
+                param.state["connected"] = True
+                param.state["last_sync"] = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
             self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
             self.store.publish_scan_state(param.name, dict(param.state))
 
@@ -144,6 +181,10 @@ class ScanEngine:
         with self._state_lock:
             self._cycle_count += 1
             self._last_scan_duration_s = duration
+            if self._avg_scan_duration_s <= 0.0:
+                self._avg_scan_duration_s = duration
+            else:
+                self._avg_scan_duration_s = (self._avg_scan_duration_s * 0.9) + (duration * 0.1)
 
     def _run_loop(self) -> None:
         last = time.perf_counter()
@@ -156,7 +197,14 @@ class ScanEngine:
             last = start
             self.scan_once(dt)
             elapsed = time.perf_counter() - start
-            time.sleep(max(0.0, self.period_s - elapsed))
+            desired_period_s = self._desired_period_s(elapsed)
+            sleep_s = max(0.0, desired_period_s - elapsed)
+            with self._state_lock:
+                self._last_effective_period_s = desired_period_s
+                self._last_sleep_s = sleep_s
+                if sleep_s <= 0.0:
+                    self._overrun_count += 1
+            time.sleep(sleep_s)
 
     def start(self) -> None:
         with self._state_lock:
@@ -182,12 +230,26 @@ class ScanEngine:
             cycle_count = self._cycle_count
             last_scan_started_at = self._last_scan_started_at
             last_scan_duration_s = self._last_scan_duration_s
+            avg_scan_duration_s = self._avg_scan_duration_s
+            last_sleep_s = self._last_sleep_s
+            last_effective_period_s = self._last_effective_period_s
+            overrun_count = self._overrun_count
         return {
             "running": running,
             "period_s": self.period_s,
+            "mode": self.mode,
+            "target_utilization": self.target_utilization,
+            "min_period_s": self.min_period_s,
+            "max_period_s": self.max_period_s,
             "cycle_count": cycle_count,
             "last_scan_started_at": last_scan_started_at,
             "last_scan_duration_s": last_scan_duration_s,
+            "avg_scan_duration_s": avg_scan_duration_s,
+            "last_sleep_s": last_sleep_s,
+            "last_effective_period_s": last_effective_period_s,
+            "estimated_cycle_rate_hz": (1.0 / last_effective_period_s) if last_effective_period_s > 0 else None,
+            "estimated_utilization": (avg_scan_duration_s / last_effective_period_s) if last_effective_period_s > 0 else None,
+            "overrun_count": overrun_count,
             "parameter_count": len(self.store.list_names()),
             "store_revision": graph["store_revision"],
             "graph_warning_count": len(graph["warnings"]),

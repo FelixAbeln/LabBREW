@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 import os
 import json
+import threading
 from datetime import datetime
 from typing import Any
 
@@ -23,6 +24,7 @@ class FileWriter(ABC):
         self.parameters = parameters
         self.filepath = self._get_filepath()
         self.sample_count = 0
+        self._lock = threading.Lock()  # Protect file I/O operations
 
     @abstractmethod
     def write_sample(self, sample: dict) -> None:
@@ -63,20 +65,21 @@ class ParquetWriter(FileWriter):
 
     def write_sample(self, sample: dict) -> None:
         """Buffer and write samples."""
-        row = {
-            "timestamp": sample["timestamp"],
-            "datetime": sample["datetime"],
-        }
-        # Add parameter values
-        for param in self.parameters:
-            row[param] = sample["data"].get(param)
+        with self._lock:
+            row = {
+                "timestamp": sample["timestamp"],
+                "datetime": sample["datetime"],
+            }
+            # Add parameter values
+            for param in self.parameters:
+                row[param] = sample["data"].get(param)
 
-        self._sample_buffer.append(row)
-        self.sample_count += 1
+            self._sample_buffer.append(row)
+            self.sample_count += 1
 
-        # Write batch when buffer is full
-        if len(self._sample_buffer) >= self._buffer_size:
-            self._write_batch()
+            # Write batch when buffer is full
+            if len(self._sample_buffer) >= self._buffer_size:
+                self._write_batch()
 
     def _write_batch(self) -> None:
         """Write buffered samples to Parquet file."""
@@ -108,10 +111,11 @@ class ParquetWriter(FileWriter):
 
     def finalize(self) -> str:
         """Finalize and write all remaining samples."""
-        self._write_batch()
-        if self._parquet_writer is not None:
-            self._parquet_writer.close()
-            self._parquet_writer = None
+        with self._lock:
+            self._write_batch()
+            if self._parquet_writer is not None:
+                self._parquet_writer.close()
+                self._parquet_writer = None
         return self.filepath
 
 
@@ -140,34 +144,36 @@ class CSVWriter(FileWriter):
 
     def write_sample(self, sample: dict) -> None:
         """Write a single sample to CSV."""
-        if not self.file_handle:
-            self._write_header()
+        with self._lock:
+            if not self.file_handle:
+                self._write_header()
 
-        try:
-            row = [
-                str(sample["timestamp"]),
-                sample["datetime"],
-            ]
-            # Add parameter values
-            for param in self.parameters:
-                val = sample["data"].get(param)
-                row.append(str(val) if val is not None else "")
+            try:
+                row = [
+                    str(sample["timestamp"]),
+                    sample["datetime"],
+                ]
+                # Add parameter values
+                for param in self.parameters:
+                    val = sample["data"].get(param)
+                    row.append(str(val) if val is not None else "")
 
-            line = ",".join(row) + "\n"
-            self.file_handle.write(line)
-            self.sample_count += 1
+                line = ",".join(row) + "\n"
+                self.file_handle.write(line)
+                self.sample_count += 1
 
-            # Flush occasionally
-            if self.sample_count % 100 == 0:
-                self.file_handle.flush()
+                # Flush occasionally
+                if self.sample_count % 100 == 0:
+                    self.file_handle.flush()
 
-        except Exception as e:
-            print(f"Error writing CSV sample: {e}")
+            except Exception as e:
+                print(f"Error writing CSV sample: {e}")
 
     def finalize(self) -> str:
         """Close the file."""
-        if self.file_handle:
-            self.file_handle.close()
+        with self._lock:
+            if self.file_handle:
+                self.file_handle.close()
         return self.filepath
 
 
@@ -193,30 +199,32 @@ class JSONLWriter(FileWriter):
 
     def write_sample(self, sample: dict) -> None:
         """Write a single sample as JSON line."""
-        if not self.file_handle:
-            self._open_file()
+        with self._lock:
+            if not self.file_handle:
+                self._open_file()
 
-        try:
-            row = {
-                "timestamp": sample["timestamp"],
-                "datetime": sample["datetime"],
-                "data": {param: sample["data"].get(param) for param in self.parameters}
-            }
-            line = json.dumps(row) + "\n"
-            self.file_handle.write(line)
-            self.sample_count += 1
+            try:
+                row = {
+                    "timestamp": sample["timestamp"],
+                    "datetime": sample["datetime"],
+                    "data": {param: sample["data"].get(param) for param in self.parameters}
+                }
+                line = json.dumps(row) + "\n"
+                self.file_handle.write(line)
+                self.sample_count += 1
 
-            # Flush occasionally
-            if self.sample_count % 100 == 0:
-                self.file_handle.flush()
+                # Flush occasionally
+                if self.sample_count % 100 == 0:
+                    self.file_handle.flush()
 
-        except Exception as e:
-            print(f"Error writing JSONL sample: {e}")
+            except Exception as e:
+                print(f"Error writing JSONL sample: {e}")
 
     def finalize(self) -> str:
         """Close the file."""
-        if self.file_handle:
-            self.file_handle.close()
+        with self._lock:
+            if self.file_handle:
+                self.file_handle.close()
         return self.filepath
 
 

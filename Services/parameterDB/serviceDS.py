@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import signal
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -59,7 +61,44 @@ class SourceRunner:
 
     def _write_record(self, record: SourceRecord) -> None:
         payload = {"name": record.name, "source_type": record.source_type, "config": record.config}
-        record.config_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        data = json.dumps(payload, indent=2, sort_keys=True)
+
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{record.config_path.name}.",
+            suffix=".tmp",
+            dir=str(record.config_path.parent),
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            os.replace(tmp_name, record.config_path)
+
+            try:
+                dir_fd = os.open(str(record.config_path.parent), os.O_RDONLY)
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
+            except OSError:
+                pass
+        except Exception:
+            try:
+                if os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+
+    def _cleanup_stale_config_tmp_files(self) -> None:
+        for tmp_path in self.config_dir.glob("*.json.*.tmp"):
+            try:
+                if tmp_path.is_file():
+                    tmp_path.unlink()
+            except OSError:
+                pass
 
     def _build_instance(self, record: SourceRecord) -> SourceInstance:
         spec = self.registry.get(record.source_type)
@@ -86,6 +125,7 @@ class SourceRunner:
         inst.session.close()
 
     def load_config_dir(self) -> list[SourceRecord]:
+        self._cleanup_stale_config_tmp_files()
         loaded: list[SourceRecord] = []
         for cfg_path in sorted(self.config_dir.glob('*.json')):
             payload = json.loads(cfg_path.read_text(encoding='utf-8'))

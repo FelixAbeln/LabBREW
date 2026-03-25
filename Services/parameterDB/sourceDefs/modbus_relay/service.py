@@ -177,6 +177,13 @@ class ModbusRelaySource(DataSourceBase):
             return str(explicit)
         return f"{self._prefix()}.{key}"
 
+    def _set_status(self, key: str, value: Any) -> None:
+        self.client.set_value(self._status_param(key), value)
+
+    def _set_error(self, message: str) -> None:
+        self._set_status("connected", False)
+        self._set_status("last_error", str(message))
+
     @staticmethod
     def _coerce_bool(value: Any) -> bool:
         if isinstance(value, bool):
@@ -196,8 +203,8 @@ class ModbusRelaySource(DataSourceBase):
             timeout=float(self.config.get("timeout", 1.5)),
         )
         self._board.connect()
-        self.client.set_value(self._status_param("connected"), True)
-        self.client.set_value(self._status_param("last_error"), "")
+        self._set_status("connected", True)
+        self._set_status("last_error", "")
         return self._board
 
     def _disconnect_board(self) -> None:
@@ -206,8 +213,8 @@ class ModbusRelaySource(DataSourceBase):
         if board is not None:
             try:
                 board.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._set_error(f"Disconnect failed: {exc}")
 
     def ensure_parameters(self) -> None:
         owned = self.build_owned_metadata(device="modbus_relay")
@@ -244,9 +251,9 @@ class ModbusRelaySource(DataSourceBase):
 
         refreshed = board.all_states()
         self._publish_states(refreshed)
-        self.client.set_value(self._status_param("connected"), True)
-        self.client.set_value(self._status_param("last_error"), "")
-        self.client.set_value(self._status_param("last_sync"), datetime.now(timezone.utc).isoformat())
+        self._set_status("connected", True)
+        self._set_status("last_error", "")
+        self._set_status("last_sync", __import__("datetime").datetime.utcnow().isoformat() + "Z")
 
     def run(self) -> None:
         interval = float(self.config.get("update_interval_s", 0.25))
@@ -259,11 +266,11 @@ class ModbusRelaySource(DataSourceBase):
                     break
             except Exception as exc:
                 self._disconnect_board()
-                self.client.set_value(self._status_param("connected"), False)
-                self.client.set_value(self._status_param("last_error"), str(exc))
+                self._set_error(str(exc))
                 if self.sleep(reconnect_delay):
                     break
         self._disconnect_board()
+        self._set_status("connected", False)
 
 
 class ModbusRelaySourceSpec(DataSourceSpec):

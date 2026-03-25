@@ -16,6 +16,10 @@ def build_service(
     period_s: float = 0.05,
     plugin_root: str = './plugins',
     *,
+    scan_mode: str = 'fixed',
+    target_utilization: float = 0.7,
+    min_period_s: float = 0.002,
+    max_period_s: float = 0.05,
     snapshot_path: str = './data/parameterdb_snapshot.json',
     snapshot_interval_s: float = 5.0,
     restore_snapshot: bool = True,
@@ -33,7 +37,14 @@ def build_service(
     if restore_snapshot and enable_snapshot_persistence:
         restored_count = load_snapshot_into_store(store, registry, snapshot_path)
 
-    engine = ScanEngine(period_s=period_s, store=store)
+    engine = ScanEngine(
+        period_s=period_s,
+        store=store,
+        mode=scan_mode,
+        target_utilization=target_utilization,
+        min_period_s=min_period_s,
+        max_period_s=max_period_s,
+    )
     audit_logger = AuditLogger(
         audit_log_path,
         enabled=enable_audit_log,
@@ -59,6 +70,10 @@ def main() -> None:
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--period', type=float, default=0.05)
+    parser.add_argument('--scan-mode', choices=['fixed', 'adaptive'], default='fixed')
+    parser.add_argument('--target-utilization', type=float, default=0.7)
+    parser.add_argument('--min-period', type=float, default=0.002)
+    parser.add_argument('--max-period', type=float, default=0.05)
     parser.add_argument('--plugin-root', default='./plugins')
     parser.add_argument('--snapshot-path', default='./data/parameterdb_snapshot.json')
     parser.add_argument('--snapshot-interval', type=float, default=5.0)
@@ -81,6 +96,10 @@ def main() -> None:
         args.port,
         args.period,
         str(plugin_root),
+        scan_mode=args.scan_mode,
+        target_utilization=args.target_utilization,
+        min_period_s=args.min_period,
+        max_period_s=args.max_period,
         snapshot_path=str(snapshot_path),
         snapshot_interval_s=args.snapshot_interval,
         restore_snapshot=not args.no_restore_snapshot,
@@ -91,6 +110,7 @@ def main() -> None:
     )
     print(f'[INFO] Plugin root: {plugin_root}')
     print(f'[INFO] Loaded parameter types: {loaded}')
+    print(f'[INFO] Scan mode: {args.scan_mode} | target_utilization={args.target_utilization:.2f} | min_period={args.min_period:.4f}s | max_period={args.max_period:.4f}s')
     if not args.no_snapshot_persistence:
         print(f'[INFO] Snapshot path: {snapshot_path}')
         print(f'[INFO] Restored parameters from snapshot: {restored_count}')

@@ -468,11 +468,15 @@ input {
 .warning-button,
 .danger-button,
 .toggle-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-radius: 10px;
   padding: 10px 14px;
   cursor: pointer;
   color: white;
+  text-decoration: none;
 }
 
 .primary-button {
@@ -933,6 +937,85 @@ input {
   min-width: 84px;
 }
 
+.compact-actions > a,
+.compact-actions > button {
+  min-width: 84px;
+}
+
+.archive-summary-card {
+  display: grid;
+  gap: 14px;
+}
+
+.archive-disk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.archive-disk-card {
+  background: #0f1720;
+  border: 1px solid #2a3644;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.archive-table-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.archive-table-head,
+.archive-table-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(96px, 0.7fr) minmax(170px, 0.9fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.archive-table-head {
+  color: #8fa5b9;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 4px;
+}
+
+.archive-table-body {
+  display: grid;
+  gap: 8px;
+  max-height: 520px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+.archive-table-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.archive-table-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.archive-table-body::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+}
+
+.archive-table-row {
+  padding: 12px;
+  border: 1px solid #2a3644;
+  border-radius: 10px;
+  background: rgba(18, 25, 34, 0.72);
+}
+
+.archive-name {
+  overflow-wrap: anywhere;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1044,6 +1127,19 @@ input {
   .modal-card {
     max-height: calc(100vh - 20px);
     padding: 16px;
+  }
+
+  .archive-disk-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .archive-table-head {
+    display: none;
+  }
+
+  .archive-table-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 }
 

@@ -19,6 +19,13 @@ LabBREW is a microservices-based fermentation management and control system. Thi
 |---|---|
 | [Schedule Excel Import](./schedule-excel-import.md) | Workbook sheet layout, column syntax, wait expressions, and validation rules for importing `.xlsx` schedules |
 
+## Requirements Contracts
+
+| Contract | Description |
+|---|---|
+| [Datasource Status Contract](../requirements/parameterdb-datasource-status-contract.md) | Required status fields and runtime behavior for ParameterDB datasources |
+| [Plugin Runtime State Contract](../requirements/parameterdb-plugin-state-contract.md) | Required runtime state fields and scan-cycle behavior for ParameterDB plugins |
+
 ## Quick Navigation
 
 - **Frontend developers** — start with [BrewSupervisor Gateway API](./brewsupervisor-api.md); all browser requests go there.

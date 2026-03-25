@@ -10,7 +10,11 @@ services:
       proto: ParameterDB_Binary
       path: /
     backend: null
-    static_args: []
+    static_args:
+      - "--scan-mode"
+      - "adaptive"
+      - "--target-utilization"
+      - "0.7"
     advertise_as:
       - ParameterDB
 

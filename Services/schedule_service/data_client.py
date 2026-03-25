@@ -28,17 +28,18 @@ class DataClient:
         output_dir: str = 'data/measurements',
         output_format: str = 'parquet',
         session_name: str = '',
+        include_files: list[str] | None = None,
     ) -> dict[str, Any]:
-        return self._post(
-            '/measurement/setup',
-            {
-                'parameters': parameters,
-                'hz': hz,
-                'output_dir': output_dir,
-                'output_format': output_format,
-                'session_name': session_name,
-            },
-        )
+        payload: dict[str, Any] = {
+            'parameters': parameters,
+            'hz': hz,
+            'output_dir': output_dir,
+            'output_format': output_format,
+            'session_name': session_name,
+        }
+        if include_files is not None:
+            payload['include_files'] = include_files
+        return self._post('/measurement/setup', payload)
 
     def measure_start(self) -> dict[str, Any]:
         return self._post('/measurement/start', {})
