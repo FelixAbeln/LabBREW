@@ -17,7 +17,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 100.0
     },
@@ -34,7 +34,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": true
     },
@@ -55,7 +55,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 1.04
     },
@@ -72,7 +72,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": "0x8304011"
     },
@@ -89,7 +89,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": ""
     },
@@ -106,7 +106,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": "2026-03-22T14:59:07.224086Z"
     },
@@ -123,7 +123,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 17
     },
@@ -140,7 +140,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0
     },
@@ -157,7 +157,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": ""
     },
@@ -176,7 +176,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.6208950281143188
     },
@@ -197,7 +197,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.2937631905078888
     },
@@ -218,7 +218,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0
     },
@@ -238,7 +238,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 14.002314567565918
     },
@@ -254,7 +254,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": true
     },
@@ -270,7 +270,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": ""
     },
@@ -286,9 +286,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": "2026-03-25T16:06:14.373271+00:00"
+      "value": "2026-03-25T16:35:15.405364+00:00"
     },
     "dbc_press_Fermenter_Hi": {
       "config": {
@@ -307,16 +307,16 @@
         "direction": "above",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00",
+        "last_sync": "2026-03-25T16:35:15.731591+00:00",
         "off_offset": 0.1,
-        "off_threshold": 0.30000000000000004,
+        "off_threshold": 1.1,
         "on_offset": 0.15,
-        "on_threshold": 0.35,
+        "on_threshold": 1.15,
         "output_targets": [
           "relay.ch4"
         ],
         "pv": 0.2937631905078888,
-        "sp": 0.2
+        "sp": 1.0
       },
       "value": false
     },
@@ -337,18 +337,18 @@
         "direction": "below",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00",
+        "last_sync": "2026-03-25T16:35:15.731591+00:00",
         "off_offset": 0.1,
-        "off_threshold": 0.1,
+        "off_threshold": 0.9,
         "on_offset": 0.15,
-        "on_threshold": 0.05000000000000002,
+        "on_threshold": 0.85,
         "output_targets": [
           "relay.ch3"
         ],
         "pv": 0.2937631905078888,
-        "sp": 0.2
+        "sp": 1.0
       },
-      "value": false
+      "value": true
     },
     "dbc_temp_Fermentor_Hi": {
       "config": {
@@ -367,16 +367,16 @@
         "direction": "above",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00",
+        "last_sync": "2026-03-25T16:35:15.731591+00:00",
         "off_offset": 0.5,
-        "off_threshold": 10.5,
+        "off_threshold": 11.5,
         "on_offset": 1.0,
-        "on_threshold": 11.0,
+        "on_threshold": 12.0,
         "output_targets": [
           "relay.ch2"
         ],
         "pv": 14.002314567565918,
-        "sp": 10.0
+        "sp": 11.0
       },
       "value": true
     },
@@ -397,16 +397,16 @@
         "direction": "below",
         "enabled": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00",
+        "last_sync": "2026-03-25T16:35:15.731591+00:00",
         "off_offset": 0.5,
-        "off_threshold": 9.5,
+        "off_threshold": 10.5,
         "on_offset": 1.0,
-        "on_threshold": 9.0,
+        "on_threshold": 10.0,
         "output_targets": [
           "relay.ch1"
         ],
         "pv": 14.002314567565918,
-        "sp": 10.0
+        "sp": 11.0
       },
       "value": false
     },
@@ -431,17 +431,17 @@
       "state": {
         "connected": true,
         "enabled": true,
-        "error": 20.0,
-        "integral": 4979.964798743814,
+        "error": 18.0,
+        "integral": 4984.996113744192,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00",
+        "last_sync": "2026-03-25T16:35:15.731591+00:00",
         "mode": "auto",
         "output_targets": [
           "brewcan.agitator.0.set_pwm"
         ],
-        "prev_error": 20.0,
+        "prev_error": 18.0,
         "pv": 0.0,
-        "sp": 20.0
+        "sp": 18.0
       },
       "value": 100.0
     },
@@ -458,7 +458,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": true
     },
@@ -475,7 +475,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": "QJE3005PV1.0"
     },
@@ -492,7 +492,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": ""
     },
@@ -509,9 +509,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": "2026-03-25T16:06:14.803986Z"
+      "value": "2026-03-25T16:35:15.658644Z"
     },
     "psu.meas_current": {
       "config": {},
@@ -527,7 +527,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.026
     },
@@ -545,7 +545,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 24.0
     },
@@ -562,7 +562,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": "CV"
     },
@@ -579,7 +579,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -596,7 +596,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -615,7 +615,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 5
     },
@@ -634,7 +634,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -653,7 +653,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 24
     },
@@ -670,7 +670,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": "100"
     },
@@ -690,7 +690,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -710,7 +710,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": true
     },
@@ -728,9 +728,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": false
+      "value": true
     },
     "relay.ch4": {
       "config": {},
@@ -746,7 +746,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -764,7 +764,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -782,7 +782,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -800,7 +800,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -818,7 +818,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -835,7 +835,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -852,7 +852,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": "timed out"
     },
@@ -869,7 +869,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": "2026-03-22T14:59:06.988942Z"
     },
@@ -883,7 +883,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 1
     },
@@ -897,9 +897,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.2
+      "value": 1.0
     },
     "set_spd_Agitator": {
       "config": {},
@@ -911,9 +911,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 20
+      "value": 18
     },
     "set_temp_Fermentor": {
       "config": {},
@@ -925,9 +925,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 10.0
+      "value": 11.0
     },
     "system.time.iso": {
       "config": {},
@@ -941,9 +941,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": "2026-03-25T16:06:14.372830+00:00"
+      "value": "2026-03-25T16:35:15.404700+00:00"
     },
     "test": {
       "config": {},
@@ -955,7 +955,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0
     },
@@ -972,7 +972,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": true
     },
@@ -989,7 +989,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": ""
     },
@@ -1006,9 +1006,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": "2026-03-25T16:06:14.906246+00:00"
+      "value": "2026-03-25T16:35:15.653282+00:00"
     },
     "twin.outputs.est_AA": {
       "config": {},
@@ -1024,7 +1024,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.0
     },
@@ -1043,7 +1043,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.0
     },
@@ -1062,7 +1062,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.0
     },
@@ -1081,9 +1081,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.007861935410005896
+      "value": 0.007701507683251177
     },
     "twin.outputs.est_OG": {
       "config": {},
@@ -1100,7 +1100,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 1.04
     },
@@ -1119,7 +1119,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.0
     },
@@ -1138,9 +1138,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.40356641568666574
+      "value": 16.819005215191623
     },
     "twin.outputs.est_T2": {
       "config": {},
@@ -1157,9 +1157,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 1.0991805635877892
+      "value": 0.7155392274035126
     },
     "twin.outputs.est_concYeastCells": {
       "config": {},
@@ -1176,9 +1176,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 742850.914775488
+      "value": 788409.5939842795
     },
     "twin.outputs.est_m3Beer": {
       "config": {},
@@ -1195,7 +1195,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.29856107492694495
     },
@@ -1214,7 +1214,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.17555393330770505
     },
@@ -1233,9 +1233,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.0
+      "value": 15.427767266502856
     },
     "twin.outputs.est_mCO2Addflow": {
       "config": {},
@@ -1252,9 +1252,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.0
+      "value": 0.041698303007827904
     },
     "twin.outputs.est_mCO2Bubbles": {
       "config": {},
@@ -1271,9 +1271,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.17288377540463168
+      "value": 3.051809012935309e-10
     },
     "twin.outputs.est_mCO2Dissolved": {
       "config": {},
@@ -1290,9 +1290,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 1.0995143611927427
+      "value": 0.7158730250084662
     },
     "twin.outputs.est_mCO2DissolvedEQ": {
       "config": {},
@@ -1309,9 +1309,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.3882266340477353
+      "value": 0.7752685190190891
     },
     "twin.outputs.est_mCO2FromGasModel": {
       "config": {},
@@ -1328,9 +1328,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 1.6756307546790867
+      "value": 17.534544442900316
     },
     "twin.outputs.est_mCO2Head": {
       "config": {},
@@ -1347,9 +1347,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.40374405729132534
+      "value": 16.81918285679628
     },
     "twin.outputs.est_mCO2ProducedFromSugar": {
       "config": {},
@@ -1366,7 +1366,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 2.1068272072569574
     },
@@ -1385,9 +1385,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.006781099169931993
+      "value": 2.322170249178711e-12
     },
     "twin.outputs.est_mCO2Vented": {
       "config": {},
@@ -1404,7 +1404,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.0
     },
@@ -1423,7 +1423,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 0.0
     },
@@ -1442,7 +1442,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 2.2052004620705117
     },
@@ -1461,9 +1461,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.007097726368528042
+      "value": 2.430583724399584e-12
     },
     "twin.outputs.est_mSugarConsumed": {
       "config": {},
@@ -1480,7 +1480,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 4.098885617231434
     },
@@ -1499,9 +1499,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.013192799941501958
+      "value": 4.5178580758573715e-12
     },
     "twin.outputs.est_mSugarRemaining": {
       "config": {},
@@ -1518,7 +1518,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": 31.12914153279777
     },
@@ -1537,9 +1537,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.010645745646040036
+      "value": 0.01129864396140781
     },
     "twin.outputs.est_mYeastGrowthRate": {
       "config": {},
@@ -1556,9 +1556,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 1.0372094101721796e-05
+      "value": 3.479431868305392e-15
     },
     "twin.outputs.est_nYeastCells": {
       "config": {},
@@ -1575,9 +1575,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 221786367625.83408
+      "value": 235388415862.66272
     },
     "twin.outputs.est_oxygenIndex": {
       "config": {},
@@ -1594,9 +1594,9 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
-      "value": 0.7354254353959975
+      "value": 0.6701356038592132
     },
     "twin.reset": {
       "config": {},
@@ -1614,7 +1614,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": false
     },
@@ -1631,7 +1631,7 @@
       "state": {
         "connected": true,
         "last_error": "",
-        "last_sync": "2026-03-25T16:06:14.946462+00:00"
+        "last_sync": "2026-03-25T16:35:15.731591+00:00"
       },
       "value": {
         "discovered_inputs": [
@@ -1900,17 +1900,17 @@
         "fmu_path": "f:\\brewsys\\brewtools lib\\brewtools_testutil_modular\\controller.fmu",
         "input_count": 6,
         "inputs": {
-          "in_GasOpen": 0.0,
+          "in_GasOpen": 1.0,
           "in_T_c": 14.002314567565918,
           "in_VentOpen": 0.0,
           "in_gravity_sg": 1.04,
           "in_level": 0.6208950281143188,
           "in_pressure_bar": 0.2937631905078888
         },
-        "last_dt_s": 0.4158733000513166,
+        "last_dt_s": 0.39963310002349317,
         "last_reset_reason": "",
         "last_status_text": "Estimator running (Controller)",
-        "last_step_age_s": 0.0704100999282673,
+        "last_step_age_s": 0.07522240001708269,
         "managed_output_targets": {
           "est_AA": "twin.outputs.est_AA",
           "est_ABV": "twin.outputs.est_ABV",
@@ -2047,45 +2047,45 @@
           "est_AA": 0.0,
           "est_ABV": 0.0,
           "est_ABV_Balling": 0.0,
-          "est_BiomassAllocationFraction": 0.007861935410005896,
+          "est_BiomassAllocationFraction": 0.007701507683251177,
           "est_OG": 1.04,
           "est_RA": 0.0,
-          "est_T1": 0.40356641568666574,
-          "est_T2": 1.0991805635877892,
-          "est_concYeastCells": 742850.914775488,
+          "est_T1": 16.819005215191623,
+          "est_T2": 0.7155392274035126,
+          "est_concYeastCells": 788409.5939842795,
           "est_m3Beer": 0.29856107492694495,
           "est_m3Headspace": 0.17555393330770505,
-          "est_mCO2Added": 0.0,
-          "est_mCO2Addflow": 0.0,
-          "est_mCO2Bubbles": 0.17288377540463168,
-          "est_mCO2Dissolved": 1.0995143611927427,
-          "est_mCO2DissolvedEQ": 0.3882266340477353,
-          "est_mCO2FromGasModel": 1.6756307546790867,
-          "est_mCO2Head": 0.40374405729132534,
+          "est_mCO2Added": 15.427767266502856,
+          "est_mCO2Addflow": 0.041698303007827904,
+          "est_mCO2Bubbles": 3.051809012935309e-10,
+          "est_mCO2Dissolved": 0.7158730250084662,
+          "est_mCO2DissolvedEQ": 0.7752685190190891,
+          "est_mCO2FromGasModel": 17.534544442900316,
+          "est_mCO2Head": 16.81918285679628,
           "est_mCO2ProducedFromSugar": 2.1068272072569574,
-          "est_mCO2ProductionRate": 0.006781099169931993,
+          "est_mCO2ProductionRate": 2.322170249178711e-12,
           "est_mCO2Vented": 0.0,
           "est_mCO2Ventflow": 0.0,
           "est_mEthanolFomSugar": 2.2052004620705117,
-          "est_mEthanolProductionRate": 0.007097726368528042,
+          "est_mEthanolProductionRate": 2.430583724399584e-12,
           "est_mSugarConsumed": 4.098885617231434,
-          "est_mSugarConusmptionRate": 0.013192799941501958,
+          "est_mSugarConusmptionRate": 4.5178580758573715e-12,
           "est_mSugarRemaining": 31.12914153279777,
-          "est_mYeastBiomas": 0.010645745646040036,
-          "est_mYeastGrowthRate": 1.0372094101721796e-05,
-          "est_nYeastCells": 221786367625.83408,
-          "est_oxygenIndex": 0.7354254353959975
+          "est_mYeastBiomas": 0.01129864396140781,
+          "est_mYeastGrowthRate": 3.479431868305392e-15,
+          "est_nYeastCells": 235388415862.66272,
+          "est_oxygenIndex": 0.6701356038592132
         },
         "reset_count": 0,
         "reset_nonce": null,
         "reset_param": "twin.reset",
         "reset_param_value": false,
         "runtime_mode": "runtime",
-        "sim_time_s": 133.08769219999667,
-        "step_count": 318
+        "sim_time_s": 1443.4900884999893,
+        "step_count": 3378
       }
     }
   },
-  "saved_at": 1774454774.9485316,
-  "store_revision": 186810
+  "saved_at": 1774456515.7326484,
+  "store_revision": 271009
 }
