@@ -89,20 +89,20 @@ export function AppShell({
             selectedId={selected?.id || null}
             onSelect={onSelect}
           />
+          <button
+            className="sidebar-dock-toggle"
+            type="button"
+            onClick={() => setSidebarHidden((current) => !current)}
+            aria-label={sidebarHidden ? 'Expand fermenter sidebar' : 'Collapse fermenter sidebar'}
+            title={sidebarHidden ? 'Show fermenters' : 'Hide fermenters'}
+          >
+            <span className="sidebar-dock-toggle-menu" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
         </div>
-        <button
-          className="sidebar-dock-toggle"
-          type="button"
-          onClick={() => setSidebarHidden((current) => !current)}
-          aria-label={sidebarHidden ? 'Expand fermenter sidebar' : 'Collapse fermenter sidebar'}
-          title={sidebarHidden ? 'Show fermenters' : 'Hide fermenters'}
-        >
-          <span className="sidebar-dock-toggle-menu" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
-        </button>
       </div>
 
       <div className="main-grid">
