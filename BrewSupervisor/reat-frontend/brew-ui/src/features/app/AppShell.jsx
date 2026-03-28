@@ -61,7 +61,8 @@ export function AppShell({
     <div className="app-shell">
       <header className="app-header">
         <div className="app-logo-block">
-          <pre className="app-logo-ascii" aria-label="LabBREW logo">
+          <h1 className="app-title">LabBREW</h1>
+          <pre className="app-logo-ascii" aria-hidden="true">
             {APP_LOGO_ASCII}
           </pre>
         </div>
