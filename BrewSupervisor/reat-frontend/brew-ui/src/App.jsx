@@ -850,7 +850,6 @@ function App() {
       fermenters={fermenters}
       selected={selected}
       onSelect={setSelectedId}
-      onRefresh={refreshAll}
       error={error}
       activeTab={activeTab}
       onTabChange={setActiveTab}

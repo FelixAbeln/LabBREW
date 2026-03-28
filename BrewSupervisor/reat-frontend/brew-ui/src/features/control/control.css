@@ -32,10 +32,10 @@
 
 .control-item-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
   align-items: center;
-  padding: 10px 10px 9px;
+  padding: 12px 12px 11px;
   border: 1px solid #2a3644;
   border-radius: 10px;
   background: rgba(18, 25, 34, 0.68);
@@ -45,8 +45,15 @@
   min-width: 0;
 }
 
+.control-item-meta strong {
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .control-item-target {
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   opacity: 0.86;
 }
 
@@ -56,27 +63,44 @@
   gap: 6px;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .control-item-inputs .toggle-button {
-  min-width: 76px;
+  min-width: 68px;
 }
 
 .control-item-inputs .data-control {
-  min-width: 132px;
-  max-width: 180px;
+  min-width: 96px;
+  width: clamp(96px, 28vw, 180px);
+  max-width: 100%;
+}
+
+.control-item-inputs input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.control-item-inputs input[type="number"]::-webkit-outer-spin-button,
+.control-item-inputs input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+@media (max-width: 1200px) {
+  .control-item-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .control-item-inputs {
+    justify-content: flex-start;
+    padding-top: 6px;
+  }
 }
 
 @media (max-width: 760px) {
   .control-card-grid {
     grid-template-columns: 1fr;
-  }
-
-  .control-item-row {
-    grid-template-columns: 1fr;
-  }
-
-  .control-item-inputs {
-    justify-content: flex-start;
   }
 }

@@ -8,7 +8,7 @@ function AvailabilityTag({ label, value }) {
 
 export function FermenterSidebar({ fermenters, selectedId, onSelect }) {
   return (
-    <aside className="panel">
+    <aside className="panel sidebar-panel">
       <h2>Fermenters</h2>
       {fermenters.length === 0 ? (
         <p className="muted">No fermenters discovered.</p>
