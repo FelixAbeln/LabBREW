@@ -33,6 +33,12 @@ class ControlClient:
     def ramp(self, *, target: str, value: Any, duration_s: float, owner: str) -> dict[str, Any]:
         return self._post('/control/ramp', {'target': target, 'value': value, 'duration': duration_s, 'owner': owner})
 
+    def release_manual(self, targets: list[str] | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if targets is not None:
+            payload['targets'] = targets
+        return self._post('/control/release-manual', payload)
+
     def ownership(self) -> dict[str, Any]:
         return self._get('/control/ownership')
 

@@ -146,6 +146,10 @@ class ScheduleRuntime(
                 return {'ok': False, 'message': 'No schedule loaded'}
             if self._status.state == 'running':
                 return {'ok': False, 'message': 'Already running'}
+            try:
+                self.control.release_manual()
+            except Exception:
+                pass  # Non-fatal — continue even if control service is unreachable
 
             self._status.schedule_id = schedule.id
             self._status.schedule_name = schedule.name
@@ -186,6 +190,10 @@ class ScheduleRuntime(
             schedule = self.repository.get_current()
             if schedule is None:
                 return {'ok': False, 'message': 'No schedule loaded'}
+            try:
+                self.control.release_manual()
+            except Exception:
+                pass  # Non-fatal
             self._status.state = 'running'
             self._status.pause_reason = None
             if self._step_runtime.pending_exit_loadsteps:

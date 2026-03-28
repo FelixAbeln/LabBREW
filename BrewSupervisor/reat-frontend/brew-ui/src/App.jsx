@@ -37,7 +37,7 @@ function App() {
   const [importResult, setImportResult] = useState(null)
   const [scheduleDefinition, setScheduleDefinition] = useState(null)
   const dashboardRequestRef = useRef(0)
-  const [activeTab, setActiveTab] = useState('schedule')
+  const [activeTab, setActiveTab] = useState('control')
   const [globalView, setGlobalView] = useState(null)
   const [rules, setRules] = useState([])
   const [rulesModalOpen, setRulesModalOpen] = useState(false)
@@ -259,7 +259,7 @@ function App() {
     try {
       setControlWriteTarget(target)
       setError('')
-      await api(`/fermenters/${selected.id}/control/manual-write`, {
+      const result = await api(`/fermenters/${selected.id}/control/manual-write`, {
         method: 'POST',
         body: JSON.stringify({
           target,
@@ -267,6 +267,11 @@ function App() {
           reason: 'manual control ui',
         }),
       })
+      if (result && !result.ok) {
+        const reason = result.reason || (result.blocked ? `target owned by ${result.current_owner || 'another process'}` : 'write rejected')
+        setError(`Could not write ${control.label || target}: ${reason}`)
+        return
+      }
       brewApi.invalidateFermenter(selected.id)
       await Promise.all([
         loadControlUiSpec(selected.id, { quiet: true }),

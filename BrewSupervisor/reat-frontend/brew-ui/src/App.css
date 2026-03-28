@@ -261,14 +261,19 @@ input {
   gap: 16px;
 }
 
-.schedule-layout {
-  grid-template-columns: minmax(320px, 1.15fr) minmax(360px, 1fr);
-  align-items: start;
-}
-
 .system-layout {
   grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
   align-items: start;
+}
+
+.schedule-card .info-rows-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 32px;
+}
+
+.schedule-card .info-rows-grid .info-row-block {
+  grid-column: 1 / -1;
 }
 
 .info-row {
