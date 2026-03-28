@@ -131,14 +131,17 @@ input {
   transition: transform 220ms ease, opacity 200ms ease;
 }
 
+/* Panel slides fully off-screen when collapsed */
 .sidebar-dock.is-collapsed .sidebar-dock-panel {
-  transform: translateX(calc(-1 * var(--drawer-width) + 34px));
-  opacity: 0.98;
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
+/* Toggle lives outside the panel so it stays visible at the left edge when collapsed */
 .sidebar-dock-toggle {
   position: absolute;
-  right: -12px;
+  left: var(--drawer-width);
   top: 50%;
   transform: translateY(-50%);
   width: 28px;
@@ -155,7 +158,12 @@ input {
   justify-items: center;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
-  transition: background 140ms ease, border-color 140ms ease, box-shadow 120ms ease, transform 120ms ease;
+  transition: left 220ms ease, background 140ms ease, border-color 140ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+/* When collapsed the handle parks at the left viewport edge */
+.sidebar-dock.is-collapsed .sidebar-dock-toggle {
+  left: 0;
 }
 
 .sidebar-dock-toggle:hover {
