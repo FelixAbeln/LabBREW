@@ -178,8 +178,9 @@ class ControlRuntime:
         return result
 
     def manual_set_parameter(self, target: str, value: Any, owner: str = MANUAL_OWNER, reason: str = "manual override") -> dict:
-        """Manual write path: operator can take over any non-safety owner before writing."""
-        owner = SAFETY_OWNER if owner == SAFETY_OWNER else MANUAL_OWNER
+        """Manual write path: manual owner can take over any non-safety owner before writing."""
+        # Ignore caller-provided owner for manual path to prevent safety lock bypass.
+        owner = MANUAL_OWNER
         current_owner = self.ownership.get_owner(target)
         if current_owner == SAFETY_OWNER and owner != SAFETY_OWNER:
             return {
