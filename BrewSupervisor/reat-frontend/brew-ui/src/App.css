@@ -26,35 +26,165 @@ input {
 
 .app-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 14px;
 }
 
-.app-header h1 {
-  margin: 0 0 6px;
-  font-size: 32px;
+.app-logo-block {
+  min-width: 0;
 }
 
-.app-header p {
+.app-logo-ascii {
   margin: 0;
-  color: #a9b4bf;
+  font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  font-size: clamp(6px, 0.95vw, 11px);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #dbe8f7;
+  white-space: pre;
+  overflow: hidden;
+  max-width: 100%;
+  display: inline-block;
+  text-shadow: 0 0 10px rgba(93, 140, 196, 0.2);
 }
 
 .error-banner {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
   margin-bottom: 16px;
-  padding: 12px 14px;
+  padding: 11px 42px 11px 12px;
   border: 1px solid #7f1d1d;
-  background: #3a1111;
+  background: linear-gradient(180deg, #3a1111 0%, #301010 100%);
   color: #ffb4b4;
   border-radius: 10px;
 }
 
+.error-banner-message {
+  min-width: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.error-banner-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: #f3b4b4;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1;
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.error-banner-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffe5e5;
+}
+
+.error-banner-close:active {
+  transform: scale(0.95);
+}
+
+.error-banner-close:focus-visible {
+  outline: 2px solid rgba(255, 212, 212, 0.55);
+  outline-offset: 1px;
+}
+
 .main-grid {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 1fr;
   gap: 24px;
+  align-items: start;
+}
+
+.sidebar-dock {
+  --drawer-width: 300px;
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+}
+
+.sidebar-dock-panel {
+  position: relative;
+  width: var(--drawer-width);
+  max-height: min(84vh, 860px);
+  overflow: visible;
+  padding: 0 0 0 12px;
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 220ms ease, opacity 200ms ease;
+}
+
+.sidebar-dock.is-collapsed .sidebar-dock-panel {
+  transform: translateX(calc(-1 * var(--drawer-width) + 34px));
+  opacity: 0.98;
+}
+
+.sidebar-dock-toggle {
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 66px;
+  border-radius: 999px;
+  border: 1px solid #465a73;
+  background: linear-gradient(180deg, #132236 0%, #0f1b2a 100%);
+  color: #d6e0ea;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.sidebar-dock-toggle:hover {
+  background: #16263a;
+  border-color: #5f7591;
+}
+
+.sidebar-dock-toggle:active {
+  transform: translateY(-50%) scale(0.97);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.32);
+}
+
+.sidebar-dock-toggle-menu {
+  width: 14px;
+  display: grid;
+  gap: 3px;
+}
+
+.sidebar-dock-toggle-menu span {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: #d8e6f5;
+}
+
+.sidebar-panel {
+  min-height: 220px;
+  max-height: min(84vh, 860px);
+  overflow: auto;
 }
 
 .content-column {
@@ -716,6 +846,10 @@ input {
   .system-layout {
     grid-template-columns: 1fr;
   }
+
+  .sidebar-dock {
+    --drawer-width: min(82vw, 300px);
+  }
 }
 
 @media (max-width: 760px) {
@@ -729,8 +863,9 @@ input {
     align-items: stretch;
   }
 
-  .app-header {
-    flex-direction: column;
+  .app-logo-ascii {
+    font-size: clamp(5px, 1.55vw, 8px);
+    line-height: 1.08;
   }
 
   .tab-row,
