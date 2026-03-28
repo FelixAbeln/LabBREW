@@ -26,20 +26,28 @@ input {
 
 .app-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 14px;
 }
 
-.app-header h1 {
-  margin: 0 0 6px;
-  font-size: 32px;
+.app-logo-block {
+  min-width: 0;
 }
 
-.app-header p {
+.app-logo-ascii {
   margin: 0;
-  color: #a9b4bf;
+  font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  font-size: clamp(6px, 0.95vw, 11px);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #dbe8f7;
+  white-space: pre;
+  overflow: hidden;
+  max-width: 100%;
+  display: inline-block;
+  text-shadow: 0 0 10px rgba(93, 140, 196, 0.2);
 }
 
 .error-banner {
@@ -855,8 +863,9 @@ input {
     align-items: stretch;
   }
 
-  .app-header {
-    flex-direction: column;
+  .app-logo-ascii {
+    font-size: clamp(5px, 1.55vw, 8px);
+    line-height: 1.08;
   }
 
   .tab-row,
