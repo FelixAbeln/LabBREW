@@ -1,4 +1,16 @@
-def get_ui_spec() -> dict:
+def _get_control_spec(record: dict | None = None) -> dict:
+    return {
+        "spec_version": 1,
+        "source_type": "system_time",
+        "display_name": "System Time",
+        "description": "This datasource has no writable control parameters.",
+        "controls": [],
+    }
+
+
+def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
+    if mode == "control":
+        return _get_control_spec(record)
     return {
         "source_type": "system_time",
         "display_name": "System Time",

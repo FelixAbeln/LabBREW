@@ -106,12 +106,6 @@ export function RuleEditorModal({
                         <input type="number" step="any" value={action.value} onChange={(e) => updateRuleAction(action.id, { value: e.target.value })} />
                       </label>
                     )}
-                    {(action.type === 'takeover' || action.type === 'ramp') && (
-                      <label className="form-field">
-                        <span>Owner</span>
-                        <input value={action.owner} onChange={(e) => updateRuleAction(action.id, { owner: e.target.value })} />
-                      </label>
-                    )}
                     {action.type === 'takeover' && (
                       <label className="form-field form-field-wide">
                         <span>Reason</span>

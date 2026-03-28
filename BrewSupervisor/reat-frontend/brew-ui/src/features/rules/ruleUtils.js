@@ -5,8 +5,7 @@ export function makeEmptyActionForm() {
     targetsText: '',
     value: '',
     duration: '',
-    owner: 'manual_override',
-    reason: 'Manual UI override',
+    reason: 'Safety takeover',
   }
 }
 
@@ -36,8 +35,7 @@ export function normalizeRuleForm(rule) {
           : action?.target || '',
         value: action?.value ?? '',
         duration: action?.duration ?? '',
-        owner: action?.owner || 'manual_override',
-        reason: action?.reason || 'Manual UI override',
+        reason: action?.reason || 'Safety takeover',
       }))
     : [makeEmptyActionForm()]
 

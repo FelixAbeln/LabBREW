@@ -46,12 +46,12 @@ def schema():
                 "required": ["value"],
             },
             "takeover": {
-                "fields": ["target|targets", "owner", "reason", "value"],
-                "required": ["owner"],
+                "fields": ["target|targets", "reason", "value"],
+                "required": [],
             },
             "ramp": {
-                "fields": ["target|targets", "value", "duration", "owner"],
-                "required": ["value", "duration", "owner"],
+                "fields": ["target|targets", "value", "duration"],
+                "required": ["value", "duration"],
             },
         },
         "multi_target_supported": True,
@@ -62,6 +62,24 @@ def schema():
                 "targets": "optional comma-separated target names"
             },
             "fields": ["ownership", "ramps", "active_rules", "held_rules", "values"]
+        },
+        "control_contract": {
+            "path": "/system/control-contract",
+            "fields": ["contract", "resolved_controls", "available_targets"],
+        },
+        "datasource_contract": {
+            "path": "/system/datasource-contract",
+            "fields": ["datasources", "orphan_sources", "orphan_parameters"],
+        },
+        "control_ui_spec": {
+            "path": "/system/control-ui-spec",
+            "fields": ["cards", "write_path", "release_path", "manual_owner"],
+        },
+        "manual_control": {
+            "write_path": "/control/manual-write",
+            "release_path": "/control/release-manual",
+            "manual_owner": "operator",
+            "protected_owner": "safety",
         },
         "websocket": {
             "path": "/ws/live",
@@ -77,3 +95,21 @@ def schema():
 def snapshot(targets: str | None = None):
     runtime = _require_runtime()
     return runtime.get_live_snapshot(targets=_normalize_targets(targets))
+
+
+@router.get("/control-contract")
+def control_contract():
+    runtime = _require_runtime()
+    return runtime.get_control_contract_snapshot()
+
+
+@router.get("/datasource-contract")
+def datasource_contract():
+    runtime = _require_runtime()
+    return runtime.get_datasource_contract_snapshot()
+
+
+@router.get("/control-ui-spec")
+def control_ui_spec():
+    runtime = _require_runtime()
+    return runtime.get_control_ui_spec()

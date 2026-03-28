@@ -7,7 +7,6 @@ export function ScheduleTab({
   loadingAction,
   selected,
   runAction,
-  ownedTargetValues,
   scheduleFile,
   setScheduleFile,
   uploadWorkbook,
@@ -88,14 +87,14 @@ export function ScheduleTab({
         </div>
       </div>
 
-      <div className="schedule-layout">
-        <div className="info-card schedule-card">
+      <div className="info-card schedule-card">
           <div className="card-header-row">
             <h3>Schedule</h3>
             <span className={`pill ${schedule?.state === 'running' ? 'pill-ok' : schedule?.state === 'paused' ? 'pill-warn' : 'pill-neutral'}`}>
               {schedule?.state || 'idle'}
             </span>
           </div>
+          <div className="info-rows-grid">
           <div className="info-row">
             <span>Schedule name</span>
             <strong>{scheduleDefinition?.name || '-'}</strong>
@@ -108,13 +107,13 @@ export function ScheduleTab({
             <span>Phase</span>
             <strong>{schedule?.phase || '-'}</strong>
           </div>
-          <div className="info-row info-row-block">
-            <span>Step</span>
-            <strong>{schedule?.current_step_name || '-'}</strong>
-          </div>
           <div className="info-row">
             <span>Index</span>
             <strong>{schedule?.current_step_index ?? '-'}</strong>
+          </div>
+          <div className="info-row info-row-block">
+            <span>Step</span>
+            <strong>{schedule?.current_step_name || '-'}</strong>
           </div>
           <div className="info-row info-row-block">
             <span>Wait</span>
@@ -124,39 +123,8 @@ export function ScheduleTab({
             <span>Pause reason</span>
             <strong>{schedule?.pause_reason || '-'}</strong>
           </div>
-        </div>
-
-        <div className="info-card setpoints-card">
-          <div className="card-header-row">
-            <h3>Current setpoints</h3>
-            <span className="tag">{ownedTargetValues.length} target{ownedTargetValues.length === 1 ? '' : 's'}</span>
           </div>
-          {!ownedTargetValues.length ? (
-            <p className="muted">No schedule-owned targets right now.</p>
-          ) : (
-            <div className="setpoint-table">
-              <div className="setpoint-table-head">
-                <span>Target</span>
-                <span>Value</span>
-                <span>Owner</span>
-                <span>Status</span>
-              </div>
-              <div className="setpoint-table-body">
-                {ownedTargetValues.map((item) => (
-                  <div key={item.target} className="setpoint-table-row">
-                    <strong className="setpoint-name">{item.target}</strong>
-                    <span className="setpoint-value">{String(item.value)}</span>
-                    <span className="setpoint-owner">{item.owner || '-'}</span>
-                    <span className={`pill ${item.ok ? 'pill-ok' : 'pill-bad'}`}>
-                      {item.ok ? 'read ok' : 'read failed'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
-      </div>
 
       <div className="info-card workbook-card">
         <h3>Schedule workbook</h3>

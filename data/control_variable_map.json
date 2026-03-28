@@ -1,0 +1,47 @@
+{
+    "version":  1,
+    "description":  "Auto-generated startup control map from non-SourceDef set-parameters",
+    "source_snapshot":  "data/parameterdb_snapshot.json",
+    "generated_at_utc":  "2026-03-28T16:08:31.6791341Z",
+    "groups":  [
+                   {
+                       "id":  "general",
+                       "label":  "General"
+                   }
+               ],
+    "controls":  [
+                     {
+                         "id":  "set_allow_gas",
+                         "label":  "Allow Gas",
+                         "group":  "general",
+                         "target":  "set_allow_Gas",
+                         "widget":  "number",
+                         "step":  1
+                     },
+                     {
+                         "id":  "set_pres_fermentor",
+                         "label":  "Pres Fermentor",
+                         "group":  "general",
+                         "target":  "set_pres_Fermentor",
+                         "widget":  "number",
+                         "step":  0.1
+                     },
+                     {
+                         "id":  "set_spd_agitator",
+                         "label":  "Spd Agitator",
+                         "group":  "general",
+                         "target":  "set_spd_Agitator",
+                         "widget":  "number",
+                         "unit":  "rpm",
+                         "step":  1
+                     },
+                     {
+                         "id":  "set_temp_fermentor",
+                         "label":  "Temp Fermentor",
+                         "group":  "general",
+                         "target":  "set_temp_Fermentor",
+                         "widget":  "number",
+                         "step":  0.1
+                     }
+                 ]
+}

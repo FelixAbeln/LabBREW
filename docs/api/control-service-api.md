@@ -139,6 +139,81 @@ Writes a value to a parameter. Requires the caller to hold ownership (or the tar
 
 ---
 
+### `POST /control/manual-write`
+
+Manual operator write path. If the target is owned by a non-safety owner (e.g. schedule/rules), ownership is force-taken by the manual owner before writing.
+
+Safety exception: if the target is currently owned by `safety`, manual writes are blocked unless the caller itself is `safety`.
+
+Owner consistency:
+- Manual writes are normalized to owner `operator` (except `owner: safety`, which is reserved).
+- Rule takeover/ramp ownership is normalized to `safety`.
+
+**Request body**
+```json
+{
+  "target": "reactor.temp.setpoint",
+  "value": 35.0,
+  "owner": "operator",
+  "reason": "manual override"
+}
+```
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "written": true,
+  "target": "reactor.temp.setpoint",
+  "owner": "operator",
+  "takeover": true,
+  "previous_owner": "schedule",
+  "current_owner": "operator"
+}
+```
+
+---
+
+### `POST /control/release-manual`
+
+Releases all currently held manual ownership records (owner_source `manual`, or owner `operator`) and stops associated ramps.
+
+Use this before scheduler resume if manual override was active.
+
+**Request body** (optional)
+```json
+{
+  "targets": ["reactor.temp.setpoint", "agitator.rpm"]
+}
+```
+
+If body is omitted, all manual ownership records are released.
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "released": ["reactor.temp.setpoint"],
+  "released_count": 1,
+  "skipped": ["heater.enable"]
+}
+```
+
+Blocked-by-safety response example:
+```json
+{
+  "ok": false,
+  "written": false,
+  "blocked": true,
+  "target": "reactor.temp.setpoint",
+  "owner": "operator",
+  "current_owner": "safety",
+  "reason": "target owned by safety"
+}
+```
+
+---
+
 ### `POST /control/ramp`
 
 Starts a linear ramp on one or more targets from their current values to the specified value over a given duration.
@@ -216,8 +291,10 @@ Creates or updates a rule.
 | `kind` | Required fields | Description |
 |---|---|---|
 | `set` | `target`/`targets`, `value` | Write a value |
-| `takeover` | `target`/`targets`, `owner` | Force ownership |
-| `ramp` | `target`/`targets`, `value`, `duration`, `owner` | Start a ramp |
+| `takeover` | `target`/`targets` | Force ownership to `safety` |
+| `ramp` | `target`/`targets`, `value`, `duration` | Start a ramp owned by `safety` |
+
+For rule actions, owner is not user-configurable. Takeover and ramp actions are normalized to owner `safety` by the runtime.
 
 **Response** `200 OK`
 ```json
@@ -236,6 +313,156 @@ Deletes a rule by ID. Returns `404` if not found.
 ---
 
 ## System Endpoints (`/system`)
+
+Manual map setup reference: see [Manual Control Map Setup](./manual-control-map.md) for configuring `data/control_variable_map.json`.
+
+### `GET /system/control-contract`
+
+Returns frontend-oriented control metadata from `data/control_variable_map.json`, resolved against live backend values and ownership.
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "source": ".../data/control_variable_map.json",
+  "contract": {
+    "version": 1,
+    "controls": []
+  },
+  "resolved_controls": [
+    {
+      "id": "reactor_temp_setpoint",
+      "target": "reactor.temp.setpoint",
+      "target_exists": true,
+      "current_value": 64.2,
+      "current_owner": "schedule",
+      "safety_locked": false
+    }
+  ],
+  "available_targets": ["reactor.temp", "reactor.temp.setpoint"]
+}
+```
+
+### `GET /system/datasource-contract`
+
+Returns a live datasource-to-parameter-to-control mapping snapshot for UI auto-generation.
+
+This endpoint joins:
+- active datasource instances from ParameterDB datasource service (`list_sources`)
+- SourceDef control spec from datasource UI modules (`get_source_type_ui(..., mode="control")`)
+- live ParameterDB parameter metadata (`describe`) for parameters created by datasources
+- control map targets from `data/control_variable_map.json`
+
+Use this endpoint to answer:
+- what datasource devices currently exist
+- what parameters each datasource actually created
+- which control-map entries target those parameters
+
+Unlike create/edit UI spec mapping, this reflects runtime-created parameters even when a user relies on automatic parameter creation.
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "datasource_backend": {
+    "host": "127.0.0.1",
+    "port": 8766,
+    "reachable": true,
+    "error": null
+  },
+  "control_map": {
+    "source": ".../data/control_variable_map.json",
+    "control_count": 3
+  },
+  "datasources": [
+    {
+      "name": "brewtools_can_demo",
+      "source_type": "brewtools_kvaser",
+      "running": true,
+      "parameter_count": 24,
+      "control_count": 2,
+      "source_control_spec": {
+        "spec_version": 1,
+        "controls": []
+      },
+      "parameters": [
+        {
+          "name": "brewcan.agitator.0.set_pwm",
+          "role": "command",
+          "mapped_controls": [
+            {
+              "id": "agitator_rpm",
+              "target": "brewcan.agitator.0.set_pwm",
+              "target_exists": true
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "id": "agitator_rpm",
+          "target": "brewcan.agitator.0.set_pwm",
+          "widget": "number",
+          "write": {"kind": "number"},
+          "source": "sourcedef"
+        }
+      ]
+    }
+  ],
+  "manual_controls": [
+    {
+      "id": "reactor_temp_setpoint",
+      "target": "reactor.temp.setpoint",
+      "source": "manual_map"
+    }
+  ],
+  "ui_cards": [
+    {
+      "card_id": "source:brewtools_can_demo",
+      "title": "brewtools_can_demo",
+      "controls": []
+    }
+  ],
+  "orphan_sources": [],
+  "orphan_parameters": []
+}
+```
+
+### `GET /system/control-ui-spec`
+
+Returns frontend-ready control cards to render directly.
+
+Each card represents either:
+- a datasource device (from SourceDef control spec + discovered command/control parameters + manual map overlays), or
+- custom manual controls defined only in `data/control_variable_map.json`.
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "manual_owner": "operator",
+  "write_path": "/control/manual-write",
+  "release_path": "/control/release-manual",
+  "cards": [
+    {
+      "card_id": "source:bench_psu",
+      "kind": "datasource",
+      "title": "bench_psu",
+      "subtitle": "labps3005dn",
+      "controls": [
+        {
+          "id": "set_voltage",
+          "label": "Voltage Setpoint",
+          "target": "psu.set_voltage",
+          "widget": "number",
+          "write": {"kind": "number", "min": 0.0, "max": 30.0, "step": 0.01},
+          "source": "sourcedef"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ### `GET /system/health`
 
