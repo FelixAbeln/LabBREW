@@ -558,14 +558,42 @@ class ControlRuntime:
             if target in all_source_parameter_names:
                 continue
             map_item = map_items[0] if map_items else {}
+            widget = map_item.get("widget") or "text"
+            # Build a write configuration for manual controls so that the UI
+            # can infer input type and bounds from kind/min/max/step.
+            write: dict[str, Any] = {}
+            raw_write = map_item.get("write")
+            if isinstance(raw_write, dict):
+                # Preserve any explicit write configuration from the manual map.
+                write = deepcopy(raw_write)
+            else:
+                kind = map_item.get("kind")
+                if not kind:
+                    # Infer kind from widget type if possible.
+                    numeric_widgets = {"dial", "slider", "number", "numeric", "knob"}
+                    bool_widgets = {"checkbox", "switch", "toggle"}
+                    pulse_widgets = {"button", "momentary"}
+                    if widget in numeric_widgets:
+                        kind = "number"
+                    elif widget in bool_widgets:
+                        kind = "bool"
+                    elif widget in pulse_widgets:
+                        kind = "pulse"
+                    else:
+                        kind = "string"
+                write["kind"] = kind
+                # Propagate numeric hints from the manual map if present.
+                for key in ("min", "max", "step"):
+                    if key in map_item:
+                        write[key] = map_item[key]
             manual_controls.append(
                 {
                     "id": map_item.get("id") or target,
                     "label": map_item.get("label") or target,
                     "target": target,
-                    "widget": map_item.get("widget") or "text",
+                    "widget": widget,
                     "unit": map_item.get("unit"),
-                    "write": {},
+                    "write": write,
                     "current_value": map_item.get("current_value"),
                     "current_owner": map_item.get("current_owner"),
                     "safety_locked": bool(map_item.get("safety_locked")),
