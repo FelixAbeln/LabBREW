@@ -79,7 +79,7 @@ def manual_write_target(data: dict):
     return runtime.manual_set_parameter(
         target=data["target"],
         value=data["value"],
-        owner=data.get("owner", "operator"),
+        owner="operator",
         reason=data.get("reason", "manual override"),
     )
 
