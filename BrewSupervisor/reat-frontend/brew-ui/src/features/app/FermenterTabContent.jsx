@@ -1,6 +1,7 @@
 import { ParameterDBPage } from '../parameterdb/ParameterDBPage';
 import { RuleEditorModal } from '../rules/RuleEditorModal';
 import { ArchiveTabContainer } from './containers/ArchiveTabContainer';
+import { ControlUiTabContainer } from './containers/ControlUiTabContainer';
 import { DataTabContainer } from './containers/DataTabContainer';
 import { RulesTabContainer } from './containers/RulesTabContainer';
 import { ScheduleTabContainer } from './containers/ScheduleTabContainer';
@@ -11,6 +12,7 @@ export function FermenterTabContent({
   activeTab,
   scheduleProps,
   dataProps,
+  controlProps,
   archiveProps,
   rulesProps,
   systemProps,
@@ -26,6 +28,8 @@ export function FermenterTabContent({
     <>
       {activeTab === 'schedule' ? (
         <ScheduleTabContainer {...scheduleProps} />
+      ) : activeTab === 'control' ? (
+        <ControlUiTabContainer {...controlProps} />
       ) : activeTab === 'data' ? (
         <DataTabContainer {...dataProps} />
       ) : activeTab === 'archive' ? (

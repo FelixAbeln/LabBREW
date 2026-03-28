@@ -258,6 +258,10 @@ web_modules/
 *.tsbuildinfo
 
 # Optional npm cache directory
+
+# LabBREW runtime state snapshots (volatile)
+data/schedule_state.json
+data/parameterdb_snapshot.json
 .npm
 
 # Optional eslint cache

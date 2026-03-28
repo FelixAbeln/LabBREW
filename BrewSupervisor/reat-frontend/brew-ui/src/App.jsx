@@ -4,6 +4,7 @@ import './features/parameterdb/parameterdb.css'
 import './features/data/data.css'
 import './features/archive/archive.css'
 import './features/rules/rules.css'
+import './features/control/control.css'
 import { api, ApiResponseError } from './api/client'
 import { createBrewApi } from './api/brewApi'
 import { buildMeasurementSessionName } from './features/data/dataValueUtils'
@@ -46,6 +47,10 @@ function App() {
   const [operators, setOperators] = useState([])
   const [snapshotKeys, setSnapshotKeys] = useState([])
   const [rulesSnapshot, setRulesSnapshot] = useState(null)
+  const [controlUiSpec, setControlUiSpec] = useState(null)
+  const [controlUiLoading, setControlUiLoading] = useState(false)
+  const [controlWriteTarget, setControlWriteTarget] = useState('')
+  const [controlDrafts, setControlDrafts] = useState({})
   const [dataActionLoading, setDataActionLoading] = useState(false)
   const [dataServiceStatus, setDataServiceStatus] = useState(null)
   const [archivePayload, setArchivePayload] = useState(null)
@@ -193,6 +198,87 @@ function App() {
     setRulesSnapshot(snapshotPayload)
   }
 
+  async function loadControlUiSpec(id = selectedId, { quiet = false } = {}) {
+    if (!id) return null
+    if (!quiet) setControlUiLoading(true)
+    try {
+      const payload = await api(`/fermenters/${id}/system/control-ui-spec`)
+      setControlUiSpec(payload && typeof payload === 'object' ? payload : null)
+      return payload
+    } finally {
+      if (!quiet) setControlUiLoading(false)
+    }
+  }
+
+  function updateControlDraft(target, value) {
+    if (!target) return
+    setControlDrafts((current) => ({
+      ...current,
+      [target]: value,
+    }))
+  }
+
+  async function writeControlValue(control, explicitValue) {
+    if (!selected?.id || !control || typeof control !== 'object') return
+    const target = String(control.target || '').trim()
+    if (!target) {
+      setError('Control target is missing')
+      return
+    }
+
+    const writeKind = control?.write?.kind || ''
+    const widget = control?.widget || ''
+    const expectsNumber = writeKind === 'number' || widget === 'number'
+    const expectsBool = writeKind === 'bool' || widget === 'toggle'
+    const expectsPulse = writeKind === 'pulse' || widget === 'button'
+    let value = explicitValue
+    if (value === undefined) {
+      value = Object.prototype.hasOwnProperty.call(controlDrafts, target)
+        ? controlDrafts[target]
+        : control.current_value
+    }
+
+    if (expectsNumber) {
+      const numeric = Number(value)
+      if (!Number.isFinite(numeric)) {
+        setError(`Control ${control.label || target} requires a numeric value`)
+        return
+      }
+      value = numeric
+    } else if (expectsBool) {
+      if (typeof value === 'string') {
+        const lowered = value.trim().toLowerCase()
+        value = lowered === 'true' || lowered === '1' || lowered === 'on'
+      } else {
+        value = Boolean(value)
+      }
+    } else if (expectsPulse) {
+      value = explicitValue === undefined ? true : Boolean(explicitValue)
+    }
+
+    try {
+      setControlWriteTarget(target)
+      setError('')
+      await api(`/fermenters/${selected.id}/control/manual-write`, {
+        method: 'POST',
+        body: JSON.stringify({
+          target,
+          value,
+          reason: 'manual control ui',
+        }),
+      })
+      brewApi.invalidateFermenter(selected.id)
+      await Promise.all([
+        loadControlUiSpec(selected.id, { quiet: true }),
+        loadDetails(selected.id),
+      ])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setControlWriteTarget('')
+    }
+  }
+
   async function loadRuleEditorData(id = selectedId) {
     if (!id) return
     setRulesEditorLoading(true)
@@ -289,7 +375,7 @@ function App() {
       }
 
       if (actionForm.type === 'takeover' || actionForm.type === 'ramp') {
-        action.owner = (actionForm.owner || '').trim() || 'manual_override'
+        action.owner = 'safety'
       }
 
       if (actionForm.type === 'takeover' && (actionForm.reason || '').trim()) {
@@ -358,6 +444,25 @@ function App() {
           }),
         ),
       )
+      brewApi.invalidateFermenter(selected.id)
+      await Promise.all([loadRules(selected.id), loadDetails(selected.id)])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function releaseManualControl(targets = null) {
+    if (!selected?.id) return
+    try {
+      setLoadingAction(true)
+      setError('')
+      const payload = Array.isArray(targets) ? { targets } : {}
+      await api(`/fermenters/${selected.id}/control/release-manual`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
       brewApi.invalidateFermenter(selected.id)
       await Promise.all([loadRules(selected.id), loadDetails(selected.id)])
     } catch (err) {
@@ -553,9 +658,22 @@ function App() {
     },
     getDelay: () => {
       if (activeTab === 'schedule') return 1000
+      if (activeTab === 'control') return 2000
       if (activeTab === 'rules' || activeTab === 'data') return 2500
       return 2000
     },
+  })
+
+  useAdaptivePolling({
+    enabled: activeTab === 'control' && Boolean(selected?.id),
+    task: async () => {
+      try {
+        await loadControlUiSpec(selected.id, { quiet: true })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error')
+      }
+    },
+    getDelay: () => 3000,
   })
 
   useAdaptivePolling({
@@ -616,6 +734,13 @@ function App() {
     })
   }, [activeTab, selected?.id])
 
+  useEffect(() => {
+    if (activeTab !== 'control' || !selected?.id) return
+    loadControlUiSpec(selected.id).catch((err) => {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    })
+  }, [activeTab, selected?.id])
+
   function toggleStarredParam(name) {
     setStarredParams((current) =>
       current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
@@ -658,6 +783,17 @@ function App() {
     rulesSnapshot,
     starredParams,
     toggleStarredParam,
+  }
+
+  const controlTabProps = {
+    selected,
+    controlUiSpec,
+    controlUiLoading,
+    controlWriteTarget,
+    controlDrafts,
+    onDraftChange: updateControlDraft,
+    onWrite: writeControlValue,
+    onReleaseManualControl: () => releaseManualControl(),
   }
 
   const archiveTabProps = {
@@ -719,6 +855,7 @@ function App() {
         activeTab={activeTab}
         scheduleProps={scheduleTabProps}
         dataProps={dataTabProps}
+        controlProps={controlTabProps}
         archiveProps={archiveTabProps}
         rulesProps={rulesTabProps}
         systemProps={systemTabProps}

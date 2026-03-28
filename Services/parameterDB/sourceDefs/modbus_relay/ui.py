@@ -1,4 +1,37 @@
-def get_ui_spec() -> dict:
+def _get_control_spec(record: dict | None = None) -> dict:
+    record = dict(record or {})
+    config = dict(record.get("config") or {})
+    source_name = str(record.get("name") or "").strip() or "modbus_relay"
+    prefix = str(config.get("parameter_prefix") or source_name).strip() or source_name
+    try:
+        channel_count = max(1, int(config.get("channel_count", 8)))
+    except Exception:
+        channel_count = 8
+
+    controls = [
+        {
+            "id": f"relay_ch{channel}",
+            "label": f"Relay Channel {channel}",
+            "target": f"{prefix}.ch{channel}",
+            "widget": "toggle",
+            "write": {"kind": "bool"},
+            "role": "command",
+        }
+        for channel in range(1, channel_count + 1)
+    ]
+
+    return {
+        "spec_version": 1,
+        "source_type": "modbus_relay",
+        "display_name": "Modbus Relay Board",
+        "description": "Writable relay channel commands.",
+        "controls": controls,
+    }
+
+
+def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
+    if mode == "control":
+        return _get_control_spec(record)
     return {
         "source_type": "modbus_relay",
         "display_name": "Modbus Relay Board",

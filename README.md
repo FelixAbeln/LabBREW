@@ -71,6 +71,7 @@ A microservices-based fermentation management and control platform for laborator
 - Browser UI backed by the BrewSupervisor gateway at port 8782
 - Connects over standard HTTP REST and WebSocket
 - **Schedule tab** — upload an Excel workbook, validate it, and drive step-by-step execution (play · pause · next · previous · stop)
+- **Control tab** — render datasource and custom manual controls from backend control UI spec, including manual write/release actions
 - **System tab** — at-a-glance health and service-status overview for the selected fermenter node
 - **Data tab** — configure recording rate (Hz), start/stop parameter logging, and trigger loadstep captures
 - **ParameterDB tab** — browse, create, and edit parameters; visualise relationships in an interactive graph; manage data sources
@@ -88,9 +89,11 @@ A microservices-based fermentation management and control platform for laborator
 | [API Overview](./docs/api/README.md) | Index of all service APIs and quick navigation guide |
 | [Architecture](./docs/api/architecture.md) | Service dependency chain, communication protocols, data-flow diagrams |
 | [Frontend Documentation](./docs/frontend/README.md) | React UI — features, tech stack, setup, and source layout |
+| [ParameterDB + Relationship Setup Guide](./docs/frontend/parameterdb-relationship-setup.md) | Frontend workflow to set up ParameterDB entities and graph relationships |
 | [BrewSupervisor Gateway API](./docs/api/brewsupervisor-api.md) | Central gateway: fermenter discovery, dashboard, schedule import — **start here for frontend work** |
 | [Supervisor Agent API](./docs/api/agent-api.md) | Per-node agent: health, service proxy, mDNS registration |
 | [Control Service API](./docs/api/control-service-api.md) | Ownership, read/write/ramp, rules engine, WebSocket streaming |
+| [Manual Control Map Setup](./docs/api/manual-control-map.md) | Configure `data/control_variable_map.json` for custom manual controls |
 | [Schedule Service API](./docs/api/schedule-service-api.md) | Schedule load, execution control, status |
 | [Data Service API](./docs/api/data-service-api.md) | Measurement setup/start/stop, file logging, loadstep capture |
 | [ParameterDB Binary Protocol](./docs/api/parameterdb-api.md) | Low-level TCP binary protocol and Python client |

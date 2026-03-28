@@ -1,0 +1,82 @@
+.control-ui-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.control-card-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--control-columns, 1), minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.control-card-column {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.control-device-card {
+  display: grid;
+  gap: 10px;
+}
+
+.control-device-card.is-empty {
+  gap: 8px;
+}
+
+.control-item-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.control-item-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 10px 9px;
+  border: 1px solid #2a3644;
+  border-radius: 10px;
+  background: rgba(18, 25, 34, 0.68);
+}
+
+.control-item-meta {
+  min-width: 0;
+}
+
+.control-item-target {
+  word-break: break-all;
+  opacity: 0.86;
+}
+
+.control-item-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.control-item-inputs .toggle-button {
+  min-width: 76px;
+}
+
+.control-item-inputs .data-control {
+  min-width: 132px;
+  max-width: 180px;
+}
+
+@media (max-width: 760px) {
+  .control-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .control-item-row {
+    grid-template-columns: 1fr;
+  }
+
+  .control-item-inputs {
+    justify-content: flex-start;
+  }
+}

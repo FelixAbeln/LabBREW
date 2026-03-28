@@ -96,3 +96,12 @@ class SignalStoreBackend:
                 return dict(self._client.snapshot())
         except Exception:
             return {}
+
+    def describe(self) -> dict[str, Any]:
+        if self._client is None:
+            return {}
+        try:
+            with self._lock:
+                return dict(self._client.describe())
+        except Exception:
+            return {}

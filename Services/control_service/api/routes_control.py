@@ -73,6 +73,29 @@ def write_target(data: dict):
     )
 
 
+@router.post("/manual-write")
+def manual_write_target(data: dict):
+    runtime = _require_runtime()
+    return runtime.manual_set_parameter(
+        target=data["target"],
+        value=data["value"],
+        owner=data.get("owner", "operator"),
+        reason=data.get("reason", "manual override"),
+    )
+
+
+@router.post("/release-manual")
+def release_manual_controls(data: dict | None = None):
+    runtime = _require_runtime()
+    payload = data or {}
+    targets = payload.get("targets")
+    if isinstance(targets, list):
+        targets = [str(target).strip() for target in targets if str(target).strip()]
+    else:
+        targets = None
+    return runtime.release_manual_controls(targets=targets)
+
+
 @router.post("/ramp")
 def start_ramp(data: dict):
     runtime = _require_runtime()

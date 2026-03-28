@@ -1,4 +1,50 @@
-def get_ui_spec() -> dict:
+def _get_control_spec(record: dict | None = None) -> dict:
+    record = dict(record or {})
+    config = dict(record.get("config") or {})
+    source_name = str(record.get("name") or "").strip() or "psu"
+    prefix = str(config.get("parameter_prefix") or source_name).strip() or source_name
+
+    controls = [
+        {
+            "id": "set_enable",
+            "label": "Output Enable",
+            "target": str(config.get("set_enable_param") or f"{prefix}.set_enable"),
+            "widget": "toggle",
+            "write": {"kind": "bool"},
+            "role": "command",
+        },
+        {
+            "id": "set_voltage",
+            "label": "Voltage Setpoint",
+            "target": str(config.get("set_voltage_param") or f"{prefix}.set_voltage"),
+            "widget": "number",
+            "unit": "V",
+            "write": {"kind": "number", "min": 0.0, "max": 30.0, "step": 0.01},
+            "role": "command",
+        },
+        {
+            "id": "set_current",
+            "label": "Current Setpoint",
+            "target": str(config.get("set_current_param") or f"{prefix}.set_current"),
+            "widget": "number",
+            "unit": "A",
+            "write": {"kind": "number", "min": 0.0, "max": 5.0, "step": 0.001},
+            "role": "command",
+        },
+    ]
+
+    return {
+        "spec_version": 1,
+        "source_type": "labps3005dn",
+        "display_name": "LABPS3005DN PSU",
+        "description": "Writable PSU command controls.",
+        "controls": controls,
+    }
+
+
+def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
+    if mode == "control":
+        return _get_control_spec(record)
     return {
         "source_type": "labps3005dn",
         "display_name": "LABPS3005DN PSU",

@@ -131,7 +131,34 @@ def _build_dynamic_sections(config: dict[str, Any]) -> list[dict[str, Any]]:
     return sections
 
 
+def _get_control_spec(record: dict[str, Any] | None = None) -> dict[str, Any]:
+    record = dict(record or {})
+    config = dict(record.get('config') or {})
+    source_name = str(record.get('name') or '').strip() or 'digital_twin'
+    prefix = str(config.get('parameter_prefix') or source_name).strip() or source_name
+    reset_target = str(config.get('reset_param') or f'{prefix}.reset').strip() or f'{prefix}.reset'
+
+    return {
+        'spec_version': 1,
+        'source_type': 'digital_twin',
+        'display_name': 'Digital Twin FMU',
+        'description': 'Writable digital twin runtime controls.',
+        'controls': [
+            {
+                'id': 'reset',
+                'label': 'Reset Twin',
+                'target': reset_target,
+                'widget': 'button',
+                'write': {'kind': 'pulse', 'value': True},
+                'role': 'control',
+            }
+        ],
+    }
+
+
 def get_ui_spec(record: dict[str, Any] | None = None, mode: str | None = None) -> dict:
+    if mode == 'control':
+        return _get_control_spec(record)
     record = dict(record or {})
     config = dict(record.get('config') or {})
     edit_sections = [

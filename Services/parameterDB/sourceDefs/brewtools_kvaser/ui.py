@@ -1,4 +1,52 @@
-def get_ui_spec() -> dict:
+def _get_control_spec(record: dict | None = None) -> dict:
+    record = dict(record or {})
+    config = dict(record.get("config") or {})
+    source_name = str(record.get("name") or "").strip() or "brewcan"
+    prefix = str(config.get("parameter_prefix") or source_name).strip() or source_name
+
+    raw_nodes = config.get("agitator_nodes") or []
+    nodes: list[int] = []
+    if isinstance(raw_nodes, list):
+        for value in raw_nodes:
+            try:
+                node_id = int(value)
+            except Exception:
+                continue
+            if node_id >= 0:
+                nodes.append(node_id)
+    nodes = sorted(set(nodes))
+
+    controls = [
+        {
+            "id": f"agitator_pwm_{node_id}",
+            "label": f"Agitator PWM Node {node_id}",
+            "target": f"{prefix}.agitator.{node_id}.set_pwm",
+            "widget": "number",
+            "unit": "%",
+            "write": {"kind": "number", "min": 0.0, "max": 100.0, "step": 1.0},
+            "role": "command",
+            "node_id": node_id,
+        }
+        for node_id in nodes
+    ]
+
+    return {
+        "spec_version": 1,
+        "source_type": "brewtools_kvaser",
+        "display_name": "Brewtools CAN (Kvaser)",
+        "description": "Writable agitator PWM controls.",
+        "controls": controls,
+        "discovery": {
+            "fallback_roles": ["command"],
+            "metadata_filters": {"node_type": "agitator"},
+            "hint": "If no agitator_nodes are configured, controls can still be discovered from live datasource metadata.",
+        },
+    }
+
+
+def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
+    if mode == "control":
+        return _get_control_spec(record)
     return {
         "source_type": "brewtools_kvaser",
         "display_name": "Brewtools CAN (Kvaser)",

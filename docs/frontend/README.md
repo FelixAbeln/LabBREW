@@ -9,6 +9,7 @@ The LabBREW frontend is a React-based browser UI that gives you a real-time wind
 | Tab | What it is for |
 |-----|----------------|
 | **Schedule** | Upload an Excel schedule, validate it, and drive step-by-step execution (play · pause · next · previous · stop) |
+| **Control** | Operate datasource and custom manual controls rendered from backend control UI spec |
 | **System** | Get an at-a-glance health and status overview for every fermenter node |
 | **Data** | Configure and start/stop parameter recording; set the logging rate and capture loadstep averages |
 | **ParameterDB** | Browse, create, and edit parameters; visualise parameter relationships as an interactive graph; manage data sources |
@@ -109,6 +110,21 @@ A read-only dashboard showing the overall health of the selected fermenter node:
 
 ---
 
+### Control Tab
+
+Operate writable controls discovered from datasource SourceDef contracts plus custom controls from `data/control_variable_map.json`.
+
+**What you can do:**
+- View one card per datasource, plus a `Custom Manual Controls` card when manual map controls exist
+- Write values through the manual path (`POST /control/manual-write`)
+- Apply numeric/text controls explicitly with an Apply button
+- Toggle boolean controls immediately on click
+- Release current manual ownership via `POST /control/release-manual`
+
+Related setup guide: [Manual Control Map Setup](../api/manual-control-map.md).
+
+---
+
 ### Data Tab
 
 Control parameter recording for the selected fermenter.
@@ -172,6 +188,7 @@ BrewSupervisor/reat-frontend/brew-ui/
 │   ├── features/
 │   │   ├── app/                  # Layout shell (AppShell, FermenterTabContent, tab containers)
 │   │   ├── archive/              # Archive tab and data loaders
+│   │   ├── control/              # Control tab cards and styles
 │   │   ├── data/                 # Data recording tab, snapshot utilities, loaders
 │   │   ├── fermenters/           # Sidebar and tab header for fermenter node selection
 │   │   ├── parameterdb/          # ParameterDB tab, graph view, schema form, sources panel
@@ -208,5 +225,7 @@ BrewSupervisor/reat-frontend/brew-ui/
 - [BrewSupervisor Gateway API](../api/brewsupervisor-api.md) — the primary API consumed by this UI
 - [Schedule Excel Import Guide](../api/schedule-excel-import.md) — workbook format for the Schedule tab
 - [Control Service API](../api/control-service-api.md) — ownership, ramp, rules, WebSocket streaming
+- [Manual Control Map Setup](../api/manual-control-map.md) — setup and maintenance for custom manual controls
+- [ParameterDB + Relationship Setup Guide](./parameterdb-relationship-setup.md) — step-by-step frontend workflow for building parameter and source relationships
 - [Data Service API](../api/data-service-api.md) — recording, loadstep capture
 - [Architecture Overview](../api/architecture.md) — service dependencies and data-flow diagrams
