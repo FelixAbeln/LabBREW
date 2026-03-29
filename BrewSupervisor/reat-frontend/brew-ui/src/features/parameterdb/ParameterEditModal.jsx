@@ -5,6 +5,8 @@ import { buildFormData, buildSections, collectJsonFieldKeys, collectRequiredPath
 
 export function ParameterEditModal({ mode, record, fermenterId, paramTypes, parameterNames, onClose, onSaved }) {
   const isCreate = mode === 'create';
+  const recordName = record?.name ?? '';
+  const recordType = record?.parameter_type ?? '';
   const [paramType, setParamType] = useState(record?.parameter_type ?? Object.keys(paramTypes ?? {})[0] ?? '');
   const [schemaUi, setSchemaUi] = useState(null);
   const sections = useMemo(() => buildSections(schemaUi, mode), [schemaUi, mode]);
@@ -46,7 +48,7 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
 
     loadSchema();
     return () => { cancelled = true; };
-  }, [fermenterId, paramType, mode, record]);
+  }, [fermenterId, paramType, mode, recordName, recordType]);
 
   function handleFieldChange(field, rawValue) {
     setDraft((current) => {

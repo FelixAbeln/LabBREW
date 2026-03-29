@@ -192,5 +192,6 @@ Use this sequence for each new control loop:
 
 - [Frontend Overview](./README.md)
 - [ParameterDB Binary Protocol API](../api/parameterdb-api.md)
+- [ParameterDB Math Plugin](../implementation/parameterdb-math-plugin.md)
 - [Control Service API](../api/control-service-api.md)
 - [Manual Control Map Setup](../api/manual-control-map.md)
