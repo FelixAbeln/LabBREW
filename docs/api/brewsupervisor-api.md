@@ -248,7 +248,17 @@ Downloads the current full ParameterDB snapshot payload for backup/export workfl
   "ok": true,
   "snapshot": {
     "format_version": 1,
-    "parameters": {}
+    "saved_at": 1743273600.0,
+    "store_revision": 42,
+    "parameters": {
+      "reactor.temp": {
+        "parameter_type": "fake",
+        "value": 30.1,
+        "config": {"unit": "C"},
+        "state": {},
+        "metadata": {"owner": "operator"}
+      }
+    }
   },
   "snapshot_stats": {
     "enabled": true,
@@ -267,7 +277,17 @@ Replaces or restores the live ParameterDB state from a previously exported snaps
 {
   "snapshot": {
     "format_version": 1,
-    "parameters": {}
+    "saved_at": 1743273600.0,
+    "store_revision": 42,
+    "parameters": {
+      "reactor.temp": {
+        "parameter_type": "fake",
+        "value": 30.1,
+        "config": {"unit": "C"},
+        "state": {},
+        "metadata": {"owner": "operator"}
+      }
+    }
   },
   "replace_existing": true,
   "save_to_disk": true
