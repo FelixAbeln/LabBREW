@@ -232,8 +232,12 @@ export function SourcesPanel({ fermenterId, parameterNames, params }) {
                     <td className="pdb-cell-name">{name}</td>
                     <td><span className="pdb-type-badge">{rec.source_type}</span></td>
                     <td>
-                      <span className={`pdb-status-dot ${rec.running ? 'pdb-status-ok' : 'pdb-status-off'}`}>
-                        {rec.running ? 'running' : 'stopped'}
+                      <span className="pdb-status-indicator">
+                        <span
+                          className={`pdb-status-dot ${rec.running ? 'pdb-status-ok' : 'pdb-status-off'}`}
+                          aria-hidden="true"
+                        />
+                        <span>{rec.running ? 'running' : 'stopped'}</span>
                       </span>
                     </td>
                     <td className="pdb-cell-deps">
