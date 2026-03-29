@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 function formatCurrentValue(value) {
   if (value === undefined) return '-'
@@ -39,7 +39,7 @@ export function ControlUiTab({
     return String(a?.title || '').localeCompare(String(b?.title || ''))
   })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = gridRef.current
     if (!element) return
 
@@ -47,17 +47,26 @@ export function ControlUiTab({
     const gap = 12
 
     const updateColumns = () => {
-      const width = element.clientWidth || 0
-      const next = Math.max(1, Math.floor((width + gap) / (minCardWidth + gap)))
+      // Measure against the parent container to avoid feedback loops when the grid is temporarily oversized.
+      const width = element.parentElement?.clientWidth || element.clientWidth || 0
+      const maxByCards = Math.max(1, cards.length)
+      const next = Math.min(maxByCards, Math.max(1, Math.floor((width + gap) / (minCardWidth + gap))))
       setColumnCount(next)
     }
 
     updateColumns()
+    const rafId = window.requestAnimationFrame(updateColumns)
     const observer = new ResizeObserver(() => updateColumns())
+    if (element.parentElement) {
+      observer.observe(element.parentElement)
+    }
     observer.observe(element)
 
-    return () => observer.disconnect()
-  }, [])
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
+  }, [cards.length])
 
   const cardColumns = useMemo(() => {
     const buckets = Array.from({ length: Math.max(1, columnCount) }, () => ({
