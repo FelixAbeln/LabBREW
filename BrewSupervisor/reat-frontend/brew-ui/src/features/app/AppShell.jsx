@@ -60,10 +60,16 @@ export function AppShell({
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="app-logo-block">
+        <div
+          className="app-logo-block"
+          role="img"
+          aria-label="LabBREW logo rendered as ASCII art"
+          data-logo-label="LabBREW"
+        >
           <pre className="app-logo-ascii" aria-hidden="true">
             {APP_LOGO_ASCII}
           </pre>
+          <span className="sr-only">LabBREW logo</span>
         </div>
       </header>
 
