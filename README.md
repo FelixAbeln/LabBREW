@@ -179,6 +179,35 @@ python run_FrontEndsupervisor.py
 
 Node topology is configured in [`data/system_topology.yaml`](./data/system_topology.yaml). An example fermentation schedule is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
 
+### Raspberry Pi Backend Install
+
+To install the backend stack on a Raspberry Pi without the React frontend, you can either run the installer from a checked-out repository or let it clone the repository from GitHub and walk you through setup.
+
+From a local checkout:
+
+```bash
+sudo bash deploy/install_raspberry_pi_backend.sh --node-id 01 --node-name "Fermenter Pi"
+```
+
+From GitHub with interactive prompts:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<branch>/deploy/install_raspberry_pi_backend.sh -o install_labbrew.sh
+sudo bash install_labbrew.sh
+```
+
+The installer can prompt for:
+
+- Git repository URL
+- fermenter node id
+- fermenter display name
+- Raspberry Pi hostname / network name
+- advertised host/IP for service discovery
+
+If you choose hostname alignment, the script sets the Pi hostname so the network name matches the fermenter name you provide during setup.
+
+The installer copies the repository to `/opt/labbrew`, creates a Python virtual environment, installs dependencies from `requirements.txt` and the project package, writes `/etc/labbrew/labbrew-supervisor.env`, and enables a `labbrew-supervisor` systemd service. The frontend is intentionally skipped.
+
 ---
 
 ---

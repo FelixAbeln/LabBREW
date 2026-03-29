@@ -502,13 +502,20 @@
   overflow: auto;
 }
 
+.pdb-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .pdb-status-dot {
   display: inline-block;
   width: 8px;
   height: 8px;
+  flex: 0 0 8px;
   border-radius: 50%;
   background: #374151;
-  margin-right: 5px;
 }
 .pdb-status-ok  { background: #10b981; }
 .pdb-status-off { background: #374151; }

@@ -362,5 +362,7 @@ vite.config.ts.timestamp-*
 ./logs
 parameterdb_audit.jsonl
 .parquet
-./data/measurements/
 /data/measurements
+/data/Rules
+/data/sources
+control_variable_map.json
