@@ -34,8 +34,13 @@ class _OwnershipMixin:
         last_result: dict[str, object] = {'ok': True}
 
         for action in step.actions:
-            if action.kind not in {'request_control', 'write', 'ramp'} or not action.target:
+            if action.kind not in {'request_control', 'write', 'ramp'}:
                 continue
+            if not action.target:
+                return {
+                    'ok': False,
+                    'error': f'missing target for control-owning action {getattr(action, "kind", None)}',
+                }
 
             owner = action.owner or self.owner
             if action.kind == 'request_control':
