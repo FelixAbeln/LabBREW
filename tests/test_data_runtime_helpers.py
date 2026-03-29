@@ -223,7 +223,15 @@ def test_build_session_archive_helpers_and_delete_error_paths(tmp_path: Path, mo
     bad.write_text("b", encoding="utf-8")
     (tmp_path / "not_archive.txt").write_text("n", encoding="utf-8")
     (tmp_path / "dir.archive.zip").mkdir()
-    monkeypatch.setattr("Services.data_service.runtime.os.stat", lambda _path: (_ for _ in ()).throw(OSError("stat fail")))
+    import os as _os
+    _real_stat = _os.stat
+
+    def _stat_fail_for_archives(_path, **_kwargs):
+        if str(_path).endswith(".archive.zip"):
+            raise OSError("stat fail")
+        return _real_stat(_path, **_kwargs)
+
+    monkeypatch.setattr("Services.data_service.runtime.os.stat", _stat_fail_for_archives)
     listed = runtime.list_archives(output_dir=str(tmp_path), limit=0)
     assert listed["ok"] is True
 
