@@ -39,5 +39,8 @@ pyyaml
 # mDNS service discovery
 zeroconf
 
+# BLE interface (Tilt direct transport)
+bleak
+
 # parquet export
 pyarrow

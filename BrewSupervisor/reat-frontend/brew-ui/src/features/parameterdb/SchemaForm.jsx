@@ -1,4 +1,4 @@
-import { getByPath } from './schemaUtils.js';
+import { getByPath, isFieldVisible } from './schemaUtils.js';
 import { useMemo, useState } from 'react';
 
 function valueToText(value, field) {
@@ -111,6 +111,7 @@ export function SchemaForm({
       <div className="pdb-section-title">{section.title}</div>
       <div className="pdb-section-fields">
         {(section.fields ?? []).map((field) => {
+          if (!isFieldVisible(field, data)) return null;
           const value = getByPath(data, field.key);
           const shown = field.type === 'json' ? rawJson[field.key] ?? valueToText(value, field) : valueToText(value, field);
           const error = errors[field.key];
