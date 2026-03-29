@@ -331,6 +331,8 @@ class ControlRuntime:
                 "group": control.get("group"),
                 "target": target,
                 "widget": control.get("widget"),
+                "write": deepcopy(control.get("write")) if isinstance(control.get("write"), dict) else control.get("write"),
+                "kind": control.get("kind"),
                 "unit": control.get("unit"),
                 "step": control.get("step"),
                 "min": control.get("min"),

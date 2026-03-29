@@ -190,10 +190,23 @@ class ScheduleRuntime(
             schedule = self.repository.get_current()
             if schedule is None:
                 return {'ok': False, 'message': 'No schedule loaded'}
+            previous_pause_reason = self._status.pause_reason
             try:
                 self.control.release_manual()
             except Exception:
                 pass  # Non-fatal
+
+            if previous_pause_reason == 'ownership_lost':
+                steps = self._phase_steps(schedule)
+                if 0 <= self._step_index < len(steps):
+                    reclaim_result = self._reclaim_step_ownership_locked(steps[self._step_index])
+                    if not reclaim_result.get('ok', False):
+                        return {
+                            'ok': False,
+                            'message': 'Could not reclaim control for active step',
+                            'details': reclaim_result,
+                        }
+
             self._status.state = 'running'
             self._status.pause_reason = None
             if self._step_runtime.pending_exit_loadsteps:

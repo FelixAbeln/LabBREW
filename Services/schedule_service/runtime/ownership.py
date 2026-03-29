@@ -29,6 +29,39 @@ class _OwnershipMixin:
                 return True
         return False
 
+    def _reclaim_step_ownership_locked(self, step: ScheduleStep) -> dict[str, object]:
+        """Re-apply only control-owning actions for the active step after manual takeover is released."""
+        last_result: dict[str, object] = {'ok': True}
+
+        for action in step.actions:
+            if action.kind not in {'request_control', 'write', 'ramp'}:
+                continue
+            if not action.target:
+                return {
+                    'ok': False,
+                    'error': f'missing target for control-owning action {getattr(action, "kind", None)}',
+                }
+
+            owner = action.owner or self.owner
+            if action.kind == 'request_control':
+                last_result = self.control.request_control(action.target, owner)
+            elif action.kind == 'write':
+                last_result = self.control.write(action.target, action.value, owner)
+            else:
+                last_result = self.control.ramp(
+                    target=action.target,
+                    value=action.value,
+                    duration_s=float(action.duration_s or 0.0),
+                    owner=owner,
+                )
+
+            if not last_result.get('ok', False):
+                return last_result
+
+            self._remember_owned_target_locked(action.target, owner)
+
+        return last_result
+
     def _release_owned_targets_locked(self, context: str) -> None:
         for target, owner in list(self._owned_target_owners.items()):
             try:

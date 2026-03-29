@@ -8,12 +8,14 @@
   grid-template-columns: repeat(var(--control-columns, 1), minmax(0, 1fr));
   gap: 12px;
   width: 100%;
+  min-width: 0;
 }
 
 .control-card-column {
   display: grid;
   align-content: start;
   gap: 12px;
+  min-width: 0;
 }
 
 .control-device-card {
