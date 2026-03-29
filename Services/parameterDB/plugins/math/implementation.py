@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import math
 import re
 from typing import Any
@@ -84,13 +85,25 @@ class MathParameter(ParameterBase):
         alias_to_symbol: dict[str, str] = {}
         symbol_to_alias: dict[str, str] = {}
         dotted_symbol_pattern = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+\b")
+        used_identifiers = set(re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*\b", equation))
+
+        def _new_alias(symbol: str) -> str:
+            digest = hashlib.sha1(symbol.encode("utf-8")).hexdigest()[:12]
+            base = f"__lb_dsym_{digest}"
+            alias = base
+            index = 1
+            while alias in used_identifiers or alias in alias_to_symbol:
+                alias = f"{base}_{index}"
+                index += 1
+            used_identifiers.add(alias)
+            return alias
 
         def _replace(match: re.Match[str]) -> str:
             symbol = match.group(0)
             existing = symbol_to_alias.get(symbol)
             if existing is not None:
                 return existing
-            alias = f"__p{len(symbol_to_alias)}"
+            alias = _new_alias(symbol)
             symbol_to_alias[symbol] = alias
             alias_to_symbol[alias] = symbol
             return alias

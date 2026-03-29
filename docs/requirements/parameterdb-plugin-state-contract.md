@@ -1,6 +1,6 @@
 # ParameterDB Plugin Runtime State Contract
 
-This document defines the minimum runtime state fields expected for parameter plugins (`static`, `pid`, `deadband`, and future plugins).
+This document defines the minimum runtime state fields expected for parameter plugins (`static`, `pid`, `deadband`, `math`, and future plugins).
 
 ## Required Runtime State Keys
 
@@ -47,6 +47,7 @@ Plugins should set `state.last_error` for recoverable validation/config issues t
 | `static` | yes (engine) | yes (engine) | yes (engine) | Passive plugin; no custom scan logic |
 | `deadband` | yes (engine) | yes (plugin + engine) | yes (engine) | Sets `last_error` when required config missing |
 | `pid` | yes (engine) | yes (plugin + engine) | yes (engine) | Sets `last_error` when required config missing |
+| `math` | yes (engine) | yes (plugin + engine) | yes (engine) | Sets `last_error` for invalid equation, missing symbols, or non-numeric inputs |
 
 ## Notes
 

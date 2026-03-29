@@ -207,7 +207,7 @@ During import, the scan engine is stopped if it is running, parameters are resto
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | yes | Unique parameter name |
-| `parameter_type` | string | yes | Type plugin name (e.g. `static`, `pid`) |
+| `parameter_type` | string | yes | Type plugin name (e.g. `static`, `pid`, `deadband`, `math`) |
 | `value` | any | no | Initial value |
 | `config` | object | no | Type-specific configuration |
 | `metadata` | object | no | Arbitrary metadata key-value pairs |
@@ -221,6 +221,17 @@ client.create_parameter(
     value=25.0,
     config={},
     metadata={"unit": "°C", "label": "Temperature Setpoint"},
+)
+
+client.create_parameter(
+  "brewcan.density.link",
+  "math",
+  value=0.0,
+  config={
+    "equation": "brewcan.density.0 * 2 / 2",
+    "output_params": ["display.density"],
+  },
+  metadata={"label": "Linked Density"},
 )
 ```
 

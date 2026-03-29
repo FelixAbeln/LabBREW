@@ -111,3 +111,24 @@ def test_math_plugin_supports_dotted_parameter_names() -> None:
     assert float(param.get_value()) == 1.056
     assert param.state["symbols"] == ["brewcan.density.0"]
     assert "last_error" not in param.state
+
+
+def test_math_plugin_dotted_alias_does_not_collide_with_user_identifier() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("__p0", value=100.0))
+    store.add(StaticParameter("brewcan.density.0", value=1.05))
+
+    plugin = MathPlugin()
+    param = plugin.create(
+        "calc",
+        config={
+            "equation": "__p0 + brewcan.density.0",
+        },
+        value=0.0,
+    )
+
+    param.scan(_ctx(store))
+
+    assert float(param.get_value()) == 101.05
+    assert param.dependencies() == ["__p0", "brewcan.density.0"]
+    assert "last_error" not in param.state
