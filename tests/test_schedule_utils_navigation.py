@@ -167,3 +167,26 @@ def test_navigation_move_previous_cross_phase_and_no_previous(tmp_path: Path) ->
     runtime._phase = "setup"
     runtime._step_index = 0
     assert runtime._move_previous_locked(schedule) is False
+
+
+def test_navigation_move_previous_within_same_phase(tmp_path: Path) -> None:
+    runtime = _make_runtime(tmp_path, control=FakeControlClient(values={}), data=FakeDataClient())
+    runtime.load_schedule(
+        {
+            "id": "nav-prev-same-phase",
+            "name": "Nav Prev Same Phase",
+            "plan_steps": [
+                {"id": "p1", "name": "Plan 1", "actions": []},
+                {"id": "p2", "name": "Plan 2", "actions": []},
+            ],
+        }
+    )
+    schedule = runtime.repository.get_current()
+    assert schedule is not None
+
+    runtime._phase = "plan"
+    runtime._step_index = 1
+
+    assert runtime._move_previous_locked(schedule) is True
+    assert runtime._step_index == 0
+    assert runtime.status()["current_step_name"] == "Plan 1"

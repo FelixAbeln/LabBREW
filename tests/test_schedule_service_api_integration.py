@@ -188,13 +188,14 @@ def test_manual_override_pauses_and_resume_reclaims_live_apis(live_apis) -> None
         )
         assert manual_write.get("ok") is True
 
+        def _paused_status():
+            status = schedule_api.get("/schedule/status")
+            if status.get("state") == "paused" and status.get("pause_reason") == "ownership_lost":
+                return status
+            return None
+
         paused_status = wait_until(
-            lambda: schedule_api.get("/schedule/status")
-            if (
-                schedule_api.get("/schedule/status").get("state") == "paused"
-                and schedule_api.get("/schedule/status").get("pause_reason") == "ownership_lost"
-            )
-            else None,
+            _paused_status,
             timeout_s=12.0,
             label="schedule paused from ownership lost",
         )
@@ -202,18 +203,28 @@ def test_manual_override_pauses_and_resume_reclaims_live_apis(live_apis) -> None
 
         assert schedule_api.post("/schedule/resume").get("ok") is True
 
+        def _resumed_status():
+            status = schedule_api.get("/schedule/status")
+            if status.get("state") == "running":
+                return status
+            return None
+
         resumed_status = wait_until(
-            lambda: schedule_api.get("/schedule/status") if schedule_api.get("/schedule/status").get("state") == "running" else None,
+            _resumed_status,
             timeout_s=10.0,
             label="schedule resumed",
         )
         assert resumed_status.get("pause_reason") is None
 
         try:
+            def _reclaimed_read():
+                payload = control_api.get(f"/control/read/{target}")
+                if payload.get("current_owner") == "schedule_service":
+                    return payload
+                return None
+
             read_reclaimed = wait_until(
-                lambda: control_api.get(f"/control/read/{target}")
-                if control_api.get(f"/control/read/{target}").get("current_owner") == "schedule_service"
-                else None,
+                _reclaimed_read,
                 timeout_s=10.0,
                 label="scheduler reclaimed target",
             )

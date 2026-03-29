@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import runpy
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -422,3 +424,171 @@ def test_service_ds_main_wires_runner_admin_and_shutdown(monkeypatch, tmp_path: 
 def test_service_ds_paths_helpers() -> None:
     assert serviceDS._default_config_dir() == "./data/sources"
     assert serviceDS._builtin_source_root().replace("\\", "/").endswith("Services/parameterDB/sourceDefs")
+
+
+def test_source_runner_write_record_dir_fsync_inner_error_path(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    record = serviceDS.SourceRecord(
+        name="alpha-dirfsync",
+        source_type="fake",
+        config={"k": 1},
+        config_path=runner._config_path_for_name("alpha-dirfsync"),
+    )
+
+    fake_dir_fd = 4242
+    closed_fds: list[int] = []
+    original_open = serviceDS.os.open
+    original_fsync = serviceDS.os.fsync
+
+    def selective_open(path, flags, *args, **kwargs):
+        if str(path) == str(record.config_path.parent) and flags == serviceDS.os.O_RDONLY:
+            return fake_dir_fd
+        return original_open(path, flags, *args, **kwargs)
+
+    def selective_fsync(fd):
+        if fd == fake_dir_fd:
+            raise OSError("dir fsync unsupported")
+        return original_fsync(fd)
+
+    monkeypatch.setattr(serviceDS.os, "open", selective_open)
+    monkeypatch.setattr(serviceDS.os, "fsync", selective_fsync)
+    monkeypatch.setattr(serviceDS.os, "close", lambda fd: closed_fds.append(fd))
+
+    runner._write_record(record)
+
+    assert fake_dir_fd in closed_fds
+    payload = json.loads(record.config_path.read_text(encoding="utf-8"))
+    assert payload["name"] == "alpha-dirfsync"
+
+
+def test_source_runner_write_record_cleanup_ignores_unlink_oserror(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    record = serviceDS.SourceRecord(
+        name="alpha-cleanup",
+        source_type="fake",
+        config={"k": 1},
+        config_path=runner._config_path_for_name("alpha-cleanup"),
+    )
+
+    monkeypatch.setattr(serviceDS.os, "replace", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("replace failed")))
+    monkeypatch.setattr(serviceDS.os.path, "exists", lambda _path: True)
+    monkeypatch.setattr(serviceDS.os, "unlink", lambda _path: (_ for _ in ()).throw(OSError("busy")))
+
+    with pytest.raises(RuntimeError, match="replace failed"):
+        runner._write_record(record)
+
+
+def test_source_runner_cleanup_stale_tmp_ignores_unlink_oserror(tmp_path: Path, monkeypatch) -> None:
+    import pathlib
+
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    stale = runner.config_dir / "alpha.json.111.tmp"
+    stale.write_text("tmp", encoding="utf-8")
+
+    original_unlink = pathlib.Path.unlink
+
+    def selective_unlink(self, *args, **kwargs):
+        if self.name.endswith(".tmp"):
+            raise OSError("cannot unlink")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "unlink", selective_unlink)
+
+    runner._cleanup_stale_config_tmp_files()
+    assert stale.exists() is True
+
+
+def test_source_runner_start_instance_locked_rejects_duplicate(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.instances["alpha"] = SimpleNamespace(record=None, source=None, session=None, thread=None)
+    record = serviceDS.SourceRecord(
+        name="alpha",
+        source_type="fake",
+        config={},
+        config_path=runner._config_path_for_name("alpha"),
+    )
+
+    with pytest.raises(ValueError, match="already running"):
+        runner._start_instance_locked(record)
+
+
+def test_source_runner_update_source_unknown_name_raises(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+
+    with pytest.raises(KeyError):
+        runner.update_source("missing-source", config={"x": 1})
+
+
+def test_service_ds_module_main_guard_executes_main(monkeypatch, tmp_path: Path) -> None:
+    from Services._shared import cli as cli_module
+    from Services.parameterDB.parameterdb_core import client as client_module
+    from Services.parameterDB.parameterdb_sources import admin_server as admin_server_module
+    from Services.parameterDB.parameterdb_sources import loader as loader_module
+
+    args = SimpleNamespace(
+        backend_host="127.0.0.1",
+        backend_port=8765,
+        host="127.0.0.1",
+        port=8766,
+    )
+    captured: dict[str, Any] = {"signals": []}
+
+    class FakeRunner:
+        def __init__(self, _base_client, _registry, *, config_dir: str) -> None:
+            captured["config_dir"] = config_dir
+
+        def load_config_dir(self):
+            return []
+
+        def start_all(self):
+            captured["started"] = True
+
+        def stop_all(self):
+            captured["stopped"] = True
+
+    class FakeAdminServer:
+        def __init__(self, host: str, port: int, _runner) -> None:
+            captured["admin"] = (host, port)
+
+        def serve_forever(self):
+            return None
+
+        def shutdown(self):
+            captured["shutdown"] = True
+
+        def server_close(self):
+            captured["closed"] = True
+
+    class FakeThread:
+        def __init__(self, target=None, daemon: bool = False, name: str = "") -> None:
+            self.target = target
+            self.daemon = daemon
+            self.name = name
+
+        def start(self):
+            captured["thread_started"] = True
+
+    monkeypatch.setattr(cli_module, "parse_args", lambda _desc: args)
+    monkeypatch.setattr(client_module, "SignalClient", lambda host, port, timeout: (host, port, timeout))
+    monkeypatch.setattr(loader_module, "DataSourceRegistry", loader.DataSourceRegistry)
+    monkeypatch.setattr(loader_module, "autodiscover_sources", lambda _root, _registry: ["demo"])
+    monkeypatch.setattr(admin_server_module, "SourceAdminTCPServer", FakeAdminServer)
+    monkeypatch.setattr(serviceDS.threading, "Thread", FakeThread)
+    monkeypatch.setattr(serviceDS.signal, "signal", lambda sig, _handler: captured["signals"].append(sig))
+    monkeypatch.setattr(serviceDS.time, "sleep", lambda _seconds: (_ for _ in ()).throw(KeyboardInterrupt()))
+    monkeypatch.chdir(tmp_path)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"'Services\.parameterDB\.serviceDS' found in sys\.modules",
+            category=RuntimeWarning,
+        )
+        with pytest.raises(SystemExit) as exc:
+            runpy.run_module("Services.parameterDB.serviceDS", run_name="__main__")
+
+    assert exc.value.code == 0
+    assert captured["thread_started"] is True
+    assert captured["admin"] == ("127.0.0.1", 8766)
+    assert captured["shutdown"] is True
+    assert captured["closed"] is True

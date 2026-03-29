@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import Services.schedule_service.runtime.core as core_module
+from Services.schedule_service.models import ScheduleAction, ScheduleStep
 from tests.test_schedule_runtime_behavior import FakeControlClient, FakeDataClient, _make_runtime
 
 
@@ -313,3 +314,139 @@ def test_resume_run_release_manual_exception_is_non_fatal(tmp_path) -> None:
 
     assert resumed == {"ok": True}
     assert runtime.status()["state"] == "running"
+
+
+def test_ownership_lost_with_non_dict_ownership_meta(tmp_path) -> None:
+    control = FakeControlClient(values={"x": 1.0})
+    runtime = _make_runtime(tmp_path, control=control, data=FakeDataClient())
+
+    step = ScheduleStep(id="s1", name="S1", actions=[ScheduleAction(kind="write", target="x", owner="schedule_service")])
+    runtime._status.owned_targets = ["x"]
+    runtime._owned_target_owners = {"x": "schedule_service"}
+
+    # ownership() returns non-dict meta for x; this forces current_owner=None path.
+    runtime.control.ownership = lambda: {"x": "not-a-dict"}  # type: ignore[assignment]
+
+    assert runtime._ownership_lost(step) is True
+
+
+def test_reclaim_step_ownership_request_control_and_fail_fast(tmp_path) -> None:
+    control = FakeControlClient(values={"a": 1.0, "b": 2.0, "c": 3.0})
+    runtime = _make_runtime(tmp_path, control=control, data=FakeDataClient())
+
+    step = ScheduleStep(
+        id="s1",
+        name="Reclaim",
+        actions=[
+            ScheduleAction(kind="request_control", target="a", owner="schedule_service"),
+            ScheduleAction(kind="write", target="b", value=4.0, owner="schedule_service"),
+            ScheduleAction(kind="ramp", target="c", value=6.0, duration_s=2.0, owner="schedule_service"),
+        ],
+    )
+
+    # Force write failure so reclaim exits early before ramp action.
+    def fail_write(target, value, owner):
+        return {"ok": False, "target": target, "owner": owner, "reason": "simulated write failure"}
+
+    control.write = fail_write  # type: ignore[assignment]
+
+    result = runtime._reclaim_step_ownership_locked(step)
+
+    assert result["ok"] is False
+    # request_control branch should have succeeded and been remembered before failure.
+    assert runtime._owned_target_owners.get("a") == "schedule_service"
+    # write failed, so b/c are not remembered.
+    assert "b" not in runtime._owned_target_owners
+    assert "c" not in runtime._owned_target_owners
+
+
+def test_reclaim_step_ownership_ramp_success_path(tmp_path) -> None:
+    control = FakeControlClient(values={"c": 3.0})
+    runtime = _make_runtime(tmp_path, control=control, data=FakeDataClient())
+
+    step = ScheduleStep(
+        id="s1",
+        name="Ramp Reclaim",
+        actions=[ScheduleAction(kind="ramp", target="c", value=9.0, duration_s=3.0, owner="schedule_service")],
+    )
+
+    result = runtime._reclaim_step_ownership_locked(step)
+
+    assert result["ok"] is True
+    assert runtime._owned_target_owners.get("c") == "schedule_service"
+
+
+def test_move_previous_crosses_from_plan_to_setup(tmp_path) -> None:
+    runtime = _make_runtime(tmp_path, control=FakeControlClient(values={}), data=FakeDataClient())
+    runtime.load_schedule(
+        {
+            "id": "cross-prev",
+            "name": "Cross Prev",
+            "setup_steps": [
+                {"id": "s1", "name": "S1", "enabled": True, "actions": []},
+                {"id": "s2", "name": "S2", "enabled": False, "actions": []},
+            ],
+            "plan_steps": [{"id": "p1", "name": "P1", "enabled": True, "actions": []}],
+        }
+    )
+
+    schedule = runtime.repository.get_current()
+    assert schedule is not None
+    runtime._phase = "plan"
+    runtime._step_index = 0
+
+    moved = runtime._move_previous_locked(schedule)
+
+    assert moved is True
+    assert runtime._phase == "setup"
+    assert runtime._step_index == 0
+
+
+def test_move_previous_cross_phase_with_last_enabled_setup_step(tmp_path) -> None:
+    runtime = _make_runtime(tmp_path, control=FakeControlClient(values={}), data=FakeDataClient())
+    runtime.load_schedule(
+        {
+            "id": "cross-prev-last",
+            "name": "Cross Prev Last",
+            "setup_steps": [
+                {"id": "s1", "name": "Setup 1", "enabled": False, "actions": []},
+                {"id": "s2", "name": "Setup 2", "enabled": True, "actions": []},
+            ],
+            "plan_steps": [{"id": "p1", "name": "Plan 1", "enabled": True, "actions": []}],
+        }
+    )
+
+    schedule = runtime.repository.get_current()
+    assert schedule is not None
+    runtime._phase = "plan"
+    runtime._step_index = 0
+
+    assert runtime._move_previous_locked(schedule) is True
+    assert runtime._phase == "setup"
+    assert runtime._step_index == 1
+    assert runtime.status()["current_step_name"] == "Setup 2"
+
+
+def test_move_previous_cross_phase_branch_with_stubbed_helpers(tmp_path) -> None:
+    runtime = _make_runtime(tmp_path, control=FakeControlClient(values={}), data=FakeDataClient())
+    runtime._phase = "plan"
+    runtime._step_index = 0
+
+    class Step:
+        def __init__(self, enabled: bool):
+            self.enabled = enabled
+
+    schedule = SimpleNamespace(
+        setup_steps=[Step(False), Step(True)],
+        plan_steps=[Step(True)],
+    )
+    activated: list[str] = []
+    runtime._phase_steps = lambda _schedule: schedule.plan_steps
+    runtime._enabled_steps = lambda steps: [step for step in steps if step.enabled]
+    runtime._activate_step_locked = lambda: activated.append("yes")
+    runtime._append_event = lambda _text: None
+
+    assert runtime._move_previous_locked(schedule) is True
+    assert runtime._phase == "setup"
+    assert runtime._step_index == 1
+    assert activated == ["yes"]

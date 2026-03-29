@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import pathlib
 from pathlib import Path
 
 import pytest
@@ -203,3 +204,119 @@ def test_audit_logger_enabled_writes_jsonl_and_disabled_is_noop(tmp_path: Path) 
     assert payload["name"] == "x"
     assert payload["value"] == 1
     assert not disabled_path.exists()
+
+
+def test_snapshot_manager_start_idempotent_and_run_loop_tolerates_save_errors(monkeypatch, tmp_path: Path) -> None:
+    store = ParameterStore()
+    manager = SnapshotManager(store, tmp_path / "snap.json", interval_s=0.5, enabled=True)
+
+    class FakeThread:
+        def __init__(self, target=None, name: str = "", daemon: bool = False) -> None:
+            self.target = target
+            self.name = name
+            self.daemon = daemon
+            self.started = False
+            self.joined = False
+
+        def start(self) -> None:
+            self.started = True
+
+        def join(self, timeout: float | None = None) -> None:
+            self.joined = True
+
+    monkeypatch.setattr("Services.parameterDB.parameterdb_service.persistence.snapshots.threading.Thread", FakeThread)
+
+    manager.start()
+    first_thread = manager._thread
+    assert isinstance(first_thread, FakeThread)
+    assert first_thread.started is True
+
+    manager.start()
+    assert manager._thread is first_thread
+
+    waits = iter([False, True])
+    monkeypatch.setattr(manager._stop_event, "wait", lambda _interval: next(waits))
+    monkeypatch.setattr(manager, "save_now", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("save failed")))
+    manager._run_loop()
+
+    manager.stop(save_final=False)
+    assert first_thread.joined is True
+
+
+def test_write_snapshot_file_handles_dir_fsync_and_cleanup_errors(monkeypatch, tmp_path: Path) -> None:
+    snapshot_path = tmp_path / "snapshot.json"
+    payload = {"format_version": SNAPSHOT_FORMAT_VERSION, "parameters": {}}
+
+    fake_dir_fd = 777
+    closed_fds: list[int] = []
+    original_open = pathlib.Path
+    original_os_open = __import__("Services.parameterDB.parameterdb_service.persistence.snapshots", fromlist=["os"]).os.open
+    original_os_fsync = __import__("Services.parameterDB.parameterdb_service.persistence.snapshots", fromlist=["os"]).os.fsync
+
+    import Services.parameterDB.parameterdb_service.persistence.snapshots as snapshots_module
+
+    def selective_open(path, flags, *args, **kwargs):
+        if str(path) == str(snapshot_path.parent) and flags == snapshots_module.os.O_RDONLY:
+            return fake_dir_fd
+        return original_os_open(path, flags, *args, **kwargs)
+
+    def selective_fsync(fd):
+        if fd == fake_dir_fd:
+            raise OSError("dir fsync unsupported")
+        return original_os_fsync(fd)
+
+    monkeypatch.setattr(snapshots_module.os, "open", selective_open)
+    monkeypatch.setattr(snapshots_module.os, "fsync", selective_fsync)
+    monkeypatch.setattr(snapshots_module.os, "close", lambda fd: closed_fds.append(fd))
+
+    write_snapshot_file(snapshot_path, payload)
+
+    assert snapshot_path.exists()
+    assert fake_dir_fd in closed_fds
+
+    monkeypatch.setattr(snapshots_module.os, "replace", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("replace failed")))
+    monkeypatch.setattr(snapshots_module.os.path, "exists", lambda _path: True)
+    monkeypatch.setattr(snapshots_module.os, "unlink", lambda _path: (_ for _ in ()).throw(OSError("busy")))
+
+    with pytest.raises(RuntimeError, match="replace failed"):
+        write_snapshot_file(tmp_path / "broken.json", payload)
+
+
+def test_load_snapshot_into_store_input_validation_and_cleanup_errors(monkeypatch, tmp_path: Path) -> None:
+    snapshot_file = tmp_path / "snapshot.json"
+    snapshot_file.write_text(json.dumps({"format_version": SNAPSHOT_FORMAT_VERSION, "parameters": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be an object"):
+        load_snapshot_into_store(ParameterStore(), FakeRegistry(), snapshot_file)
+
+    snapshot_file.write_text(
+        json.dumps(
+            {
+                "format_version": SNAPSHOT_FORMAT_VERSION,
+                "parameters": {
+                    "bad-record": "not-a-dict",
+                    "missing-type": {"parameter_type": ""},
+                    "ok": {"parameter_type": "fake", "value": 1},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    store = ParameterStore()
+    restored = load_snapshot_into_store(store, FakeRegistry(), snapshot_file)
+    assert restored == 1
+    assert store.get_value("ok") == 1
+
+    stale = tmp_path / "cleanup.json.abc.tmp"
+    stale.write_text("x", encoding="utf-8")
+    original_unlink = pathlib.Path.unlink
+
+    def selective_unlink(self, *args, **kwargs):
+        if self.name.endswith(".tmp"):
+            raise OSError("cannot unlink")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "unlink", selective_unlink)
+    cleanup_stale_snapshot_tmp_files(tmp_path / "cleanup.json")
+    assert stale.exists() is True

@@ -73,7 +73,6 @@ def test_wait_engine_condition_honors_hold_time_between_evaluations() -> None:
 
 def test_wait_engine_all_of_and_any_of_aggregate_children() -> None:
     engine = _engine()
-    state = EvaluationState()
 
     all_result = engine.evaluate(
         parse_wait_spec(
@@ -86,7 +85,7 @@ def test_wait_engine_all_of_and_any_of_aggregate_children() -> None:
             }
         ),
         context=WaitContext(now_monotonic=5.0, step_started_monotonic=3.0, values={"temp": 7}),
-        previous_state=parse_wait_spec({"kind": "none"}) and None,
+        previous_state=None,
     )
 
     any_result = engine.evaluate(

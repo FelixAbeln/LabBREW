@@ -326,6 +326,33 @@ def test_get_control_contract_snapshot_resolves_value_owner_and_safety_lock(monk
     assert "manual_owner" not in snap["contract"]["controls"][0]
 
 
+def test_get_datasource_contract_snapshot_guards_non_dict_inputs_and_non_dict_ui_spec() -> None:
+    runtime = _make_runtime()
+    runtime.get_control_contract_snapshot = lambda: {"source": "map.json", "resolved_controls": []}
+    runtime.backend.describe = lambda: {
+        "skip-record": "not-a-dict",
+        "bad-meta": {"parameter_type": "fake", "value": 1, "metadata": "bad"},
+        "manual": {"parameter_type": "fake", "value": 2, "metadata": {"created_by": "manual"}},
+        "source.value": {
+            "parameter_type": "fake",
+            "value": 3,
+            "metadata": {"created_by": "data_source", "owner": "src", "source_type": "demo", "role": "state"},
+        },
+    }
+    runtime.datasource_admin.list_sources = lambda: {
+        "bad-source": "not-a-dict",
+        "src": {"source_type": "demo", "running": True, "config": {}},
+    }
+    runtime.datasource_admin.get_source_type_ui = lambda *_a, **_k: "not-a-dict"
+
+    snapshot = runtime.get_datasource_contract_snapshot()
+
+    assert len(snapshot["datasources"]) == 1
+    assert snapshot["datasources"][0]["name"] == "src"
+    assert snapshot["datasources"][0]["source_control_spec"] == {}
+    assert snapshot["datasources"][0]["controls"] == []
+
+
 def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_cards() -> None:
     runtime = _make_runtime()
     runtime.get_control_contract_snapshot = lambda: {
@@ -554,3 +581,339 @@ def test_runtime_iter_actions_release_guard_and_run_error_branch(monkeypatch) ->
         runtime.run(interval=0.01)
 
     assert calls == {"tick": 1, "sleep": 1}
+
+
+def test_load_control_contract_error_paths(monkeypatch, tmp_path: Path) -> None:
+    runtime = _make_runtime()
+
+    missing_path = tmp_path / "missing.json"
+    monkeypatch.setattr(control_runtime_module, "CONTROL_VARIABLE_MAP_FILE", missing_path)
+    assert runtime._load_control_contract()["controls"] == []
+
+    invalid_json = tmp_path / "invalid.json"
+    invalid_json.write_text("{bad", encoding="utf-8")
+    monkeypatch.setattr(control_runtime_module, "CONTROL_VARIABLE_MAP_FILE", invalid_json)
+    assert "error" in runtime._load_control_contract()
+
+    wrong_root = tmp_path / "wrong_root.json"
+    wrong_root.write_text("[1,2,3]", encoding="utf-8")
+    monkeypatch.setattr(control_runtime_module, "CONTROL_VARIABLE_MAP_FILE", wrong_root)
+    assert "error" in runtime._load_control_contract()
+
+    wrong_types = tmp_path / "wrong_types.json"
+    wrong_types.write_text('{"controls": "bad", "groups": 1}', encoding="utf-8")
+    monkeypatch.setattr(control_runtime_module, "CONTROL_VARIABLE_MAP_FILE", wrong_types)
+    payload = runtime._load_control_contract()
+    assert payload["controls"] == []
+    assert payload["groups"] == []
+
+    mixed_controls = tmp_path / "mixed_controls.json"
+    mixed_controls.write_text('{"controls": [{"id": "ok", "target": "x"}, "bad"], "groups": []}', encoding="utf-8")
+    monkeypatch.setattr(control_runtime_module, "CONTROL_VARIABLE_MAP_FILE", mixed_controls)
+    payload = runtime._load_control_contract()
+    assert payload["controls"] == [{"id": "ok", "target": "x"}]
+
+
+def test_control_contract_and_datasource_contract_guards(monkeypatch) -> None:
+    runtime = _make_runtime({"x": 1.0})
+
+    monkeypatch.setattr(
+        runtime,
+        "_load_control_contract",
+        lambda: {"controls": [{"id": "ok", "target": "x"}, "bad", 123], "groups": []},
+    )
+    snap = runtime.get_control_contract_snapshot()
+    assert len(snap["resolved_controls"]) == 1
+
+    runtime.get_control_contract_snapshot = lambda: {
+        "source": "map.json",
+        "resolved_controls": ["bad", {"id": "empty", "target": "   "}],
+    }
+    runtime.backend.describe = lambda: {}
+    runtime.datasource_admin._sources = {}
+    ds = runtime.get_datasource_contract_snapshot()
+    assert ds["datasources"] == []
+
+
+def test_manual_set_and_release_filter_and_stop_ramp_paths() -> None:
+    runtime = _make_runtime({"safe": 1.0, "taken": 2.0, "a": 3.0, "b": 4.0})
+    runtime._drop_target_from_rule_tracking = lambda _target: None
+
+    runtime.ownership.force_takeover("safe", "safety")
+    blocked = runtime.manual_set_parameter("safe", 9.0)
+    assert blocked["ok"] is False
+    assert blocked["blocked"] is True
+
+    runtime.ownership.request("taken", "schedule_service")
+    taken = runtime.manual_set_parameter("taken", 8.0)
+    assert taken["ok"] is True
+    assert taken["takeover"] is True
+    assert taken["previous_owner"] == "schedule_service"
+
+    runtime.ownership.request("a", "operator", owner_source="manual")
+    runtime.ownership.request("b", "operator", owner_source="manual")
+    released = runtime.release_manual_controls(targets=["a"])
+    assert released["released"] == ["a"]
+    assert runtime.ownership.get_owner("b") == "operator"
+
+    runtime.ownership.request("r", "tester")
+    runtime.start_ramp({"target": "r", "value": 10.0, "duration": 2.0, "owner": "tester"})
+    assert runtime.stop_ramp("r") is True
+    assert runtime.stop_ramp("r") is False
+
+
+def test_datasource_contract_orphan_and_manual_widget_inference_paths() -> None:
+    runtime = _make_runtime()
+    runtime.datasource_admin._sources = {
+        "dev": {"source_type": "dev_type", "running": True, "config": {}},
+    }
+    runtime.datasource_admin.get_source_type_ui = lambda *_a, **_k: {}
+
+    runtime.get_control_contract_snapshot = lambda: {
+        "source": "map.json",
+        "resolved_controls": [
+            {"id": "map-state", "label": "Map State", "group": None, "target": "dev.state", "widget": "text", "unit": None,
+             "step": None, "min": None, "max": None, "current_value": "ok", "current_owner": None, "safety_locked": False, "target_exists": True},
+            {"id": "m-dial", "label": "Dial", "group": None, "target": "manual.dial", "widget": "dial", "unit": None,
+             "step": None, "min": 0, "max": 10, "current_value": None, "current_owner": None, "safety_locked": False, "target_exists": False},
+            {"id": "m-toggle", "label": "Toggle", "group": None, "target": "manual.toggle", "widget": "toggle", "unit": None,
+             "step": None, "min": None, "max": None, "current_value": None, "current_owner": None, "safety_locked": False, "target_exists": False},
+            {"id": "m-button", "label": "Button", "group": None, "target": "manual.button", "widget": "button", "unit": None,
+             "step": None, "min": None, "max": None, "current_value": None, "current_owner": None, "safety_locked": False, "target_exists": False},
+            {"id": "m-write", "label": "Write", "group": None, "target": "manual.write", "widget": "number", "unit": None,
+             "step": None, "min": None, "max": None, "write": {"kind": "number", "min": 0}, "current_value": None,
+             "current_owner": None, "safety_locked": False, "target_exists": False},
+            {"id": "m-text", "label": "Text", "group": None, "target": "manual.text", "widget": "textarea", "unit": None,
+             "step": None, "min": None, "max": None, "current_value": None, "current_owner": None, "safety_locked": False, "target_exists": False},
+        ],
+    }
+
+    runtime.backend.describe = lambda: {
+        "dev.state": {
+            "parameter_type": "str",
+            "value": "ok",
+            "metadata": {"created_by": "data_source", "owner": "dev", "source_type": "dev_type", "role": "state"},
+        },
+        "ghost.temp": {
+            "parameter_type": "float",
+            "value": 22.0,
+            "metadata": {"created_by": "data_source", "owner": "ghost", "source_type": "ghost_type", "role": "state"},
+        },
+    }
+
+    snapshot = runtime.get_datasource_contract_snapshot()
+    assert snapshot["datasources"][0]["controls"][0]["target"] == "dev.state"
+    assert snapshot["orphan_sources"][0]["name"] == "ghost"
+
+    manual = {item["target"]: item for item in snapshot["manual_controls"]}
+    assert manual["manual.dial"]["write"]["kind"] == "number"
+    assert manual["manual.toggle"]["write"]["kind"] == "bool"
+    assert manual["manual.button"]["write"]["kind"] == "pulse"
+    assert manual["manual.write"]["write"] == {"kind": "number", "min": 0}
+    assert manual["manual.text"]["write"]["kind"] == "string"
+
+
+def test_tick_rule_edge_paths_disabled_eval_error_takeover_ramp_generic_and_action_error() -> None:
+    runtime = _make_runtime({"x": 0.0, "y": 0.0, "z": 0.0})
+    runtime.reload_rules = lambda: None
+    runtime._drop_target_from_rule_tracking = lambda _t: None
+
+    class Engine:
+        def evaluate(self, rule, _values):
+            if rule.get("id") == "eval-error":
+                raise RuntimeError("eval failure")
+            return SimpleNamespace(matched=True)
+
+    runtime.rule_engine = Engine()
+
+    runtime.rules = [{"id": "disabled", "enabled": False, "actions": []}]
+    runtime.tick()
+
+    runtime.rules = [{"id": "eval-error", "enabled": True, "condition": {}, "actions": []}]
+    runtime.tick()
+
+    runtime._rule_states.clear()
+    runtime.rules = [{"id": "takeover", "enabled": True, "condition": {}, "actions": [{"type": "takeover", "target": "x"}]}]
+    runtime.tick()
+    assert runtime.ownership.get_owner("x") == "safety"
+
+    runtime._rule_states.clear()
+    runtime.ownership.request("y", "safety")
+    runtime.rules = [{"id": "ramp", "enabled": True, "condition": {}, "actions": [{"type": "ramp", "target": "y", "value": 5.0, "duration": 1.0}]}]
+    runtime.tick()
+    assert "y" in runtime._ramps
+
+    runtime._rule_states.clear()
+    runtime.rules = [{"id": "set", "enabled": True, "condition": {}, "actions": [{"type": "set", "target": "z", "value": 3.0}]}]
+    runtime.tick()
+    assert runtime.backend.values["z"] == 3.0
+
+    class BadAction(dict):
+        def get(self, key, default=None):
+            if key == "type":
+                raise RuntimeError("bad action")
+            return super().get(key, default)
+
+    runtime._rule_states.clear()
+    runtime.rules = [{"id": "bad-action", "enabled": True, "condition": {}, "actions": [BadAction()]}]
+    runtime.tick()
+
+
+def test_datasource_contract_snapshot_discovers_command_and_control_parameters() -> None:
+    runtime = _make_runtime()
+    runtime.get_control_contract_snapshot = lambda: {
+        "source": "map.json",
+        "resolved_controls": [
+            {
+                "id": "mapped-count",
+                "label": "Mapped Count",
+                "group": "grp",
+                "target": "src.count",
+                "widget": "slider",
+                "unit": "rpm",
+                "step": 1,
+                "min": 0,
+                "max": 100,
+                "current_value": 7,
+                "current_owner": None,
+                "safety_locked": False,
+                "target_exists": True,
+            },
+        ],
+    }
+    runtime.datasource_admin._sources = {
+        "src": {"source_type": "demo", "running": True, "config": {}},
+    }
+    runtime.datasource_admin.get_source_type_ui = lambda *_args, **_kwargs: {}
+    runtime.backend.describe = lambda: {
+        "src.flag": {
+            "parameter_type": "bool",
+            "value": True,
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "src",
+                "source_type": "demo",
+                "role": "command",
+                "unit": None,
+            },
+        },
+        "src.count": {
+            "parameter_type": "number",
+            "value": 7,
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "src",
+                "source_type": "demo",
+                "role": "control",
+                "unit": "rpm",
+            },
+        },
+        "src.label": {
+            "parameter_type": "text",
+            "value": "hello",
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "src",
+                "source_type": "demo",
+                "role": "command",
+                "unit": None,
+            },
+        },
+    }
+
+    snapshot = runtime.get_datasource_contract_snapshot()
+    controls = {item["target"]: item for item in snapshot["datasources"][0]["controls"]}
+
+    assert controls["src.flag"]["widget"] == "toggle"
+    assert controls["src.flag"]["write"] == {"kind": "bool"}
+    assert controls["src.count"]["widget"] == "slider"
+    assert controls["src.count"]["write"] == {"kind": "number"}
+    assert controls["src.label"]["widget"] == "text"
+    assert controls["src.label"]["write"] == {"kind": "string"}
+
+
+def test_tick_uses_ramp_generic_and_error_action_paths(monkeypatch) -> None:
+    runtime = _make_runtime({"x": 1.0, "y": 2.0})
+    runtime.reload_rules = lambda: None
+    runtime._drop_target_from_rule_tracking = lambda _target: None
+
+    class AlwaysMatchEngine:
+        def evaluate(self, _rule, _values):
+            return SimpleNamespace(matched=True)
+
+    runtime.rule_engine = AlwaysMatchEngine()
+
+    calls: dict[str, object] = {}
+
+    def fake_start_ramp(action, values):
+        calls["ramp_action"] = dict(action)
+        calls["ramp_values"] = dict(values)
+        return {"ok": True, "kind": "ramp"}
+
+    def fake_execute_action(_backend, action):
+        action_type = action.get("type")
+        if action_type == "explode":
+            raise RuntimeError("action failed")
+        calls.setdefault("executed", []).append(dict(action))
+        return {"ok": True, "kind": action_type}
+
+    runtime.start_ramp = fake_start_ramp
+    monkeypatch.setattr(control_runtime_module, "execute_action", fake_execute_action)
+
+    runtime.rules = [
+        {
+            "id": "combo",
+            "enabled": True,
+            "condition": {"source": "x"},
+            "actions": [
+                {"type": "ramp", "target": "x", "value": 4.0, "duration": 1.5},
+                {"type": "set", "target": "y", "value": 9.0},
+                {"type": "explode", "target": "y"},
+            ],
+        }
+    ]
+
+    runtime.tick()
+
+    assert calls["ramp_action"] == {"type": "ramp", "target": "x", "value": 4.0, "duration": 1.5, "owner": "safety"}
+    assert calls["ramp_values"] == {"x": 1.0}
+    assert calls["executed"] == [{"type": "set", "target": "y", "value": 9.0}]
+
+
+def test_tick_matched_active_rule_hits_noop_branch() -> None:
+    runtime = _make_runtime({"sensor": 1.0})
+    runtime.reload_rules = lambda: None
+    runtime.rules = [{"id": "rule-active", "enabled": True, "condition": {"source": "sensor"}, "actions": [{"type": "set", "target": "x", "value": 3.0}]}]
+    runtime._rule_states = {"rule-active": ActiveRuleState(active=True, owned_targets=set())}
+
+    class AlwaysMatchedEngine:
+        def evaluate(self, _rule, _values):
+            return SimpleNamespace(matched=True)
+
+    runtime.rule_engine = AlwaysMatchedEngine()
+
+    runtime.tick()
+
+    assert runtime._rule_states["rule-active"].active is True
+    assert "x" not in runtime.backend.values
+
+
+def test_get_live_snapshot_without_targets_uses_full_snapshot() -> None:
+    runtime = _make_runtime({"a": 1.0, "b": 2.0})
+    runtime._ramps = {
+        "a": {
+            "start": 0.0,
+            "end": 5.0,
+            "duration": 2.0,
+            "start_time": 1.0,
+            "owner": "safety",
+        }
+    }
+    runtime.ownership.force_takeover("a", "safety", rule_id="rule-1")
+    runtime._rule_states = {"rule-1": ActiveRuleState(active=True, owned_targets={"a"})}
+
+    snapshot = runtime.get_live_snapshot()
+
+    assert snapshot["values"] == {"a": 1.0, "b": 2.0}
+    assert "rule-1" in snapshot["active_rules"]
+    assert "rule-1" in snapshot["held_rules"]
