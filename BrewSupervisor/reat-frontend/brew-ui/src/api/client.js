@@ -9,6 +9,56 @@ export class ApiResponseError extends Error {
   }
 }
 
+function formatApiErrorDetail(detail) {
+  if (detail == null) {
+    return ''
+  }
+
+  if (typeof detail === 'string') {
+    return detail
+  }
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => formatApiErrorDetail(item))
+      .filter(Boolean)
+      .join('; ')
+  }
+
+  if (typeof detail === 'object') {
+    const location = Array.isArray(detail.loc) ? detail.loc.join('.') : ''
+    const message = typeof detail.msg === 'string'
+      ? detail.msg
+      : typeof detail.detail === 'string'
+        ? detail.detail
+        : typeof detail.error === 'string'
+          ? detail.error
+          : ''
+
+    if (location && message) {
+      return `${location}: ${message}`
+    }
+    if (message) {
+      return message
+    }
+
+    const nested = Object.entries(detail)
+      .map(([key, value]) => {
+        const formatted = formatApiErrorDetail(value)
+        if (!formatted) {
+          return ''
+        }
+        return typeof value === 'object' && value !== null ? formatted : `${key}: ${formatted}`
+      })
+      .filter(Boolean)
+      .join('; ')
+
+    return nested || JSON.stringify(detail)
+  }
+
+  return String(detail)
+}
+
 export async function api(path, options = {}) {
   const headers = {
     ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -26,14 +76,12 @@ export async function api(path, options = {}) {
     : await response.text()
 
   if (!response.ok) {
+    const message = formatApiErrorDetail(payload?.detail ?? payload?.error ?? payload) || `HTTP ${response.status}`
+
     if (typeof payload === 'string') {
-      throw new ApiResponseError(payload || `HTTP ${response.status}`, response.status, payload)
+      throw new ApiResponseError(message, response.status, payload)
     }
-    throw new ApiResponseError(
-      payload?.detail || payload?.error || JSON.stringify(payload) || `HTTP ${response.status}`,
-      response.status,
-      payload,
-    )
+    throw new ApiResponseError(message, response.status, payload)
   }
 
   return payload

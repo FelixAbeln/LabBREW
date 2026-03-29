@@ -12,9 +12,18 @@ from .schedule_import.parser import collect_workbook_parameter_references, parse
 from .schedule_import.validator import validate_schedule_payload
 
 
-def _read_json_response(proxy: Any, *, method: str, url: str, params: dict[str, Any] | None = None, json_body: Any = None) -> tuple[int, Any]:
+def _read_json_response(
+    proxy: Any,
+    *,
+    method: str,
+    url: str,
+    params: dict[str, Any] | None = None,
+    json_body: Any = None,
+    data_body: bytes | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, Any]:
     try:
-        return proxy.request(method=method, url=url, params=params, json_body=json_body)
+        return proxy.request(method=method, url=url, params=params, json_body=json_body, data_body=data_body, headers=headers)
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f'Upstream request failed: {exc}') from exc
 
@@ -26,17 +35,28 @@ def _read_raw_response(
     url: str,
     params: dict[str, Any] | None = None,
     json_body: Any = None,
+    data_body: bytes | None = None,
+    headers: dict[str, str] | None = None,
     stream: bool = False,
 ):
     try:
-        return proxy.request_raw(method=method, url=url, params=params, json_body=json_body, stream=stream)
+        return proxy.request_raw(method=method, url=url, params=params, json_body=json_body, data_body=data_body, headers=headers, stream=stream)
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f'Upstream request failed: {exc}') from exc
 
 
-def _read_best_effort(proxy: Any, *, method: str, url: str, params: dict[str, Any] | None = None, json_body: Any = None) -> tuple[int | None, Any]:
+def _read_best_effort(
+    proxy: Any,
+    *,
+    method: str,
+    url: str,
+    params: dict[str, Any] | None = None,
+    json_body: Any = None,
+    data_body: bytes | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int | None, Any]:
     try:
-        return proxy.request(method=method, url=url, params=params, json_body=json_body)
+        return proxy.request(method=method, url=url, params=params, json_body=json_body, data_body=data_body, headers=headers)
     except requests.RequestException as exc:
         return None, {'ok': False, 'detail': str(exc)}
 
@@ -161,18 +181,22 @@ def build_router() -> APIRouter:
         node = registry.get_node(fermenter_id)
         if node is None:
             raise HTTPException(status_code=404, detail='Fermenter not found')
-        body = None
+        raw_body = b''
+        headers = None
         if request.method in {'POST', 'PUT', 'PATCH'}:
-            try:
-                body = await request.json()
-            except Exception:
-                body = None
+            raw_body = await request.body()
+            headers = {
+                key: value
+                for key, value in request.headers.items()
+                if key.lower() in {'content-type', 'accept'}
+            }
         status_code, payload = _read_json_response(
             proxy,
             method=request.method,
             url=_build_service_proxy_url(node, service_name, service_path),
             params=dict(request.query_params),
-            json_body=body,
+            data_body=raw_body if raw_body else None,
+            headers=headers,
         )
         return JSONResponse(status_code=status_code, content=payload)
 
@@ -182,18 +206,22 @@ def build_router() -> APIRouter:
         node = registry.get_node(fermenter_id)
         if node is None:
             raise HTTPException(status_code=404, detail='Fermenter not found')
-        body = None
+        raw_body = b''
+        headers = None
         if request.method in {'POST', 'PUT', 'PATCH'}:
-            try:
-                body = await request.json()
-            except Exception:
-                body = None
+            raw_body = await request.body()
+            headers = {
+                key: value
+                for key, value in request.headers.items()
+                if key.lower() in {'content-type', 'accept'}
+            }
         status_code, payload = _read_json_response(
             proxy,
             method=request.method,
             url=_build_agent_proxy_url(node, f'/parameterdb/{agent_path.lstrip("/")}'),
             params=dict(request.query_params),
-            json_body=body,
+            data_body=raw_body if raw_body else None,
+            headers=headers,
         )
         return JSONResponse(status_code=status_code, content=payload)
 

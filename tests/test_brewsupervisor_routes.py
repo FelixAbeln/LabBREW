@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -27,8 +28,8 @@ class StubProxy:
     def __init__(self):
         self.calls = []
 
-    def request(self, *, method, url, params=None, json_body=None):
-        self.calls.append((method, url, params, json_body))
+    def request(self, *, method, url, params=None, json_body=None, data_body=None, headers=None):
+        self.calls.append((method, url, params, json_body, data_body, headers))
 
         if url.endswith("/proxy/schedule_service/schedule/status"):
             return 200, {"owned_targets": ["reactor.temp.setpoint"]}
@@ -38,12 +39,15 @@ class StubProxy:
             return 200, {"ok": True, "value": 32.0, "current_owner": "schedule"}
 
         if "/proxy/control_service/control/" in url and method == "POST":
-            return 200, {"ok": True, "echo": json_body}
+            return 200, {"ok": True, "echo": json_body if json_body is not None else json.loads((data_body or b'{}').decode('utf-8'))}
 
-        return 200, {"ok": True, "url": url, "method": method, "params": params, "json": json_body}
+        body = json_body
+        if body is None and data_body:
+            body = json.loads(data_body.decode('utf-8'))
+        return 200, {"ok": True, "url": url, "method": method, "params": params, "json": body}
 
-    def request_raw(self, *, method, url, params=None, json_body=None, stream=False):
-        self.calls.append((f"raw:{method}", url, params, json_body, stream))
+    def request_raw(self, *, method, url, params=None, json_body=None, data_body=None, headers=None, stream=False):
+        self.calls.append((f"raw:{method}", url, params, json_body, data_body, headers, stream))
 
         class _RawResponse:
             status_code = 200
@@ -124,11 +128,35 @@ def test_proxy_control_forwards_payload_and_query() -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
 
-    method, url, params, json_body = proxy.calls[-1]
+    method, url, params, json_body, data_body, headers = proxy.calls[-1]
     assert method == "POST"
     assert url.endswith("/proxy/control_service/control/write")
     assert params == {"source": "ui"}
-    assert json_body["target"] == "reactor.temp.setpoint"
+    assert json_body is None
+    assert json.loads(data_body.decode("utf-8"))["target"] == "reactor.temp.setpoint"
+    assert headers["content-type"].startswith("application/json")
+
+
+def test_proxy_parameterdb_forwards_payload_and_query() -> None:
+    proxy = StubProxy()
+    client = _client(nodes=[_make_node()], proxy=proxy)
+
+    response = client.post(
+        "/fermenters/01/parameterdb/params",
+        params={"source": "ui"},
+        json={"name": "test.param", "parameter_type": "static", "value": 12.3, "config": {}, "metadata": {}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    method, url, params, json_body, data_body, headers = proxy.calls[-1]
+    assert method == "POST"
+    assert url.endswith("/parameterdb/params")
+    assert params == {"source": "ui"}
+    assert json_body is None
+    assert json.loads(data_body.decode("utf-8"))["name"] == "test.param"
+    assert headers["content-type"].startswith("application/json")
 
 
 def test_dashboard_aggregates_best_effort_data() -> None:

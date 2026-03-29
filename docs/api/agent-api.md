@@ -62,6 +62,63 @@ Returns a high-level availability summary computed by the Supervisor.
 
 ---
 
+## Local ParameterDB Endpoints
+
+The agent also exposes a small local HTTP facade over the node's ParameterDB and datasource TCP services. These endpoints are used by BrewSupervisor for the ParameterDB tab.
+
+### `POST /parameterdb/params`
+
+Creates a parameter.
+
+**Request body**
+
+```json
+{
+  "name": "reactor.temp.setpoint",
+  "parameter_type": "static",
+  "value": 25.0,
+  "config": {},
+  "metadata": {"unit": "C"}
+}
+```
+
+### `PUT /parameterdb/params/{name}/value`
+
+Writes a new parameter value.
+
+### `PUT /parameterdb/params/{name}/config`
+
+Applies config changes from a JSON object body.
+
+### `PUT /parameterdb/params/{name}/metadata`
+
+Applies metadata changes from a JSON object body.
+
+### `GET /parameterdb/snapshot-file`
+
+Exports the current full snapshot payload and current snapshot persistence stats.
+
+### `POST /parameterdb/snapshot-file`
+
+Imports a previously exported snapshot payload.
+
+**Request body**
+
+```json
+{
+  "snapshot": {
+    "format_version": 1,
+    "parameters": {}
+  },
+  "replace_existing": true,
+  "save_to_disk": true
+}
+```
+
+These endpoints are local to the node agent. The central BrewSupervisor UI reaches them through its `/fermenters/{id}/parameterdb/...` proxy routes.
+
+---
+
 ## Service Proxy
 
 ### `GET|POST|PUT|DELETE /proxy/{service_name}/{service_path}`

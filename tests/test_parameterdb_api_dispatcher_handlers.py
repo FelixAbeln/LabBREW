@@ -24,6 +24,12 @@ class StubServer:
     def api_snapshot(self, payload):
         return {"handler": "snapshot", "payload": payload}
 
+    def api_export_snapshot(self, payload):
+        return {"handler": "export_snapshot", "payload": payload}
+
+    def api_import_snapshot(self, payload):
+        return {"handler": "import_snapshot", "payload": payload}
+
     def api_describe(self, payload):
         return {"handler": "describe", "payload": payload}
 
@@ -113,6 +119,8 @@ def test_register_general_handlers_wires_expected_commands() -> None:
     assert server.dispatcher.dispatch("ping", {}) == "pong"
     assert server.dispatcher.dispatch("stats", {})["handler"] == "stats"
     assert server.dispatcher.dispatch("snapshot", {})["handler"] == "snapshot"
+    assert server.dispatcher.dispatch("export_snapshot", {})["handler"] == "export_snapshot"
+    assert server.dispatcher.dispatch("import_snapshot", {"snapshot": {}})["handler"] == "import_snapshot"
     assert server.dispatcher.dispatch("describe", {})["handler"] == "describe"
     assert server.dispatcher.dispatch("list_parameters", {})["handler"] == "list_parameters"
 
@@ -166,5 +174,7 @@ def test_register_streaming_handlers_and_register_all_handlers() -> None:
     assert "stats" in commands
     assert "graph_info" in commands
     assert "create_parameter" in commands
+    assert "export_snapshot" in commands
+    assert "import_snapshot" in commands
     assert "list_parameter_types" in commands
     assert "subscribe" in commands

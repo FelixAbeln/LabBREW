@@ -148,6 +148,7 @@ The gateway provides convenience proxy routes that forward requests to named ser
 
 | Gateway path | Forwarded to |
 |---|---|
+| `/fermenters/{id}/parameterdb[/{path}]` | Supervisor Agent local ParameterDB facade — `parameterdb/{path}` |
 | `/fermenters/{id}/control[/{path}]` | `control_service` — `control/{path}` |
 | `/fermenters/{id}/rules[/{path}]` | `control_service` — `rules/{path}` |
 | `/fermenters/{id}/system[/{path}]` | `control_service` — `system/{path}` |
@@ -159,6 +160,135 @@ The gateway provides convenience proxy routes that forward requests to named ser
 See [Control Service API](./control-service-api.md) and [Schedule Service API](./schedule-service-api.md) for the full endpoint reference.
 
 For Data Service endpoints, see [Data Service API](./data-service-api.md).
+
+For the underlying node-local ParameterDB HTTP facade, see [Supervisor Agent API](./agent-api.md#local-parameterdb-endpoints).
+
+---
+
+## ParameterDB Gateway Routes
+
+These routes are the browser-facing entrypoint used by the React ParameterDB tab. They proxy to the node agent's local `/parameterdb/...` endpoints rather than directly to the binary TCP protocol.
+
+### `GET /fermenters/{fermenter_id}/parameterdb/params`
+
+Returns the current parameter records map.
+
+### `POST /fermenters/{fermenter_id}/parameterdb/params`
+
+Creates a parameter.
+
+**Request body**
+
+```json
+{
+  "name": "reactor.temp.setpoint",
+  "parameter_type": "static",
+  "value": 25.0,
+  "config": {},
+  "metadata": {"unit": "C"}
+}
+```
+
+### `PUT /fermenters/{fermenter_id}/parameterdb/params/{name}/value`
+
+Writes a new value for an existing parameter.
+
+### `PUT /fermenters/{fermenter_id}/parameterdb/params/{name}/config`
+
+Applies config changes from a JSON object body.
+
+### `PUT /fermenters/{fermenter_id}/parameterdb/params/{name}/metadata`
+
+Applies metadata changes from a JSON object body.
+
+### `DELETE /fermenters/{fermenter_id}/parameterdb/params/{name}`
+
+Deletes a parameter.
+
+### `GET /fermenters/{fermenter_id}/parameterdb/graph`
+
+Returns dependency graph information used by the ParameterDB graph view.
+
+### `GET /fermenters/{fermenter_id}/parameterdb/stats`
+
+Returns scan-engine statistics and utilization information.
+
+### `GET /fermenters/{fermenter_id}/parameterdb/param-types`
+
+Lists available parameter types and their UI metadata.
+
+### `GET /fermenters/{fermenter_id}/parameterdb/param-types/{parameter_type}/ui`
+
+Returns the UI schema used to build the create/edit parameter form for one parameter type.
+
+### `GET /fermenters/{fermenter_id}/parameterdb/sources`
+
+Returns active datasource instances.
+
+### `POST /fermenters/{fermenter_id}/parameterdb/sources`
+
+Creates a datasource instance.
+
+### `PUT /fermenters/{fermenter_id}/parameterdb/sources/{name}`
+
+Updates an existing datasource configuration.
+
+### `DELETE /fermenters/{fermenter_id}/parameterdb/sources/{name}`
+
+Deletes a datasource instance.
+
+### `GET /fermenters/{fermenter_id}/parameterdb/snapshot-file`
+
+Downloads the current full ParameterDB snapshot payload for backup/export workflows.
+
+**Response** `200 OK`
+
+```json
+{
+  "ok": true,
+  "snapshot": {
+    "format_version": 1,
+    "parameters": {}
+  },
+  "snapshot_stats": {
+    "enabled": true,
+    "path": "./data/parameterdb_snapshot.json"
+  }
+}
+```
+
+### `POST /fermenters/{fermenter_id}/parameterdb/snapshot-file`
+
+Replaces or restores the live ParameterDB state from a previously exported snapshot payload.
+
+**Request body**
+
+```json
+{
+  "snapshot": {
+    "format_version": 1,
+    "parameters": {}
+  },
+  "replace_existing": true,
+  "save_to_disk": true
+}
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "ok": true,
+  "removed_count": 12,
+  "restored_count": 12,
+  "snapshot_stats": {
+    "enabled": true,
+    "path": "./data/parameterdb_snapshot.json"
+  }
+}
+```
+
+The gateway forwards these requests unchanged to the node agent, preserving the request body for create/edit/import flows.
 
 ---
 

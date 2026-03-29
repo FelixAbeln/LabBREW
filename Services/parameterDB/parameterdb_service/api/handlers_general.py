@@ -10,6 +10,8 @@ def register_general_handlers(server: Any) -> None:
     d.register("ping", _cmd_ping)
     d.register("stats", server.api_stats)
     d.register("snapshot", server.api_snapshot)
+    d.register("export_snapshot", server.api_export_snapshot)
+    d.register("import_snapshot", server.api_import_snapshot)
     d.register("describe", server.api_describe)
     d.register("list_parameters", server.api_list_parameters)
 

@@ -57,6 +57,7 @@ def build_service(
         interval_s=snapshot_interval_s,
         enabled=enable_snapshot_persistence,
     )
+    server.snapshot_manager = snapshots
     return engine, server, registry, loaded, snapshots, restored_count, audit_logger
 
 

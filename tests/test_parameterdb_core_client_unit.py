@@ -55,6 +55,8 @@ def test_base_client_command_wrappers_and_subscribe_factory() -> None:
     c.stats()
     c.graph_info()
     c.snapshot()
+    c.export_snapshot()
+    c.import_snapshot({"format_version": 1, "parameters": {}}, replace_existing=False, save_to_disk=False)
     c.describe()
     c.list_parameters()
     c.list_parameter_types()
@@ -80,6 +82,8 @@ def test_base_client_command_wrappers_and_subscribe_factory() -> None:
 
     commands = [name for name, _payload in c.calls]
     assert "ping" in commands
+    assert "export_snapshot" in commands
+    assert "import_snapshot" in commands
     assert "get_source_type_ui" in commands
     assert "create_parameter" in commands
     assert "load_parameter_type_folder" in commands

@@ -14,6 +14,7 @@ from Services.parameterDB.parameterdb_service.persistence.snapshots import (
     cleanup_stale_snapshot_tmp_files,
     load_snapshot_file,
     load_snapshot_into_store,
+    load_snapshot_payload_into_store,
     write_snapshot_file,
 )
 from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase, PluginSpec
@@ -141,6 +142,11 @@ def test_load_snapshot_into_store_rejects_wrong_format_version(tmp_path: Path) -
 
     with pytest.raises(ValueError):
         load_snapshot_into_store(ParameterStore(), FakeRegistry(), snapshot_file)
+
+
+def test_load_snapshot_payload_into_store_rejects_non_object_payload() -> None:
+    with pytest.raises(ValueError, match="does not contain an object"):
+        load_snapshot_payload_into_store(ParameterStore(), FakeRegistry(), [])  # type: ignore[arg-type]
 
 
 def test_load_snapshot_into_store_returns_zero_when_snapshot_missing(tmp_path: Path) -> None:

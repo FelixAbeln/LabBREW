@@ -14,10 +14,12 @@ from ..parameterdb_core.protocol import (
 
 from .api import CommandDispatcher, register_all_handlers
 from .api.validation import (
+    validate_export_snapshot,
     validate_create_parameter,
     validate_delete_parameter,
     validate_empty_ok,
     validate_get_parameter_type_ui,
+    validate_import_snapshot,
     validate_get_value,
     validate_load_parameter_type_folder,
     validate_set_value,
@@ -27,7 +29,7 @@ from .api.validation import (
 from .engine import ScanEngine
 from .event_broker import EventBroker
 from .loader import PluginRegistry, load_parameter_type_folder
-from .persistence import AuditLogger
+from .persistence import AuditLogger, build_snapshot_payload, load_snapshot_payload_into_store
 
 
 class RequestHandler(socketserver.StreamRequestHandler):
@@ -82,6 +84,7 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
         self.registry = registry
         self.event_broker = event_broker
         self.audit_log = audit_logger or AuditLogger("./data/parameterdb_audit.jsonl", enabled=False)
+        self.snapshot_manager = None
         self.dispatcher = CommandDispatcher()
         register_all_handlers(self)
 
@@ -98,6 +101,55 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
     def api_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_empty_ok(payload)
         return self.engine.store.snapshot()
+
+    def api_export_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
+        validate_export_snapshot(payload)
+        snapshot_payload = build_snapshot_payload(self.engine.store)
+        snapshot_stats = self.snapshot_manager.stats() if self.snapshot_manager is not None else None
+        return {
+            "snapshot": snapshot_payload,
+            "snapshot_stats": snapshot_stats,
+        }
+
+    def api_import_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
+        clean = validate_import_snapshot(payload)
+        store = self.engine.store
+        was_running = bool(self.engine.stats().get("running"))
+        if was_running:
+            self.engine.stop()
+
+        removed_count = 0
+        restored_count = 0
+        try:
+            if clean["replace_existing"]:
+                for name in store.list_names():
+                    param = store._remove_runtime_param(name)
+                    if param is not None:
+                        param.on_removed(store)
+                        removed_count += 1
+
+            restored_count = load_snapshot_payload_into_store(store, self.registry, clean["snapshot"])
+
+            if clean["save_to_disk"] and self.snapshot_manager is not None:
+                self.snapshot_manager.save_now(force=True)
+        finally:
+            if was_running:
+                self.engine.start()
+
+        self.audit_log.log(
+            category="change",
+            action="snapshot_imported",
+            removed_count=removed_count,
+            restored_count=restored_count,
+            replace_existing=clean["replace_existing"],
+            save_to_disk=clean["save_to_disk"],
+        )
+        return {
+            "ok": True,
+            "removed_count": removed_count,
+            "restored_count": restored_count,
+            "snapshot_stats": self.snapshot_manager.stats() if self.snapshot_manager is not None else None,
+        }
 
     def api_describe(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_empty_ok(payload)

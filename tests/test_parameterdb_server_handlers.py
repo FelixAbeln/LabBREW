@@ -74,6 +74,18 @@ class FakeRegistry:
         return {"parameter_type": "fake", "controls": []}
 
 
+class FakeSnapshotManager:
+    def __init__(self) -> None:
+        self.saved_force_flags: list[bool] = []
+
+    def save_now(self, *, force: bool = False) -> bool:
+        self.saved_force_flags.append(force)
+        return True
+
+    def stats(self) -> dict[str, Any]:
+        return {"enabled": True, "path": "snapshot.json"}
+
+
 class FakeQueue:
     def __init__(self, events: list[dict[str, Any]]) -> None:
         self.events = list(events)
@@ -110,6 +122,7 @@ def _build_server() -> SignalTCPServer:
     server.registry = FakeRegistry()
     server.event_broker = FakeBroker()
     server.audit_log = FakeAudit()
+    server.snapshot_manager = FakeSnapshotManager()
     server.dispatcher = FakeDispatcher()
     return server
 
@@ -397,6 +410,96 @@ def test_signal_tcp_server_mutation_handlers_and_audit_logging(monkeypatch) -> N
     assert any(entry.get("action") == "metadata_updated" and entry.get("changed_keys") == ["owner"] for entry in server.audit_log.entries)
 
     assert server.api_delete_parameter({"name": "missing"}) is True
+
+
+def test_signal_tcp_server_snapshot_export_and_import_handlers() -> None:
+    server = _build_server()
+    server.engine.store.add(FakeParam("alpha", value=1, metadata={"m": 1}))
+
+    exported = server.api_export_snapshot({})
+    assert exported["snapshot"]["format_version"] == 1
+    assert exported["snapshot"]["parameters"]["alpha"]["value"] == 1
+    assert exported["snapshot_stats"]["path"] == "snapshot.json"
+
+    imported = server.api_import_snapshot({
+        "snapshot": {
+            "format_version": 1,
+            "parameters": {
+                "beta": {
+                    "parameter_type": "fake",
+                    "value": 5,
+                    "config": {"unit": "C"},
+                    "state": {"ready": True},
+                    "metadata": {"owner": "import"},
+                }
+            },
+        },
+        "replace_existing": True,
+        "save_to_disk": True,
+    })
+
+    assert imported["ok"] is True
+    assert imported["removed_count"] == 1
+    assert imported["restored_count"] == 1
+    assert server.engine.store.get_value("alpha", default="missing") == "missing"
+    assert server.engine.store.get_value("beta") == 5
+    assert server.snapshot_manager.saved_force_flags == [True]
+    assert any(entry.get("action") == "snapshot_imported" for entry in server.audit_log.entries)
+
+
+def test_signal_tcp_server_snapshot_handlers_without_snapshot_manager() -> None:
+    server = _build_server()
+    server.snapshot_manager = None
+
+    exported = server.api_export_snapshot({})
+    imported = server.api_import_snapshot({
+        "snapshot": {
+            "format_version": 1,
+            "parameters": {
+                "gamma": {
+                    "parameter_type": "fake",
+                    "value": 9,
+                    "config": {},
+                    "metadata": {},
+                }
+            },
+        },
+        "replace_existing": False,
+        "save_to_disk": True,
+    })
+
+    assert exported["snapshot_stats"] is None
+    assert imported["snapshot_stats"] is None
+    assert imported["restored_count"] == 1
+    assert server.engine.store.get_value("gamma") == 9
+
+
+def test_signal_tcp_server_snapshot_import_restarts_running_engine() -> None:
+    server = _build_server()
+    lifecycle_calls: list[str] = []
+
+    server.engine.stats = lambda: {"running": True}  # type: ignore[method-assign]
+    server.engine.stop = lambda: lifecycle_calls.append("stop")  # type: ignore[method-assign]
+    server.engine.start = lambda: lifecycle_calls.append("start")  # type: ignore[method-assign]
+
+    imported = server.api_import_snapshot({
+        "snapshot": {
+            "format_version": 1,
+            "parameters": {
+                "delta": {
+                    "parameter_type": "fake",
+                    "value": 11,
+                    "config": {},
+                    "metadata": {},
+                }
+            },
+        },
+        "replace_existing": False,
+        "save_to_disk": False,
+    })
+
+    assert imported["restored_count"] == 1
+    assert lifecycle_calls == ["stop", "start"]
 
 
 def test_api_subscribe_filters_initial_and_stream_events() -> None:
