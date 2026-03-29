@@ -14,8 +14,30 @@ class HttpServiceProxy:
         self._session.mount('http://', adapter)
         self._session.mount('https://', adapter)
 
-    def request(self, *, method: str, url: str, params: dict[str, Any] | None = None, json_body: Any = None) -> tuple[int, Any]:
-        response = self._session.request(method=method.upper(), url=url, params=params, json=json_body, timeout=self.timeout_s)
+    def request(
+        self,
+        *,
+        method: str,
+        url: str,
+        params: dict[str, Any] | None = None,
+        json_body: Any = None,
+        data_body: bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[int, Any]:
+        request_kwargs: dict[str, Any] = {
+            'method': method.upper(),
+            'url': url,
+            'params': params,
+            'timeout': self.timeout_s,
+        }
+        if data_body is not None:
+            request_kwargs['data'] = data_body
+            if headers:
+                request_kwargs['headers'] = headers
+        else:
+            request_kwargs['json'] = json_body
+
+        response = self._session.request(**request_kwargs)
         content_type = response.headers.get('content-type', '')
         if 'application/json' in content_type:
             payload: Any = response.json()
@@ -30,16 +52,25 @@ class HttpServiceProxy:
         url: str,
         params: dict[str, Any] | None = None,
         json_body: Any = None,
+        data_body: bytes | None = None,
+        headers: dict[str, str] | None = None,
         stream: bool = False,
     ) -> requests.Response:
-        return self._session.request(
-            method=method.upper(),
-            url=url,
-            params=params,
-            json=json_body,
-            timeout=self.timeout_s,
-            stream=stream,
-        )
+        request_kwargs: dict[str, Any] = {
+            'method': method.upper(),
+            'url': url,
+            'params': params,
+            'timeout': self.timeout_s,
+            'stream': stream,
+        }
+        if data_body is not None:
+            request_kwargs['data'] = data_body
+            if headers:
+                request_kwargs['headers'] = headers
+        else:
+            request_kwargs['json'] = json_body
+
+        return self._session.request(**request_kwargs)
 
     def close(self) -> None:
         self._session.close()

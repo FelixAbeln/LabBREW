@@ -30,6 +30,7 @@ LabBREW is a microservices-based fermentation management and control system. Thi
 ## Quick Navigation
 
 - **Frontend developers** — start with [BrewSupervisor Gateway API](./brewsupervisor-api.md); all browser requests go there.
+- **Frontend ParameterDB work** — start with [BrewSupervisor Gateway API](./brewsupervisor-api.md#parameterdb-gateway-routes), then [Supervisor Agent API](./agent-api.md#local-parameterdb-endpoints), then [ParameterDB Binary Protocol](./parameterdb-api.md) if you need backend protocol details.
 - **Backend / integration developers** — read [Architecture](./architecture.md) first, then the individual service pages.
 - **Hardware / driver developers** — read [ParameterDB Binary Protocol](./parameterdb-api.md).
 

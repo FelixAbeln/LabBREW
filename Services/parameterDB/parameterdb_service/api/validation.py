@@ -121,6 +121,20 @@ def validate_subscribe(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_export_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    validate_empty_ok(payload)
+    return {}
+
+
+def validate_import_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    snapshot = require_dict(payload, "snapshot")
+    return {
+        "snapshot": snapshot,
+        "replace_existing": optional_bool(payload, "replace_existing", default=True),
+        "save_to_disk": optional_bool(payload, "save_to_disk", default=True),
+    }
+
+
 def optional_int(payload: dict[str, Any], key: str, default: int) -> int:
     value = payload.get(key, default)
     if not isinstance(value, int):

@@ -7,6 +7,17 @@ function base(fermenterId) {
 export async function fetchParams(fermenterId)       { return api(`${base(fermenterId)}/params`); }
 export async function fetchGraph(fermenterId)        { return api(`${base(fermenterId)}/graph`); }
 export async function fetchStats(fermenterId)        { return api(`${base(fermenterId)}/stats`); }
+export async function exportSnapshotFile(fermenterId){ return api(`${base(fermenterId)}/snapshot-file`); }
+export async function importSnapshotFile(fermenterId, snapshot, options = {}) {
+  return api(`${base(fermenterId)}/snapshot-file`, {
+    method: 'POST',
+    body: JSON.stringify({
+      snapshot,
+      replace_existing: options.replaceExisting ?? true,
+      save_to_disk: options.saveToDisk ?? true,
+    }),
+  });
+}
 export async function fetchParamTypes(fermenterId)   { return api(`${base(fermenterId)}/param-types`); }
 export async function fetchParamTypeUi(fermenterId, parameterType) {
   return api(`${base(fermenterId)}/param-types/${encodeURIComponent(parameterType)}/ui`);

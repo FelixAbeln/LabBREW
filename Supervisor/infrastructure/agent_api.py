@@ -7,11 +7,43 @@ import requests
 from requests.adapters import HTTPAdapter
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 import uvicorn
 
 from Services.parameterDB.parameterdb_core.client import SignalClient
+
+
+class CreateParamBody(BaseModel):
+    name: str
+    parameter_type: str
+    value: Any = None
+    config: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SetValueBody(BaseModel):
+    value: Any
+
+
+class UpdateConfigBody(BaseModel):
+    config: dict[str, Any]
+
+
+class UpdateMetadataBody(BaseModel):
+    metadata: dict[str, Any]
+
+
+class CreateSourceBody(BaseModel):
+    name: str
+    source_type: str
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ImportSnapshotBody(BaseModel):
+    snapshot: dict[str, Any]
+    replace_existing: bool = True
+    save_to_disk: bool = True
 
 
 def _build_session() -> requests.Session:
@@ -49,27 +81,6 @@ def build_agent_app(
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    class CreateParamBody(BaseModel):
-        name: str
-        parameter_type: str
-        value: Any = None
-        config: dict[str, Any] = {}
-        metadata: dict[str, Any] = {}
-
-    class SetValueBody(BaseModel):
-        value: Any
-
-    class UpdateConfigBody(BaseModel):
-        config: dict[str, Any]
-
-    class UpdateMetadataBody(BaseModel):
-        metadata: dict[str, Any]
-
-    class CreateSourceBody(BaseModel):
-        name: str
-        source_type: str
-        config: dict[str, Any] = {}
-
     @app.get('/agent/info')
     def agent_info() -> dict[str, Any]:
         return {
@@ -97,6 +108,20 @@ def build_agent_app(
     @app.get('/parameterdb/stats')
     def get_stats() -> dict[str, Any]:
         return {'ok': True, 'stats': _wrap(lambda: _db().stats())}
+
+    @app.get('/parameterdb/snapshot-file')
+    def export_snapshot() -> dict[str, Any]:
+        exported = _wrap(lambda: _db().export_snapshot())
+        return {'ok': True, **exported}
+
+    @app.post('/parameterdb/snapshot-file')
+    def import_snapshot(body: ImportSnapshotBody) -> dict[str, Any]:
+        imported = _wrap(lambda: _db().import_snapshot(
+            body.snapshot,
+            replace_existing=body.replace_existing,
+            save_to_disk=body.save_to_disk,
+        ))
+        return {'ok': True, **imported}
 
     @app.get('/parameterdb/param-types')
     def list_param_types() -> dict[str, Any]:

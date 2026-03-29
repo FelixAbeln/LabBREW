@@ -158,6 +158,17 @@ def load_snapshot_into_store(
     if payload is None:
         return 0
 
+    return load_snapshot_payload_into_store(store, registry, payload)
+
+
+def load_snapshot_payload_into_store(
+    store: ParameterStore,
+    registry: PluginRegistry,
+    payload: dict[str, Any],
+) -> int:
+    if not isinstance(payload, dict):
+        raise ValueError("Snapshot payload does not contain an object")
+
     version = payload.get("format_version")
     if version != SNAPSHOT_FORMAT_VERSION:
         raise ValueError(f"Unsupported snapshot format version: {version!r}")

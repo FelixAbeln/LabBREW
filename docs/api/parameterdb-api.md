@@ -122,6 +122,66 @@ Health check.
 
 ---
 
+### `export_snapshot`
+
+**Payload:** _(empty)_  
+**Result:** full snapshot payload suitable for persistence or later import, plus optional persistence stats.
+
+```json
+{
+  "snapshot": {
+    "format_version": 1,
+    "store_revision": 42,
+    "saved_at": "2024-01-01T12:34:56Z",
+    "parameters": {
+      "reactor.temp": {
+        "parameter_type": "fake",
+        "value": 30.1,
+        "config": {"unit": "C"},
+        "state": {},
+        "metadata": {"owner": "operator"}
+      }
+    }
+  },
+  "snapshot_stats": {
+    "enabled": true,
+    "path": "./data/parameterdb_snapshot.json"
+  }
+}
+```
+
+Use this when you want an exportable file rather than the reduced value-only `snapshot` command.
+
+---
+
+### `import_snapshot`
+
+**Payload:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `snapshot` | object | yes | Snapshot payload previously produced by `export_snapshot` or persisted to disk |
+| `replace_existing` | boolean | no | Remove current parameters before restoring the snapshot (default `true`) |
+| `save_to_disk` | boolean | no | Persist the imported snapshot to the configured snapshot file after restore (default `true`) |
+
+**Result:** restore summary.
+
+```json
+{
+  "ok": true,
+  "removed_count": 12,
+  "restored_count": 12,
+  "snapshot_stats": {
+    "enabled": true,
+    "path": "./data/parameterdb_snapshot.json"
+  }
+}
+```
+
+During import, the scan engine is stopped if it is running, parameters are restored, and then the engine is started again.
+
+---
+
 ### `describe`
 
 **Payload:** _(empty)_  
@@ -326,3 +386,5 @@ No lock is held while doing I/O. See `Services/parameterDB/LOCKING.md` for the f
 ## Persistence
 
 The ParameterDB periodically snapshots all parameter values to a JSON file (default interval 5 s) and reloads them on startup when `restore_snapshot` is enabled. All commands are optionally recorded to a JSONL audit log.
+
+The same snapshot payload format is also exposed at runtime through `export_snapshot` and `import_snapshot`, which is what the Supervisor agent and frontend ParameterDB editor use for operator-driven backup and restore.
