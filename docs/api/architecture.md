@@ -39,7 +39,7 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 ┌──────▼──────────────────────────────────────┐
 │  ParameterDB                                │
 │  – Parameter store (thread-safe)            │
-│  – Real-time scan engine (50 ms default)    │
+│  – Real-time scan engine (fixed/adaptive, 2-50 ms bounds) │
 │  – Event broker (pub/sub)                  │
 │  – Snapshot persistence (JSON)             │
 │  – Plugin system (PID, script, deadband…)  │
