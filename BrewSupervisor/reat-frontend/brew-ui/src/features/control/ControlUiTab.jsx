@@ -57,7 +57,7 @@ export function ControlUiTab({
     observer.observe(element)
 
     return () => observer.disconnect()
-  }, [])
+  }, [cards.length, selected?.id])
 
   const cardColumns = useMemo(() => {
     const buckets = Array.from({ length: Math.max(1, columnCount) }, () => ({
