@@ -62,7 +62,7 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                         {"key": "config.ble_stale_after_s", "label": "BLE Stale Timeout (s)", "type": "float", "required": False, "help": "Keep connected true this long after last seen Tilt packet to avoid short advertising gaps.", "visible_when": {"config.transport": "ble"}},
                         {"key": "config.ble_device_address", "label": "BLE Device Address", "type": "string", "required": False, "help": "Optional BLE MAC/address to lock to one Tilt. Used only for transport=ble.", "visible_when": {"config.transport": "ble"}},
                         {"key": "config.request_timeout_s", "label": "HTTP Timeout (s)", "type": "float", "required": True, "visible_when": {"config.transport": "bridge"}},
-                        {"key": "config.update_interval_s", "label": "Poll Interval (s)", "type": "float", "required": True},
+                        {"key": "config.update_interval_s", "label": "Poll Interval (s)", "type": "float", "required": True, "help": "Used only for transport=bridge. BLE pacing uses ble_idle_s and ble_scan_timeout_s.", "visible_when": {"config.transport": "bridge"}},
                     ],
                 },
             ],
