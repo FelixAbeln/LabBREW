@@ -127,6 +127,25 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
                     if param is not None:
                         param.on_removed(store)
                         removed_count += 1
+            else:
+                # When not replacing existing parameters, ensure that the snapshot
+                # does not contain any parameter names that are already present
+                # in the store. This avoids partial application and the ValueError
+                # raised by the underlying store when adding duplicates.
+                existing_names = set(store.list_names())
+                snapshot = clean["snapshot"]
+                snapshot_param_names: set[str] = set()
+                if isinstance(snapshot, dict):
+                    params = snapshot.get("parameters")  # expected snapshot schema
+                    if isinstance(params, dict):
+                        snapshot_param_names = set(params.keys())
+                overlapping = existing_names & snapshot_param_names
+                if overlapping:
+                    # Fail early with a clear error message and without touching the store.
+                    raise ValueError(
+                        f"Snapshot import aborted: parameters already exist in store and "
+                        f'replace_existing is False: {", ".join(sorted(overlapping))}'
+                    )
 
             restored_count = load_snapshot_payload_into_store(store, self.registry, clean["snapshot"])
 

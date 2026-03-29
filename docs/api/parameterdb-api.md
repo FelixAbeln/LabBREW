@@ -132,6 +132,7 @@ Health check.
   "snapshot": {
     "format_version": 1,
     "store_revision": 42,
+    "saved_at": "2024-01-01T12:34:56Z",
     "parameters": {
       "reactor.temp": {
         "parameter_type": "fake",
