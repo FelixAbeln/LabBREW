@@ -353,6 +353,36 @@ def test_get_datasource_contract_snapshot_guards_non_dict_inputs_and_non_dict_ui
     assert snapshot["datasources"][0]["controls"] == []
 
 
+def test_get_datasource_contract_snapshot_source_ui_exception_and_control_item_guards() -> None:
+    runtime = _make_runtime()
+    runtime.get_control_contract_snapshot = lambda: {"source": "map.json", "resolved_controls": []}
+    runtime.backend.describe = lambda: {
+        "src.value": {
+            "parameter_type": "fake",
+            "value": 1,
+            "metadata": {"created_by": "data_source", "owner": "src", "source_type": "demo", "role": "state"},
+        }
+    }
+    runtime.datasource_admin.list_sources = lambda: {
+        "src": {"source_type": "demo", "running": True, "config": {}},
+    }
+
+    def raising_ui(*_args, **_kwargs):
+        raise RuntimeError("ui failed")
+
+    runtime.datasource_admin.get_source_type_ui = raising_ui
+    snapshot = runtime.get_datasource_contract_snapshot()
+
+    assert snapshot["datasources"][0]["source_control_spec_error"] == "ui failed"
+    assert snapshot["datasources"][0]["controls"] == []
+
+    runtime.datasource_admin.get_source_type_ui = lambda *_a, **_k: {"controls": ["bad", {"target": "   "}]}
+    snapshot = runtime.get_datasource_contract_snapshot()
+
+    assert snapshot["datasources"][0]["source_control_spec"] == {"controls": ["bad", {"target": "   "}]}
+    assert snapshot["datasources"][0]["controls"] == []
+
+
 def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_cards() -> None:
     runtime = _make_runtime()
     runtime.get_control_contract_snapshot = lambda: {

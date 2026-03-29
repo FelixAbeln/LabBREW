@@ -376,6 +376,67 @@ def test_reclaim_step_ownership_ramp_success_path(tmp_path) -> None:
     assert runtime._owned_target_owners.get("c") == "schedule_service"
 
 
+def test_ownership_new_guards_for_unowned_targets_missing_target_and_discard_paths(tmp_path) -> None:
+    control = FakeControlClient(values={"x": 1.0})
+    runtime = _make_runtime(tmp_path, control=control, data=FakeDataClient())
+
+    # _ownership_lost line 24: owned target guard continue
+    step = ScheduleStep(id="s1", name="S1", actions=[ScheduleAction(kind="write", target="x", owner="schedule_service")])
+    runtime._status.owned_targets = []
+    runtime._owned_target_owners = {}
+    assert runtime._ownership_lost(step) is False
+
+    # _reclaim_step_ownership_locked lines 38/40: skip unsupported action then fail on missing target
+    bad_step = ScheduleStep(
+        id="s2",
+        name="Bad",
+        actions=[
+            ScheduleAction(kind="take_loadstep", target=None),
+            ScheduleAction(kind="write", target=None, owner="schedule_service"),
+        ],
+    )
+    result = runtime._reclaim_step_ownership_locked(bad_step)
+    assert result["ok"] is False
+    assert "missing target" in str(result["error"])
+
+    # _remove_owned_targets_for_step_locked and _discard_owned_target_locked lines 77-79, 86-87
+    runtime._owned_target_owners = {"x": "schedule_service", "y": "schedule_service"}
+    runtime._refresh_owned_targets_locked()
+    remove_step = ScheduleStep(
+        id="s3",
+        name="Remove",
+        actions=[ScheduleAction(kind="write", target="x"), ScheduleAction(kind="write", target=None)],
+    )
+    runtime._remove_owned_targets_for_step_locked(remove_step)
+    assert runtime._owned_target_owners == {"y": "schedule_service"}
+    assert runtime.status()["owned_targets"] == ["y"]
+
+    runtime._discard_owned_target_locked("missing")
+    assert runtime._owned_target_owners == {"y": "schedule_service"}
+
+
+def test_ownership_lost_ignores_non_mapping_meta_and_release_cleans_up(tmp_path) -> None:
+    control = FakeControlClient(values={"x": 1.0})
+    runtime = _make_runtime(tmp_path, control=control, data=FakeDataClient())
+
+    ignored_step = ScheduleStep(id="s4-ignore", name="Ignore", actions=[ScheduleAction(kind="take_loadstep", target=None)])
+    assert runtime._ownership_lost(ignored_step) is False
+
+    step = ScheduleStep(id="s4", name="S4", actions=[ScheduleAction(kind="write", target="x", owner="schedule_service")])
+    runtime._status.owned_targets = ["x"]
+    runtime._owned_target_owners = {"x": "schedule_service"}
+    control.owners["x"] = "schedule_service"
+    control.ownership = lambda: {"x": "not-a-dict"}  # type: ignore[assignment]
+
+    assert runtime._ownership_lost(step) is True
+
+    runtime._release_owned_targets_locked("stop run")
+
+    assert runtime._owned_target_owners == {}
+    assert runtime.status()["owned_targets"] == []
+    assert any("released ownership for x" in entry for entry in runtime.status()["event_log"])
+
+
 def test_move_previous_crosses_from_plan_to_setup(tmp_path) -> None:
     runtime = _make_runtime(tmp_path, control=FakeControlClient(values={}), data=FakeDataClient())
     runtime.load_schedule(

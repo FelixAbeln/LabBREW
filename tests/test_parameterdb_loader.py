@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -175,3 +176,16 @@ def test_autodiscover_plugins_handles_missing_root_and_filters_dirs(monkeypatch,
 
     assert loaded == ["loaded.valid"]
     assert called == ["valid"]
+
+
+def test_load_py_module_success_and_missing_loader(monkeypatch, tmp_path: Path) -> None:
+    good = tmp_path / "good_impl.py"
+    good.write_text("VALUE = 42\n", encoding="utf-8")
+
+    module = loader_module._load_py_module(good)
+    assert module.VALUE == 42
+
+    monkeypatch.setattr(loader_module.importlib.util, "spec_from_file_location", lambda *_a, **_k: None)
+
+    with pytest.raises(ImportError, match="Could not load module"):
+        loader_module._load_py_module(tmp_path / f"missing_{uuid4().hex}.py")

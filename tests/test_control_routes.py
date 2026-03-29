@@ -34,6 +34,42 @@ class StubRuntime:
         self.manual_calls: list[dict[str, object]] = []
         self.release_manual_targets: list[list[str] | None] = []
         self.ramp_calls: list[tuple[dict[str, object], dict[str, float]]] = []
+        self.request_calls: list[tuple[str, str]] = []
+        self.release_calls: list[tuple[str, str]] = []
+        self.force_takeover_calls: list[tuple[str, str, str]] = []
+        self.reset_calls: list[str] = []
+        self.clear_calls = 0
+        self.read_calls: list[str] = []
+        self.write_calls: list[dict[str, object]] = []
+
+    def request_control(self, target: str, owner: str) -> dict[str, object]:
+        self.request_calls.append((target, owner))
+        return {"ok": True, "target": target, "owner": owner}
+
+    def release_control(self, target: str, owner: str) -> dict[str, object]:
+        self.release_calls.append((target, owner))
+        return {"ok": True, "target": target, "owner": owner}
+
+    def force_takeover(self, target: str, owner: str, *, reason: str) -> dict[str, object]:
+        self.force_takeover_calls.append((target, owner, reason))
+        return {"ok": True, "target": target, "owner": owner, "reason": reason}
+
+    def reset_target(self, target: str) -> dict[str, object]:
+        self.reset_calls.append(target)
+        return {"ok": True, "target": target}
+
+    def clear_all_ownership(self) -> dict[str, object]:
+        self.clear_calls += 1
+        return {"ok": True}
+
+    def read_parameter(self, target: str) -> dict[str, object]:
+        self.read_calls.append(target)
+        return {"ok": True, "target": target, "value": 12.5}
+
+    def set_parameter(self, *, target: str, value: object, owner: str) -> dict[str, object]:
+        payload = {"target": target, "value": value, "owner": owner}
+        self.write_calls.append(payload)
+        return {"ok": True, **payload}
 
     def manual_set_parameter(self, *, target: str, value: object, owner: str, reason: str) -> dict[str, object]:
         payload = {
@@ -68,6 +104,14 @@ def test_ownership_requires_runtime() -> None:
     assert "not initialized" in response.json()["detail"].lower()
 
 
+def test_ownership_returns_runtime_snapshot() -> None:
+    runtime = StubRuntime(owners={"reactor.temp.setpoint": "operator"})
+    response = _client(runtime).get("/control/ownership")
+
+    assert response.status_code == 200
+    assert response.json() == {"reactor.temp.setpoint": {"owner": "operator"}}
+
+
 def test_manual_write_uses_operator_owner() -> None:
     runtime = StubRuntime()
     response = _client(runtime).post(
@@ -92,6 +136,57 @@ def test_release_manual_normalizes_target_list() -> None:
     assert response.status_code == 200
     assert response.json()["targets"] == ["reactor.temp.setpoint", "agitator.rpm"]
     assert runtime.release_manual_targets[-1] == ["reactor.temp.setpoint", "agitator.rpm"]
+
+
+def test_release_manual_without_valid_targets_passes_none() -> None:
+    runtime = StubRuntime()
+    response = _client(runtime).post(
+        "/control/release-manual",
+        json={"targets": "not-a-list"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["targets"] is None
+    assert runtime.release_manual_targets[-1] is None
+
+
+def test_basic_control_endpoints_delegate_to_runtime() -> None:
+    runtime = StubRuntime()
+    client = _client(runtime)
+
+    assert client.post("/control/request", json={"target": "t1", "owner": "alice"}).json() == {
+        "ok": True,
+        "target": "t1",
+        "owner": "alice",
+    }
+    assert client.post("/control/release", json={"target": "t1", "owner": "alice"}).json() == {
+        "ok": True,
+        "target": "t1",
+        "owner": "alice",
+    }
+    assert client.post("/control/force-takeover", json={"target": "t1", "owner": "alice"}).json() == {
+        "ok": True,
+        "target": "t1",
+        "owner": "alice",
+        "reason": "",
+    }
+    assert client.post("/control/reset", json={"target": "t1"}).json() == {"ok": True, "target": "t1"}
+    assert client.post("/control/clear-ownership").json() == {"ok": True}
+    assert client.get("/control/read/t1").json() == {"ok": True, "target": "t1", "value": 12.5}
+    assert client.post("/control/write", json={"target": "t1", "value": 7.5, "owner": "alice"}).json() == {
+        "ok": True,
+        "target": "t1",
+        "value": 7.5,
+        "owner": "alice",
+    }
+
+    assert runtime.request_calls == [("t1", "alice")]
+    assert runtime.release_calls == [("t1", "alice")]
+    assert runtime.force_takeover_calls == [("t1", "alice", "")]
+    assert runtime.reset_calls == ["t1"]
+    assert runtime.clear_calls == 1
+    assert runtime.read_calls == ["t1"]
+    assert runtime.write_calls == [{"target": "t1", "value": 7.5, "owner": "alice"}]
 
 
 def test_ramp_requires_owner() -> None:
@@ -120,3 +215,49 @@ def test_ramp_rejects_conflicting_owner() -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is False
     assert "owned by schedule" in response.json()["error"]
+
+
+def test_ramp_requires_target_or_targets() -> None:
+    runtime = StubRuntime()
+    response = _client(runtime).post(
+        "/control/ramp",
+        json={"value": 50.0, "duration": 60, "owner": "operator"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": False, "error": "target or targets required"}
+
+
+def test_ramp_accepts_targets_list_and_uses_backend_snapshot() -> None:
+    runtime = StubRuntime()
+    response = _client(runtime).post(
+        "/control/ramp",
+        json={
+            "targets": ["reactor.temp.setpoint", None, "agitator.rpm"],
+            "value": 50.0,
+            "duration": 60,
+            "owner": "operator",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "values": {"reactor.temp.setpoint": 12.5, "agitator.rpm": 12.5},
+    }
+    assert runtime.ownership.requested == [
+        ("reactor.temp.setpoint", "operator"),
+        (None, "operator"),
+        ("agitator.rpm", "operator"),
+    ]
+    assert runtime.ramp_calls == [
+        (
+            {
+                "targets": ["reactor.temp.setpoint", None, "agitator.rpm"],
+                "value": 50.0,
+                "duration": 60,
+                "owner": "operator",
+            },
+            {"reactor.temp.setpoint": 12.5, "agitator.rpm": 12.5},
+        )
+    ]

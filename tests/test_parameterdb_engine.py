@@ -176,6 +176,23 @@ def test_scan_once_handles_missing_param_disabled_and_stale_error_state(monkeypa
     assert stale_record.state["last_error"] == "keep-me"
 
 
+def test_scan_once_updates_average_duration_after_first_cycle(monkeypatch) -> None:
+    store = ParameterStore()
+    store.add(FakeParameter("temp", value=1.0))
+    engine = ScanEngine(period_s=0.01, store=store)
+
+    perf_values = iter([10.0, 10.2, 20.0, 20.4])
+    monkeypatch.setattr("Services.parameterDB.parameterdb_service.engine.time.perf_counter", lambda: next(perf_values))
+    monkeypatch.setattr("Services.parameterDB.parameterdb_service.engine.time.time", lambda: 100.0)
+
+    engine.scan_once(dt=0.1)
+    first_avg = engine._avg_scan_duration_s
+    engine.scan_once(dt=0.1)
+
+    assert round(first_avg, 6) == 0.2
+    assert round(engine._avg_scan_duration_s, 6) == 0.22
+
+
 def test_scan_engine_run_loop_start_stop_and_stats(monkeypatch) -> None:
     store = ParameterStore()
     store.add(FakeParameter("temp", value=1.0))

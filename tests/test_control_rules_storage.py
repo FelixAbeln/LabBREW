@@ -70,3 +70,74 @@ def test_delete_rule_returns_false_for_missing_rule(tmp_path, monkeypatch) -> No
     monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
 
     assert storage.delete_rule("missing") is False
+
+
+def test_cleanup_stale_rule_tmp_files_ignores_unlink_oserror(tmp_path) -> None:
+    class FakeTmpPath:
+        def is_file(self) -> bool:
+            return True
+
+        def unlink(self) -> None:
+            raise OSError("locked")
+
+    class FakeRuleDir:
+        def glob(self, pattern: str):
+            assert pattern == "*.json.*.tmp"
+            return [FakeTmpPath()]
+
+    storage._cleanup_stale_rule_tmp_files(FakeRuleDir())  # type: ignore[arg-type]
+
+
+def test_save_rule_runs_directory_fsync_when_supported(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
+
+    fsync_calls: list[int] = []
+    close_calls: list[int] = []
+    original_open = storage.os.open
+
+    def fake_fsync(fd: int) -> None:
+        fsync_calls.append(fd)
+
+    def fake_open(path, flags, mode=0o777):
+        if str(path) == str((tmp_path / "Rules")):
+            return 999
+        return original_open(path, flags, mode)
+
+    monkeypatch.setattr(storage.os, "fsync", fake_fsync)
+    monkeypatch.setattr(storage.os, "open", fake_open)
+    monkeypatch.setattr(storage.os, "close", lambda fd: close_calls.append(fd))
+
+    saved_path = storage.save_rule({"id": "dirsync", "enabled": True})
+
+    assert saved_path.name == "dirsync.json"
+    assert 999 in fsync_calls
+    assert close_calls == [999]
+
+
+def test_save_rule_cleanup_tolerates_unlink_failure(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
+
+    temp_paths: list[str] = []
+    original_mkstemp = storage.tempfile.mkstemp
+
+    def tracking_mkstemp(*args, **kwargs):
+        fd, tmp_name = original_mkstemp(*args, **kwargs)
+        temp_paths.append(tmp_name)
+        return fd, tmp_name
+
+    def fail_replace(_src: str, _dst) -> None:
+        raise RuntimeError("replace failed")
+
+    def fail_unlink(path: str) -> None:
+        assert path == temp_paths[0]
+        raise OSError("busy")
+
+    monkeypatch.setattr(storage.tempfile, "mkstemp", tracking_mkstemp)
+    monkeypatch.setattr(storage.os, "replace", fail_replace)
+    monkeypatch.setattr(storage.os.path, "exists", lambda path: path == temp_paths[0])
+    monkeypatch.setattr(storage.os, "unlink", fail_unlink)
+
+    with pytest.raises(RuntimeError, match="replace failed"):
+        storage.save_rule({"id": "cleanup", "enabled": True})
+
+    assert temp_paths

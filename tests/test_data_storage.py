@@ -23,6 +23,12 @@ def test_loadstep_averager_ignores_missing_and_non_numeric_values() -> None:
     assert averager.get_average() == {"temp": 21.0, "ph": 4.5}
 
 
+def test_loadstep_averager_returns_none_for_empty_samples() -> None:
+    averager = LoadstepAverager(["temp", "ph"], duration_seconds=5)
+
+    assert averager.get_average() == {"temp": None, "ph": None}
+
+
 def test_csv_writer_writes_header_and_rows(tmp_path) -> None:
     writer = CSVWriter(str(tmp_path), "session", ["temp", "ph"])
 

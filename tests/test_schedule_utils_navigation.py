@@ -190,3 +190,25 @@ def test_navigation_move_previous_within_same_phase(tmp_path: Path) -> None:
     assert runtime._move_previous_locked(schedule) is True
     assert runtime._step_index == 0
     assert runtime.status()["current_step_name"] == "Plan 1"
+
+
+def test_utils_collect_wait_sources_handles_non_dict_and_any_children(tmp_path: Path) -> None:
+    runtime = _make_runtime(
+        tmp_path,
+        control=FakeControlClient(values={"x": 1.0, "y": 2.0}),
+        data=FakeDataClient(),
+    )
+
+    assert runtime._collect_wait_sources("not-a-dict") == set()
+
+    wait_payload = {
+        "kind": "condition",
+        "condition": {
+            "any": [
+                {"source": "x"},
+                "skip-me",
+                {"not": {"source": "y"}},
+            ]
+        },
+    }
+    assert runtime._collect_wait_sources(wait_payload) == {"x", "y"}

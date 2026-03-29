@@ -95,3 +95,17 @@ def test_schedule_status() -> None:
     response = _client(runtime).get("/schedule/status")
     assert response.status_code == 200
     assert response.json() == {"state": "idle"}
+
+
+def test_schedule_delete_next_previous_delegate_to_runtime() -> None:
+    runtime = StubRuntime()
+    client = _client(runtime)
+
+    assert client.delete("/schedule").status_code == 200
+    assert client.post("/schedule/next").status_code == 200
+    assert client.post("/schedule/previous").status_code == 200
+
+    called = [name for name, _ in runtime.calls]
+    assert "clear_schedule" in called
+    assert "next_step" in called
+    assert "previous_step" in called

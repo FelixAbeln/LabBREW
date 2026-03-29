@@ -116,6 +116,17 @@ def test_subscription_enter_iter_exit_and_error_paths(monkeypatch) -> None:
     with pytest.raises(RuntimeError):
         client_module.Subscription("h", 1, 1.0).__enter__()
 
+    sub = client_module.Subscription("h", 1, 1.0)
+    sub.file = None
+    assert list(sub) == []
+
+
+def test_base_client_request_raises_not_implemented() -> None:
+    base = client_module._BaseClient()
+
+    with pytest.raises(NotImplementedError):
+        base._request("ping", {})
+
 
 def test_signal_session_request_once_and_reconnect_paths(monkeypatch) -> None:
     session = client_module.SignalSession(reconnect_attempts=1)
@@ -157,6 +168,10 @@ def test_signal_session_request_once_and_reconnect_paths(monkeypatch) -> None:
 
     monkeypatch.setattr(session, "_request_once", lambda _req: (_ for _ in ()).throw(OSError("down")))
     with pytest.raises(RuntimeError):
+        session._request("ping", {})
+
+    session.reconnect_attempts = -1
+    with pytest.raises(RuntimeError, match="Request failed"):
         session._request("ping", {})
 
 

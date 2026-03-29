@@ -80,3 +80,21 @@ def test_system_schema_contains_manual_control_paths() -> None:
     schema = response.json()
     assert schema["manual_control"]["write_path"] == "/control/manual-write"
     assert schema["manual_control"]["release_path"] == "/control/release-manual"
+
+
+def test_snapshot_with_empty_targets_uses_none() -> None:
+    runtime = StubRuntime()
+    response = _client(runtime).get("/system/snapshot", params={"targets": ""})
+
+    assert response.status_code == 200
+    assert runtime.snapshot_targets is None
+    assert response.json()["targets"] is None
+
+
+def test_contract_and_ui_spec_endpoints_delegate_to_runtime() -> None:
+    runtime = StubRuntime()
+    client = _client(runtime)
+
+    assert client.get("/system/control-contract").json() == {"contract": True}
+    assert client.get("/system/datasource-contract").json() == {"datasource": True}
+    assert client.get("/system/control-ui-spec").json() == {"cards": []}

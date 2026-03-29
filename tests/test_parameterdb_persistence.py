@@ -143,6 +143,12 @@ def test_load_snapshot_into_store_rejects_wrong_format_version(tmp_path: Path) -
         load_snapshot_into_store(ParameterStore(), FakeRegistry(), snapshot_file)
 
 
+def test_load_snapshot_into_store_returns_zero_when_snapshot_missing(tmp_path: Path) -> None:
+    restored = load_snapshot_into_store(ParameterStore(), FakeRegistry(), tmp_path / "missing_snapshot.json")
+
+    assert restored == 0
+
+
 
 def test_snapshot_manager_save_now_and_force_behaviors(tmp_path: Path) -> None:
     store = ParameterStore()

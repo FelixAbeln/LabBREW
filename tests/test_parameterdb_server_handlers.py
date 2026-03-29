@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+import Services.parameterDB.parameterdb_service.server as server_module
 from Services.parameterDB.parameterdb_core.errors import ProtocolError
 from Services.parameterDB.parameterdb_core.protocol import (
     decode_message_bytes,
@@ -269,3 +270,158 @@ def test_request_handler_handles_bad_envelope_as_protocol_error() -> None:
     responses = _decode_framed_messages(handler.wfile)
     assert responses[0]["ok"] is False
     assert responses[0]["error"]["type"] == ProtocolError.__name__
+
+
+def test_request_handler_success_response_and_streaming_handler_path() -> None:
+    normal_request = encode_message(make_request("snapshot", payload={}, req_id="r1"))
+
+    class NormalServer:
+        def __init__(self):
+            self.audit_log = FakeAudit()
+            self.dispatcher = FakeDispatcher()
+
+        def dispatch(self, cmd, payload):
+            assert cmd == "snapshot"
+            assert payload == {}
+            return {"ok": "value"}
+
+    normal_handler = RequestHandler.__new__(RequestHandler)
+    normal_handler.server = NormalServer()
+    normal_handler.client_address = ("127.0.0.1", 9999)
+    normal_handler.rfile = BytesIO(normal_request)
+    normal_handler.wfile = BytesIO()
+
+    normal_handler.handle()
+
+    responses = _decode_framed_messages(normal_handler.wfile)
+    assert responses == [{"v": 1, "req_id": "r1", "ok": True, "result": {"ok": "value"}, "error": None}]
+
+    streamed: dict[str, Any] = {}
+
+    def streaming_handler(handler, *, req_id, payload):
+        streamed["req_id"] = req_id
+        streamed["payload"] = payload
+        handler.wfile.write(encode_message({"event": "streamed"}))
+
+    stream_request = encode_message(make_request("subscribe", payload={"names": []}, req_id="r2"))
+
+    class StreamingServer:
+        def __init__(self):
+            self.audit_log = FakeAudit()
+            self.dispatcher = FakeDispatcher(streaming_handler=streaming_handler)
+
+        def dispatch(self, cmd, payload):
+            raise AssertionError("dispatch should not be called for streaming handler")
+
+    streaming = RequestHandler.__new__(RequestHandler)
+    streaming.server = StreamingServer()
+    streaming.client_address = ("127.0.0.1", 1000)
+    streaming.rfile = BytesIO(stream_request)
+    streaming.wfile = BytesIO()
+
+    streaming.handle()
+
+    assert streamed == {"req_id": "r2", "payload": {"names": []}}
+    assert _decode_framed_messages(streaming.wfile) == [{"event": "streamed"}]
+
+
+def test_signal_tcp_server_constructor_wires_dispatcher_and_audit(monkeypatch) -> None:
+    init_args: dict[str, Any] = {}
+    registered: list[SignalTCPServer] = []
+
+    def fake_tcp_init(self, addr, handler_cls):
+        init_args["addr"] = addr
+        init_args["handler_cls"] = handler_cls
+
+    class FakeAuditLogger:
+        def __init__(self, path: str, enabled: bool):
+            self.path = path
+            self.enabled = enabled
+
+    class FakeCommandDispatcher:
+        def dispatch(self, cmd: str, payload: dict[str, Any]) -> dict[str, Any]:
+            return {"cmd": cmd, "payload": payload}
+
+    def fake_register(server: SignalTCPServer) -> None:
+        registered.append(server)
+
+    monkeypatch.setattr(server_module.socketserver.ThreadingTCPServer, "__init__", fake_tcp_init)
+    monkeypatch.setattr(server_module, "AuditLogger", FakeAuditLogger)
+    monkeypatch.setattr(server_module, "CommandDispatcher", FakeCommandDispatcher)
+    monkeypatch.setattr(server_module, "register_all_handlers", fake_register)
+
+    engine = ScanEngine(period_s=0.01, store=ParameterStore())
+    registry = FakeRegistry()
+    broker = FakeBroker()
+
+    server = SignalTCPServer("127.0.0.1", 4321, engine, registry, broker)
+
+    assert init_args == {"addr": ("127.0.0.1", 4321), "handler_cls": RequestHandler}
+    assert server.engine is engine
+    assert server.registry is registry
+    assert server.event_broker is broker
+    assert isinstance(server.audit_log, FakeAuditLogger)
+    assert isinstance(server.dispatcher, FakeCommandDispatcher)
+    assert registered == [server]
+    assert server.dispatch("cmd", {"x": 1}) == {"cmd": "cmd", "payload": {"x": 1}}
+
+
+def test_signal_tcp_server_dispatch_and_general_read_handlers() -> None:
+    server = _build_server()
+    server.engine.store.add(FakeParam("alpha", value=3, metadata={"m": 1}))
+
+    server.dispatcher = type("Dispatch", (), {"dispatch": lambda self, cmd, payload: {"cmd": cmd, "payload": payload}})()
+
+    assert server.dispatch("hello", {"x": 1}) == {"cmd": "hello", "payload": {"x": 1}}
+    assert server.api_snapshot({}) == {"alpha": 3}
+    described = server.api_describe({})
+    assert "alpha" in described
+    assert server.api_list_parameters({}) == ["alpha"]
+    graph = server.api_graph_info({})
+    assert "scan_order" in graph
+    assert server.api_get_value({"name": "alpha", "default": 9}) == 3
+
+
+def test_signal_tcp_server_mutation_handlers_and_audit_logging(monkeypatch) -> None:
+    server = _build_server()
+    server.engine.store.add(FakeParam("alpha", value=1, config={"unit": "C"}, metadata={"owner": "x"}))
+
+    server.audit_log.audit_external_writes = True
+    assert server.api_set_value({"name": "alpha", "value": 8}) is True
+    assert server.engine.store.get_value("alpha") == 8
+    assert any(entry.get("action") == "value_written" for entry in server.audit_log.entries)
+
+    assert server.api_update_config({"name": "alpha", "changes": {"unit": "degC", "hz": 2}}) is True
+    assert server.api_update_metadata({"name": "alpha", "changes": {"owner": "pytest"}}) is True
+    assert any(entry.get("action") == "config_updated" and entry.get("changed_keys") == ["hz", "unit"] for entry in server.audit_log.entries)
+    assert any(entry.get("action") == "metadata_updated" and entry.get("changed_keys") == ["owner"] for entry in server.audit_log.entries)
+
+    assert server.api_delete_parameter({"name": "missing"}) is True
+
+
+def test_api_subscribe_filters_initial_and_stream_events() -> None:
+    server = _build_server()
+    server.engine.store.add(FakeParam("a", value=1))
+    server.engine.store.add(FakeParam("b", value=2))
+
+    def _subscribe(names, max_queue=1000):
+        return "token-2", FakeQueue([
+            {"event": "value_changed", "name": "b", "value": 99},
+            {"event": "subscription_overflow", "dropped": 3},
+        ]), max_queue
+
+    server.event_broker.subscribe = _subscribe  # type: ignore[assignment]
+
+    class FakeRequestHandler:
+        def __init__(self):
+            self.wfile = BytesIO()
+
+    handler = FakeRequestHandler()
+    server.api_subscribe(handler, req_id="req-2", payload={"names": ["a"], "send_initial": True, "max_queue": 5})  # type: ignore[arg-type]
+
+    messages = _decode_framed_messages(handler.wfile)
+    assert messages[0]["result"]["subscription_id"] == "token-2"
+    assert any(item.get("event") == "parameter_snapshot" and item.get("name") == "a" for item in messages)
+    assert not any(item.get("event") == "parameter_snapshot" and item.get("name") == "b" for item in messages)
+    assert any(item.get("event") == "subscription_overflow" for item in messages)
+    assert not any(item.get("event") == "value_changed" and item.get("name") == "b" for item in messages)

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from io import BytesIO
+import socketserver
 
 import pytest
 
+import Services.parameterDB.parameterdb_sources.admin_server as admin_server_module
 from Services.parameterDB.parameterdb_core.protocol import decode_message_bytes, encode_message, make_request
 from Services.parameterDB.parameterdb_sources.admin_server import SourceAdminTCPServer, SourceRequestHandler
 
@@ -139,3 +141,20 @@ def test_source_request_handler_protocol_error_has_no_req_id() -> None:
     assert messages[0]["ok"] is False
     assert messages[0]["req_id"] is None
     assert messages[0]["error"]["type"] == "ProtocolError"
+
+
+def test_source_admin_server_constructor_sets_runner(monkeypatch) -> None:
+    init_args: dict[str, object] = {}
+
+    def _fake_init(self, server_address, request_handler):
+        init_args["server_address"] = server_address
+        init_args["request_handler"] = request_handler
+
+    monkeypatch.setattr(socketserver.ThreadingTCPServer, "__init__", _fake_init)
+
+    runner = object()
+    server = SourceAdminTCPServer("127.0.0.1", 8766, runner)
+
+    assert init_args["server_address"] == ("127.0.0.1", 8766)
+    assert init_args["request_handler"] is admin_server_module.SourceRequestHandler
+    assert server.runner is runner

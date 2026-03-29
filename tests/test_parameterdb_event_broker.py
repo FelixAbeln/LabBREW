@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import queue
 
-from Services.parameterDB.parameterdb_service.event_broker import EventBroker
+from Services.parameterDB.parameterdb_service.event_broker import EventBroker, _Subscription
 
 
 
@@ -69,3 +69,41 @@ def test_event_broker_publish_with_non_matching_filter_does_not_enqueue() -> Non
         raise AssertionError("Queue should be empty for non-matching filtered event")
     except queue.Empty:
         pass
+
+
+def test_event_broker_enqueue_handles_empty_drop_and_overflow_notice_full() -> None:
+    class FakeQueue:
+        def __init__(self) -> None:
+            self.put_calls = 0
+
+        def put_nowait(self, _item):
+            self.put_calls += 1
+            raise queue.Full
+
+        def get_nowait(self):
+            raise queue.Empty
+
+    broker = EventBroker(default_max_queue=1)
+    sub = _Subscription(token="tok", queue=FakeQueue(), filters=None, max_queue=1)
+
+    assert broker._enqueue(sub, {"event": "value_changed", "name": "x"}) is False
+
+
+def test_event_broker_enqueue_overflow_notice_then_event_success() -> None:
+    class FakeQueue:
+        def __init__(self) -> None:
+            self.put_calls = 0
+
+        def put_nowait(self, _item):
+            self.put_calls += 1
+            if self.put_calls == 1:
+                raise queue.Full
+            return None
+
+        def get_nowait(self):
+            return {"event": "dropped"}
+
+    broker = EventBroker(default_max_queue=2)
+    sub = _Subscription(token="tok", queue=FakeQueue(), filters=None, max_queue=2)
+
+    assert broker._enqueue(sub, {"event": "value_changed", "name": "x"}) is True
