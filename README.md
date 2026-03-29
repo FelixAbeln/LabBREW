@@ -109,7 +109,7 @@ LabBREW is not just a controller or dashboard.
 
 ### 🗄️ ParameterDB Binary Protocol
 - Custom MessagePack-over-TCP protocol for minimal latency
-- Thread-safe parameter store with a 50 ms default scan cycle
+- Thread-safe parameter store with fixed/adaptive scan modes (current node topology runs adaptive at target utilization 0.7, bounded by 2-50 ms period; up to 500 Hz at the 2 ms floor)
 - Pub/sub event broker, snapshot persistence (JSON), plugin hooks (PID, deadband, scripts)
 - Python client library included
 
