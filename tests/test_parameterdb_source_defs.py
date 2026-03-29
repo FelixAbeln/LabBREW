@@ -152,3 +152,285 @@ def test_system_time_source_modes_error_path_and_defaults(monkeypatch) -> None:
 
     defaults = SystemTimeSourceSpec().default_config()
     assert defaults["parameter_name"] == "system.time.iso"
+
+
+def test_tilt_hydrometer_source_ui_has_color_dropdown() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.ui import get_ui_spec
+
+    ui = get_ui_spec()
+    create_sections = ui["create"]["sections"]
+    color_field = next(
+        field
+        for section in create_sections
+        for field in section.get("fields", [])
+        if field.get("key") == "config.tilt_color"
+    )
+
+    assert color_field["type"] == "enum"
+    assert color_field["choices"] == ["Red", "Green", "Black", "Purple", "Orange", "Blue", "Yellow", "Pink"]
+
+    transport_field = next(
+        field
+        for section in create_sections
+        for field in section.get("fields", [])
+        if field.get("key") == "config.transport"
+    )
+    assert transport_field["type"] == "enum"
+    assert transport_field["choices"] == ["bridge", "ble"]
+
+
+def test_tilt_hydrometer_source_publishes_selected_color_and_connected_state(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+
+    class FakeClient:
+        def __init__(self):
+            self.calls: list[tuple[str, object]] = []
+
+        def create_parameter(self, *args, **kwargs):
+            return None
+
+        def set_value(self, name: str, value):
+            self.calls.append((name, value))
+
+    class FakeResponse:
+        def __init__(self, payload: bytes):
+            self._payload = payload
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    payload = b'[{"Color":"Red","SG":1048,"Temp":68,"RSSI":-70,"WeeksOnBattery":12}]'
+    missing_payload = b'[{"Color":"Blue","SG":1030,"Temp":66}]'
+    state = {"count": 0}
+
+    def fake_urlopen(_req, timeout=0):
+        state["count"] += 1
+        if state["count"] == 1:
+            return FakeResponse(payload)
+        return FakeResponse(missing_payload)
+
+    client = FakeClient()
+    source = TiltHydrometerSourceSpec().create(
+        "tilt_red",
+        client,
+        config={
+            "transport": "bridge",
+            "bridge_url": "http://tiltbridge.local/json",
+            "tilt_color": "Red",
+            "parameter_prefix": "tilt",
+            "update_interval_s": 0.01,
+        },
+    )
+
+    from Services.parameterDB.sourceDefs.tilt_hydrometer import service as tilt_module
+
+    monkeypatch.setattr(tilt_module, "urlopen", fake_urlopen)
+
+    loop_state = {"loops": 0}
+
+    def fake_should_stop() -> bool:
+        loop_state["loops"] += 1
+        return loop_state["loops"] > 1
+
+    source.should_stop = fake_should_stop  # type: ignore[assignment]
+    source.sleep = lambda _s: False  # type: ignore[assignment]
+    source.run()
+
+    assert any(name == "tilt.connected" and value is True for name, value in client.calls)
+    assert any(name == "tilt.gravity" and abs(float(value) - 1.048) < 1e-9 for name, value in client.calls if value is not None)
+    assert any(name == "tilt.temperature_f" and float(value) == 68.0 for name, value in client.calls if value is not None)
+
+    client.calls.clear()
+    loop_state["loops"] = 0
+    source.run()
+
+    assert any(name == "tilt.connected" and value is False for name, value in client.calls)
+    assert any(name == "tilt.last_error" and "not present" in str(value) for name, value in client.calls)
+
+    defaults = TiltHydrometerSourceSpec().default_config()
+    assert defaults["transport"] == "bridge"
+    assert defaults["tilt_color"] == "Red"
+    assert defaults["ble_idle_s"] == 0.0
+    assert defaults["ble_stale_after_s"] == 20.0
+
+
+def test_tilt_hydrometer_source_ble_transport_connected_and_missing(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+
+    class FakeClient:
+        def __init__(self):
+            self.calls: list[tuple[str, object]] = []
+
+        def create_parameter(self, *args, **kwargs):
+            return None
+
+        def set_value(self, name: str, value):
+            self.calls.append((name, value))
+
+    client = FakeClient()
+    source = TiltHydrometerSourceSpec().create(
+        "tilt_ble",
+        client,
+        config={
+            "transport": "ble",
+            "tilt_color": "Blue",
+            "parameter_prefix": "tilt.ble",
+            "update_interval_s": 0.01,
+            "ble_stale_after_s": 0.0,
+        },
+    )
+
+    state = {"count": 0}
+
+    def fake_fetch_ble_selected():
+        state["count"] += 1
+        if state["count"] == 1:
+            return {"Color": "Blue", "SG": 1042, "Temp": 67, "RSSI": -66}
+        return None
+
+    source._fetch_ble_selected = fake_fetch_ble_selected  # type: ignore[method-assign]
+
+    loop_state = {"loops": 0}
+
+    def fake_should_stop() -> bool:
+        loop_state["loops"] += 1
+        return loop_state["loops"] > 1
+
+    source.should_stop = fake_should_stop  # type: ignore[assignment]
+    source.sleep = lambda _s: False  # type: ignore[assignment]
+    source.run()
+
+    assert any(name == "tilt.ble.connected" and value is True for name, value in client.calls)
+    assert any(name == "tilt.ble.gravity" and abs(float(value) - 1.042) < 1e-9 for name, value in client.calls if value is not None)
+
+    client.calls.clear()
+    loop_state["loops"] = 0
+    source.run()
+    assert any(name == "tilt.ble.connected" and value is False for name, value in client.calls)
+    assert any(name == "tilt.ble.last_error" and "not seen over BLE" in str(value) for name, value in client.calls)
+
+
+def test_tilt_ble_decode_accepts_standard_ibeacon_payload_length() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSource
+
+    uuid_bytes = bytes.fromhex("a495bb20c5b14b44b5121370f02d74de")
+    major_temp_f = (68).to_bytes(2, byteorder="big", signed=False)
+    minor_sg = (1048).to_bytes(2, byteorder="big", signed=False)
+    tx_power = bytes([0xC5])
+    payload = bytes([0x02, 0x15]) + uuid_bytes + major_temp_f + minor_sg + tx_power
+
+    decoded = TiltHydrometerSource._decode_tilt_from_manufacturer_data({0x004C: payload}, "a495bb20c5b14b44b5121370f02d74de")
+    assert decoded is not None
+    assert float(decoded["Temp"]) == 68.0
+    assert float(decoded["SG"]) == 1048.0
+
+
+def test_tilt_hydrometer_normalizes_tilt_pro_ranges() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSource
+
+    # Tilt Pro style encoding represented as integer fields.
+    item = {"Temp": 543, "SG": 10722}
+    assert TiltHydrometerSource._normalize_temp_f(item) == 54.3
+    assert TiltHydrometerSource._normalize_gravity(item) == 1.0722
+
+
+def test_tilt_invalid_color_reports_clear_error() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+
+    class FakeClient:
+        def create_parameter(self, *args, **kwargs):
+            return None
+
+        def set_value(self, name: str, value):
+            return None
+
+    source = TiltHydrometerSourceSpec().create(
+        "tilt_bad",
+        FakeClient(),
+        config={"tilt_color": "Teal"},
+    )
+
+    with pytest.raises(ValueError, match="Unsupported Tilt color"):
+        source._selected_color()
+
+
+def test_tilt_ble_missing_packet_within_stale_window_keeps_connected_true() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+
+    class FakeClient:
+        def __init__(self):
+            self.calls: list[tuple[str, object]] = []
+
+        def create_parameter(self, *args, **kwargs):
+            return None
+
+        def set_value(self, name: str, value):
+            self.calls.append((name, value))
+
+    client = FakeClient()
+    source = TiltHydrometerSourceSpec().create(
+        "tilt_ble",
+        client,
+        config={
+            "transport": "ble",
+            "tilt_color": "Green",
+            "parameter_prefix": "tilt",
+            "ble_stale_after_s": 60.0,
+            "update_interval_s": 0.01,
+        },
+    )
+
+    state = {"count": 0}
+
+    def fake_fetch_ble_selected():
+        state["count"] += 1
+        if state["count"] == 1:
+            return {"Color": "Green", "SG": 1042, "Temp": 67, "RSSI": -66}
+        return None
+
+    source._fetch_ble_selected = fake_fetch_ble_selected  # type: ignore[method-assign]
+
+    loop_state = {"loops": 0}
+
+    def fake_should_stop() -> bool:
+        loop_state["loops"] += 1
+        return loop_state["loops"] > 1
+
+    source.should_stop = fake_should_stop  # type: ignore[assignment]
+    source.sleep = lambda _s: False  # type: ignore[assignment]
+
+    source.run()
+    client.calls.clear()
+    loop_state["loops"] = 0
+    source.run()
+
+    assert any(name == "tilt.connected" and value is True for name, value in client.calls)
+    assert not any(name == "tilt.last_error" and "not seen over BLE" in str(value) for name, value in client.calls)
+
+
+def test_tilt_battery_weeks_persists_last_known_value_when_missing() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+
+    class FakeClient:
+        def __init__(self):
+            self.calls: list[tuple[str, object]] = []
+
+        def create_parameter(self, *args, **kwargs):
+            return None
+
+        def set_value(self, name: str, value):
+            self.calls.append((name, value))
+
+    client = FakeClient()
+    source = TiltHydrometerSourceSpec().create("tilt", client, config={"parameter_prefix": "tilt"})
+    source._publish_selected({"Color": "Green", "SG": 1048, "Temp": 68, "WeeksOnBattery": 12, "RSSI": -60})
+    source._publish_selected({"Color": "Green", "SG": 1047, "Temp": 67, "RSSI": -61})
+
+    battery_values = [value for name, value in client.calls if name == "tilt.battery_weeks"]
+    assert battery_values[-2:] == [12.0, 12.0]

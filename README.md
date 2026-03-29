@@ -113,6 +113,16 @@ LabBREW is not just a controller or dashboard.
 - Pub/sub event broker, snapshot persistence (JSON), plugin hooks (PID, deadband, scripts)
 - Python client library included
 
+### 🔌 Built-in Data Source Support
+- `system_time` (system clock publishing)
+- `tilt_hydrometer` (Tilt Bridge HTTP and direct BLE, including Tilt Pro scaling)
+- `brewtools_kvaser` (Brewtools CAN via Kvaser)
+- `modbus_relay` (Modbus TCP relay boards)
+- `labps3005dn` (serial bench PSU integration)
+- `digital_twin` (FMU-based runtime twin)
+
+→ See [ParameterDB Source Definitions](./docs/implementation/parameterdb-source-definitions.md) for details and transport notes.
+
 ### 🌐 React Frontend
 - Browser UI backed by the BrewSupervisor gateway at port 8782
 - Connects over standard HTTP REST and WebSocket
@@ -135,6 +145,7 @@ LabBREW is not just a controller or dashboard.
 | [API Overview](./docs/api/README.md) | Index of all service APIs and quick navigation guide |
 | [Architecture](./docs/api/architecture.md) | Service dependency chain, communication protocols, data-flow diagrams |
 | [Frontend Documentation](./docs/frontend/README.md) | React UI — features, tech stack, setup, and source layout |
+| [ParameterDB Source Definitions](./docs/implementation/parameterdb-source-definitions.md) | Built-in datasource types, hardware/protocol coverage, and Tilt BLE notes |
 | [ParameterDB + Relationship Setup Guide](./docs/frontend/parameterdb-relationship-setup.md) | Frontend workflow to set up ParameterDB entities and graph relationships |
 | [BrewSupervisor Gateway API](./docs/api/brewsupervisor-api.md) | Central gateway: fermenter discovery, dashboard, schedule import — **start here for frontend work** |
 | [Supervisor Agent API](./docs/api/agent-api.md) | Per-node agent: health, service proxy, mDNS registration |

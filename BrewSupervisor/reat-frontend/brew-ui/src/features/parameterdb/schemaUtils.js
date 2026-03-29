@@ -21,6 +21,22 @@ export function setByPath(obj, path, value) {
   current[parts[parts.length - 1]] = value;
 }
 
+export function isFieldVisible(field, data) {
+  const visibleWhen = field?.visible_when;
+  if (!visibleWhen || typeof visibleWhen !== 'object' || Array.isArray(visibleWhen)) return true;
+
+  return Object.entries(visibleWhen).every(([path, expected]) => {
+    const actual = getByPath(data, path);
+    if (Array.isArray(expected)) {
+      const actualText = String(actual ?? '');
+      return expected.some((candidate) => String(candidate) === actualText);
+    }
+    if (expected === null) return actual == null || actual === '';
+    if (typeof expected === 'boolean') return Boolean(actual) === expected;
+    return String(actual ?? '') === String(expected);
+  });
+}
+
 export function buildSections(schemaUi, mode) {
   const source = schemaUi?.[mode]?.sections ?? [];
   const sections = cloneValue(source) ?? [];
@@ -68,11 +84,11 @@ export function buildFormData(schemaUi, mode, record, typeKey) {
   return data;
 }
 
-export function collectRequiredPaths(schemaUi, sections) {
+export function collectRequiredPaths(schemaUi, sections, data = {}) {
   const required = new Set(schemaUi?.create?.required ?? []);
   sections.forEach((section) => {
     (section?.fields ?? []).forEach((field) => {
-      if (field?.required && field?.key) required.add(field.key);
+      if (field?.required && field?.key && isFieldVisible(field, data)) required.add(field.key);
     });
   });
   return [...required];

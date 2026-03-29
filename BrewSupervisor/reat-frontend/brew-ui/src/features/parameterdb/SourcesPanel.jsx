@@ -70,7 +70,7 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
         nextErrors[key] = 'Invalid JSON';
       }
     });
-    collectRequiredPaths(schemaUi, sections).forEach((key) => {
+    collectRequiredPaths(schemaUi, sections, next).forEach((key) => {
       const value = getByPath(next, key);
       if (value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length)) {
         nextErrors[key] = 'Required';
