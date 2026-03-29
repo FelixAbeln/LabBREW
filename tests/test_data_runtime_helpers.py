@@ -226,10 +226,10 @@ def test_build_session_archive_helpers_and_delete_error_paths(tmp_path: Path, mo
     import os as _os
     _real_stat = _os.stat
 
-    def _stat_fail_for_archives(_path, **_kwargs):
-        if str(_path).endswith(".archive.zip"):
+    def _stat_fail_for_archives(path, *args, **kwargs):
+        if str(path).endswith(".archive.zip"):
             raise OSError("stat fail")
-        return _real_stat(_path, **_kwargs)
+        return _real_stat(path, *args, **kwargs)
 
     monkeypatch.setattr("Services.data_service.runtime.os.stat", _stat_fail_for_archives)
     listed = runtime.list_archives(output_dir=str(tmp_path), limit=0)

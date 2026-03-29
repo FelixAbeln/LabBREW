@@ -66,7 +66,7 @@ export function ControlUiTab({
       window.cancelAnimationFrame(rafId)
       observer.disconnect()
     }
-  }, [cards.length])
+  }, [cards.length, selected?.id])
 
   const cardColumns = useMemo(() => {
     const buckets = Array.from({ length: Math.max(1, columnCount) }, () => ({
