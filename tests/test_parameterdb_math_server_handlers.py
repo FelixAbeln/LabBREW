@@ -11,17 +11,7 @@ from Services.parameterDB.plugins.math.implementation import MathPlugin
 from Services.parameterDB.plugins.math.ui import get_ui_spec as get_math_ui_spec
 from Services.parameterDB.plugins.static.implementation import StaticPlugin
 from Services.parameterDB.plugins.static.ui import get_ui_spec as get_static_ui_spec
-
-
-class FakeAudit:
-    def __init__(self) -> None:
-        self.entries: list[dict[str, Any]] = []
-        self.audit_external_writes = False
-
-    def log(self, **entry: Any) -> None:
-        self.entries.append(dict(entry))
-
-
+from test_parameterdb_server_handlers import FakeAudit
 def _build_server_with_math() -> SignalTCPServer:
     registry = PluginRegistry()
     registry.register(StaticPlugin(), ui_spec=get_static_ui_spec())
