@@ -22,6 +22,8 @@ _TILT_COLORS = (
     "Pink",
 )
 
+_TILT_COLOR_CANONICAL = {name.lower(): name for name in _TILT_COLORS}
+
 _TILT_COLOR_UUIDS = {
     "Red": "a495bb10c5b14b44b5121370f02d74de",
     "Green": "a495bb20c5b14b44b5121370f02d74de",
@@ -70,7 +72,11 @@ class TiltHydrometerSource(DataSourceBase):
 
     def _selected_color(self) -> str:
         raw = str(self.config.get("tilt_color", "Red") or "Red").strip()
-        return raw.title()
+        canonical = _TILT_COLOR_CANONICAL.get(raw.lower())
+        if canonical is None:
+            allowed = ", ".join(_TILT_COLORS)
+            raise ValueError(f"Unsupported Tilt color '{raw}'. Allowed colors: {allowed}")
+        return canonical
 
     @staticmethod
     def _to_float(value: Any) -> float | None:
@@ -144,10 +150,7 @@ class TiltHydrometerSource(DataSourceBase):
 
     def _tilt_uuid_for_color(self) -> str:
         color = self._selected_color()
-        try:
-            return _TILT_COLOR_UUIDS[color]
-        except KeyError as exc:
-            raise ValueError(f"Unsupported Tilt color '{color}'") from exc
+        return _TILT_COLOR_UUIDS[color]
 
     @staticmethod
     def _decode_tilt_from_manufacturer_data(manufacturer_data: dict[int, bytes], wanted_uuid: str) -> dict[str, Any] | None:

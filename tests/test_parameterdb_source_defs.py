@@ -340,6 +340,26 @@ def test_tilt_hydrometer_normalizes_tilt_pro_ranges() -> None:
     assert TiltHydrometerSource._normalize_gravity(item) == 1.0722
 
 
+def test_tilt_invalid_color_reports_clear_error() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+
+    class FakeClient:
+        def create_parameter(self, *args, **kwargs):
+            return None
+
+        def set_value(self, name: str, value):
+            return None
+
+    source = TiltHydrometerSourceSpec().create(
+        "tilt_bad",
+        FakeClient(),
+        config={"tilt_color": "Teal"},
+    )
+
+    with pytest.raises(ValueError, match="Unsupported Tilt color"):
+        source._selected_color()
+
+
 def test_tilt_ble_missing_packet_within_stale_window_keeps_connected_true() -> None:
     from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
 
