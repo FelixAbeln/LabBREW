@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import signal
+import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -53,8 +56,23 @@ class TopologySupervisor:
             node_name=node_name,
             service_map=self.service_map,
             summary_provider=self.summary,
+            update_status_provider=self.repo_update_status,
+            apply_update_action=self.apply_repo_update,
         )
         self._stopping = False
+        self._maintenance_lock = threading.RLock()
+        self._repo_status_cache: dict[str, Any] = {
+            "checked_at": 0.0,
+            "status": {
+                "repo_url": "https://github.com/FelixAbeln/LabBREW.git",
+                "local_revision": None,
+                "remote_revision": None,
+                "branch": None,
+                "outdated": False,
+                "dirty": False,
+                "error": "not_checked",
+            },
+        }
 
         self.resolved = self.resolver.resolve(self.topology, default_advertise_host=advertise_host)
         self.start_order = self.planner.order(self.resolved.service_dependencies)
@@ -71,6 +89,134 @@ class TopologySupervisor:
         with log_path.open('a', encoding='utf-8') as handle:
             handle.write(line + "")
             handle.flush()
+
+    def _run_git(self, args: list[str], *, timeout_s: float = 20.0) -> str:
+        proc = subprocess.run(
+            ["git", "-C", str(self.root_dir), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+        if proc.returncode != 0:
+            stderr = (proc.stderr or "").strip()
+            stdout = (proc.stdout or "").strip()
+            detail = stderr or stdout or f"git exited with code {proc.returncode}"
+            raise RuntimeError(detail)
+        return (proc.stdout or "").strip()
+
+    def repo_update_status(self, force: bool = False) -> dict[str, Any]:
+        now = time.time()
+        with self._maintenance_lock:
+            cached_at = float(self._repo_status_cache.get("checked_at") or 0.0)
+            cached = self._repo_status_cache.get("status")
+            if not force and isinstance(cached, dict) and now - cached_at < 60.0:
+                return dict(cached)
+
+            repo_url = "https://github.com/FelixAbeln/LabBREW.git"
+            status: dict[str, Any] = {
+                "repo_url": repo_url,
+                "local_revision": None,
+                "remote_revision": None,
+                "branch": None,
+                "outdated": False,
+                "dirty": False,
+                "error": None,
+            }
+
+            try:
+                status["local_revision"] = self._run_git(["rev-parse", "HEAD"])
+                status["branch"] = self._run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+                status["dirty"] = bool(self._run_git(["status", "--porcelain"]))
+
+                remote_line = self._run_git(["ls-remote", repo_url, "refs/heads/main"], timeout_s=25.0)
+                status["remote_revision"] = remote_line.split()[0] if remote_line else None
+
+                local_rev = str(status.get("local_revision") or "")
+                remote_rev = str(status.get("remote_revision") or "")
+                status["outdated"] = bool(local_rev and remote_rev and local_rev != remote_rev)
+            except Exception as exc:
+                status["error"] = str(exc)
+
+            self._repo_status_cache = {
+                "checked_at": now,
+                "status": dict(status),
+            }
+            return status
+
+    def _restart_managed_services(self) -> None:
+        for name in reversed(self.start_order):
+            state = self.services[name]
+            self._log(name, "stopping service for update apply")
+            self.runner.stop(state, force=False)
+
+        for name in self.start_order:
+            state = self.services[name]
+            self._log(name, "starting service after update apply")
+            self.start_service(state)
+
+    def apply_repo_update(self) -> dict[str, Any]:
+        with self._maintenance_lock:
+            before = self.repo_update_status(force=True)
+            if before.get("error"):
+                return {
+                    "ok": False,
+                    "updated": False,
+                    "reason": "status_check_failed",
+                    "before": before,
+                    "after": before,
+                }
+
+            updated = False
+            details: list[str] = []
+            repo_url = str(before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git")
+            try:
+                self._run_git(["fetch", repo_url, "main"], timeout_s=35.0)
+                details.append("fetched latest main from GitHub")
+                refreshed = self.repo_update_status(force=True)
+                if refreshed.get("outdated"):
+                    self._run_git(["pull", "--ff-only", repo_url, "main"], timeout_s=45.0)
+                    details.append("fast-forward pull applied")
+                    subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "-r", str(self.root_dir / "requirements.txt")],
+                        cwd=str(self.root_dir),
+                        capture_output=True,
+                        text=True,
+                        timeout=180.0,
+                        check=False,
+                    )
+                    subprocess.run(
+                        [sys.executable, "-m", "pip", "install", str(self.root_dir)],
+                        cwd=str(self.root_dir),
+                        capture_output=True,
+                        text=True,
+                        timeout=180.0,
+                        check=False,
+                    )
+                    details.append("pip dependency refresh attempted")
+                    updated = True
+
+                self._restart_managed_services()
+                self._publish_node()
+            except Exception as exc:
+                after_err = self.repo_update_status(force=True)
+                return {
+                    "ok": False,
+                    "updated": updated,
+                    "reason": str(exc),
+                    "details": details,
+                    "before": before,
+                    "after": after_err,
+                }
+
+            after = self.repo_update_status(force=True)
+            return {
+                "ok": True,
+                "updated": updated,
+                "details": details,
+                "before": before,
+                "after": after,
+            }
 
     def install_signal_handlers(self) -> None:
         def _handler(_signum, _frame) -> None:
@@ -113,6 +259,13 @@ class TopologySupervisor:
 
     def service_map(self) -> dict[str, dict[str, Any]]:
         mapped: dict[str, dict[str, Any]] = {}
+        repo_status = self.repo_update_status(force=False)
+        update_info = {
+            "outdated": bool(repo_status.get("outdated")),
+            "local_revision": repo_status.get("local_revision"),
+            "remote_revision": repo_status.get("remote_revision"),
+            "error": repo_status.get("error"),
+        }
         for service_name, state in self.services.items():
             ok, reason = self._service_health_details(state.service)
             if not state.service.provides:
@@ -125,10 +278,12 @@ class TopologySupervisor:
                 'base_url': f"http://{binding.endpoint.host}:{binding.endpoint.port}",
                 'docs': state.service.docs,
                 'provides': [provided.name for provided in state.service.provides],
+                'update': dict(update_info),
             }
         return mapped
 
     def summary(self) -> dict[str, Any]:
+        repo_status = self.repo_update_status(force=False)
         schedule = self.service_map().get('schedule_service')
         control = self.service_map().get('control_service')
         data = self.service_map().get('data_service')
@@ -136,6 +291,7 @@ class TopologySupervisor:
             'node_id': self.node_id,
             'node_name': self.node_name,
             'services': self.service_map(),
+            'repo_update': repo_status,
             'schedule_available': bool(schedule and schedule['healthy']),
             'control_available': bool(control and control['healthy']),
             'data_available': bool(data and data['healthy']),
@@ -181,6 +337,10 @@ class TopologySupervisor:
         self._publish_node()
 
     def check_services(self) -> None:
+        with self._maintenance_lock:
+            self._check_services_locked()
+
+    def _check_services_locked(self) -> None:
         for name in self.start_order:
             state = self.services[name]
             process = state.process

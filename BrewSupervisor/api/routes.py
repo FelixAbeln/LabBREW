@@ -175,6 +175,35 @@ def build_router() -> APIRouter:
         status_code, payload = _read_json_response(proxy, method='GET', url=_build_agent_proxy_url(node, '/agent/summary'))
         return JSONResponse(status_code=status_code, content=payload)
 
+    @router.get('/fermenters/{fermenter_id}/agent/repo/status')
+    def get_agent_repo_status(fermenter_id: str, request: Request, force: bool = False):
+        registry = request.app.state.registry
+        proxy = request.app.state.proxy
+        node = registry.get_node(fermenter_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail='Fermenter not found')
+        status_code, payload = _read_json_response(
+            proxy,
+            method='GET',
+            url=_build_agent_proxy_url(node, '/agent/repo/status'),
+            params={'force': '1' if force else '0'},
+        )
+        return JSONResponse(status_code=status_code, content=payload)
+
+    @router.post('/fermenters/{fermenter_id}/agent/repo/update')
+    def post_agent_repo_update(fermenter_id: str, request: Request):
+        registry = request.app.state.registry
+        proxy = request.app.state.proxy
+        node = registry.get_node(fermenter_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail='Fermenter not found')
+        status_code, payload = _read_json_response(
+            proxy,
+            method='POST',
+            url=_build_agent_proxy_url(node, '/agent/repo/update'),
+        )
+        return JSONResponse(status_code=status_code, content=payload)
+
     async def _proxy_via_agent(request: Request, fermenter_id: str, service_name: str, service_path: str = ''):
         registry = request.app.state.registry
         proxy = request.app.state.proxy

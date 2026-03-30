@@ -63,6 +63,21 @@ export function createBrewApi(apiClient) {
       })
     },
 
+    getAgentRepoStatus(id, options = {}) {
+      const force = options.force ? '?force=1' : ''
+      return requestLayer.get(`/fermenters/${id}/agent/repo/status${force}`, {
+        ttlMs: 10000,
+        bypassCache: Boolean(options.force),
+      })
+    },
+
+    applyAgentRepoUpdate(id) {
+      return apiClient(`/fermenters/${id}/agent/repo/update`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+    },
+
     deleteDataArchive(id, name, options = {}) {
       const outputDir = options.outputDir ? `?output_dir=${encodeURIComponent(options.outputDir)}` : ''
       return apiClient(`/fermenters/${id}/data/archives/${encodeURIComponent(name)}${outputDir}`, {
