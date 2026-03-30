@@ -192,6 +192,29 @@ input {
   gap: 24px;
 }
 
+.empty-fermenter-state {
+  min-height: 56vh;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 14px;
+}
+
+.empty-fermenter-icon {
+  width: min(350px, 65vw);
+  height: auto;
+  opacity: 1;
+}
+
+.empty-fermenter-title {
+  margin: 0;
+  font-size: clamp(20px, 2.4vw, 30px);
+  line-height: 1.2;
+  font-weight: 600;
+  color: #dbe8f7;
+  text-align: center;
+}
+
 .panel {
   background: #18202a;
   border: 1px solid #263241;
@@ -394,6 +417,13 @@ input {
 .system-layout {
   grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
   align-items: start;
+}
+
+.system-left-column,
+.system-right-column {
+  display: grid;
+  gap: 16px;
+  align-content: start;
 }
 
 .schedule-card .info-rows-grid {
@@ -845,6 +875,11 @@ input {
   .schedule-layout,
   .system-layout {
     grid-template-columns: 1fr;
+  }
+
+  .system-left-column,
+  .system-right-column {
+    gap: 14px;
   }
 
   .sidebar-dock {

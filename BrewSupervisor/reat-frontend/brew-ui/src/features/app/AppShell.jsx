@@ -112,14 +112,18 @@ export function AppShell({
 
       <div className="main-grid">
         <section className="content-column">
-          <div className="panel selected-panel">
-            <FermenterTabsHeader
-              selected={selected}
-              activeTab={activeTab}
-              onTabChange={onTabChange}
-            />
-            {children}
-          </div>
+          {selected ? (
+            <div className="panel selected-panel">
+              <FermenterTabsHeader
+                selected={selected}
+                activeTab={activeTab}
+                onTabChange={onTabChange}
+              />
+              {children}
+            </div>
+          ) : (
+            children
+          )}
         </section>
       </div>
     </div>
