@@ -203,7 +203,7 @@ sudo bash deploy/install_raspberry_pi_backend.sh --node-id 01 --node-name "Ferme
 From GitHub with interactive prompts:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<branch>/deploy/install_raspberry_pi_backend.sh -o install_labbrew.sh
+curl -fsSL https://raw.githubusercontent.com/FelixAbeln/LabBREW/refs/heads/main/deploy/install_raspberry_pi_backend.sh -o install_labbrew.sh
 sudo bash install_labbrew.sh
 ```
 
