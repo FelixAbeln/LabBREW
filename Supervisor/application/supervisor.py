@@ -60,7 +60,6 @@ class TopologySupervisor:
             apply_update_action=self.apply_repo_update,
         )
         self._stopping = False
-        self._restart_requested = False
         self._maintenance_lock = threading.RLock()
         self._repo_status_cache: dict[str, Any] = {
             "checked_at": 0.0,
@@ -245,7 +244,7 @@ class TopologySupervisor:
                     restart_requested = True
                     details.append("supervisor restart requested")
 
-                if not restart_requested:
+                if updated and not restart_requested:
                     self._restart_managed_services()
                     self._publish_node()
             except Exception as exc:
