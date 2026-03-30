@@ -129,7 +129,9 @@ class TopologySupervisor:
                 status["branch"] = self._run_git(["rev-parse", "--abbrev-ref", "HEAD"])
                 status["dirty"] = bool(self._run_git(["status", "--porcelain"]))
 
-                remote_line = self._run_git(["ls-remote", repo_url, "refs/heads/main"], timeout_s=25.0)
+                branch = str(status.get("branch") or "")
+                remote_ref = f"refs/heads/{branch}" if branch and branch != "HEAD" else "HEAD"
+                remote_line = self._run_git(["ls-remote", repo_url, remote_ref], timeout_s=25.0)
                 status["remote_revision"] = remote_line.split()[0] if remote_line else None
 
                 local_rev = str(status.get("local_revision") or "")
