@@ -240,7 +240,7 @@ class TopologySupervisor:
                     restart_requested = True
                     details.append("supervisor restart requested")
 
-                if not restart_requested:
+                if updated and not restart_requested:
                     self._restart_managed_services()
                     self._publish_node()
             except Exception as exc:
