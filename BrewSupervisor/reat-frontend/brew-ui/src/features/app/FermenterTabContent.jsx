@@ -6,6 +6,7 @@ import { DataTabContainer } from './containers/DataTabContainer';
 import { RulesTabContainer } from './containers/RulesTabContainer';
 import { ScheduleTabContainer } from './containers/ScheduleTabContainer';
 import { SystemTabContainer } from './containers/SystemTabContainer';
+import asleepBreweryIcon from '../../assets/brewery-asleep.svg';
 
 export function FermenterTabContent({
   selected,
@@ -21,7 +22,12 @@ export function FermenterTabContent({
   ruleEditorProps,
 }) {
   if (!selected) {
-    return <p className="muted">Select a fermenter.</p>;
+    return (
+      <div className="empty-fermenter-state">
+        <img className="empty-fermenter-icon" src={asleepBreweryIcon} alt="" aria-hidden="true" />
+        <p className="empty-fermenter-title">The Brewery seems to be asleep</p>
+      </div>
+    );
   }
 
   return (

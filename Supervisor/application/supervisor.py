@@ -71,6 +71,7 @@ class TopologySupervisor:
                 "branch": None,
                 "outdated": False,
                 "dirty": False,
+                "restart_requested": False,
                 "error": "not_checked",
             },
         }
@@ -112,7 +113,9 @@ class TopologySupervisor:
             cached_at = float(self._repo_status_cache.get("checked_at") or 0.0)
             cached = self._repo_status_cache.get("status")
             if not force and isinstance(cached, dict) and now - cached_at < 60.0:
-                return dict(cached)
+                status = dict(cached)
+                status["restart_requested"] = bool(self._restart_requested)
+                return status
 
             repo_url = "https://github.com/FelixAbeln/LabBREW.git"
             status: dict[str, Any] = {
@@ -122,6 +125,7 @@ class TopologySupervisor:
                 "branch": None,
                 "outdated": False,
                 "dirty": False,
+                "restart_requested": bool(self._restart_requested),
                 "error": None,
             }
 
