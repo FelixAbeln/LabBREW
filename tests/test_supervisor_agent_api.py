@@ -163,3 +163,17 @@ def test_agent_repo_endpoints_return_501_when_unconfigured(monkeypatch) -> None:
 
     assert status_resp.status_code == 501
     assert update_resp.status_code == 501
+
+
+def test_agent_repo_update_failure_surfaces_detail(monkeypatch) -> None:
+    client = _build_client(
+        monkeypatch,
+        apply_update_action=lambda: {"ok": False, "reason": "pip project install failed: wheel build error"},
+    )
+
+    response = client.post("/agent/repo/update")
+
+    assert response.status_code == 500
+    detail = response.json().get("detail")
+    assert isinstance(detail, dict)
+    assert detail.get("reason", "").startswith("pip project install failed")

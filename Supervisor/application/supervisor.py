@@ -170,6 +170,22 @@ class TopologySupervisor:
             updated = False
             details: list[str] = []
             repo_url = str(before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git")
+
+            def _run_pip_checked(args: list[str], *, label: str) -> None:
+                proc = subprocess.run(
+                    [sys.executable, "-m", "pip", *args],
+                    cwd=str(self.root_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=180.0,
+                    check=False,
+                )
+                if proc.returncode != 0:
+                    stderr = (proc.stderr or "").strip()
+                    stdout = (proc.stdout or "").strip()
+                    detail = stderr or stdout or f"pip exited with code {proc.returncode}"
+                    raise RuntimeError(f"{label} failed: {detail}")
+
             try:
                 self._run_git(["fetch", repo_url, "main"], timeout_s=35.0)
                 details.append("fetched latest main from GitHub")
@@ -177,23 +193,10 @@ class TopologySupervisor:
                 if refreshed.get("outdated"):
                     self._run_git(["pull", "--ff-only", repo_url, "main"], timeout_s=45.0)
                     details.append("fast-forward pull applied")
-                    subprocess.run(
-                        [sys.executable, "-m", "pip", "install", "-r", str(self.root_dir / "requirements.txt")],
-                        cwd=str(self.root_dir),
-                        capture_output=True,
-                        text=True,
-                        timeout=180.0,
-                        check=False,
-                    )
-                    subprocess.run(
-                        [sys.executable, "-m", "pip", "install", str(self.root_dir)],
-                        cwd=str(self.root_dir),
-                        capture_output=True,
-                        text=True,
-                        timeout=180.0,
-                        check=False,
-                    )
-                    details.append("pip dependency refresh attempted")
+                    _run_pip_checked(["install", "-r", str(self.root_dir / "requirements.txt")], label="pip requirements install")
+                    details.append("pip requirements install succeeded")
+                    _run_pip_checked(["install", str(self.root_dir)], label="pip project install")
+                    details.append("pip project install succeeded")
                     updated = True
 
                 self._restart_managed_services()
@@ -284,13 +287,14 @@ class TopologySupervisor:
 
     def summary(self) -> dict[str, Any]:
         repo_status = self.repo_update_status(force=False)
-        schedule = self.service_map().get('schedule_service')
-        control = self.service_map().get('control_service')
-        data = self.service_map().get('data_service')
+        services = self.service_map()
+        schedule = services.get('schedule_service')
+        control = services.get('control_service')
+        data = services.get('data_service')
         return {
             'node_id': self.node_id,
             'node_name': self.node_name,
-            'services': self.service_map(),
+            'services': services,
             'repo_update': repo_status,
             'schedule_available': bool(schedule and schedule['healthy']),
             'control_available': bool(control and control['healthy']),

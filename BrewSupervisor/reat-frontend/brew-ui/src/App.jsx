@@ -582,6 +582,13 @@ function App() {
       const status = payload?.status && typeof payload.status === 'object' ? payload.status : null
       setRepoUpdateStatus(status)
       return status
+    } catch (err) {
+      if (!quiet) {
+        setError(err instanceof Error ? err.message : 'Failed to refresh update status')
+      } else {
+        console.warn('Repo update status polling failed', err)
+      }
+      return null
     } finally {
       if (!quiet) setRepoStatusLoading(false)
     }
