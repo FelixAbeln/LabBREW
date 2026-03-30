@@ -192,16 +192,29 @@ input {
   gap: 24px;
 }
 
+.content-column-empty {
+  min-height: calc(100vh - 120px);
+}
+
 .empty-fermenter-state {
-  min-height: 56vh;
+  min-height: 100%;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.empty-fermenter-stack {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: grid;
   justify-items: center;
-  align-content: center;
-  gap: 14px;
+  gap: 10px;
 }
 
 .empty-fermenter-icon {
-  width: min(350px, 65vw);
+  width: clamp(220px, 30vw, 400px);
   height: auto;
   opacity: 1;
 }

@@ -24,8 +24,10 @@ export function FermenterTabContent({
   if (!selected) {
     return (
       <div className="empty-fermenter-state">
-        <img className="empty-fermenter-icon" src={asleepBreweryIcon} alt="" aria-hidden="true" />
-        <p className="empty-fermenter-title">The Brewery seems to be asleep</p>
+        <div className="empty-fermenter-stack">
+          <img className="empty-fermenter-icon" src={asleepBreweryIcon} alt="" aria-hidden="true" />
+          <p className="empty-fermenter-title">The Brewery seems to be asleep</p>
+        </div>
       </div>
     );
   }
