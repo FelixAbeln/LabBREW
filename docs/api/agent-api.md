@@ -110,7 +110,8 @@ Returns the node-local repository update status used by the System tab update ca
     "remote_revision": "def456...",
     "outdated": true,
     "dirty": false,
-    "error": null
+    "error": null,
+    "restart_requested": false
   }
 }
 ```
