@@ -29,6 +29,7 @@ The script:
 Options:
   --source-dir PATH       Source repository to install from.
   --repo-url URL          Git repository to clone when source-dir is not used.
+                           Default (non-interactive): https://github.com/FelixAbeln/LabBREW.git
   --git-ref REF           Optional git branch/tag/commit to check out after clone.
   --install-dir PATH      Target install directory. Default: /opt/labbrew
   --service-name NAME     systemd unit name. Default: labbrew-supervisor
@@ -157,6 +158,7 @@ detect_advertise_host() {
 
 SOURCE_DIR=''
 REPO_URL=''
+DEFAULT_REPO_URL='https://github.com/FelixAbeln/LabBREW.git'
 GIT_REF=''
 INSTALL_DIR='/opt/labbrew'
 SERVICE_NAME='labbrew-supervisor'
@@ -286,7 +288,17 @@ resolve_source_dir() {
   fi
 
   if [[ "$NON_INTERACTIVE" == '1' ]]; then
-    fail 'Provide either --source-dir or --repo-url when using --non-interactive.'
+    REPO_URL="$DEFAULT_REPO_URL"
+    log "Using default repository URL: $REPO_URL"
+    TMP_CLONE_DIR="$(mktemp -d /tmp/labbrew-src.XXXXXX)"
+    log "Cloning repository from $REPO_URL"
+    git clone "$REPO_URL" "$TMP_CLONE_DIR"
+    if [[ -n "$GIT_REF" ]]; then
+      log "Checking out git ref $GIT_REF"
+      git -C "$TMP_CLONE_DIR" checkout "$GIT_REF"
+    fi
+    SOURCE_DIR="$TMP_CLONE_DIR"
+    return
   fi
 
   SOURCE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
