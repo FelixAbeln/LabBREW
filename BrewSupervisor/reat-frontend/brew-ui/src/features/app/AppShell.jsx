@@ -111,7 +111,7 @@ export function AppShell({
       </div>
 
       <div className="main-grid">
-        <section className="content-column">
+        <section className={`content-column ${selected ? '' : 'content-column-empty'}`.trim()}>
           {selected ? (
             <div className="panel selected-panel">
               <FermenterTabsHeader
