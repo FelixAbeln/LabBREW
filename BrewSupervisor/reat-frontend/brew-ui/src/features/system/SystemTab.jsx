@@ -1,4 +1,21 @@
-export function SystemTab({ selected, healthyServices, onOpenParameterDB }) {
+function shortSha(value) {
+  if (typeof value !== 'string' || !value.trim()) return '-'
+  return value.slice(0, 8)
+}
+
+export function SystemTab({
+  selected,
+  healthyServices,
+  onOpenParameterDB,
+  repoUpdateStatus,
+  repoStatusLoading,
+  repoUpdateLoading,
+  onRefreshRepoStatus,
+  onApplyRepoUpdate,
+}) {
+  const updateError = typeof repoUpdateStatus?.error === 'string' ? repoUpdateStatus.error : ''
+  const isOutdated = Boolean(repoUpdateStatus?.outdated)
+
   return (
     <div className="tab-content-grid system-layout">
       {onOpenParameterDB && (
@@ -42,6 +59,34 @@ export function SystemTab({ selected, healthyServices, onOpenParameterDB }) {
           <h3>Healthy services</h3>
           <span className="tag">{healthyServices.length} active</span>
         </div>
+        <div className="system-service-item" style={{ marginBottom: 12 }}>
+          <div className="system-service-header">
+            <strong>GitHub update status</strong>
+            {updateError ? (
+              <span className="pill pill-bad">check failed</span>
+            ) : isOutdated ? (
+              <span className="pill pill-warn">update available</span>
+            ) : (
+              <span className="pill pill-ok">up to date</span>
+            )}
+          </div>
+          <div className="small-text">Local: {shortSha(repoUpdateStatus?.local_revision)}</div>
+          <div className="small-text">Remote: {shortSha(repoUpdateStatus?.remote_revision)}</div>
+          <div className="small-text">Branch: {repoUpdateStatus?.branch || '-'}</div>
+          {updateError && <div className="small-text">Error: {updateError}</div>}
+          <div className="control-button-group" style={{ marginTop: 10 }}>
+            <button className="secondary-button" onClick={onRefreshRepoStatus} disabled={repoStatusLoading || repoUpdateLoading}>
+              {repoStatusLoading ? 'Checking…' : 'Check updates'}
+            </button>
+            <button
+              className="primary-button"
+              onClick={onApplyRepoUpdate}
+              disabled={repoUpdateLoading || repoStatusLoading || updateError || !isOutdated}
+            >
+              {repoUpdateLoading ? 'Updating…' : 'Update from GitHub'}
+            </button>
+          </div>
+        </div>
         {!healthyServices.length ? (
           <p className="muted">No healthy services reported.</p>
         ) : (
@@ -50,7 +95,10 @@ export function SystemTab({ selected, healthyServices, onOpenParameterDB }) {
               <div key={name} className="system-service-item">
                 <div className="system-service-header">
                   <strong>{name}</strong>
-                  <span className="pill pill-ok">healthy</span>
+                  <div className="tag-row">
+                    <span className="pill pill-ok">healthy</span>
+                    {service?.update?.outdated && <span className="pill pill-warn">outdated</span>}
+                  </div>
                 </div>
                 <div className="small-text">Base URL: {service?.base_url || '-'}</div>
                 <div className="small-text">Reason: {service?.reason || '-'}</div>

@@ -186,6 +186,27 @@ def test_agent_info_services_and_summary_proxy() -> None:
         assert response.json()["ok"] is True
 
 
+def test_agent_repo_status_and_update_proxy() -> None:
+    proxy = StubProxy()
+    client = _client(nodes=[_make_node()], proxy=proxy)
+
+    status_response = client.get("/fermenters/01/agent/repo/status?force=1")
+    update_response = client.post("/fermenters/01/agent/repo/update")
+
+    assert status_response.status_code == 200
+    assert update_response.status_code == 200
+
+    status_call = proxy.calls[-2]
+    update_call = proxy.calls[-1]
+
+    assert status_call[0] == "GET"
+    assert status_call[1].endswith("/agent/repo/status")
+    assert status_call[2] == {"force": "1"}
+
+    assert update_call[0] == "POST"
+    assert update_call[1].endswith("/agent/repo/update")
+
+
 def test_agent_endpoints_return_404_for_missing_node() -> None:
     client = _client(nodes=[], proxy=StubProxy())
     response = client.get("/fermenters/missing/agent/info")

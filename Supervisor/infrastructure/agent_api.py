@@ -61,6 +61,8 @@ def build_agent_app(
     service_map: Callable[[], dict[str, dict[str, Any]]],
     summary_provider: Callable[[], dict[str, Any]],
     proxy_session: requests.Session,
+    update_status_provider: Callable[[bool], dict[str, Any]] | None = None,
+    apply_update_action: Callable[[], dict[str, Any]] | None = None,
 ) -> FastAPI:
     app = FastAPI(title=f"Fermenter Agent {node_name}")
 
@@ -96,6 +98,27 @@ def build_agent_app(
     @app.get('/agent/summary')
     def agent_summary() -> dict[str, Any]:
         return summary_provider()
+
+    @app.get('/agent/repo/status')
+    def agent_repo_status(force: bool = False) -> dict[str, Any]:
+        if update_status_provider is None:
+            raise HTTPException(status_code=501, detail='Repo status provider is not configured')
+        return {
+            'ok': True,
+            'status': update_status_provider(bool(force)),
+        }
+
+    @app.post('/agent/repo/update')
+    def agent_repo_update() -> dict[str, Any]:
+        if apply_update_action is None:
+            raise HTTPException(status_code=501, detail='Repo update action is not configured')
+        result = apply_update_action()
+        if not bool(result.get('ok')):
+            raise HTTPException(status_code=500, detail=result)
+        return {
+            'ok': True,
+            **result,
+        }
 
     @app.get('/parameterdb/params')
     def list_params() -> dict[str, Any]:
@@ -245,6 +268,8 @@ class AgentApiServer:
         node_name: str,
         service_map: Callable[[], dict[str, dict[str, Any]]],
         summary_provider: Callable[[], dict[str, Any]],
+        update_status_provider: Callable[[bool], dict[str, Any]] | None = None,
+        apply_update_action: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -255,6 +280,8 @@ class AgentApiServer:
             service_map=service_map,
             summary_provider=summary_provider,
             proxy_session=self._proxy_session,
+            update_status_provider=update_status_provider,
+            apply_update_action=apply_update_action,
         )
         self._server = uvicorn.Server(uvicorn.Config(self.app, host=self.host, port=self.port, log_level='info'))
         self._thread: Thread | None = None

@@ -53,6 +53,9 @@ function App() {
   const [controlDrafts, setControlDrafts] = useState({})
   const [dataActionLoading, setDataActionLoading] = useState(false)
   const [dataServiceStatus, setDataServiceStatus] = useState(null)
+  const [repoUpdateStatus, setRepoUpdateStatus] = useState(null)
+  const [repoStatusLoading, setRepoStatusLoading] = useState(false)
+  const [repoUpdateLoading, setRepoUpdateLoading] = useState(false)
   const [archivePayload, setArchivePayload] = useState(null)
   const [deletingArchiveName, setDeletingArchiveName] = useState('')
   const [dataHz, setDataHz] = useState('10')
@@ -571,6 +574,48 @@ function App() {
     setOwnedTargetValues(Array.isArray(payload?.owned_target_values) ? payload.owned_target_values : [])
   }
 
+  async function refreshRepoUpdateStatus(id = selectedId, { force = false, quiet = false } = {}) {
+    if (!id) return null
+    if (!quiet) setRepoStatusLoading(true)
+    try {
+      const payload = await brewApi.getAgentRepoStatus(id, { force })
+      const status = payload?.status && typeof payload.status === 'object' ? payload.status : null
+      setRepoUpdateStatus(status)
+      return status
+    } catch (err) {
+      if (!quiet) {
+        setError(err instanceof Error ? err.message : 'Failed to refresh update status')
+      } else {
+        console.warn('Repo update status polling failed', err)
+      }
+      return null
+    } finally {
+      if (!quiet) setRepoStatusLoading(false)
+    }
+  }
+
+  async function applyRepoUpdate() {
+    if (!selected?.id || repoUpdateLoading) return
+    try {
+      setRepoUpdateLoading(true)
+      setError('')
+      const payload = await brewApi.applyAgentRepoUpdate(selected.id)
+      const nextStatus = payload?.after && typeof payload.after === 'object' ? payload.after : null
+      if (nextStatus) setRepoUpdateStatus(nextStatus)
+      brewApi.invalidateFermenter(selected.id)
+      brewApi.invalidateFermenters()
+      await Promise.all([
+        loadFermenters(),
+        loadDetails(selected.id),
+        refreshRepoUpdateStatus(selected.id, { force: true, quiet: true }),
+      ])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setRepoUpdateLoading(false)
+    }
+  }
+
   async function refreshAll() {
     try {
       setError('')
@@ -652,6 +697,11 @@ function App() {
     refreshAll()
   }, [])
 
+  useEffect(() => {
+    const summaryStatus = selected?.summary?.repo_update
+    setRepoUpdateStatus(summaryStatus && typeof summaryStatus === 'object' ? summaryStatus : null)
+  }, [selected?.id, selected?.summary])
+
   useAdaptivePolling({
     enabled: Boolean(selected?.id),
     task: async () => {
@@ -723,6 +773,18 @@ function App() {
       await loadFermenters().catch(() => {})
     },
     getDelay: () => 15000,
+  })
+
+  useAdaptivePolling({
+    enabled: activeTab === 'system' && Boolean(selected?.id),
+    task: async () => {
+      try {
+        await refreshRepoUpdateStatus(selected.id, { force: false, quiet: true })
+      } catch {
+        // Suppress errors in quiet polling mode to avoid unhandled promise rejections
+      }
+    },
+    getDelay: () => 20000,
   })
 
 
@@ -826,6 +888,11 @@ function App() {
     selected,
     healthyServices,
     onOpenParameterDB: () => setGlobalView('parameterdb'),
+    repoUpdateStatus,
+    repoStatusLoading,
+    repoUpdateLoading,
+    onRefreshRepoStatus: () => refreshRepoUpdateStatus(selected?.id, { force: true }),
+    onApplyRepoUpdate: applyRepoUpdate,
   }
 
   const ruleEditorProps = {

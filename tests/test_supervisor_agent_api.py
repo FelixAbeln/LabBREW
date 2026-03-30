@@ -77,7 +77,7 @@ class StubSignalClient:
         return True
 
 
-def _build_client(monkeypatch) -> TestClient:
+def _build_client(monkeypatch, *, update_status_provider=None, apply_update_action=None) -> TestClient:
     monkeypatch.setattr(agent_api, "SignalClient", StubSignalClient)
     app = agent_api.build_agent_app(
         node_id="node-1",
@@ -85,6 +85,8 @@ def _build_client(monkeypatch) -> TestClient:
         service_map=lambda: {},
         summary_provider=lambda: {},
         proxy_session=None,
+        update_status_provider=update_status_provider,
+        apply_update_action=apply_update_action,
     )
     return TestClient(app)
 
@@ -123,3 +125,55 @@ def test_import_snapshot_reads_json_body(monkeypatch) -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["imported"] is True
+
+
+def test_agent_repo_status_endpoint_uses_provider(monkeypatch) -> None:
+    calls: list[bool] = []
+
+    def _status(force: bool) -> dict:
+        calls.append(force)
+        return {"outdated": True, "local_revision": "abc", "remote_revision": "def"}
+
+    client = _build_client(monkeypatch, update_status_provider=_status)
+    response = client.get("/agent/repo/status?force=1")
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert response.json()["status"]["outdated"] is True
+    assert calls == [True]
+
+
+def test_agent_repo_update_endpoint_uses_update_action(monkeypatch) -> None:
+    client = _build_client(
+        monkeypatch,
+        apply_update_action=lambda: {"ok": True, "updated": True, "after": {"outdated": False}},
+    )
+    response = client.post("/agent/repo/update")
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert response.json()["updated"] is True
+
+
+def test_agent_repo_endpoints_return_501_when_unconfigured(monkeypatch) -> None:
+    client = _build_client(monkeypatch)
+
+    status_resp = client.get("/agent/repo/status")
+    update_resp = client.post("/agent/repo/update")
+
+    assert status_resp.status_code == 501
+    assert update_resp.status_code == 501
+
+
+def test_agent_repo_update_failure_surfaces_detail(monkeypatch) -> None:
+    client = _build_client(
+        monkeypatch,
+        apply_update_action=lambda: {"ok": False, "reason": "pip project install failed: wheel build error"},
+    )
+
+    response = client.post("/agent/repo/update")
+
+    assert response.status_code == 500
+    detail = response.json().get("detail")
+    assert isinstance(detail, dict)
+    assert detail.get("reason", "").startswith("pip project install failed")
