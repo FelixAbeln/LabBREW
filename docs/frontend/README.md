@@ -108,6 +108,13 @@ See [Schedule Excel Import Guide](../api/schedule-excel-import.md) for the workb
 
 A read-only dashboard showing the overall health of the selected fermenter node: service statuses, software versions, and any reported errors. Useful for a quick sanity check before starting a run.
 
+The System tab also includes a GitHub update card:
+
+- **Check updates** compares the node's current git revision with the remote branch revision.
+- **Update from GitHub** performs a fast-forward update and Python dependency refresh on the node.
+- If an update is applied, the node supervisor requests restart so service managers (for example systemd with `Restart=always`) can relaunch it using the new code.
+- In manual/non-managed runs, a requested restart means the supervisor process exits and must be started again manually.
+
 ---
 
 ### Control Tab

@@ -65,6 +65,20 @@ Proxies `GET /agent/services` on the node's Supervisor Agent.
 
 Proxies `GET /agent/summary` on the node's Supervisor Agent.
 
+### `GET /fermenters/{fermenter_id}/agent/repo/status`
+
+Proxies `GET /agent/repo/status` on the node's Supervisor Agent.
+
+Supports optional `?force=1` query parameter to force a fresh git check.
+
+### `POST /fermenters/{fermenter_id}/agent/repo/update`
+
+Proxies `POST /agent/repo/update` on the node's Supervisor Agent.
+
+Used by the System tab `Update from GitHub` button.
+
+On successful update apply, the node may request supervisor restart (`restart_requested: true`) so a process manager can relaunch it with updated code.
+
 ---
 
 ## Dashboard

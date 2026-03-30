@@ -60,6 +60,7 @@ class TopologySupervisor:
             apply_update_action=self.apply_repo_update,
         )
         self._stopping = False
+        self._restart_requested = False
         self._maintenance_lock = threading.RLock()
         self._repo_status_cache: dict[str, Any] = {
             "checked_at": 0.0,
@@ -204,6 +205,7 @@ class TopologySupervisor:
                 }
 
             updated = False
+            restart_requested = False
             details: list[str] = []
             repo_url = str(before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git")
 
@@ -234,9 +236,14 @@ class TopologySupervisor:
                     _run_pip_checked(["install", str(self.root_dir)], label="pip project install")
                     details.append("pip project install succeeded")
                     updated = True
+                    self._restart_requested = True
+                    self._stopping = True
+                    restart_requested = True
+                    details.append("supervisor restart requested")
 
-                self._restart_managed_services()
-                self._publish_node()
+                if not restart_requested:
+                    self._restart_managed_services()
+                    self._publish_node()
             except Exception as exc:
                 after_err = self.repo_update_status(force=True)
                 return {
@@ -246,6 +253,7 @@ class TopologySupervisor:
                     "details": details,
                     "before": before,
                     "after": after_err,
+                    "restart_requested": restart_requested,
                 }
 
             after = self.repo_update_status(force=True)
@@ -255,6 +263,7 @@ class TopologySupervisor:
                 "details": details,
                 "before": before,
                 "after": after,
+                "restart_requested": restart_requested,
             }
 
     def install_signal_handlers(self) -> None:

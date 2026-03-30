@@ -56,9 +56,70 @@ Returns a high-level availability summary computed by the Supervisor.
 {
   "schedule_available": true,
   "control_available": true,
-  "data_available": true
+  "data_available": true,
+  "repo_update": {
+    "repo_url": "https://github.com/FelixAbeln/LabBREW.git",
+    "branch": "main",
+    "local_revision": "abc123...",
+    "remote_revision": "def456...",
+    "outdated": true,
+    "dirty": false,
+    "error": null
+  }
 }
 ```
+
+### `GET /agent/repo/status`
+
+Returns the node-local repository update status used by the System tab update card.
+
+**Query params**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `force` | bool | `false` | If true, bypasses the short status cache and refreshes from git immediately |
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "status": {
+    "repo_url": "https://github.com/FelixAbeln/LabBREW.git",
+    "branch": "main",
+    "local_revision": "abc123...",
+    "remote_revision": "def456...",
+    "outdated": true,
+    "dirty": false,
+    "error": null
+  }
+}
+```
+
+### `POST /agent/repo/update`
+
+Applies an in-place git update on the current branch, refreshes Python dependencies, and reports whether a supervisor restart was requested.
+
+When an update is applied, the supervisor requests its own shutdown so process managers such as systemd (`Restart=always`) can relaunch it with the new code.
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "updated": true,
+  "restart_requested": true,
+  "details": [
+    "fetched latest main from GitHub",
+    "fast-forward pull applied",
+    "pip requirements install succeeded",
+    "pip project install succeeded",
+    "supervisor restart requested"
+  ],
+  "before": {"outdated": true},
+  "after": {"outdated": false}
+}
+```
+
+If dependency installation or git operations fail, this endpoint returns an error with failure details.
 
 ---
 
