@@ -778,7 +778,11 @@ function App() {
   useAdaptivePolling({
     enabled: activeTab === 'system' && Boolean(selected?.id),
     task: async () => {
-      await refreshRepoUpdateStatus(selected.id, { force: false, quiet: true })
+      try {
+        await refreshRepoUpdateStatus(selected.id, { force: false, quiet: true })
+      } catch {
+        // Suppress errors in quiet polling mode to avoid unhandled promise rejections
+      }
     },
     getDelay: () => 20000,
   })

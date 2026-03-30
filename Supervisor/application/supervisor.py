@@ -129,7 +129,9 @@ class TopologySupervisor:
                 status["branch"] = self._run_git(["rev-parse", "--abbrev-ref", "HEAD"])
                 status["dirty"] = bool(self._run_git(["status", "--porcelain"]))
 
-                remote_line = self._run_git(["ls-remote", repo_url, "refs/heads/main"], timeout_s=25.0)
+                branch = str(status.get("branch") or "")
+                remote_ref = f"refs/heads/{branch}" if branch and branch != "HEAD" else "HEAD"
+                remote_line = self._run_git(["ls-remote", repo_url, remote_ref], timeout_s=25.0)
                 status["remote_revision"] = remote_line.split()[0] if remote_line else None
 
                 local_rev = str(status.get("local_revision") or "")
@@ -167,6 +169,40 @@ class TopologySupervisor:
                     "after": before,
                 }
 
+            # Determine the currently checked-out branch so we do not
+            # unconditionally fetch/pull from "main" and accidentally
+            # update the wrong branch.
+            try:
+                branch_proc = subprocess.run(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    cwd=str(self.root_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=10.0,
+                    check=False,
+                )
+            except Exception as exc:
+                return {
+                    "ok": False,
+                    "updated": False,
+                    "reason": f"git_branch_detection_failed: {exc}",
+                    "before": before,
+                    "after": before,
+                }
+
+            current_branch = (branch_proc.stdout or "").strip()
+            if branch_proc.returncode != 0 or not current_branch or current_branch == "HEAD":
+                # Detached HEAD or unable to determine a valid branch; refuse to
+                # perform an automatic update in this state.
+                return {
+                    "ok": False,
+                    "updated": False,
+                    "reason": "unsupported_git_state_for_update",
+                    "details": [branch_proc.stderr.strip()] if branch_proc.stderr else [],
+                    "before": before,
+                    "after": before,
+                }
+
             updated = False
             details: list[str] = []
             repo_url = str(before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git")
@@ -187,11 +223,11 @@ class TopologySupervisor:
                     raise RuntimeError(f"{label} failed: {detail}")
 
             try:
-                self._run_git(["fetch", repo_url, "main"], timeout_s=35.0)
-                details.append("fetched latest main from GitHub")
+                self._run_git(["fetch", repo_url, current_branch], timeout_s=35.0)
+                details.append(f"fetched latest {current_branch} from GitHub")
                 refreshed = self.repo_update_status(force=True)
                 if refreshed.get("outdated"):
-                    self._run_git(["pull", "--ff-only", repo_url, "main"], timeout_s=45.0)
+                    self._run_git(["pull", "--ff-only", repo_url, current_branch], timeout_s=45.0)
                     details.append("fast-forward pull applied")
                     _run_pip_checked(["install", "-r", str(self.root_dir / "requirements.txt")], label="pip requirements install")
                     details.append("pip requirements install succeeded")
