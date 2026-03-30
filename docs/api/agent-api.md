@@ -54,9 +54,28 @@ Returns a high-level availability summary computed by the Supervisor.
 **Response** `200 OK`
 ```json
 {
+  "node_id": "rpi-node-1",
+  "node_name": "Fermentation Room A",
   "schedule_available": true,
   "control_available": true,
   "data_available": true,
+  "services": {
+    "schedule_service": {
+      "name": "schedule_service",
+      "healthy": true,
+      "outdated": false
+    },
+    "control_service": {
+      "name": "control_service",
+      "healthy": true,
+      "outdated": false
+    },
+    "data_service": {
+      "name": "data_service",
+      "healthy": true,
+      "outdated": false
+    }
+  },
   "repo_update": {
     "repo_url": "https://github.com/FelixAbeln/LabBREW.git",
     "branch": "main",
@@ -64,6 +83,7 @@ Returns a high-level availability summary computed by the Supervisor.
     "remote_revision": "def456...",
     "outdated": true,
     "dirty": false,
+    "restart_requested": false,
     "error": null
   }
 }

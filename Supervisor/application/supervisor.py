@@ -60,6 +60,7 @@ class TopologySupervisor:
             apply_update_action=self.apply_repo_update,
         )
         self._stopping = False
+        self._restart_requested = False
         self._maintenance_lock = threading.RLock()
         self._repo_status_cache: dict[str, Any] = {
             "checked_at": 0.0,
