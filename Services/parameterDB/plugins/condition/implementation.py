@@ -176,12 +176,16 @@ class ConditionParameter(ParameterBase):
             self.state["last_error"] = self._cached_error
             return
 
+        # If compiling the condition did not produce a valid wait spec,
+        # treat this as a recoverable configuration error instead of
+        # raising an AssertionError.
+        if self._cached_wait_spec is None:
+            self.state["last_error"] = "invalid or empty wait configuration"
+            return
+
         now_monotonic = time.monotonic()
         if self._logic_started_monotonic is None:
             self._logic_started_monotonic = now_monotonic
-
-        assert self._cached_wait_spec is not None
-
         values = store.snapshot()
         values.pop(self.name, None)
 
