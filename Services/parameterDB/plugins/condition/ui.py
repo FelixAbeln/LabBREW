@@ -10,6 +10,7 @@ def get_ui_spec() -> dict:
                 "config": {
                     "condition": "",
                     "enable_param": "",
+                    "output_params": [],
                 },
                 "metadata": {},
             },
@@ -41,6 +42,12 @@ def get_ui_spec() -> dict:
                             "label": "Enable Parameter",
                             "type": "parameter_ref",
                             "help": "Optional boolean-like parameter used to enable or disable condition evaluation.",
+                        },
+                        {
+                            "key": "config.output_params",
+                            "label": "Mirror Output To",
+                            "type": "parameter_ref",
+                            "help": "Optional parameters that should receive the same boolean value as this condition.",
                         },
                     ],
                 },
@@ -77,6 +84,7 @@ def get_ui_spec() -> dict:
                     "fields": [
                         {"key": "config.condition", "label": "Logic Expression", "type": "text", "required": True},
                         {"key": "config.enable_param", "label": "Enable Parameter", "type": "parameter_ref"},
+                        {"key": "config.output_params", "label": "Mirror Output To", "type": "parameter_ref"},
                     ],
                 },
                 {
@@ -94,6 +102,8 @@ def get_ui_spec() -> dict:
                         {"key": "state.required_for_s", "label": "Required Hold (s)", "type": "readonly"},
                         {"key": "state.observed_values", "label": "Observed Values", "type": "readonly"},
                         {"key": "state.message", "label": "Message", "type": "readonly"},
+                        {"key": "state.output_targets", "label": "Output Targets", "type": "readonly"},
+                        {"key": "state.missing_output_targets", "label": "Missing Targets", "type": "readonly"},
                         {"key": "state.last_error", "label": "Last Error", "type": "readonly"},
                     ],
                 },

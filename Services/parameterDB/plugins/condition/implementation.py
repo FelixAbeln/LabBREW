@@ -67,7 +67,7 @@ def _wait_kind(spec: WaitSpec | None) -> str:
 class ConditionParameter(ParameterBase):
     parameter_type = "condition"
     display_name = "Condition"
-    description = "Evaluates the shared condition syntax and stores the boolean result."
+    description = "Evaluates the shared condition syntax and stores the boolean result. Output can also be mirrored to other parameters."
 
     def __init__(
         self,
@@ -86,6 +86,38 @@ class ConditionParameter(ParameterBase):
         self._wait_state = WaitState()
         self._logic_started_monotonic: float | None = None
         self._last_enabled = True
+
+    def _output_targets(self) -> list[str]:
+        raw = self.config.get("output_params") or []
+        if isinstance(raw, str):
+            raw = [raw]
+        result: list[str] = []
+        if isinstance(raw, list):
+            for item in raw:
+                if not item:
+                    continue
+                name = str(item).strip()
+                if name and name != self.name:
+                    result.append(name)
+        return list(dict.fromkeys(result))
+
+    def write_targets(self) -> list[str]:
+        return self._output_targets()
+
+    def _write_output_targets(self, store, value: bool) -> None:
+        written: list[str] = []
+        missing: list[str] = []
+        for target in self._output_targets():
+            if not store.exists(target):
+                missing.append(target)
+                continue
+            store.set_value(target, value)
+            written.append(target)
+        self.state["output_targets"] = written
+        if missing:
+            self.state["missing_output_targets"] = missing
+        else:
+            self.state.pop("missing_output_targets", None)
 
     def _raw_logic(self) -> Any:
         if "expression" in self.config and str(self.config.get("expression") or "").strip():
@@ -241,6 +273,7 @@ class ConditionParameter(ParameterBase):
                 self.state["last_error"] = "Missing value for " + ", ".join(missing_sources)
         else:
             self.value = bool(result.matched)
+            self._write_output_targets(store, self.value)
             self.state["last_error"] = ""
 
 
@@ -256,6 +289,7 @@ class ConditionPlugin(PluginSpec):
         return {
             "condition": "",
             "enable_param": "",
+            "output_params": [],
         }
 
     def schema(self) -> dict[str, Any]:
@@ -265,6 +299,7 @@ class ConditionPlugin(PluginSpec):
                 "condition": {"type": ["object", "string"]},
                 "expression": {"type": "string"},
                 "enable_param": {"type": "string"},
+                "output_params": {"type": ["array", "string"]},
             },
             "required": ["condition"],
         }
