@@ -66,6 +66,26 @@ def test_condition_plugin_sets_missing_value_error_and_keeps_existing_value() ->
     assert param.state["last_error"] == "Missing value for missing.input"
 
 
+def test_condition_plugin_composite_missing_value_keeps_previous_output() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("temp", value=20.0))
+
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "ready",
+        config={
+            "condition": "all(cond:temp:>=:10;cond:missing.signal:==:1)",
+        },
+        value=True,
+    )
+
+    param.scan(_ctx(store))
+
+    assert param.get_value() is True
+    assert param.state["matched"] is False
+    assert "Missing value for" in param.state["last_error"]
+
+
 def test_condition_plugin_honors_for_s_hold_time(monkeypatch) -> None:
     now = {"t": 100.0}
     monkeypatch.setattr(condition_module.time, "monotonic", lambda: now["t"])
