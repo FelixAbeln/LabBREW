@@ -48,6 +48,7 @@ Plugins should set `state.last_error` for recoverable validation/config issues t
 | `deadband` | yes (engine) | yes (plugin + engine) | yes (engine) | Sets `last_error` when required config missing |
 | `pid` | yes (engine) | yes (plugin + engine) | yes (engine) | Sets `last_error` when required config missing |
 | `math` | yes (engine) | yes (plugin + engine) | yes (engine) | Sets `last_error` for invalid equation, missing symbols, or non-numeric inputs |
+| `condition` | yes (engine) | yes (plugin + engine) | yes (engine) | Sets `last_error` for invalid condition config or missing referenced values |
 
 ## Notes
 

@@ -3,6 +3,10 @@ from __future__ import annotations
 from ..._shared.operator_engine.models import AtomicCondition, CompositeCondition
 
 
+def _parse_for_s(value) -> float:
+    return float(value or 0.0)
+
+
 def parse_condition(data: dict, path: str = "root"):
     if not isinstance(data, dict):
         raise ValueError(f"Condition must be a dict, got: {type(data)!r}")
@@ -12,7 +16,7 @@ def parse_condition(data: dict, path: str = "root"):
             source=data["source"],
             operator=data["operator"],
             params=data.get("params", {}),
-            for_s=float(data.get("for_s", 0.0)),
+            for_s=_parse_for_s(data.get("for_s")),
             node_id=data.get("node_id", path),
         )
 
@@ -24,6 +28,7 @@ def parse_condition(data: dict, path: str = "root"):
         return CompositeCondition(
             kind="all",
             children=children,
+            for_s=_parse_for_s(data.get("for_s")),
             node_id=data.get("node_id", path),
         )
 
@@ -35,6 +40,7 @@ def parse_condition(data: dict, path: str = "root"):
         return CompositeCondition(
             kind="any",
             children=children,
+            for_s=_parse_for_s(data.get("for_s")),
             node_id=data.get("node_id", path),
         )
 
@@ -43,6 +49,7 @@ def parse_condition(data: dict, path: str = "root"):
         return CompositeCondition(
             kind="not",
             children=(child,),
+            for_s=_parse_for_s(data.get("for_s")),
             node_id=data.get("node_id", path),
         )
 

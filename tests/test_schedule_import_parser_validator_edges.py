@@ -81,6 +81,10 @@ def test_split_parse_and_wait_helpers_cover_error_paths() -> None:
         parser._parse_condition("cond:a:>")
     with pytest.raises(ValueError):
         parser._parse_elapsed("elapsed")
+    with pytest.raises(ValueError, match="unmatched closing parenthesis"):
+        parser._split_top_level("a);b")
+    with pytest.raises(ValueError, match="unmatched opening parenthesis"):
+        parser._split_top_level("all(a;b")
 
 
 def test_collect_workbook_references_uses_selection_list_fallback() -> None:
