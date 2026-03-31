@@ -20,6 +20,13 @@ from ..infrastructure.health import tcp_probe
 from ..infrastructure.process_runner import ProcessRunner
 
 
+OPTIONAL_RUNTIME_PACKAGES: tuple[str, ...] = (
+    'bleak',
+    'fmpy',
+    'pyarrow',
+)
+
+
 class TopologySupervisor:
     def __init__(
         self,
@@ -106,6 +113,46 @@ class TopologySupervisor:
             detail = stderr or stdout or f"git exited with code {proc.returncode}"
             raise RuntimeError(detail)
         return (proc.stdout or "").strip()
+
+    def _run_pip_checked(self, args: list[str], *, label: str, timeout_s: float = 180.0) -> None:
+        proc = subprocess.run(
+            [sys.executable, '-m', 'pip', *args],
+            cwd=str(self.root_dir),
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+        if proc.returncode != 0:
+            stderr = (proc.stderr or '').strip()
+            stdout = (proc.stdout or '').strip()
+            detail = stderr or stdout or f'pip exited with code {proc.returncode}'
+            raise RuntimeError(f'{label} failed: {detail}')
+
+    def _install_optional_runtime_packages(self, details: list[str]) -> None:
+        for package_name in OPTIONAL_RUNTIME_PACKAGES:
+            proc = subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', package_name],
+                cwd=str(self.root_dir),
+                capture_output=True,
+                text=True,
+                timeout=180.0,
+                check=False,
+            )
+            if proc.returncode == 0:
+                details.append(f'optional package {package_name} install succeeded')
+                continue
+            stderr = (proc.stderr or '').strip()
+            stdout = (proc.stdout or '').strip()
+            detail = stderr or stdout or f'pip exited with code {proc.returncode}'
+            details.append(
+                f'optional package {package_name} install skipped: {detail}'
+            )
+
+    def _refresh_python_runtime(self, details: list[str]) -> None:
+        self._run_pip_checked(['install', str(self.root_dir)], label='pip project install')
+        details.append('pip project install succeeded')
+        self._install_optional_runtime_packages(details)
 
     def repo_update_status(self, force: bool = False) -> dict[str, Any]:
         now = time.time()
@@ -213,21 +260,6 @@ class TopologySupervisor:
             details: list[str] = []
             repo_url = str(before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git")
 
-            def _run_pip_checked(args: list[str], *, label: str) -> None:
-                proc = subprocess.run(
-                    [sys.executable, "-m", "pip", *args],
-                    cwd=str(self.root_dir),
-                    capture_output=True,
-                    text=True,
-                    timeout=180.0,
-                    check=False,
-                )
-                if proc.returncode != 0:
-                    stderr = (proc.stderr or "").strip()
-                    stdout = (proc.stdout or "").strip()
-                    detail = stderr or stdout or f"pip exited with code {proc.returncode}"
-                    raise RuntimeError(f"{label} failed: {detail}")
-
             try:
                 self._run_git(["fetch", repo_url, current_branch], timeout_s=35.0)
                 details.append(f"fetched latest {current_branch} from GitHub")
@@ -235,10 +267,7 @@ class TopologySupervisor:
                 if refreshed.get("outdated"):
                     self._run_git(["pull", "--ff-only", repo_url, current_branch], timeout_s=45.0)
                     details.append("fast-forward pull applied")
-                    _run_pip_checked(["install", "-r", str(self.root_dir / "requirements.txt")], label="pip requirements install")
-                    details.append("pip requirements install succeeded")
-                    _run_pip_checked(["install", str(self.root_dir)], label="pip project install")
-                    details.append("pip project install succeeded")
+                    self._refresh_python_runtime(details)
                     updated = True
                     self._restart_requested = True
                     self._stopping = True

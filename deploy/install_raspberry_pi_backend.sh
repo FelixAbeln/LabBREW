@@ -17,13 +17,14 @@ Usage: sudo bash deploy/install_raspberry_pi_backend.sh [options]
 
 Installs the LabBREW backend stack on a Raspberry Pi without the React frontend.
 The script:
-  - installs OS packages needed for the Python backend
+  - installs OS packages needed for the Python backend, mDNS discovery, and BLE support
   - optionally clones the repository from GitHub
   - copies this repository into /opt/labbrew
   - creates a virtual environment
   - installs Python dependencies from requirements.txt and the project package
   - writes /etc/labbrew/labbrew-supervisor.env
   - writes and enables a systemd service for the topology supervisor
+  - verifies that the service starts and the local agent API answers
   - can set the Pi hostname to match the fermenter name
 
 Options:
@@ -60,6 +61,18 @@ log() {
 fail() {
   printf '[labbrew-install] ERROR: %s\n' "$*" >&2
   exit 1
+}
+
+warn() {
+  printf '[labbrew-install] WARNING: %s\n' "$*" >&2
+}
+
+require_command() {
+  local command_name="$1"
+  local install_hint="$2"
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    fail "Required command '$command_name' is not available. $install_hint"
+  fi
 }
 
 is_interactive() {
@@ -154,6 +167,24 @@ detect_advertise_host() {
   else
     printf '127.0.0.1\n'
   fi
+}
+
+validate_python_version() {
+  local version_output major minor
+  version_output="$(python3 -c 'import sys; print(f"{sys.version_info[0]} {sys.version_info[1]}")' 2>/dev/null)" \
+    || fail 'python3 is required but was not found on PATH.'
+  read -r major minor <<< "$version_output"
+  if [[ "$major" -lt 3 || ( "$major" -eq 3 && "$minor" -lt 11 ) ]]; then
+    fail "LabBREW requires Python 3.11 or newer, but python3 resolved to ${major}.${minor}. Use Raspberry Pi OS Bookworm or newer, or provide Python 3.11+ before running the installer."
+  fi
+}
+
+verify_runtime_commands() {
+  require_command python3 'Install Python 3.11+ or rerun the installer without --skip-apt.'
+  require_command git 'Install git or rerun the installer without --skip-apt.'
+  require_command rsync 'Install rsync or rerun the installer without --skip-apt.'
+  require_command systemctl 'This installer expects a systemd-based Raspberry Pi OS image.'
+  require_command hostnamectl 'This installer expects hostnamectl to be available on the target system.'
 }
 
 SOURCE_DIR=''
@@ -323,6 +354,11 @@ LOG_DIR='/var/log/labbrew'
 WRAPPER_DIR="$INSTALL_DIR/bin"
 WRAPPER_PATH="$WRAPPER_DIR/run_${SERVICE_NAME}.sh"
 CONFIG_PATH="$INSTALL_DIR/data/system_topology.yaml"
+OPTIONAL_PYTHON_PACKAGES=(
+  bleak
+  fmpy
+  pyarrow
+)
 
 install_apt_packages() {
   if [[ "$SKIP_APT" == '1' ]]; then
@@ -334,9 +370,15 @@ install_apt_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
   apt-get install -y \
+    avahi-daemon \
+    bluez \
     build-essential \
+    ca-certificates \
+    curl \
+    dbus \
     git \
     libffi-dev \
+    libnss-mdns \
     libssl-dev \
     pkg-config \
     python3 \
@@ -344,6 +386,40 @@ install_apt_packages() {
     python3-pip \
     python3-venv \
     rsync
+}
+
+enable_optional_os_services() {
+  if systemctl list-unit-files avahi-daemon.service >/dev/null 2>&1; then
+    log 'Enabling avahi-daemon for .local name resolution and service discovery.'
+    systemctl enable --now avahi-daemon || warn 'Could not enable avahi-daemon automatically.'
+  fi
+
+  if systemctl list-unit-files bluetooth.service >/dev/null 2>&1; then
+    log 'Enabling bluetooth service for BLE-based datasources.'
+    systemctl enable --now bluetooth || warn 'Could not enable bluetooth automatically.'
+  fi
+}
+
+print_hardware_notes() {
+  cat <<EOF
+
+Hardware-specific notes:
+  - Tilt BLE support expects the Bluetooth stack to be available (bluez/dbus installed; bluetooth service running).
+  - mDNS discovery and .local hostnames work best with avahi-daemon enabled.
+  - Modbus TCP relay datasources do not need extra Pi drivers.
+  - Brewtools Kvaser datasources need the vendor's Linux Kvaser CANlib driver/userspace installed separately.
+    This installer does not fetch or install Kvaser drivers automatically.
+EOF
+}
+
+install_optional_python_packages() {
+  local package_name
+  for package_name in "${OPTIONAL_PYTHON_PACKAGES[@]}"; do
+    log "Installing optional Python package: $package_name"
+    if ! "$VENV_DIR/bin/pip" install "$package_name"; then
+      warn "Optional package '$package_name' could not be installed. Dry runs can continue without it, but related features may be unavailable."
+    fi
+  done
 }
 
 apply_hostname() {
@@ -378,7 +454,6 @@ sync_repository() {
   log "Copying repository to $INSTALL_DIR"
   mkdir -p "$INSTALL_DIR"
   rsync -a --delete \
-    --exclude '.git/' \
     --exclude '.venv/' \
     --exclude '.pytest_cache/' \
     --exclude '__pycache__/' \
@@ -391,12 +466,13 @@ sync_repository() {
 
 install_python_runtime() {
   log 'Creating Python virtual environment.'
+  validate_python_version
   python3 -m venv "$VENV_DIR"
 
-  log 'Installing Python packages from requirements.txt and the project package.'
+  log 'Installing core Python packages from the project metadata.'
   "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel
-  "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
   "$VENV_DIR/bin/pip" install "$INSTALL_DIR"
+  install_optional_python_packages
 }
 
 write_environment_file() {
@@ -476,6 +552,63 @@ enable_service() {
   systemctl enable --now "$SERVICE_NAME"
 }
 
+verify_installation() {
+  local verify_host='127.0.0.1'
+  local info_url="http://${verify_host}:${AGENT_PORT}/agent/info"
+  local summary_url="http://${verify_host}:${AGENT_PORT}/agent/summary"
+  local response=''
+  local attempt=''
+
+  log "Verifying $SERVICE_NAME startup and local agent API"
+
+  for attempt in $(seq 1 30); do
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+      break
+    fi
+    sleep 2
+  done
+
+  if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+    systemctl --no-pager --full status "$SERVICE_NAME" || true
+    journalctl -u "$SERVICE_NAME" -n 80 --no-pager || true
+    fail "Service $SERVICE_NAME did not become active during verification."
+  fi
+
+  for attempt in $(seq 1 30); do
+    response="$(curl -fsS --max-time 5 "$info_url" 2>/dev/null || true)"
+    if [[ -n "$response" ]]; then
+      break
+    fi
+    sleep 2
+  done
+
+  if [[ -z "$response" ]]; then
+    journalctl -u "$SERVICE_NAME" -n 80 --no-pager || true
+    fail "Local agent endpoint $info_url did not respond during verification."
+  fi
+
+  python3 - "$response" "$NODE_ID" "$NODE_NAME" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+expected_id = sys.argv[2]
+expected_name = sys.argv[3]
+
+if payload.get("node_id") != expected_id:
+    raise SystemExit(f"agent info node_id mismatch: expected {expected_id!r}, got {payload.get('node_id')!r}")
+if payload.get("node_name") != expected_name:
+    raise SystemExit(f"agent info node_name mismatch: expected {expected_name!r}, got {payload.get('node_name')!r}")
+PY
+
+  if ! curl -fsS --max-time 5 "$summary_url" >/dev/null; then
+    journalctl -u "$SERVICE_NAME" -n 80 --no-pager || true
+    fail "Local agent summary endpoint $summary_url did not respond during verification."
+  fi
+
+  log "Verification succeeded: $SERVICE_NAME is active and the local agent API responded."
+}
+
 print_summary() {
   cat <<EOF
 
@@ -501,6 +634,8 @@ If this node should advertise a different address or name, edit:
 and then run:
   sudo systemctl restart $SERVICE_NAME
 EOF
+
+  print_hardware_notes
 }
 
 require_root
@@ -510,6 +645,7 @@ if [[ -z "$SET_HOSTNAME" ]]; then
   SET_HOSTNAME='1'
 fi
 install_apt_packages
+verify_runtime_commands
 resolve_source_dir
 if [[ -z "$SOURCE_DIR" ]]; then
   SOURCE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -518,16 +654,17 @@ else
 fi
 
 [[ -f "$SOURCE_DIR/pyproject.toml" ]] || fail "No pyproject.toml found in source directory: $SOURCE_DIR"
-[[ -f "$SOURCE_DIR/requirements.txt" ]] || fail "No requirements.txt found in source directory: $SOURCE_DIR"
 [[ -f "$SOURCE_DIR/data/system_topology.yaml" ]] || fail "No topology file found at $SOURCE_DIR/data/system_topology.yaml"
 
 apply_hostname
 ensure_run_user
 sync_repository
 install_python_runtime
+enable_optional_os_services
 write_environment_file
 write_wrapper_script
 write_systemd_unit
 set_permissions
 enable_service
+verify_installation
 print_summary

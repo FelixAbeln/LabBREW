@@ -217,7 +217,13 @@ The installer can prompt for:
 
 If you choose hostname alignment, the script sets the Pi hostname so the network name matches the fermenter name you provide during setup.
 
-The installer copies the repository to `/opt/labbrew`, creates a Python virtual environment, installs dependencies from `requirements.txt` and the project package, writes `/etc/labbrew/labbrew-supervisor.env`, and enables a `labbrew-supervisor` systemd service. The frontend is intentionally skipped.
+The installer can clone the repository itself, installs `git` when apt provisioning is enabled, and copies the resulting checkout to `/opt/labbrew` while preserving git metadata so the node-local update API can pull future changes in place. It validates that `python3` is version 3.11 or newer, creates a Python virtual environment, installs the core project package, then attempts optional runtime packages used by specific features (`bleak` for Tilt BLE, `fmpy` for FMU digital twin, `pyarrow` for Parquet output). If one of those optional packages fails to install, the backend dry run can still proceed and the installer will emit a warning instead of aborting. It also provisions common Pi runtime packages for `.local` discovery and BLE (`avahi-daemon`, `bluez`, `dbus`, `libnss-mdns`) and enables the relevant services when available. It writes `/etc/labbrew/labbrew-supervisor.env`, enables a `labbrew-supervisor` systemd service, and verifies that the service reaches the local agent API before reporting success. The frontend is intentionally skipped.
+
+For a first Pi dry run, use Raspberry Pi OS Bookworm or newer so `python3` resolves to 3.11+.
+
+The GitHub update feature does not require the React frontend. On a command-line-only Pi you can call the local Supervisor Agent API directly, for example with `curl`, and let `systemd` restart the service after the update.
+
+If you use the `brewtools_kvaser` datasource, the remaining manual step is installing the vendor Kvaser Linux CANlib driver/userspace on the Pi. That part is not automated by this repository because it depends on vendor-distributed software outside the project.
 
 ---
 
