@@ -247,6 +247,10 @@ client.create_parameter(
 
 For the `condition` parameter type, `config.condition` uses the shared wait-expression DSL already used by schedule import. Supported forms include `cond:source:operator:threshold[:for_seconds]`, `elapsed:seconds`, `all(...)`, and `any(...)`.
 
+Detailed syntax reference:
+- [ParameterDB Condition Plugin](../implementation/parameterdb-condition-plugin.md)
+- [Schedule Excel Import Format](./schedule-excel-import.md#wait-column-syntax)
+
 ---
 
 ### `delete_parameter`

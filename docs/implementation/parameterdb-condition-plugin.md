@@ -1,5 +1,9 @@
 # ParameterDB Condition Plugin
 
+Related documentation:
+- [Schedule Excel Import Format](../api/schedule-excel-import.md)
+- [ParameterDB Binary Protocol API](../api/parameterdb-api.md)
+
 The condition parameter type evaluates the shared wait-expression DSL already used by schedule import and stores the final boolean result in ParameterDB.
 
 This means the plugin follows the existing LabBREW syntax directly instead of defining a second condition language.
@@ -18,6 +22,8 @@ This means the plugin follows the existing LabBREW syntax directly instead of de
 For backward compatibility, the plugin still accepts the older structured dict form, but the DSL string is the documented and preferred syntax.
 
 ## Syntax
+
+This syntax is intentionally the same as the wait syntax documented in [Schedule Excel Import Format](../api/schedule-excel-import.md#wait-column-syntax).
 
 ### `cond` - parameter comparison
 
