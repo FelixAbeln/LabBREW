@@ -96,7 +96,7 @@ class TopologySupervisor:
         print(f"[{service_name}] {line}")
         log_path = self.log_dir / f"{service_name}.log"
         with log_path.open('a', encoding='utf-8') as handle:
-            handle.write(line + "")
+            handle.write(line + "\n")
             handle.flush()
 
     def _run_git(self, args: list[str], *, timeout_s: float = 20.0) -> str:
@@ -273,10 +273,6 @@ class TopologySupervisor:
                     self._stopping = True
                     restart_requested = True
                     details.append("supervisor restart requested")
-
-                if updated and not restart_requested:
-                    self._restart_managed_services()
-                    self._publish_node()
             except Exception as exc:
                 after_err = self.repo_update_status(force=True)
                 return {
@@ -351,7 +347,6 @@ class TopologySupervisor:
             ok, reason = self._service_health_details(state.service)
             if not state.service.provides:
                 continue
-            first_binding = self.resolved.bindings[state.service.provides[0].name]
             binding = self.resolved.bindings[service_name]
             mapped[service_name] = {
                 'healthy': ok,
