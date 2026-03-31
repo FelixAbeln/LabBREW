@@ -5,6 +5,14 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from Services._shared.wait_engine.parser import (
+    normalize_scalar as _shared_normalize_scalar,
+    parse_condition_expr as _shared_parse_condition_expr,
+    parse_elapsed_expr as _shared_parse_elapsed_expr,
+    parse_wait_expr_string as _shared_parse_wait_expr_string,
+    split_top_level as _shared_split_top_level,
+)
+
 
 def _cell_str(value: Any) -> str | None:
     if value is None:
@@ -131,39 +139,11 @@ def _read_steps_sheet(wb, sheet_name: str) -> list[dict[str, Any]]:
 
 
 def _split_top_level(text: str, delimiter: str = ';') -> list[str]:
-    parts: list[str] = []
-    depth = 0
-    current: list[str] = []
-    for ch in text:
-        if ch == '(':
-            depth += 1
-        elif ch == ')':
-            depth = max(depth - 1, 0)
-        if ch == delimiter and depth == 0:
-            piece = ''.join(current).strip()
-            if piece:
-                parts.append(piece)
-            current = []
-        else:
-            current.append(ch)
-    tail = ''.join(current).strip()
-    if tail:
-        parts.append(tail)
-    return parts
+    return _shared_split_top_level(text, delimiter)
 
 
 def _normalize_number(value_text: str) -> Any:
-    text = value_text.strip()
-    lowered = text.lower()
-    if lowered in {'true', 'false'}:
-        return lowered == 'true'
-    try:
-        number = float(text)
-    except ValueError:
-        return text
-    if number.is_integer():
-        return int(number)
-    return number
+    return _shared_normalize_scalar(value_text)
 
 
 def _parse_actions(cell_value: Any) -> list[dict[str, Any]]:
@@ -200,56 +180,15 @@ def _parse_actions(cell_value: Any) -> list[dict[str, Any]]:
 
 
 def _parse_condition(expr: str) -> dict[str, Any]:
-    parts = [part.strip() for part in expr.split(':')]
-    if len(parts) not in {4, 5} or parts[0] != 'cond':
-        raise ValueError(
-            f"Invalid condition syntax '{expr}'. Use cond:source:operator:threshold[:for_seconds]"
-        )
-    condition = {
-        'source': parts[1],
-        'operator': parts[2],
-        'threshold': _normalize_number(parts[3]),
-    }
-    if len(parts) == 5 and parts[4] != '':
-        condition['for_s'] = float(parts[4])
-    return {'kind': 'condition', 'condition': condition}
+    return _shared_parse_condition_expr(expr)
 
 
 def _parse_elapsed(expr: str) -> dict[str, Any]:
-    parts = [part.strip() for part in expr.split(':')]
-    if len(parts) != 2 or parts[0] != 'elapsed':
-        raise ValueError(f"Invalid elapsed syntax '{expr}'. Use elapsed:seconds")
-    return {'kind': 'elapsed', 'duration_s': float(parts[1])}
+    return _shared_parse_elapsed_expr(expr)
 
 
 def _parse_wait_expr(expr: str) -> dict[str, Any]:
-    expr = expr.strip()
-    if not expr:
-        return None
-
-    if expr.startswith('all(') and expr.endswith(')'):
-        inner = expr[4:-1].strip()
-        return {
-            'kind': 'all_of',
-            'children': [_parse_wait_expr(part) for part in _split_top_level(inner, ';')],
-        }
-
-    if expr.startswith('any(') and expr.endswith(')'):
-        inner = expr[4:-1].strip()
-        return {
-            'kind': 'any_of',
-            'children': [_parse_wait_expr(part) for part in _split_top_level(inner, ';')],
-        }
-
-    if expr.startswith('elapsed:'):
-        return _parse_elapsed(expr)
-
-    if expr.startswith('cond:'):
-        return _parse_condition(expr)
-
-    raise ValueError(
-        f"Invalid wait syntax '{expr}'. Use elapsed:..., cond:..., all(...), or any(...)"
-    )
+    return _shared_parse_wait_expr_string(expr)
 
 
 def _build_step(

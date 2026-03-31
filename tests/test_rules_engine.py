@@ -66,3 +66,31 @@ def test_rule_engine_prunes_state_and_locks_for_removed_rules() -> None:
 
     assert set(engine._states) == {"keep-me"}
     assert set(engine._rule_locks) == {"keep-me"}
+
+
+def test_rule_engine_composite_condition_honors_hold_time(monkeypatch) -> None:
+    now = {"t": 50.0}
+
+    monkeypatch.setattr(rule_engine_module.time, "monotonic", lambda: now["t"])
+
+    engine = RuleEngine()
+    rule = {
+        "id": "rule-composite",
+        "condition": {
+            "all": [
+                {"source": "reactor.temp", "operator": ">=", "params": {"threshold": 10.0}},
+                {"source": "agitator.enabled", "operator": "==", "params": {"threshold": True}},
+            ],
+            "for_s": 3.0,
+        },
+    }
+
+    first = engine.evaluate(rule, {"reactor.temp": 12.0, "agitator.enabled": True})
+    assert first.raw_matched is True
+    assert first.matched is False
+
+    now["t"] = 53.1
+    second = engine.evaluate(rule, {"reactor.temp": 12.0, "agitator.enabled": True})
+
+    assert second.matched is True
+    assert second.true_for_s >= 3.0

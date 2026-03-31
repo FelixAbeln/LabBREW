@@ -24,6 +24,7 @@ def parse_condition(data: dict, path: str = "root"):
         return CompositeCondition(
             kind="all",
             children=children,
+            for_s=float(data.get("for_s", 0.0)),
             node_id=data.get("node_id", path),
         )
 
@@ -35,6 +36,7 @@ def parse_condition(data: dict, path: str = "root"):
         return CompositeCondition(
             kind="any",
             children=children,
+            for_s=float(data.get("for_s", 0.0)),
             node_id=data.get("node_id", path),
         )
 
@@ -43,6 +45,7 @@ def parse_condition(data: dict, path: str = "root"):
         return CompositeCondition(
             kind="not",
             children=(child,),
+            for_s=float(data.get("for_s", 0.0)),
             node_id=data.get("node_id", path),
         )
 

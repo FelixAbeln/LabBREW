@@ -207,7 +207,7 @@ During import, the scan engine is stopped if it is running, parameters are resto
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | yes | Unique parameter name |
-| `parameter_type` | string | yes | Type plugin name (e.g. `static`, `pid`, `deadband`, `math`) |
+| `parameter_type` | string | yes | Type plugin name (e.g. `static`, `pid`, `deadband`, `math`, `condition`) |
 | `value` | any | no | Initial value |
 | `config` | object | no | Type-specific configuration |
 | `metadata` | object | no | Arbitrary metadata key-value pairs |
@@ -233,7 +233,19 @@ client.create_parameter(
   },
   metadata={"label": "Linked Density"},
 )
+
+client.create_parameter(
+    "reactor.is_hot",
+    "condition",
+    value=False,
+    config={
+      "condition": "all(elapsed:900;cond:brewcan.density.0:<=:1.012:120)",
+    },
+    metadata={"label": "Density Ready"},
+  )
 ```
+
+For the `condition` parameter type, `config.condition` uses the shared wait-expression DSL already used by schedule import. Supported forms include `cond:source:operator:threshold[:for_seconds]`, `elapsed:seconds`, `all(...)`, and `any(...)`.
 
 ---
 
