@@ -11,7 +11,9 @@ def split_top_level(text: str, delimiter: str = ';') -> list[str]:
         if ch == '(':
             depth += 1
         elif ch == ')':
-            depth = max(depth - 1, 0)
+            depth -= 1
+            if depth < 0:
+                raise ValueError(f"Invalid wait syntax '{text}': unmatched closing parenthesis")
         if ch == delimiter and depth == 0:
             piece = ''.join(current).strip()
             if piece:
@@ -19,6 +21,8 @@ def split_top_level(text: str, delimiter: str = ';') -> list[str]:
             current = []
         else:
             current.append(ch)
+    if depth != 0:
+        raise ValueError(f"Invalid wait syntax '{text}': unmatched opening parenthesis")
     tail = ''.join(current).strip()
     if tail:
         parts.append(tail)

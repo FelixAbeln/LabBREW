@@ -46,6 +46,14 @@ def test_parse_condition_atomic_and_composites() -> None:
     assert len(not_node.children) == 1
 
 
+def test_parse_condition_for_s_tolerates_none_and_empty_string() -> None:
+    atomic_none = parse_condition({"source": "temp", "operator": ">", "params": {"threshold": 20}, "for_s": None})
+    all_empty = parse_condition({"all": [{"source": "temp", "operator": ">", "params": {"threshold": 20}}], "for_s": ""})
+
+    assert atomic_none.for_s == 0.0
+    assert all_empty.for_s == 0.0
+
+
 def test_parse_condition_validation_errors() -> None:
     with pytest.raises(ValueError):
         parse_condition("bad")
