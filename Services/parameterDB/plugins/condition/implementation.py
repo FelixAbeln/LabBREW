@@ -235,7 +235,7 @@ class ConditionParameter(ParameterBase):
             if values.get(source) is None
         )
         if missing_sources:
-            if "Missing value for " in result.message:
+            if result.message.startswith("Missing value for "):
                 self.state["last_error"] = result.message
             else:
                 self.state["last_error"] = "Missing value for " + ", ".join(missing_sources)
