@@ -69,16 +69,34 @@ def parse_wait_expr_string(expr: str) -> dict[str, Any] | None:
 
     if expr.startswith('all(') and expr.endswith(')'):
         inner = expr[4:-1].strip()
+        parts = split_top_level(inner, ';')
+        if not parts:
+            raise ValueError("Invalid wait syntax 'all()' or empty all(...); at least one child expression is required")
+        children: list[dict[str, Any]] = []
+        for part in parts:
+            child = parse_wait_expr_string(part)
+            if child is None:
+                raise ValueError("Invalid wait syntax in all(...); empty child expressions are not allowed")
+            children.append(child)
         return {
             'kind': 'all_of',
-            'children': [parse_wait_expr_string(part) for part in split_top_level(inner, ';')],
+            'children': children,
         }
 
     if expr.startswith('any(') and expr.endswith(')'):
         inner = expr[4:-1].strip()
+        parts = split_top_level(inner, ';')
+        if not parts:
+            raise ValueError("Invalid wait syntax 'any()' or empty any(...); at least one child expression is required")
+        children: list[dict[str, Any]] = []
+        for part in parts:
+            child = parse_wait_expr_string(part)
+            if child is None:
+                raise ValueError("Invalid wait syntax in any(...); empty child expressions are not allowed")
+            children.append(child)
         return {
             'kind': 'any_of',
-            'children': [parse_wait_expr_string(part) for part in split_top_level(inner, ';')],
+            'children': children,
         }
 
     if expr.startswith('elapsed:'):
