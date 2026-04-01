@@ -284,9 +284,10 @@ def test_condition_plugin_default_config_and_schema_contract() -> None:
     defaults = plugin.default_config()
     schema = plugin.schema()
 
-    assert defaults == {"condition": "", "enable_param": ""}
+    assert defaults == {"condition": "", "enable_param": "", "output_params": []}
     assert schema["required"] == ["condition"]
     assert schema["properties"]["condition"]["type"] == ["object", "string"]
+    assert "output_params" in schema["properties"]
 
 
 def test_condition_plugin_reports_invalid_condition_config() -> None:
@@ -321,3 +322,45 @@ def test_condition_plugin_legacy_dict_condition_still_works() -> None:
     assert param.get_value() is True
     assert param.state["logic_kind"] == "condition"
     assert param.state["condition_kind"] == "atomic"
+
+
+def test_condition_plugin_mirrors_output_to_target_params() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.temp", value=72.0))
+    store.add(StaticParameter("relay.on", value=False))
+
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "reactor.hot",
+        config={
+            "condition": "cond:reactor.temp:>=:70",
+            "output_params": ["relay.on"],
+        },
+        value=False,
+    )
+
+    param.scan(_ctx(store))
+
+    assert param.get_value() is True
+    assert store.get_value("relay.on") is True
+    assert "relay.on" in param.state["output_targets"]
+
+
+def test_condition_plugin_mirror_missing_target_recorded_in_state() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.temp", value=72.0))
+
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "reactor.hot",
+        config={
+            "condition": "cond:reactor.temp:>=:70",
+            "output_params": ["does.not.exist"],
+        },
+        value=False,
+    )
+
+    param.scan(_ctx(store))
+
+    assert param.get_value() is True
+    assert "does.not.exist" in param.state["missing_output_targets"]
