@@ -134,7 +134,7 @@ The pulse starts on the rising edge of `expr` and remains matched for `hold_seco
 
 ### Nesting
 
-`all(...)`, `any(...)`, `rising(...)`, and `falling(...)` can be nested:
+`all(...)`, `any(...)`, `rising(...)`, `falling(...)`, and `pulse(...)` can be nested:
 
 ```
 all(elapsed:600;any(cond:reactor.temp:>=:64;cond:abort.flag:==:true))
