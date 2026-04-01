@@ -80,6 +80,8 @@ class MedianParameter(ParameterBase):
         self.state["enabled"] = bool(enabled)
         if not enabled:
             self._samples = []
+            self.state["sample_count"] = 0
+            self.state["samples"] = []
             self.state["last_error"] = ""
             return
 
