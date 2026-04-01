@@ -135,6 +135,8 @@ def parse_wait_expr_string(expr: str) -> dict[str, Any] | None:
             hold_s = float(parts[1])
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid pulse hold seconds '{parts[1]}'") from exc
+        if hold_s < 0:
+            raise ValueError(f"Invalid pulse hold seconds '{parts[1]}'")
         return {
             'kind': 'pulse',
             'child': child,

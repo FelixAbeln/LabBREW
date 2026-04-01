@@ -141,6 +141,19 @@ def _validate_action(
 
     if kind == 'take_loadstep':
         params = action.get('params') if isinstance(action.get('params'), dict) else {}
+        timing = str(params.get('timing', 'on_enter') or 'on_enter').strip().lower()
+
+        valid_timings = {'on_enter', 'before_next', 'on_exit', 'on_trigger'}
+        if timing not in valid_timings:
+            _add_issue(
+                issues,
+                level='error',
+                code='INVALID_LOADSTEP_TIMING',
+                path=f'{prefix}.params.timing',
+                message=f"{prefix}: params.timing must be one of ['on_enter', 'before_next', 'on_exit', 'on_trigger']",
+                timing=timing,
+            )
+
         duration_value = action.get('duration_s')
         if duration_value in (None, ''):
             duration_value = params.get('duration_seconds')
@@ -168,7 +181,23 @@ def _validate_action(
                 )
 
         trigger_wait = params.get('trigger_wait')
-        if trigger_wait is not None:
+        if timing == 'on_trigger' and trigger_wait is None:
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_LOADSTEP_TRIGGER',
+                path=f'{prefix}.params.trigger_wait',
+                message=f"{prefix}: params.trigger_wait is required when params.timing is 'on_trigger'",
+            )
+        if timing != 'on_trigger' and trigger_wait is not None:
+            _add_issue(
+                issues,
+                level='error',
+                code='UNEXPECTED_LOADSTEP_TRIGGER',
+                path=f'{prefix}.params.trigger_wait',
+                message=f"{prefix}: params.trigger_wait is only allowed when params.timing is 'on_trigger'",
+            )
+        if timing == 'on_trigger' and trigger_wait is not None:
             if isinstance(trigger_wait, dict):
                 _validate_wait(
                     trigger_wait,
@@ -416,16 +445,15 @@ def _validate_measurement_config(
     if not isinstance(measurement, dict):
         return
     params = measurement.get('parameters')
-    if not isinstance(params, list):
-        return
-    for idx, name in enumerate(params):
-        _require_parameter(
-            parameter=str(name),
-            path=f'measurement_config.parameters[{idx}]',
-            source='measurement_config.parameters',
-            available_parameters=available_parameters,
-            issues=issues,
-        )
+    if isinstance(params, list):
+        for idx, name in enumerate(params):
+            _require_parameter(
+                parameter=str(name),
+                path=f'measurement_config.parameters[{idx}]',
+                source='measurement_config.parameters',
+                available_parameters=available_parameters,
+                issues=issues,
+            )
 
     loadstep_default = measurement.get('loadstep_duration_seconds')
     if loadstep_default not in (None, ''):

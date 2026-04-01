@@ -300,6 +300,16 @@ def test_condition_plugin_reports_invalid_condition_config() -> None:
     assert "Invalid wait syntax" in param.state["last_error"]
 
 
+def test_condition_plugin_reports_invalid_negative_pulse_hold_seconds() -> None:
+    plugin = ConditionPlugin()
+    param = plugin.create("bad_pulse", config={"condition": "pulse(cond:signal:==:1;-1)"}, value=False)
+
+    param.scan(_ctx(ParameterStore()))
+
+    assert param.get_value() is False
+    assert "Invalid pulse hold seconds" in param.state["last_error"]
+
+
 def test_condition_plugin_legacy_dict_condition_still_works() -> None:
     store = ParameterStore()
     store.add(StaticParameter("reactor.temp", value=72.0))
