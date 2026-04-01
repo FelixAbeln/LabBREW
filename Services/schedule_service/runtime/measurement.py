@@ -13,7 +13,10 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from typing import TYPE_CHECKING, Any
+
+from ..._shared.wait_engine import WaitContext, WaitState, parse_wait_spec
 
 if TYPE_CHECKING:
     from ..models import ScheduleDefinition, ScheduleStep
@@ -242,6 +245,11 @@ class _MeasurementMixin:
 
         params = action.params if isinstance(action.params, dict) else {}
         duration = params.get('duration_seconds', action.duration_s)
+        if duration in (None, ''):
+            schedule = self.repository.get_current()
+            if schedule is not None:
+                measurement_cfg = schedule.measurement_config if isinstance(schedule.measurement_config, dict) else {}
+                duration = measurement_cfg.get('loadstep_duration_seconds')
         duration_seconds = float(duration if duration is not None else 30.0)
         loadstep_name = str(params.get('loadstep_name') or self._default_data_name(suffix='ls'))
 
@@ -266,6 +274,52 @@ class _MeasurementMixin:
                 'timestamp': self._utc_now_iso(),
             })
         return result
+
+    def _run_triggered_loadsteps_locked(self, step: ScheduleStep, values: dict[str, Any]) -> None:
+        for index, action in enumerate(step.actions):
+            if action.kind != 'take_loadstep':
+                continue
+            if self._action_timing(action) != 'on_trigger':
+                continue
+            if index in self._step_runtime.fired_loadstep_triggers:
+                continue
+
+            params = action.params if isinstance(action.params, dict) else {}
+            trigger_wait_payload = params.get('trigger_wait')
+            if not isinstance(trigger_wait_payload, dict):
+                continue
+
+            trigger_spec = parse_wait_spec(trigger_wait_payload)
+            if trigger_spec is None:
+                continue
+
+            state_key = f'action[{index}]'
+            previous_state = self._step_runtime.loadstep_trigger_states.get(state_key)
+            if not isinstance(previous_state, WaitState):
+                previous_state = WaitState()
+
+            result = self.wait_engine.evaluate(
+                trigger_spec,
+                context=WaitContext(
+                    now_monotonic=time.monotonic(),
+                    step_started_monotonic=self._step_runtime.started_monotonic,
+                    values=values,
+                ),
+                previous_state=previous_state,
+            )
+            self._step_runtime.loadstep_trigger_states[state_key] = result.next_state
+
+            if not result.matched:
+                continue
+
+            loadstep_result = self._take_data_loadstep(action, step)
+            if not loadstep_result.get('ok', False):
+                raise RuntimeError(f'Action failed for take_loadstep trigger: {loadstep_result}')
+            self._step_runtime.fired_loadstep_triggers.add(index)
+            self._status.last_action_result = loadstep_result
+            loadstep_name = str(loadstep_result.get('loadstep_name') or '').strip()
+            if loadstep_name:
+                self._append_event(f'Triggered loadstep {loadstep_name} for step {step.name}')
 
     # ------------------------------------------------------------------ file lifecycle
 

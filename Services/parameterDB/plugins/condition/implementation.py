@@ -44,6 +44,8 @@ def _collect_wait_sources(spec: WaitSpec | None) -> list[str]:
         else:
             node = condition
         return _collect_condition_sources(node)
+    if spec.kind in {"rising", "falling", "pulse"}:
+        return _collect_wait_sources(spec.child)
     if spec.kind in {"all_of", "any_of"}:
         sources: list[str] = []
         for child in spec.children:

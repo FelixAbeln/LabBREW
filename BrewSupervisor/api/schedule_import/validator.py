@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 VALID_ACTION_KINDS = {'request_control', 'write', 'ramp', 'release_control', 'global_measurement', 'take_loadstep'}
-VALID_WAIT_KINDS = {None, 'elapsed', 'condition', 'all_of', 'any_of'}
+VALID_WAIT_KINDS = {None, 'elapsed', 'condition', 'all_of', 'any_of', 'rising', 'falling', 'pulse'}
 VALID_OPERATORS = {'==', '!=', '>', '>=', '<', '<='}
 
 
@@ -55,6 +55,7 @@ def _validate_action(
     issues: list[dict[str, Any]],
     *,
     available_parameters: set[str] | None,
+    default_loadstep_duration_seconds: float | None,
 ) -> None:
     kind = action.get('kind')
     if kind not in VALID_ACTION_KINDS:
@@ -139,18 +140,51 @@ def _validate_action(
                 )
 
     if kind == 'take_loadstep':
-        if action.get('duration_s') in (None, ''):
-            params = action.get('params') if isinstance(action.get('params'), dict) else {}
-            if params.get('duration_seconds') in (None, ''):
+        params = action.get('params') if isinstance(action.get('params'), dict) else {}
+        duration_value = action.get('duration_s')
+        if duration_value in (None, ''):
+            duration_value = params.get('duration_seconds')
+        if duration_value in (None, ''):
+            duration_value = default_loadstep_duration_seconds
+        if duration_value in (None, ''):
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_LOADSTEP_DURATION',
+                path=prefix,
+                message=f"{prefix}: duration_s (or params.duration_seconds, or measurement_config.loadstep_duration_seconds) is required for take_loadstep",
+            )
+        else:
+            try:
+                if float(duration_value) <= 0:
+                    raise ValueError('non-positive duration')
+            except (TypeError, ValueError):
                 _add_issue(
                     issues,
                     level='error',
-                    code='MISSING_LOADSTEP_DURATION',
-                    path=prefix,
-                    message=f"{prefix}: duration_s (or params.duration_seconds) is required for take_loadstep",
+                    code='INVALID_LOADSTEP_DURATION',
+                    path=f'{prefix}.duration_s',
+                    message=f"{prefix}: loadstep duration must be a positive number",
                 )
 
-        params = action.get('params') if isinstance(action.get('params'), dict) else {}
+        trigger_wait = params.get('trigger_wait')
+        if trigger_wait is not None:
+            if isinstance(trigger_wait, dict):
+                _validate_wait(
+                    trigger_wait,
+                    f'{prefix}.params.trigger_wait',
+                    issues,
+                    available_parameters=available_parameters,
+                )
+            else:
+                _add_issue(
+                    issues,
+                    level='error',
+                    code='INVALID_LOADSTEP_TRIGGER',
+                    path=f'{prefix}.params.trigger_wait',
+                    message=f"{prefix}: params.trigger_wait must be a wait expression object",
+                )
+
         listed = params.get('parameters')
         if isinstance(listed, list):
             for idx, param in enumerate(listed):
@@ -245,6 +279,50 @@ def _validate_wait(
                 )
         return
 
+    if kind in {'rising', 'falling', 'pulse'}:
+        child = wait.get('child')
+        if not isinstance(child, dict):
+            _add_issue(
+                issues,
+                level='error',
+                code='MISSING_WAIT_CHILD',
+                path=f'{prefix}.child',
+                message=f"{prefix}: {kind} requires a child wait expression",
+                kind=kind,
+            )
+            return
+
+        if kind == 'pulse':
+            hold_s = wait.get('hold_s')
+            if hold_s in (None, ''):
+                _add_issue(
+                    issues,
+                    level='error',
+                    code='MISSING_PULSE_HOLD_SECONDS',
+                    path=f'{prefix}.hold_s',
+                    message=f"{prefix}: pulse requires hold_s in seconds",
+                )
+            else:
+                try:
+                    if float(hold_s) < 0:
+                        raise ValueError('negative hold_s')
+                except (TypeError, ValueError):
+                    _add_issue(
+                        issues,
+                        level='error',
+                        code='INVALID_PULSE_HOLD_SECONDS',
+                        path=f'{prefix}.hold_s',
+                        message=f"{prefix}: pulse hold_s must be a non-negative number",
+                    )
+
+        _validate_wait(
+            child,
+            f"{prefix}.child",
+            issues,
+            available_parameters=available_parameters,
+        )
+        return
+
     children = wait.get('children')
     if not isinstance(children, list) or not children:
         _add_issue(
@@ -272,6 +350,7 @@ def _validate_step(
     issues: list[dict[str, Any]],
     *,
     available_parameters: set[str] | None,
+    default_loadstep_duration_seconds: float | None,
 ) -> None:
     prefix = f"{phase}[{index}]"
     if not step.get('id'):
@@ -307,6 +386,7 @@ def _validate_step(
                 f"{prefix}.actions[{action_index}]",
                 issues,
                 available_parameters=available_parameters,
+                default_loadstep_duration_seconds=default_loadstep_duration_seconds,
             )
 
     if not actions:
@@ -347,6 +427,20 @@ def _validate_measurement_config(
             issues=issues,
         )
 
+    loadstep_default = measurement.get('loadstep_duration_seconds')
+    if loadstep_default not in (None, ''):
+        try:
+            if float(loadstep_default) <= 0:
+                raise ValueError('non-positive default')
+        except (TypeError, ValueError):
+            _add_issue(
+                issues,
+                level='error',
+                code='INVALID_LOADSTEP_DEFAULT_DURATION',
+                path='measurement_config.loadstep_duration_seconds',
+                message='measurement_config.loadstep_duration_seconds must be a positive number',
+            )
+
 
 def validate_schedule_payload(
     payload: dict[str, Any],
@@ -355,6 +449,8 @@ def validate_schedule_payload(
     extra_parameter_references: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     issues: list[dict[str, Any]] = []
+    measurement_cfg = payload.get('measurement_config') if isinstance(payload.get('measurement_config'), dict) else {}
+    default_loadstep_duration_seconds = measurement_cfg.get('loadstep_duration_seconds')
 
     if not payload.get('id'):
         _add_issue(
@@ -406,6 +502,7 @@ def validate_schedule_payload(
                 index,
                 issues,
                 available_parameters=available_parameters,
+                default_loadstep_duration_seconds=default_loadstep_duration_seconds,
             )
 
     for item in extra_parameter_references or []:

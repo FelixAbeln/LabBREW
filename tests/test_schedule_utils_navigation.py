@@ -212,3 +212,19 @@ def test_utils_collect_wait_sources_handles_non_dict_and_any_children(tmp_path: 
         },
     }
     assert runtime._collect_wait_sources(wait_payload) == {"x", "y"}
+
+
+def test_utils_collect_wait_sources_includes_event_child_branch(tmp_path: Path) -> None:
+    runtime = _make_runtime(tmp_path, control=FakeControlClient(values={}), data=FakeDataClient())
+    wait_payload = {
+        "kind": "rising",
+        "child": {
+            "kind": "all_of",
+            "children": [
+                {"kind": "condition", "condition": {"source": "event.signal", "operator": "==", "threshold": True}},
+                {"kind": "condition", "condition": {"source": "guard.ok", "operator": "==", "threshold": 1}},
+            ],
+        },
+    }
+
+    assert runtime._collect_wait_sources(wait_payload) == {"event.signal", "guard.ok"}

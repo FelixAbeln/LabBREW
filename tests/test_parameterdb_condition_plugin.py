@@ -51,6 +51,18 @@ def test_condition_plugin_dependencies_include_enable_param_and_nested_sources()
     assert param.dependencies() == ["conditions_enabled", "temp", "pressure", "flow"]
 
 
+def test_condition_plugin_dependencies_include_sources_under_event_wrappers() -> None:
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "edge_ready",
+        config={
+            "condition": "rising(any(cond:temp:>=:20;cond:pressure:>:1.5))",
+        },
+    )
+
+    assert param.dependencies() == ["temp", "pressure"]
+
+
 def test_condition_plugin_sets_missing_value_error_and_keeps_existing_value() -> None:
     plugin = ConditionPlugin()
     param = plugin.create(
@@ -146,6 +158,124 @@ def test_condition_plugin_elapsed_and_condition_dsl_honors_both_parts(monkeypatc
     assert param.get_value() is True
     assert param.state["matched"] is True
     assert param.state["elapsed_s"] >= 1020.0
+
+
+def test_condition_plugin_rising_and_falling_event_dsl(monkeypatch) -> None:
+    now = {"t": 10.0}
+    monkeypatch.setattr(condition_module.time, "monotonic", lambda: now["t"])
+
+    store = ParameterStore()
+    store.add(StaticParameter("signal", value=0))
+
+    plugin = ConditionPlugin()
+
+    rising_param = plugin.create(
+        "sig_rise",
+        config={"condition": "rising(cond:signal:==:1)"},
+        value=False,
+    )
+    falling_param = plugin.create(
+        "sig_fall",
+        config={"condition": "falling(cond:signal:==:1)"},
+        value=False,
+    )
+
+    rising_param.scan(_ctx(store))
+    falling_param.scan(_ctx(store))
+    assert rising_param.get_value() is False
+    assert falling_param.get_value() is False
+
+    store.set_value("signal", 1)
+    now["t"] = 11.0
+    rising_param.scan(_ctx(store))
+    falling_param.scan(_ctx(store))
+    assert rising_param.get_value() is True
+    assert falling_param.get_value() is False
+
+    now["t"] = 12.0
+    rising_param.scan(_ctx(store))
+    falling_param.scan(_ctx(store))
+    assert rising_param.get_value() is False
+    assert falling_param.get_value() is False
+
+    store.set_value("signal", 0)
+    now["t"] = 13.0
+    rising_param.scan(_ctx(store))
+    falling_param.scan(_ctx(store))
+    assert rising_param.get_value() is False
+    assert falling_param.get_value() is True
+
+
+def test_condition_plugin_pulse_event_dsl_holds_for_window(monkeypatch) -> None:
+    now = {"t": 100.0}
+    monkeypatch.setattr(condition_module.time, "monotonic", lambda: now["t"])
+
+    store = ParameterStore()
+    store.add(StaticParameter("signal", value=0))
+
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "sig_pulse",
+        config={"condition": "pulse(cond:signal:==:1;2)"},
+        value=False,
+    )
+
+    param.scan(_ctx(store))
+    assert param.get_value() is False
+
+    store.set_value("signal", 1)
+    now["t"] = 101.0
+    param.scan(_ctx(store))
+    assert param.get_value() is True
+
+    now["t"] = 102.5
+    param.scan(_ctx(store))
+    assert param.get_value() is True
+
+    now["t"] = 103.2
+    param.scan(_ctx(store))
+    assert param.get_value() is False
+
+
+def test_condition_plugin_elapsed_timer_resets_after_re_enable(monkeypatch) -> None:
+    now = {"t": 100.0}
+    monkeypatch.setattr(condition_module.time, "monotonic", lambda: now["t"])
+
+    store = ParameterStore()
+    store.add(StaticParameter("logic.enable", value=True))
+
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "ready",
+        config={
+            "condition": "elapsed:10",
+            "enable_param": "logic.enable",
+        },
+        value=False,
+    )
+
+    param.scan(_ctx(store))
+    assert param.get_value() is False
+
+    now["t"] = 109.0
+    param.scan(_ctx(store))
+    assert param.get_value() is False
+
+    store.set_value("logic.enable", False)
+    now["t"] = 109.1
+    param.scan(_ctx(store))
+    assert param.state["enabled"] is False
+
+    store.set_value("logic.enable", True)
+    now["t"] = 115.0
+    param.scan(_ctx(store))
+    assert param.state["enabled"] is True
+    assert param.get_value() is False
+
+    now["t"] = 125.2
+    param.scan(_ctx(store))
+    assert param.get_value() is True
+    assert param.state["matched"] is True
 
 
 def test_condition_plugin_default_config_and_schema_contract() -> None:
