@@ -250,3 +250,95 @@ def test_validate_schedule_payload_allows_triggered_loadstep_with_measurement_de
     result = validator.validate_schedule_payload(payload, available_parameters={"known"})
     assert result["valid"] is True
     assert "MISSING_LOADSTEP_DURATION" not in result["error_codes"]
+
+
+def test_validate_schedule_payload_reports_invalid_measurement_default_without_parameters_list() -> None:
+    payload = {
+        "id": "sched-default-invalid",
+        "name": "InvalidDefault",
+        "measurement_config": {
+            "loadstep_duration_seconds": "bad",
+        },
+        "setup_steps": [
+            {
+                "id": "s1",
+                "name": "step",
+                "actions": [{"kind": "write", "target": "known", "value": 1}],
+                "wait": {"kind": "elapsed", "duration_s": 1},
+            }
+        ],
+        "plan_steps": [],
+    }
+
+    result = validator.validate_schedule_payload(payload, available_parameters={"known"})
+    codes = set(result["error_codes"])
+
+    assert result["valid"] is False
+    assert "INVALID_LOADSTEP_DEFAULT_DURATION" in codes
+
+
+def test_validate_schedule_payload_requires_trigger_for_on_trigger_loadstep() -> None:
+    payload = {
+        "id": "sched-missing-trigger",
+        "name": "MissingTrigger",
+        "measurement_config": {"loadstep_duration_seconds": 10},
+        "setup_steps": [
+            {
+                "id": "s1",
+                "name": "step",
+                "actions": [
+                    {
+                        "kind": "take_loadstep",
+                        "params": {
+                            "timing": "on_trigger",
+                        },
+                    }
+                ],
+                "wait": {"kind": "elapsed", "duration_s": 1},
+            }
+        ],
+        "plan_steps": [],
+    }
+
+    result = validator.validate_schedule_payload(payload, available_parameters={"known"})
+    codes = set(result["error_codes"])
+
+    assert result["valid"] is False
+    assert "MISSING_LOADSTEP_TRIGGER" in codes
+
+
+def test_validate_schedule_payload_flags_trigger_wait_when_not_on_trigger() -> None:
+    payload = {
+        "id": "sched-unexpected-trigger",
+        "name": "UnexpectedTrigger",
+        "measurement_config": {"loadstep_duration_seconds": 10},
+        "setup_steps": [
+            {
+                "id": "s1",
+                "name": "step",
+                "actions": [
+                    {
+                        "kind": "take_loadstep",
+                        "params": {
+                            "timing": "before_next",
+                            "trigger_wait": {
+                                "kind": "rising",
+                                "child": {
+                                    "kind": "condition",
+                                    "condition": {"source": "known", "operator": "==", "threshold": 1},
+                                },
+                            },
+                        },
+                    }
+                ],
+                "wait": {"kind": "elapsed", "duration_s": 1},
+            }
+        ],
+        "plan_steps": [],
+    }
+
+    result = validator.validate_schedule_payload(payload, available_parameters={"known"})
+    codes = set(result["error_codes"])
+
+    assert result["valid"] is False
+    assert "UNEXPECTED_LOADSTEP_TRIGGER" in codes
