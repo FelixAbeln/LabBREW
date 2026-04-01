@@ -81,6 +81,7 @@ def test_parse_schedule_workbook_builds_steps_and_measurement_defaults() -> None
             ("measurement_hz", "12.5"),
             ("measurement_output_format", "jsonl"),
             ("measurement_name", "batch-a"),
+            ("loadstep_duration_seconds", "45"),
         ],
         data_rows=["parameter", "reactor.temp", "pump.speed", "reactor.temp"],
         setup_rows=[
@@ -110,6 +111,7 @@ def test_parse_schedule_workbook_builds_steps_and_measurement_defaults() -> None
     assert payload["name"] == "Lager"
     assert payload["measurement_config"] == {
         "hz": 12.5,
+        "loadstep_duration_seconds": 45.0,
         "output_dir": "data/measurements",
         "output_format": "jsonl",
         "session_name": "batch-a",
@@ -138,6 +140,30 @@ def test_parse_schedule_workbook_uses_filename_and_hz_fallbacks() -> None:
     assert payload["id"] == "default-name"
     assert payload["name"] == "default-name.xlsx"
     assert payload["measurement_config"]["hz"] == 10.0
+    assert payload["measurement_config"]["loadstep_duration_seconds"] == 30.0
+
+
+def test_parse_schedule_workbook_supports_trigger_wait_in_take_loadstep_column() -> None:
+    workbook = _workbook_bytes(
+        meta_rows=[("loadstep_duration_seconds", "20")],
+        plan_rows=[
+            {
+                "step_id": "p1",
+                "name": "Triggered",
+                "actions": "reactor.temp.setpoint:68",
+                "take_loadstep": "rising(cond:brew.ready:==:true)",
+                "wait": "elapsed:120",
+            }
+        ],
+    )
+
+    payload = parser.parse_schedule_workbook(workbook, filename="triggered.xlsx")
+    action = payload["plan_steps"][0]["actions"][1]
+
+    assert action["kind"] == "take_loadstep"
+    assert action["duration_s"] == 20.0
+    assert action["params"]["timing"] == "on_trigger"
+    assert action["params"]["trigger_wait"]["kind"] == "rising"
 
 
 def test_parse_actions_and_wait_raise_on_invalid_syntax() -> None:

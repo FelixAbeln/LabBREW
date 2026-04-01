@@ -3,6 +3,7 @@
 Related documentation:
 - [Schedule Excel Import Format](../api/schedule-excel-import.md)
 - [ParameterDB Binary Protocol API](../api/parameterdb-api.md)
+- [Wait Event Engine](../implementation/wait-event-engine.md)
 - [Writing a ParameterDB Plugin](../implementation/writing-a-parameterdb-plugin.md)
 
 The condition parameter type evaluates the shared wait-expression DSL already used by schedule import and stores the final boolean result in ParameterDB.
@@ -67,6 +68,8 @@ elapsed:900
 
 For the condition plugin, elapsed time starts when the plugin first becomes active after creation, config change, or re-enable.
 
+When `enable_param` is `false`, elapsed timing state is reset. Re-enabling starts elapsed timing from zero again.
+
 ### `all(...)` - every child must match
 
 ```
@@ -91,9 +94,47 @@ Example:
 any(elapsed:7200;cond:abort.flag:==:true)
 ```
 
+### `rising(...)` - match once on false -> true transition
+
+```
+rising(expr)
+```
+
+Example:
+
+```
+rising(cond:brew.phase.ready:==:true)
+```
+
+### `falling(...)` - match once on true -> false transition
+
+```
+falling(expr)
+```
+
+Example:
+
+```
+falling(cond:brew.phase.ready:==:true)
+```
+
+### `pulse(...)` - edge-triggered hold window
+
+```
+pulse(expr;hold_seconds)
+```
+
+Example:
+
+```
+pulse(cond:brew.phase.ready:==:true;10)
+```
+
+The pulse starts on the rising edge of `expr` and remains matched for `hold_seconds`.
+
 ### Nesting
 
-`all(...)` and `any(...)` can be nested:
+`all(...)`, `any(...)`, `rising(...)`, `falling(...)`, and `pulse(...)` can be nested:
 
 ```
 all(elapsed:600;any(cond:reactor.temp:>=:64;cond:abort.flag:==:true))
@@ -172,7 +213,22 @@ When a referenced value is missing, the plugin preserves the previous stored boo
 }
 ```
 
-### 4. Mirror output to another parameter
+### 4. Impromptu timer pattern
+
+You can use a condition parameter as a reusable timer by pairing `elapsed` with `enable_param`:
+
+```json
+{
+  "condition": "elapsed:300",
+  "enable_param": "timer.start"
+}
+```
+
+- Set `timer.start = false` to reset and hold the timer idle.
+- Set `timer.start = true` to start counting from zero.
+- After 300 seconds, the condition output becomes `true`.
+
+### 5. Mirror output to another parameter
 
 When the condition evaluates to `true`, `relay.pump` receives the same boolean value:
 

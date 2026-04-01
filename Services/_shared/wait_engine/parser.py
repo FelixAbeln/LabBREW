@@ -103,6 +103,44 @@ def parse_wait_expr_string(expr: str) -> dict[str, Any] | None:
             'children': children,
         }
 
+    if expr.startswith('rising(') and expr.endswith(')'):
+        inner = expr[7:-1].strip()
+        child = parse_wait_expr_string(inner)
+        if child is None:
+            raise ValueError("Invalid wait syntax in rising(...); child expression is required")
+        return {
+            'kind': 'rising',
+            'child': child,
+        }
+
+    if expr.startswith('falling(') and expr.endswith(')'):
+        inner = expr[8:-1].strip()
+        child = parse_wait_expr_string(inner)
+        if child is None:
+            raise ValueError("Invalid wait syntax in falling(...); child expression is required")
+        return {
+            'kind': 'falling',
+            'child': child,
+        }
+
+    if expr.startswith('pulse(') and expr.endswith(')'):
+        inner = expr[6:-1].strip()
+        parts = split_top_level(inner, ';')
+        if len(parts) != 2:
+            raise ValueError("Invalid wait syntax for pulse(...). Use pulse(expr;hold_seconds)")
+        child = parse_wait_expr_string(parts[0])
+        if child is None:
+            raise ValueError("Invalid wait syntax in pulse(...); child expression is required")
+        try:
+            hold_s = float(parts[1])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid pulse hold seconds '{parts[1]}'") from exc
+        return {
+            'kind': 'pulse',
+            'child': child,
+            'hold_s': hold_s,
+        }
+
     if expr.startswith('elapsed:'):
         return parse_elapsed_expr(expr)
 
@@ -110,5 +148,5 @@ def parse_wait_expr_string(expr: str) -> dict[str, Any] | None:
         return parse_condition_expr(expr)
 
     raise ValueError(
-        f"Invalid wait syntax '{expr}'. Use elapsed:..., cond:..., all(...), or any(...)"
+        f"Invalid wait syntax '{expr}'. Use elapsed:..., cond:..., all(...), any(...), rising(...), falling(...), or pulse(...;seconds)"
     )

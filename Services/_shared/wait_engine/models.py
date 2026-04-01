@@ -4,17 +4,25 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
-WaitKind = Literal['none', 'elapsed', 'condition', 'all_of', 'any_of']
+WaitKind = Literal['none', 'elapsed', 'condition', 'all_of', 'any_of', 'rising', 'falling', 'pulse']
 
 
 @dataclass(frozen=True, slots=True)
 class WaitSpec:
     kind: WaitKind = 'none'
     duration_s: float | None = None
+    hold_s: float | None = None
     condition: Any | None = None
+    child: 'WaitSpec | None' = None
     children: tuple['WaitSpec', ...] = ()
     label: str = ''
     node_id: str | None = None
+
+
+@dataclass(slots=True)
+class EventNodeState:
+    previous_child_matched: bool = False
+    pulse_started_monotonic: float | None = None
 
 
 @dataclass(slots=True)
@@ -27,6 +35,7 @@ class WaitContext:
 @dataclass(slots=True)
 class WaitState:
     condition_state: Any | None = None
+    event_nodes: dict[str, EventNodeState] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

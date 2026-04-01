@@ -318,6 +318,7 @@ class ScheduleRuntime(
                 self._apply_actions_locked(step)
 
             values = self._collect_values(step)
+            self._run_triggered_loadsteps_locked(step, values)
             wait_spec = parse_wait_spec(step.wait)
             wait_result = self.wait_engine.evaluate(
                 wait_spec,
@@ -337,6 +338,13 @@ class ScheduleRuntime(
                 self._status.wait_message = 'Ownership lost; paused'
                 self._remove_owned_targets_for_step_locked(step)
                 self._append_event('Ownership lost; scheduler paused')
+                self._persist_locked()
+                return
+
+            if self._step_runtime.pending_exit_loadsteps:
+                ready_for_next = self._run_exit_actions_locked(step)
+                if ready_for_next:
+                    self._advance_step_locked(schedule)
                 self._persist_locked()
                 return
 

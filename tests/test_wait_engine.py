@@ -166,6 +166,80 @@ def test_wait_engine_rejects_unsupported_wait_kind_directly() -> None:
         )
 
 
+def test_wait_engine_rising_and_falling_edges() -> None:
+    engine = _engine()
+    rising_spec = parse_wait_spec(
+        {
+            "kind": "rising",
+            "child": {"kind": "condition", "condition": {"source": "flag", "operator": "==", "threshold": True}},
+        }
+    )
+
+    first = engine.evaluate(rising_spec, context=WaitContext(now_monotonic=1.0, values={"flag": False}))
+    second = engine.evaluate(
+        rising_spec,
+        context=WaitContext(now_monotonic=2.0, values={"flag": True}),
+        previous_state=first.next_state,
+    )
+    third = engine.evaluate(
+        rising_spec,
+        context=WaitContext(now_monotonic=3.0, values={"flag": True}),
+        previous_state=second.next_state,
+    )
+
+    assert first.matched is False
+    assert second.matched is True
+    assert third.matched is False
+
+    falling_spec = parse_wait_spec(
+        {
+            "kind": "falling",
+            "child": {"kind": "condition", "condition": {"source": "flag", "operator": "==", "threshold": True}},
+        }
+    )
+    f1 = engine.evaluate(falling_spec, context=WaitContext(now_monotonic=4.0, values={"flag": True}))
+    f2 = engine.evaluate(
+        falling_spec,
+        context=WaitContext(now_monotonic=5.0, values={"flag": False}),
+        previous_state=f1.next_state,
+    )
+    assert f1.matched is False
+    assert f2.matched is True
+
+
+def test_wait_engine_pulse_holds_for_requested_seconds() -> None:
+    engine = _engine()
+    pulse_spec = parse_wait_spec(
+        {
+            "kind": "pulse",
+            "hold_s": 2.0,
+            "child": {"kind": "condition", "condition": {"source": "flag", "operator": "==", "threshold": True}},
+        }
+    )
+
+    r1 = engine.evaluate(pulse_spec, context=WaitContext(now_monotonic=10.0, values={"flag": False}))
+    r2 = engine.evaluate(
+        pulse_spec,
+        context=WaitContext(now_monotonic=11.0, values={"flag": True}),
+        previous_state=r1.next_state,
+    )
+    r3 = engine.evaluate(
+        pulse_spec,
+        context=WaitContext(now_monotonic=12.5, values={"flag": False}),
+        previous_state=r2.next_state,
+    )
+    r4 = engine.evaluate(
+        pulse_spec,
+        context=WaitContext(now_monotonic=13.2, values={"flag": False}),
+        previous_state=r3.next_state,
+    )
+
+    assert r1.matched is False
+    assert r2.matched is True
+    assert r3.matched is True
+    assert r4.matched is False
+
+
 def test_parse_wait_spec_and_condition_node_edge_cases() -> None:
     assert parse_wait_spec("") is None
     assert parse_wait_spec(False) is None
@@ -196,3 +270,6 @@ def test_parse_wait_spec_and_condition_node_edge_cases() -> None:
 
     with pytest.raises(ValueError, match="condition must be a dict"):
         parse_condition_node(123)
+
+    with pytest.raises(ValueError, match="requires a child"):
+        parse_wait_spec({"kind": "rising"})

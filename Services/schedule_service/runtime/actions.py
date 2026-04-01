@@ -55,7 +55,7 @@ class _ActionsMixin:
                 else:
                     raise ValueError(f'Unsupported global_measurement mode: {mode}')
             elif action.kind == 'take_loadstep':
-                if self._action_timing(action) in {'before_next', 'on_exit'}:
+                if self._action_timing(action) in {'before_next', 'on_exit', 'on_trigger'}:
                     last_result = {'ok': True, 'deferred': True}
                 else:
                     last_result = self._take_data_loadstep(action, step)

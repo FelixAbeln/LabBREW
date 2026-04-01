@@ -72,7 +72,16 @@ class _UtilsMixin:
 
     def _collect_values(self, step: ScheduleStep) -> dict[str, Any]:
         values: dict[str, Any] = {}
-        for source in self._collect_wait_sources(step.wait):
+        sources = set(self._collect_wait_sources(step.wait))
+        for action in getattr(step, 'actions', []) or []:
+            if action.kind != 'take_loadstep' or self._action_timing(action) != 'on_trigger':
+                continue
+            params = action.params if isinstance(action.params, dict) else {}
+            trigger_wait = params.get('trigger_wait')
+            if isinstance(trigger_wait, dict):
+                sources |= self._collect_wait_sources(trigger_wait)
+
+        for source in sources:
             values[source] = self.control.read(source).get('value')
         return values
 
@@ -83,6 +92,9 @@ class _UtilsMixin:
         condition = payload.get('condition')
         if isinstance(condition, dict):
             found |= self._collect_condition_sources(condition)
+        child = payload.get('child')
+        if isinstance(child, dict):
+            found |= self._collect_wait_sources(child)
         for child in payload.get('children') or []:
             if isinstance(child, dict):
                 found |= self._collect_wait_sources(child)

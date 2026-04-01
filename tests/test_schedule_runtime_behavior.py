@@ -234,3 +234,106 @@ def test_schedule_runtime_waits_for_before_next_loadstep_completion(tmp_path: Pa
 
     final_status = runtime.status()
     assert final_status["state"] == "completed"
+
+
+def test_schedule_runtime_rising_wait_with_before_next_loadstep_completes(tmp_path: Path) -> None:
+    control = FakeControlClient(values={"event.ready": False})
+    data = FakeDataClient(recording=True, session_name="existing")
+    runtime = _make_runtime(tmp_path, control=control, data=data)
+
+    payload = {
+        "id": "event-loadstep-schedule",
+        "name": "Event Loadstep Schedule",
+        "plan_steps": [
+            {
+                "id": "step-1",
+                "name": "Capture On Edge",
+                "actions": [
+                    {
+                        "kind": "take_loadstep",
+                        "params": {
+                            "timing": "before_next",
+                            "loadstep_name": "ls_event_edge",
+                            "duration_seconds": 1,
+                        },
+                    }
+                ],
+                "wait": {
+                    "kind": "rising",
+                    "child": {
+                        "kind": "condition",
+                        "condition": {"source": "event.ready", "operator": "==", "threshold": True},
+                    },
+                },
+            }
+        ],
+    }
+
+    runtime.load_schedule(payload)
+    runtime.start_run()
+
+    runtime._tick()
+    assert runtime.status()["state"] == "running"
+    assert not data.loadstep_calls
+
+    control.values["event.ready"] = True
+    runtime._tick()
+    status_after_edge = runtime.status()
+    assert status_after_edge["state"] == "running"
+    assert "Waiting for loadstep completion" in status_after_edge["wait_message"]
+    assert data.loadstep_calls and data.loadstep_calls[0]["loadstep_name"] == "ls_event_edge"
+
+    data.complete_active_loadsteps()
+    runtime._tick()
+
+    assert runtime.status()["state"] == "completed"
+
+
+def test_schedule_runtime_on_trigger_loadstep_fires_once_on_rising_edge(tmp_path: Path) -> None:
+    control = FakeControlClient(values={"event.start": False})
+    data = FakeDataClient(recording=True, session_name="existing")
+    runtime = _make_runtime(tmp_path, control=control, data=data)
+
+    payload = {
+        "id": "trigger-loadstep",
+        "name": "Trigger Loadstep",
+        "measurement_config": {
+            "loadstep_duration_seconds": 12,
+        },
+        "plan_steps": [
+            {
+                "id": "p1",
+                "name": "Step",
+                "actions": [
+                    {
+                        "kind": "take_loadstep",
+                        "params": {
+                            "timing": "on_trigger",
+                            "trigger_wait": {
+                                "kind": "rising",
+                                "child": {
+                                    "kind": "condition",
+                                    "condition": {"source": "event.start", "operator": "==", "threshold": True},
+                                },
+                            },
+                        },
+                    }
+                ],
+                "wait": {"kind": "elapsed", "duration_s": 1000},
+            }
+        ],
+    }
+
+    runtime.load_schedule(payload)
+    runtime.start_run()
+
+    runtime._tick()
+    assert not data.loadstep_calls
+
+    control.values["event.start"] = True
+    runtime._tick()
+    assert len(data.loadstep_calls) == 1
+    assert data.loadstep_calls[0]["duration_seconds"] == 12.0
+
+    runtime._tick()
+    assert len(data.loadstep_calls) == 1

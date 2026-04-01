@@ -88,6 +88,8 @@ class StepRuntime:
     started_at_utc: str | None = None
     wait_state: Any | None = None
     pending_exit_loadsteps: set[str] = field(default_factory=set)
+    loadstep_trigger_states: dict[str, Any] = field(default_factory=dict)
+    fired_loadstep_triggers: set[int] = field(default_factory=set)
 
 
 @dataclass(slots=True)

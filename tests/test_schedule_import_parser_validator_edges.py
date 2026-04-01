@@ -77,6 +77,16 @@ def test_split_parse_and_wait_helpers_cover_error_paths() -> None:
     assert nested["kind"] == "any_of"
     assert len(nested["children"]) == 2
 
+    rising = parser._parse_wait_expr("rising(cond:a:>:1)")
+    assert rising == {
+        "kind": "rising",
+        "child": {"kind": "condition", "condition": {"source": "a", "operator": ">", "threshold": 1}},
+    }
+
+    pulse = parser._parse_wait_expr("pulse(cond:a:>:1;3)")
+    assert pulse["kind"] == "pulse"
+    assert pulse["hold_s"] == 3.0
+
     with pytest.raises(ValueError):
         parser._parse_condition("cond:a:>")
     with pytest.raises(ValueError):
@@ -85,6 +95,8 @@ def test_split_parse_and_wait_helpers_cover_error_paths() -> None:
         parser._split_top_level("a);b")
     with pytest.raises(ValueError, match="unmatched opening parenthesis"):
         parser._split_top_level("all(a;b")
+    with pytest.raises(ValueError, match="pulse"):
+        parser._parse_wait_expr("pulse(cond:a:>:1)")
 
 
 def test_collect_workbook_references_uses_selection_list_fallback() -> None:
@@ -180,3 +192,61 @@ def test_validate_schedule_payload_flags_missing_phase_and_wait_errors() -> None
 def test_parse_schedule_workbook_raises_without_meta_sheet() -> None:
     with pytest.raises(ValueError):
         parser.parse_schedule_workbook(_wb_bytes(include_meta=False), filename="x.xlsx")
+
+
+def test_validate_schedule_payload_reports_event_wait_shape_errors() -> None:
+    payload = {
+        "id": "sched-events",
+        "name": "Events",
+        "setup_steps": [
+            {
+                "id": "s1",
+                "name": "step",
+                "actions": [{"kind": "write", "target": "known", "value": 1}],
+                "wait": {"kind": "pulse", "hold_s": "bad", "child": {"kind": "rising"}},
+            }
+        ],
+    }
+
+    result = validator.validate_schedule_payload(payload, available_parameters={"known"})
+    codes = set(result["error_codes"])
+
+    assert result["valid"] is False
+    assert "MISSING_PHASE" in codes
+    assert "INVALID_PULSE_HOLD_SECONDS" in codes
+    assert "MISSING_WAIT_CHILD" in codes
+
+
+def test_validate_schedule_payload_allows_triggered_loadstep_with_measurement_default_duration() -> None:
+    payload = {
+        "id": "sched-trigger",
+        "name": "Trigger",
+        "measurement_config": {"loadstep_duration_seconds": 15},
+        "setup_steps": [
+            {
+                "id": "s1",
+                "name": "step",
+                "actions": [
+                    {
+                        "kind": "take_loadstep",
+                        "params": {
+                            "timing": "on_trigger",
+                            "trigger_wait": {
+                                "kind": "rising",
+                                "child": {
+                                    "kind": "condition",
+                                    "condition": {"source": "known", "operator": "==", "threshold": 1},
+                                },
+                            },
+                        },
+                    }
+                ],
+                "wait": {"kind": "elapsed", "duration_s": 1},
+            }
+        ],
+        "plan_steps": [],
+    }
+
+    result = validator.validate_schedule_payload(payload, available_parameters={"known"})
+    assert result["valid"] is True
+    assert "MISSING_LOADSTEP_DURATION" not in result["error_codes"]

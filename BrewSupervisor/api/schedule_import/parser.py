@@ -116,6 +116,21 @@ def _build_meta_defaults(meta: dict[str, str], wb=None) -> dict[str, Any]:
         'session_name': _meta_get(meta, 'measurement_name', 'measurement.name', 'measurement.session_name'),
     }
 
+    loadstep_duration_text = _meta_get(
+        meta,
+        'loadstep_duration_seconds',
+        'loadstep.duration_seconds',
+        'loadstep_default_duration_seconds',
+    )
+    try:
+        loadstep_duration_seconds = float(loadstep_duration_text) if loadstep_duration_text is not None else 30.0
+    except (ValueError, TypeError):
+        loadstep_duration_seconds = 30.0
+    if loadstep_duration_seconds <= 0:
+        loadstep_duration_seconds = 30.0
+
+    measurement_config['loadstep_duration_seconds'] = loadstep_duration_seconds
+
     if parameters:
         measurement_config['parameters'] = parameters
 
@@ -201,15 +216,8 @@ def _build_step(
     # take_loadstep: blank / 0 = no loadstep; any positive number = duration in seconds.
     # Capture happens after the step's wait condition is met (before_next timing).
     take_loadstep_raw = row.get('take_loadstep')
-    try:
-        take_loadstep_seconds = _cell_float(take_loadstep_raw)
-    except (TypeError, ValueError) as exc:
-        # If the cell is non-empty but cannot be parsed as a float, surface this as a validation error.
-        if _cell_str(take_loadstep_raw) is not None:
-            raise ValueError(
-                f"Invalid take_loadstep value {take_loadstep_raw!r}: expected a numeric duration in seconds."
-            ) from exc
-        take_loadstep_seconds = None
+    take_loadstep_text = _cell_str(take_loadstep_raw)
+    take_loadstep_seconds = _cell_float(take_loadstep_raw)
 
     if take_loadstep_seconds is not None and take_loadstep_seconds > 0:
         actions.append({
@@ -219,6 +227,24 @@ def _build_step(
             'duration_s': take_loadstep_seconds,
             'owner': None,
             'params': {'timing': 'before_next'},
+        })
+    elif take_loadstep_text is not None and take_loadstep_seconds is None:
+        trigger_wait = _parse_wait_expr(take_loadstep_text)
+        if trigger_wait is None:
+            raise ValueError(
+                f"Invalid take_loadstep value {take_loadstep_raw!r}: expected numeric seconds or a wait expression"
+            )
+        default_loadstep_seconds = float(defaults.get('measurement', {}).get('loadstep_duration_seconds', 30.0) or 30.0)
+        actions.append({
+            'kind': 'take_loadstep',
+            'target': None,
+            'value': None,
+            'duration_s': default_loadstep_seconds,
+            'owner': None,
+            'params': {
+                'timing': 'on_trigger',
+                'trigger_wait': trigger_wait,
+            },
         })
 
     return {
