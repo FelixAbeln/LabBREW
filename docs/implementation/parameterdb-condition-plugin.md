@@ -4,6 +4,7 @@ Related documentation:
 - [Schedule Excel Import Format](../api/schedule-excel-import.md)
 - [ParameterDB Binary Protocol API](../api/parameterdb-api.md)
 - [Wait Event Engine](../implementation/wait-event-engine.md)
+- [Writing a ParameterDB Plugin](../implementation/writing-a-parameterdb-plugin.md)
 
 The condition parameter type evaluates the shared wait-expression DSL already used by schedule import and stores the final boolean result in ParameterDB.
 
@@ -19,6 +20,8 @@ This means the plugin follows the existing LabBREW syntax directly instead of de
 : Wait-expression DSL string.
 - enable_param (string, optional)
 : Parameter name used as a boolean-like gate. If false, evaluation is skipped and the timing state is reset.
+- output_params (list of strings, optional)
+: One or more ParameterDB parameter names that should receive the same boolean value on every successful scan cycle. Follows the same mirror-output convention as `pid`, `deadband`, and `math`.
 
 For backward compatibility, the plugin still accepts the older structured dict form, but the DSL string is the documented and preferred syntax.
 
@@ -131,7 +134,7 @@ The pulse starts on the rising edge of `expr` and remains matched for `hold_seco
 
 ### Nesting
 
-`all(...)`, `any(...)`, `rising(...)`, and `falling(...)` can be nested:
+`all(...)`, `any(...)`, `rising(...)`, `falling(...)`, and `pulse(...)` can be nested:
 
 ```
 all(elapsed:600;any(cond:reactor.temp:>=:64;cond:abort.flag:==:true))
@@ -160,6 +163,8 @@ Condition-specific keys commonly exposed:
 - observed_values
 - message
 - enabled
+- output_targets
+- missing_output_targets
 
 Notes:
 
@@ -167,6 +172,8 @@ Notes:
 - `condition_kind` is populated when the plugin is evaluating a direct condition node and reports `atomic`, `all`, `any`, or `not`.
 - `elapsed_s` is wall-clock time since the current logic run started, not only the condition hold time.
 - `required_for_s` reports the active threshold for the top-level timing gate, for example `elapsed:900` or `cond:...:120`.
+- `output_targets` lists the parameter names that were successfully written during the last scan cycle.
+- `missing_output_targets` lists any `output_params` entries that do not exist in the store; absent from state when all targets are present.
 
 ## Error Behavior
 
@@ -220,3 +227,14 @@ You can use a condition parameter as a reusable timer by pairing `elapsed` with 
 - Set `timer.start = false` to reset and hold the timer idle.
 - Set `timer.start = true` to start counting from zero.
 - After 300 seconds, the condition output becomes `true`.
+
+### 5. Mirror output to another parameter
+
+When the condition evaluates to `true`, `relay.pump` receives the same boolean value:
+
+```json
+{
+  "condition": "cond:brewcan.density.0:<=:1.012:120",
+  "output_params": ["relay.pump"]
+}
+```
