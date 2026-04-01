@@ -178,12 +178,11 @@ class DerivativeParameter(ParameterBase):
                     self.state["updated_on_change"] = True
                 else:
                     effective_dt = self._elapsed_since_change_s
-                    previous_output = self.value
-                    try:
-                        output = float(previous_output)
-                    except (TypeError, ValueError):
-                        output = 0.0
-                    derivative = (output / scale) if scale != 0 else 0.0
+                    # Reuse the previously computed unscaled derivative and apply the
+                    # current scale so scaling behaves consistently even when input
+                    # does not change or when scale is modified at runtime.
+                    derivative = self.state.get("raw_derivative", 0.0)
+                    output = derivative * scale
                     self.state["updated_on_change"] = False
                 self.state["history_sample_count"] = 0
                 self.state["history_span_s"] = 0.0
