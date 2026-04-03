@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -57,6 +58,7 @@ def _make_runtime_for_ramps(initial_values: dict[str, float]) -> ControlRuntime:
     runtime.backend = FakeBackend(dict(initial_values))
     runtime.ownership = OwnershipManager()
     runtime._ramps = {}
+    runtime._stop_event = threading.Event()
     runtime._drop_target_from_rule_tracking = lambda target: None
     runtime.stop_ramp = lambda target: None
     return runtime
@@ -69,6 +71,7 @@ def _make_runtime(initial_values: dict[str, float] | None = None) -> ControlRunt
     runtime.ownership = OwnershipManager()
     runtime._ramps = {}
     runtime._rule_states = {}
+    runtime._stop_event = threading.Event()
     runtime.rules = []
     runtime.rule_engine = SimpleNamespace(
         prune_rules=lambda _ids: None,
@@ -594,23 +597,18 @@ def test_runtime_iter_actions_release_guard_and_run_error_branch(monkeypatch) ->
     assert runtime.ownership.get_owner("x") == "safety"
     assert state.owned_targets == {"x"}
 
-    calls = {"tick": 0, "sleep": 0}
+    calls = {"tick": 0}
 
     def bad_tick():
         calls["tick"] += 1
+        # Signal the loop to exit after this one tick.
+        runtime._stop_event.set()
         raise RuntimeError("tick failed")
 
-    def stop_sleep(_interval: float):
-        calls["sleep"] += 1
-        raise StopIteration()
-
     runtime.tick = bad_tick
-    monkeypatch.setattr(control_runtime_module.time, "sleep", stop_sleep)
+    runtime.run(interval=0.01)
 
-    with pytest.raises(StopIteration):
-        runtime.run(interval=0.01)
-
-    assert calls == {"tick": 1, "sleep": 1}
+    assert calls == {"tick": 1}
 
 
 def test_load_control_contract_error_paths(monkeypatch, tmp_path: Path) -> None:

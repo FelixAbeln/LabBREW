@@ -30,6 +30,8 @@ class ProcessRunner:
             text=True,
             env=env,
         )
+        # Close the parent's copy of the fd; the child keeps its own inherited copy.
+        handle.close()
         state.process = process
         return process
 
