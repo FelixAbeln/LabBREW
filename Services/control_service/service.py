@@ -27,6 +27,10 @@ def main():
     app.include_router(control_router)
     app.include_router(ws_router)
 
+    @app.on_event('shutdown')
+    def _shutdown() -> None:
+        runtime.stop()
+
     uvicorn.run(
         app,
         host=args.host,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -61,6 +62,7 @@ class ControlRuntime:
         self.ownership = OwnershipManager()
         self._rule_states: dict[str, ActiveRuleState] = {}
         self._ramps: dict[str, dict[str, Any]] = {}
+        self._stop_event = threading.Event()
         self.reload_rules()
 
     def reload_rules(self):
@@ -669,21 +671,26 @@ class ControlRuntime:
         if duration <= 0:
             return {"ok": False, "error": "duration must be > 0", "targets": targets}
 
+        try:
+            end_value = float(action["value"])
+        except Exception:
+            return {"ok": False, "error": "invalid value; must be numeric", "targets": targets}
+
         owner = action.get("owner", "rules")
         started = {}
         for target in targets:
             start_value = values.get(target, self.backend.get_value(target, 0))
             self._ramps[target] = {
                 "start": start_value,
-                "end": action["value"],
+                "end": end_value,
                 "duration": duration,
                 "start_time": time.monotonic(),
                 "owner": owner,
             }
-            print(f"[RAMP] start {target} -> {action['value']} in {duration}s")
+            print(f"[RAMP] start {target} -> {end_value} in {duration}s")
             started[target] = {
                 "start": start_value,
-                "end": action["value"],
+                "end": end_value,
                 "duration": duration,
                 "owner": owner,
             }
@@ -855,11 +862,15 @@ class ControlRuntime:
             "values": values,
         }
 
+    def stop(self) -> None:
+        """Signal the run loop to exit on its next iteration."""
+        self._stop_event.set()
+
     def run(self, interval: float = 0.2):
-        while True:
+        while not self._stop_event.is_set():
             try:
                 self.tick()
             except Exception as exc:
                 print("Runtime error:", exc)
 
-            time.sleep(interval)
+            self._stop_event.wait(timeout=interval)

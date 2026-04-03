@@ -164,7 +164,10 @@ class TopologySupervisor:
                 status["restart_requested"] = bool(self._restart_requested)
                 return status
 
-            repo_url = "https://github.com/FelixAbeln/LabBREW.git"
+            try:
+                repo_url = self._run_git(["remote", "get-url", "origin"])
+            except Exception:
+                repo_url = "https://github.com/FelixAbeln/LabBREW.git"
             status: dict[str, Any] = {
                 "repo_url": repo_url,
                 "local_revision": None,
