@@ -12,8 +12,8 @@ from .runtime import ScheduleRuntime
 
 def main():
     args = parse_args('Schedule Service')
-    control_url = f'http://{args.backend_host}:{args.backend_port}'
-    data_url = f'http://{args.data_backend_host}:{args.data_backend_port}'
+    control_url = str(args.backend_url or f'http://{args.backend_host}:{args.backend_port}')
+    data_url = str(args.data_backend_url or f'http://{args.data_backend_host}:{args.data_backend_port}')
 
     control_client = ControlClient(base_url=control_url)
     data_client = DataClient(base_url=data_url)

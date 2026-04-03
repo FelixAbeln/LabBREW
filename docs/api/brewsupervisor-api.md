@@ -26,6 +26,8 @@ Returns a liveness check.
 
 Lists all discovered fermenter nodes.
 
+When multiple Supervisor Agents advertise the same `node_id` (split deployment), BrewSupervisor merges them into one logical fermenter and keeps per-service agent routing metadata internally.
+
 **Response** `200 OK` — array of `FermenterView` objects.
 
 ```json
@@ -160,6 +162,8 @@ Validates and imports an Excel schedule to the schedule service. Returns `422` i
 
 The gateway provides convenience proxy routes that forward requests to named services through the Agent's `/proxy/*` mechanism. All HTTP methods (`GET`, `POST`, `PUT`, `DELETE`) are supported unless noted.
 
+In split deployments, these routes are service-aware: each request is routed to the agent currently associated with that specific service (`control_service`, `schedule_service`, `data_service`, and so on). This allows one fermenter to span several devices.
+
 | Gateway path | Forwarded to |
 |---|---|
 | `/fermenters/{id}/parameterdb[/{path}]` | Supervisor Agent local ParameterDB facade — `parameterdb/{path}` |
@@ -176,6 +180,8 @@ See [Control Service API](./control-service-api.md) and [Schedule Service API](.
 For Data Service endpoints, see [Data Service API](./data-service-api.md).
 
 For the underlying node-local ParameterDB HTTP facade, see [Supervisor Agent API](./agent-api.md#local-parameterdb-endpoints).
+
+For setup instructions and YAML examples, see [Multi-Device Topology Setup](./multi-device-topology-setup.md).
 
 ---
 

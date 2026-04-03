@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from fastapi.testclient import TestClient
 
 from Supervisor.infrastructure import agent_api
@@ -77,14 +79,44 @@ class StubSignalClient:
         return True
 
 
-def _build_client(monkeypatch, *, update_status_provider=None, apply_update_action=None) -> TestClient:
+class _FakeProxyResponse:
+    def __init__(self, *, status_code: int = 200, payload: dict | None = None, headers: dict | None = None):
+        self.status_code = status_code
+        self._payload = payload if payload is not None else {"ok": True}
+        self.headers = headers or {"content-type": "application/json"}
+
+    def json(self):
+        return self._payload
+
+    def iter_content(self, chunk_size=65536):
+        _ = chunk_size
+        yield json.dumps(self._payload).encode("utf-8")
+
+    def close(self):
+        return None
+
+
+class _FakeProxySession:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def request(self, **kwargs):
+        self.calls.append(kwargs)
+        return _FakeProxyResponse()
+
+
+def _build_client(monkeypatch, *, update_status_provider=None, apply_update_action=None, service_map=None, proxy_session=None) -> TestClient:
     monkeypatch.setattr(agent_api, "SignalClient", StubSignalClient)
+    if service_map is None:
+        service_map = lambda: {}
+    if proxy_session is None:
+        proxy_session = _FakeProxySession()
     app = agent_api.build_agent_app(
         node_id="node-1",
         node_name="Node 1",
-        service_map=lambda: {},
+        service_map=service_map,
         summary_provider=lambda: {},
-        proxy_session=None,
+        proxy_session=proxy_session,
         update_status_provider=update_status_provider,
         apply_update_action=apply_update_action,
     )
@@ -189,3 +221,48 @@ def test_agent_repo_update_failure_surfaces_detail(monkeypatch) -> None:
     detail = response.json().get("detail")
     assert isinstance(detail, dict)
     assert detail.get("reason", "").startswith("pip project install failed")
+
+
+def test_agent_bridge_control_route_proxies_to_control_service(monkeypatch) -> None:
+    proxy_session = _FakeProxySession()
+    client = _build_client(
+        monkeypatch,
+        proxy_session=proxy_session,
+        service_map=lambda: {
+            "control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"},
+        },
+    )
+
+    response = client.get("/control/read/reactor.temp")
+
+    assert response.status_code == 200
+    assert proxy_session.calls
+    assert proxy_session.calls[-1]["url"] == "http://127.0.0.1:8767/control/read/reactor.temp"
+
+
+def test_agent_bridge_data_route_proxies_to_data_service(monkeypatch) -> None:
+    proxy_session = _FakeProxySession()
+    client = _build_client(
+        monkeypatch,
+        proxy_session=proxy_session,
+        service_map=lambda: {
+            "data_service": {"healthy": True, "base_url": "http://10.0.0.20:8769"},
+        },
+    )
+
+    response = client.get("/data/archives")
+
+    assert response.status_code == 200
+    assert proxy_session.calls[-1]["url"] == "http://10.0.0.20:8769/archives"
+
+
+def test_agent_bridge_returns_404_when_service_unavailable(monkeypatch) -> None:
+    client = _build_client(
+        monkeypatch,
+        service_map=lambda: {
+            "control_service": {"healthy": False, "base_url": "http://127.0.0.1:8767"},
+        },
+    )
+
+    response = client.get("/control/read/reactor.temp")
+    assert response.status_code == 404

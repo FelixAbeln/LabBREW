@@ -220,3 +220,30 @@ The Agent looks up `service_name` in its service map. If the service is not pres
 |---|---|
 | `404` | Service name not found or not healthy |
 | `502` | Upstream request to the service failed |
+
+---
+
+## Agent Bridge Routes
+
+The Agent also exposes convenience bridge routes that map directly to the common service API prefixes and then forward internally to local services.
+
+These are intended for multi-device topologies where one service on node A must call a service hosted on node B through node B's Agent, instead of calling the service port directly.
+
+### Available bridge paths
+
+| Bridge path | Internally forwarded to |
+|---|---|
+| `/control[/{path}]` | `control_service` at `control/{path}` |
+| `/rules[/{path}]` | `control_service` at `rules/{path}` |
+| `/system[/{path}]` | `control_service` at `system/{path}` |
+| `/ws[/{path}]` | `control_service` at `ws/{path}` |
+| `/schedule[/{path}]` | `schedule_service` at `schedule/{path}` |
+| `/data[/{path}]` | `data_service` at `{path}` |
+
+### Example
+
+If schedule service on node A is configured with `--data-backend-host <node-b-agent>` and `--data-backend-port 8780`, calls to `http://<node-b-agent>:8780/data/...` are forwarded by node B's Agent to node B's `data_service`.
+
+This gives a service-to-agent-to-service hop for cross-node HTTP dependencies.
+
+Topology can also inject custom backend aliases using URL flags (for example `database.local` -> `--data-backend-url http://node-b-agent:8780/data`), which still use the same bridge mechanism.

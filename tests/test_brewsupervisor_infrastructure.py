@@ -144,6 +144,162 @@ def test_fermenter_registry_fetch_build_snapshot_get_and_close(monkeypatch) -> N
     assert fake_session.closed is True
 
 
+def test_fermenter_registry_merges_split_service_advertisements(monkeypatch) -> None:
+    agent_control = discovery_module.DiscoveredAgent(
+        service_name="svc-control",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="ctrl",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+    agent_schedule = discovery_module.DiscoveredAgent(
+        service_name="svc-schedule",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.11",
+        host="sched",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["schedule_service"],
+    )
+    browser = SimpleNamespace(snapshot=lambda: [agent_control, agent_schedule])
+    registry = FermenterRegistry(browser)
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    fake_session.queue(_FakeResponse(payload={"services": {"control_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"control_available": True}))
+    fake_session.queue(_FakeResponse(payload={"services": {"schedule_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"schedule_available": True}))
+
+    snapshot = registry.snapshot()
+    assert len(snapshot) == 1
+    node = snapshot[0]
+    assert sorted(node.services.keys()) == ["control_service", "schedule_service"]
+    assert node.service_agents["control_service"] == "http://10.0.0.10:8780"
+    assert node.service_agents["schedule_service"] == "http://10.0.0.11:8780"
+
+    schedule_node = registry.get_node_for_service("01", "schedule_service")
+    assert schedule_node is not None
+    assert schedule_node.service_agents["schedule_service"] == "http://10.0.0.11:8780"
+
+
+def test_fermenter_registry_prefers_online_agent_when_merging(monkeypatch) -> None:
+    agent_offline = discovery_module.DiscoveredAgent(
+        service_name="svc-offline",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="offline-host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+    agent_online = discovery_module.DiscoveredAgent(
+        service_name="svc-online",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.11",
+        host="online-host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["schedule_service"],
+    )
+    browser = SimpleNamespace(snapshot=lambda: [agent_offline, agent_online])
+    registry = FermenterRegistry(browser)
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    fake_session.queue(_FakeResponse(raises=True))
+    fake_session.queue(_FakeResponse(payload={"services": {"schedule_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"schedule_available": True}))
+
+    snapshot = registry.snapshot()
+    assert len(snapshot) == 1
+    merged = snapshot[0]
+    assert merged.online is True
+    assert merged.address == "10.0.0.11"
+    assert merged.host == "online-host"
+
+
+def test_fermenter_registry_all_offline_merges_errors(monkeypatch) -> None:
+    agent_a = discovery_module.DiscoveredAgent(
+        service_name="svc-a",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="a",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+    agent_b = discovery_module.DiscoveredAgent(
+        service_name="svc-b",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.11",
+        host="b",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["schedule_service"],
+    )
+    browser = SimpleNamespace(snapshot=lambda: [agent_a, agent_b])
+    registry = FermenterRegistry(browser)
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    fake_session.queue(_FakeResponse(raises=True))
+    fake_session.queue(_FakeResponse(raises=True))
+
+    snapshot = registry.snapshot()
+    assert len(snapshot) == 1
+    merged = snapshot[0]
+    assert merged.online is False
+    assert merged.last_error is not None
+    assert "status error" in merged.last_error
+
+
+def test_get_node_for_service_falls_back_when_service_unknown(monkeypatch) -> None:
+    agent = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+    browser = SimpleNamespace(snapshot=lambda: [agent])
+    registry = FermenterRegistry(browser)
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    fake_session.queue(_FakeResponse(payload={"services": {"control_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"control_available": True}))
+
+    selected = registry.get_node_for_service("01", "unknown_service")
+    assert selected is not None
+    assert selected.id == "01"
+
+
 def test_discovery_decode_urls_start_refresh_remove_snapshot_and_close(monkeypatch) -> None:
     assert discovery_module._decode_property(b"abc") == "abc"
     assert discovery_module._decode_property(None) == ""

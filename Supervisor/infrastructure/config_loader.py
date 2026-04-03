@@ -71,7 +71,7 @@ class YamlTopologyLoader:
 
             backends_raw = raw.get("backends")
             backend = raw.get("backend")
-            backend_mappings: list[tuple[str, str, str]] = []
+            backend_mappings: list[dict[str, str]] = []
 
             if isinstance(backends_raw, dict) and backends_raw:
                 for capability_name, mapping in backends_raw.items():
@@ -79,25 +79,54 @@ class YamlTopologyLoader:
                         raise ValueError(
                             f"Service '{name}'.backends['{capability_name}'] must be a mapping"
                         )
+                    url_flag = str(mapping.get("url_flag") or "").strip()
                     host_flag = str(mapping.get("host_flag") or "").strip()
                     port_flag = str(mapping.get("port_flag") or "").strip()
+                    if url_flag and (host_flag or port_flag):
+                        raise ValueError(
+                            f"Service '{name}'.backends['{capability_name}'] must use either url_flag or host_flag+port_flag"
+                        )
+                    if url_flag:
+                        backend_mappings.append(
+                            {
+                                "capability": str(capability_name),
+                                "mode": "url",
+                                "url_flag": url_flag,
+                            }
+                        )
+                        continue
                     if not host_flag or not port_flag:
                         raise ValueError(
-                            f"Service '{name}'.backends['{capability_name}'] requires host_flag and port_flag"
+                            f"Service '{name}'.backends['{capability_name}'] requires url_flag or host_flag and port_flag"
                         )
-                    backend_mappings.append((str(capability_name), host_flag, port_flag))
+                    backend_mappings.append(
+                        {
+                            "capability": str(capability_name),
+                            "mode": "host_port",
+                            "host_flag": host_flag,
+                            "port_flag": port_flag,
+                        }
+                    )
             elif backend:
-                backend_mappings.append((str(backend), "--backend-host", "--backend-port"))
+                backend_mappings.append(
+                    {
+                        "capability": str(backend),
+                        "mode": "host_port",
+                        "host_flag": "--backend-host",
+                        "port_flag": "--backend-port",
+                    }
+                )
 
-            requires = tuple(capability for capability, _, _ in backend_mappings)
+            requires = tuple(item["capability"] for item in backend_mappings)
             capability_arg_rules = tuple(
                 CapabilityArgRule(
-                    capability=capability,
-                    mode="host_port",
-                    host_flag=host_flag,
-                    port_flag=port_flag,
+                    capability=item["capability"],
+                    mode=item["mode"],
+                    url_flag=item.get("url_flag"),
+                    host_flag=item.get("host_flag"),
+                    port_flag=item.get("port_flag"),
                 )
-                for capability, host_flag, port_flag in backend_mappings
+                for item in backend_mappings
             )
 
             # Bind args come from the new listen block. This is what prevents services
@@ -195,9 +224,21 @@ class YamlTopologyLoader:
                     )
                 host_flag = mapping.get("host_flag")
                 port_flag = mapping.get("port_flag")
+                url_flag = mapping.get("url_flag")
+                has_url_flag = isinstance(url_flag, str) and bool(url_flag.strip())
+                has_host_port = isinstance(host_flag, str) and bool(host_flag.strip()) and isinstance(port_flag, str) and bool(port_flag.strip())
+
+                if has_url_flag and has_host_port:
+                    raise ValueError(
+                        f"Service '{service_name}'.backends['{capability_name}'] cannot define url_flag together with host_flag/port_flag"
+                    )
+
+                if has_url_flag:
+                    continue
+
                 if not isinstance(host_flag, str) or not host_flag.strip():
                     raise ValueError(
-                        f"Service '{service_name}'.backends['{capability_name}'].host_flag must be a non-empty string"
+                        f"Service '{service_name}'.backends['{capability_name}'] must define url_flag or a non-empty host_flag"
                     )
                 if not isinstance(port_flag, str) or not port_flag.strip():
                     raise ValueError(

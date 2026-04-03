@@ -83,10 +83,19 @@ def _build_agent_proxy_url(node: Any, suffix: str) -> str:
 
 def _build_service_proxy_url(node: Any, service_name: str, suffix: str = '') -> str:
     suffix = suffix.lstrip('/')
-    url = f"{node.agent_base_url}/proxy/{service_name}"
+    service_agents = getattr(node, 'service_agents', {}) or {}
+    agent_base_url = service_agents.get(service_name) or node.agent_base_url
+    url = f"{agent_base_url}/proxy/{service_name}"
     if suffix:
         url += f"/{suffix}"
     return url
+
+
+def _get_service_node(registry: Any, fermenter_id: str, service_name: str):
+    if hasattr(registry, 'get_node_for_service'):
+        return registry.get_node_for_service(fermenter_id, service_name)
+    node = registry.get_node(fermenter_id)
+    return node
 
 
 def _get_available_backend_parameters(proxy: Any, node: Any) -> tuple[set[str] | None, dict[str, Any] | None]:
@@ -207,7 +216,7 @@ def build_router() -> APIRouter:
     async def _proxy_via_agent(request: Request, fermenter_id: str, service_name: str, service_path: str = ''):
         registry = request.app.state.registry
         proxy = request.app.state.proxy
-        node = registry.get_node(fermenter_id)
+        node = _get_service_node(registry, fermenter_id, service_name)
         if node is None:
             raise HTTPException(status_code=404, detail='Fermenter not found')
         raw_body = b''
@@ -429,7 +438,7 @@ def build_router() -> APIRouter:
     def download_data_archive(fermenter_id: str, archive_name: str, request: Request):
         registry = request.app.state.registry
         proxy = request.app.state.proxy
-        node = registry.get_node(fermenter_id)
+        node = _get_service_node(registry, fermenter_id, 'data_service')
         if node is None:
             raise HTTPException(status_code=404, detail='Fermenter not found')
 
