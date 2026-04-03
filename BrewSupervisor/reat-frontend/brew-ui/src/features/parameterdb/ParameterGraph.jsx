@@ -12,6 +12,17 @@ import { buildGraph, decorateGraph } from './graph/graphModel.js';
 import { GraphDetailPanel } from './graph/GraphDetailPanel.jsx';
 import { nodeTypes } from './graph/GraphNodes.jsx';
 
+function buildReverseLinks(linkMap) {
+  const reverse = new Map();
+  Object.entries(linkMap ?? {}).forEach(([from, toList]) => {
+    (toList ?? []).forEach((to) => {
+      if (!reverse.has(to)) reverse.set(to, []);
+      reverse.get(to).push(from);
+    });
+  });
+  return reverse;
+}
+
 function expandFilteredParams(params, graph, needle) {
   if (!needle) return params;
 
@@ -24,18 +35,15 @@ function expandFilteredParams(params, graph, needle) {
 
   const deps = graph?.dependencies ?? {};
   const writes = graph?.write_targets ?? {};
+  const reverseDeps = buildReverseLinks(deps);
+  const reverseWrites = buildReverseLinks(writes);
   const visible = new Set(matched);
 
   matched.forEach((name) => {
     (deps[name] ?? []).forEach((dep) => visible.add(dep));
     (writes[name] ?? []).forEach((target) => visible.add(target));
-
-    Object.entries(deps).forEach(([candidate, candidateDeps]) => {
-      if (candidateDeps.includes(name)) visible.add(candidate);
-    });
-    Object.entries(writes).forEach(([candidate, targets]) => {
-      if (targets.includes(name)) visible.add(candidate);
-    });
+    (reverseDeps.get(name) ?? []).forEach((candidate) => visible.add(candidate));
+    (reverseWrites.get(name) ?? []).forEach((candidate) => visible.add(candidate));
   });
 
   return Object.fromEntries(entries.filter(([name]) => visible.has(name)));

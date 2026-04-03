@@ -27,6 +27,18 @@ export function sourceColor(sourceType) {
   return SOURCE_COLORS[sourceType] ?? SOURCE_COLORS.default;
 }
 
+function normalizeStringList(values) {
+  const result = [];
+  const seen = new Set();
+  for (const value of values ?? []) {
+    const normalized = String(value ?? '').trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
 function applyLayout(nodes, edges) {
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
@@ -121,7 +133,7 @@ export function buildGraph(params, graph) {
   const sourceLinksByName = new Map();
   sourceNodes.forEach((sourceNode, sourceName) => {
     const sourceRecord = sources?.[sourceName];
-    const links = { feedsFrom: [...(sourceRecord?.graph?.depends_on ?? [])] };
+    const links = { feedsFrom: normalizeStringList(sourceRecord?.graph?.depends_on) };
     const feedSet = new Set(links.feedsFrom);
 
     sourceNode.data.feedsFrom = links.feedsFrom;
