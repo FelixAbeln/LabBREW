@@ -1,5 +1,4 @@
 import dagre from '@dagrejs/dagre';
-import { deriveSourceLinks } from '../schemaUtils.js';
 
 const NODE_W = 220;
 const NODE_H = 72;
@@ -44,11 +43,12 @@ function applyLayout(nodes, edges) {
   });
 }
 
-export function buildGraph(params, graph, sources, sourceUiByName) {
+export function buildGraph(params, graph) {
   const deps = graph?.dependencies ?? {};
   const writesMap = graph?.write_targets ?? {};
   const scanOrder = graph?.scan_order ?? [];
   const warnings = graph?.warnings ?? [];
+  const sources = graph?.sources ?? {};
 
   const warnSet = new Set(
     warnings.flatMap((w) => {
@@ -67,6 +67,7 @@ export function buildGraph(params, graph, sources, sourceUiByName) {
       value: rec.value,
       scanIndex: scanOrder.indexOf(name) >= 0 ? scanOrder.indexOf(name) : null,
       hasWarning: warnSet.has(name),
+      invalidConfig: Boolean(rec?.state?.invalid_config),
       config: rec.config,
       state: rec.state,
       metadata: rec.metadata,
@@ -116,6 +117,22 @@ export function buildGraph(params, graph, sources, sourceUiByName) {
       });
     }
   });
+
+  const sourceLinksByName = new Map();
+  sourceNodes.forEach((sourceNode, sourceName) => {
+    const sourceRecord = sources?.[sourceName];
+    const links = { feedsFrom: [...(sourceRecord?.graph?.depends_on ?? [])] };
+    const feedSet = new Set(links.feedsFrom);
+
+    sourceNode.data.feedsFrom = links.feedsFrom;
+    if (feedSet.size > 0) {
+      sourceNode.data.publishedParams = sourceNode.data.publishedParams.filter((paramName) => !feedSet.has(paramName));
+      sourceNode.data.publishedCount = sourceNode.data.publishedParams.length;
+    }
+
+    sourceLinksByName.set(sourceName, links);
+  });
+
   nodes.push(...sourceNodes.values());
 
   const edges = [];
@@ -146,8 +163,6 @@ export function buildGraph(params, graph, sources, sourceUiByName) {
           animated: true,
           style: { stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '5 3' },
           markerEnd: { type: 'arrowclosed', color: '#f59e0b' },
-          label: 'writes',
-          labelStyle: { fill: '#f59e0b', fontSize: 10 },
         });
       }
     }
@@ -158,6 +173,8 @@ export function buildGraph(params, graph, sources, sourceUiByName) {
     if (metadata?.created_by !== 'data_source') return;
     const owner = String(metadata?.owner ?? '').trim();
     if (!owner || !sourceNodes.has(owner)) return;
+    const feedSet = new Set(sourceLinksByName.get(owner)?.feedsFrom ?? []);
+    if (feedSet.has(name)) return;
     const ownerColor = sourceColor(String(metadata?.source_type ?? 'data_source'));
     edges.push({
       id: `src:${owner}→${name}`,
@@ -170,12 +187,7 @@ export function buildGraph(params, graph, sources, sourceUiByName) {
     });
   });
 
-  Object.entries(sources ?? {}).forEach(([sourceName, sourceRecord]) => {
-    const links = deriveSourceLinks({ name: sourceName, ...sourceRecord }, sourceUiByName?.[sourceName]);
-    if (sourceNodes.has(sourceName)) {
-      sourceNodes.get(sourceName).data.feedsFrom = links.feedsFrom;
-    }
-
+  sourceLinksByName.forEach((links, sourceName) => {
     links.feedsFrom.forEach((paramName) => {
       if (!params[paramName] || !sourceNodes.has(sourceName)) return;
       edges.push({

@@ -179,6 +179,48 @@ def test_tilt_hydrometer_source_ui_has_color_dropdown() -> None:
     assert transport_field["choices"] == ["bridge", "ble"]
 
 
+def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
+    from Services.parameterDB.sourceDefs.brewtools_kvaser.ui import get_ui_spec as get_kvaser_ui_spec
+    from Services.parameterDB.sourceDefs.digital_twin.ui import get_ui_spec as get_twin_ui_spec
+    from Services.parameterDB.sourceDefs.labps3005dn.ui import get_ui_spec as get_psu_ui_spec
+    from Services.parameterDB.sourceDefs.modbus_relay.ui import get_ui_spec as get_relay_ui_spec
+
+    relay_ui = get_relay_ui_spec(record={"name": "relay", "config": {"parameter_prefix": "relay", "channel_count": 3}}, mode="edit")
+    assert relay_ui["graph"]["depends_on"] == ["relay.ch1", "relay.ch2", "relay.ch3"]
+
+    psu_ui = get_psu_ui_spec(record={"name": "psu", "config": {"parameter_prefix": "psu"}}, mode="edit")
+    assert psu_ui["graph"]["depends_on"] == ["psu.set_enable", "psu.set_voltage", "psu.set_current"]
+
+    kvaser_ui = get_kvaser_ui_spec(
+        record={"name": "brewcan", "config": {"parameter_prefix": "brewcan", "agitator_nodes": [7, 3, 7]}},
+        mode="edit",
+    )
+    assert kvaser_ui["graph"]["depends_on"] == [
+        "brewcan.agitator.3.set_pwm",
+        "brewcan.agitator.7.set_pwm",
+    ]
+
+    twin_ui = get_twin_ui_spec(
+        record={
+            "name": "twin",
+            "config": {
+                "parameter_prefix": "twin",
+                "input_bindings": {
+                    "in_level": "brewcan.level.0",
+                    "in_pressure": "dbc_press_Fermenter_Hi",
+                },
+                "reset_param": "twin.reset",
+            },
+        },
+        mode="edit",
+    )
+    assert twin_ui["graph"]["depends_on"] == [
+        "brewcan.level.0",
+        "dbc_press_Fermenter_Hi",
+        "twin.reset",
+    ]
+
+
 def test_tilt_hydrometer_source_publishes_selected_color_and_connected_state(monkeypatch) -> None:
     from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
 

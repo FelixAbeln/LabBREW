@@ -156,6 +156,29 @@ def _get_control_spec(record: dict[str, Any] | None = None) -> dict[str, Any]:
     }
 
 
+def _get_graph_spec(record: dict[str, Any] | None = None) -> dict[str, Any]:
+    record = dict(record or {})
+    config = dict(record.get('config') or {})
+    source_name = str(record.get('name') or '').strip() or 'digital_twin'
+    prefix = str(config.get('parameter_prefix') or source_name).strip() or source_name
+    input_bindings = config.get('input_bindings') or {}
+
+    depends_on: list[str] = []
+    if isinstance(input_bindings, dict):
+        for binding in input_bindings.values():
+            target = str(binding or '').strip()
+            if target and target not in depends_on:
+                depends_on.append(target)
+
+    reset_target = str(config.get('reset_param') or f'{prefix}.reset').strip() or f'{prefix}.reset'
+    if reset_target and reset_target not in depends_on:
+        depends_on.append(reset_target)
+
+    return {
+        'depends_on': depends_on,
+    }
+
+
 def get_ui_spec(record: dict[str, Any] | None = None, mode: str | None = None) -> dict:
     if mode == 'control':
         return _get_control_spec(record)
@@ -196,6 +219,7 @@ def get_ui_spec(record: dict[str, Any] | None = None, mode: str | None = None) -
         'source_type': 'digital_twin',
         'display_name': 'Digital Twin FMU',
         'description': 'Creates a digital twin data source from an FMU. Create with just the FMU path, then edit to bind discovered inputs and outputs. Discovered outputs can also be auto-created by the twin itself.',
+        'graph': _get_graph_spec(record),
         'create': {
             'required': ['name', 'config.fmu_path'],
             'defaults': {

@@ -8,64 +8,51 @@ import {
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { fetchSources, fetchSourceTypeUi } from './loaders.js';
 import { buildGraph, decorateGraph } from './graph/graphModel.js';
 import { GraphDetailPanel } from './graph/GraphDetailPanel.jsx';
 import { nodeTypes } from './graph/GraphNodes.jsx';
 
-export function ParameterGraph({ fermenterId, params, graph }) {
+function expandFilteredParams(params, graph, needle) {
+  if (!needle) return params;
+
+  const entries = Object.entries(params ?? {});
+  const matched = entries
+    .filter(([name]) => name.toLowerCase().includes(needle))
+    .map(([name]) => name);
+
+  if (matched.length === 0) return {};
+
+  const deps = graph?.dependencies ?? {};
+  const writes = graph?.write_targets ?? {};
+  const visible = new Set(matched);
+
+  matched.forEach((name) => {
+    (deps[name] ?? []).forEach((dep) => visible.add(dep));
+    (writes[name] ?? []).forEach((target) => visible.add(target));
+
+    Object.entries(deps).forEach(([candidate, candidateDeps]) => {
+      if (candidateDeps.includes(name)) visible.add(candidate);
+    });
+    Object.entries(writes).forEach(([candidate, targets]) => {
+      if (targets.includes(name)) visible.add(candidate);
+    });
+  });
+
+  return Object.fromEntries(entries.filter(([name]) => visible.has(name)));
+}
+
+export function ParameterGraph({ params, graph }) {
   const [filter, setFilter] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [sources, setSources] = useState({});
-  const [sourceUiByName, setSourceUiByName] = useState({});
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSources() {
-      if (!fermenterId) return;
-      try {
-        const sourceResponse = await fetchSources(fermenterId);
-        const nextSources = sourceResponse?.sources ?? {};
-        if (cancelled) return;
-        setSources(nextSources);
-
-        const uiEntries = await Promise.all(
-          Object.entries(nextSources).map(async ([name, record]) => {
-            try {
-              const response = await fetchSourceTypeUi(fermenterId, record.source_type, name, 'edit');
-              return [name, response?.ui ?? null];
-            } catch {
-              return [name, null];
-            }
-          }),
-        );
-
-        if (!cancelled) setSourceUiByName(Object.fromEntries(uiEntries));
-      } catch {
-        if (!cancelled) {
-          setSources({});
-          setSourceUiByName({});
-        }
-      }
-    }
-
-    loadSources();
-    return () => {
-      cancelled = true;
-    };
-  }, [fermenterId, params]);
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     if (!params || !graph) return { nodes: [], edges: [] };
 
     const needle = filter.trim().toLowerCase();
-    const filtered = needle
-      ? Object.fromEntries(Object.entries(params).filter(([n]) => n.toLowerCase().includes(needle)))
-      : params;
+    const filtered = expandFilteredParams(params, graph, needle);
 
-    return buildGraph(filtered, graph, sources, sourceUiByName);
-  }, [params, graph, filter, sources, sourceUiByName]);
+    return buildGraph(filtered, graph);
+  }, [params, graph, filter]);
 
   const selectedNode = useMemo(
     () => initialNodes.find((node) => node.id === selectedNodeId)?.data ?? null,
@@ -108,6 +95,7 @@ export function ParameterGraph({ fermenterId, params, graph }) {
         <span style={{ fontSize: 12, color: '#475569' }}>Click a node to trace its full lineage</span>
         <div className="pdb-graph-legend">
           <span className="pdb-legend-item" style={{ '--lc': '#475569' }}>dependency</span>
+          <span className="pdb-legend-item pdb-legend-dashed" style={{ '--lc': '#38bdf8' }}>source dependency</span>
           <span className="pdb-legend-item pdb-legend-dashed" style={{ '--lc': '#f59e0b' }}>writes</span>
         </div>
       </div>

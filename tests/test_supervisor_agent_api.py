@@ -62,10 +62,10 @@ class StubSignalClient:
         return []
 
     def get_source_type_ui(self, source_type, name=None, mode=None):
-        return {"source_type": source_type, "name": name, "mode": mode}
+        return {"source_type": source_type, "name": name, "mode": mode, "graph": {"depends_on": ["relay.ch1"]}}
 
     def list_sources(self):
-        return []
+        return {"relay": {"source_type": "modbus_relay", "running": True, "config": {"parameter_prefix": "relay"}}}
 
     def create_source(self, name, source_type, config=None):
         return True
@@ -125,6 +125,18 @@ def test_import_snapshot_reads_json_body(monkeypatch) -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["imported"] is True
+
+
+def test_graph_endpoint_enriches_graph_with_source_metadata(monkeypatch) -> None:
+    client = _build_client(monkeypatch)
+
+    response = client.get("/parameterdb/graph")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["graph"]["sources"]["relay"]["source_type"] == "modbus_relay"
+    assert body["graph"]["sources"]["relay"]["graph"]["depends_on"] == ["relay.ch1"]
 
 
 def test_agent_repo_status_endpoint_uses_provider(monkeypatch) -> None:

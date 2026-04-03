@@ -83,6 +83,32 @@ def build_agent_app(
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    def _build_graph_payload() -> dict[str, Any]:
+        graph = dict(_db().graph_info() or {})
+        try:
+            raw_sources = _ds().list_sources() or {}
+        except Exception:
+            raw_sources = {}
+
+        sources: dict[str, dict[str, Any]] = {}
+        for source_name, source_record in raw_sources.items():
+            record = dict(source_record or {})
+            source_type = str(record.get('source_type') or '').strip()
+            graph_meta: dict[str, Any] = {}
+            if source_type:
+                try:
+                    ui_spec = _ds().get_source_type_ui(source_type, name=source_name, mode='edit') or {}
+                    graph_meta = dict(ui_spec.get('graph') or {})
+                except Exception:
+                    graph_meta = {}
+            sources[source_name] = {
+                **record,
+                'graph': graph_meta,
+            }
+
+        graph['sources'] = sources
+        return graph
+
     @app.get('/agent/info')
     def agent_info() -> dict[str, Any]:
         return {
@@ -126,7 +152,7 @@ def build_agent_app(
 
     @app.get('/parameterdb/graph')
     def get_graph() -> dict[str, Any]:
-        return {'ok': True, 'graph': _wrap(lambda: _db().graph_info())}
+        return {'ok': True, 'graph': _wrap(_build_graph_payload)}
 
     @app.get('/parameterdb/stats')
     def get_stats() -> dict[str, Any]:
