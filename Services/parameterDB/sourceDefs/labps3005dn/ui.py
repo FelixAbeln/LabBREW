@@ -44,15 +44,16 @@ def _get_control_spec(record: dict | None = None) -> dict:
 
 def _get_graph_spec(record: dict | None = None) -> dict:
     controls = _get_control_spec(record).get("controls", [])
-    return {
-        "depends_on": [
-            str(control.get("target"))
-            for control in controls
-            if str(control.get("target") or "").strip()
-        ]
-    }
+    depends_on: list[str] = []
+    seen: set[str] = set()
 
+    for control in controls:
+        target = str(control.get("target") or "").strip()
+        if target and target not in seen:
+            seen.add(target)
+            depends_on.append(target)
 
+    return {"depends_on": depends_on}
 def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec(record)
