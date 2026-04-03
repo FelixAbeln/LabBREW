@@ -216,7 +216,7 @@ export function SourcesPanel({ fermenterId, parameterNames, params }) {
               <th>Name</th>
               <th>Type</th>
               <th>Running</th>
-              <th>Feeds From</th>
+              <th>Depends On</th>
               <th>Publishes</th>
               <th>Config</th>
               <th></th>
@@ -226,7 +226,8 @@ export function SourcesPanel({ fermenterId, parameterNames, params }) {
             {rows.map(([name, rec]) => (
               (() => {
                 const links = deriveSourceLinks({ name, ...rec }, sourceUiByName[name]);
-                const publishes = publishedByOwner[name] ?? [];
+                const feedSet = new Set(links.feedsFrom);
+                const publishes = (publishedByOwner[name] ?? []).filter((item) => !feedSet.has(item));
                 return (
                   <tr key={name}>
                     <td className="pdb-cell-name">{name}</td>

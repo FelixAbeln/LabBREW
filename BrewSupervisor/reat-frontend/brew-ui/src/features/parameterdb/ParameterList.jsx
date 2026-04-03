@@ -77,14 +77,16 @@ export function ParameterList({ fermenterId, params, graph, paramTypes, onRefres
               const paramDeps = deps[name] ?? [];
               const usedBy = entries.filter(([n]) => (deps[n] ?? []).includes(name)).map(([n]) => n);
               const writesTo = writes[name] ?? [];
+              const isInvalid = Boolean(rec?.state?.invalid_config);
 
               return (
-                <tr key={name} className="pdb-tr">
+                <tr key={name} className={`pdb-tr ${isInvalid ? 'pdb-tr-invalid' : ''}`}>
                   <td className="pdb-cell-name">
-                    <code className="pdb-param-name">{name}</code>
+                    <code className={`pdb-param-name ${isInvalid ? 'pdb-param-name-invalid' : ''}`}>{name}</code>
                   </td>
                   <td>
                     <span className="pdb-type-badge">{rec.parameter_type}</span>
+                    {isInvalid && <span className="pdb-invalid-tag">invalid</span>}
                   </td>
                   <td className="pdb-cell-num">
                     {scanIdx >= 0 ? <span className="pdb-scan-idx">#{scanIdx}</span> : '—'}

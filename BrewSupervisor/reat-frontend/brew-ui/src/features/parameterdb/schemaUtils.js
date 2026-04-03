@@ -115,6 +115,8 @@ export function deriveSourceLinks(record, schemaUi) {
   const sections = buildSections(schemaUi, 'edit');
   const feedsFrom = new Set();
 
+  normalizeList(schemaUi?.graph?.depends_on).forEach((item) => feedsFrom.add(item));
+
   sections.forEach((section) => {
     (section?.fields ?? []).forEach((field) => {
       if (!field?.key?.startsWith('config.')) return;

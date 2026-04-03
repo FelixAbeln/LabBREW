@@ -351,7 +351,9 @@ Detailed syntax reference:
 ### `graph_info`
 
 **Payload:** _(empty)_  
-**Result:** Dependency graph information (scan order, dependencies per parameter).
+**Result:** Dependency graph information from ParameterDB scan engine (`scan_order`, `dependencies`, `write_targets`, `warnings`).
+
+Note: this is the raw ParameterDB graph response. The BrewSupervisor gateway endpoint `GET /fermenters/{fermenter_id}/parameterdb/graph` may enrich it with datasource-level graph metadata under `graph.sources[*].graph`.
 
 ---
 

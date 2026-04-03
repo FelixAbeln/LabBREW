@@ -5,45 +5,43 @@ const NODE_W = 220;
 const NODE_H = 72;
 
 function ParameterNode({ data, selected }) {
-  const { name, paramType, value, scanIndex, hasWarning } = data;
+  const { name, paramType, value, scanIndex, hasWarning, invalidConfig } = data;
   const color = typeColor(paramType);
+  const accent = invalidConfig ? '#ef4444' : color;
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;
   const valStr = value === null || value === undefined ? '—' : String(value).slice(0, 18);
   const isActive = selected || data.isSelected;
   const isRelated = data.isRelated;
   const isDimmed = data.isDimmed;
+  const nodeClassName = [
+    'pdb-graph-param-node',
+    isActive ? 'is-active' : '',
+    isRelated ? 'is-related' : '',
+    isDimmed ? 'is-dimmed' : '',
+    invalidConfig ? 'is-invalid' : '',
+    hasWarning ? 'has-warning' : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <div
-      style={{
-        width: NODE_W,
-        height: NODE_H,
-        border: `2px solid ${hasWarning ? '#f59e0b' : isActive ? '#fff' : color}`,
-        borderRadius: 8,
-        background: isActive ? '#1e293b' : isRelated ? '#142033' : '#0f172a',
-        padding: '6px 10px',
-        cursor: 'pointer',
-        boxShadow: isActive ? `0 0 0 2px ${color}` : isRelated ? `0 0 0 1px ${color}66` : 'none',
-        position: 'relative',
-        opacity: isDimmed ? 0.28 : 1,
-        transition: 'opacity 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
-      }}
+      className={nodeClassName}
+      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${NODE_H}px` }}
     >
-      <Handle type="target" position={Position.Top} style={{ background: color, width: 8, height: 8 }} />
+      <Handle type="target" position={Position.Top} style={{ background: accent, width: 8, height: 8 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace', wordBreak: 'break-all' }} title={name}>
           {shortName}
         </span>
         {scanIndex !== null && (
-          <span style={{ fontSize: 10, color, marginLeft: 4, flex: '0 0 auto' }}>#{scanIndex}</span>
+          <span style={{ fontSize: 10, color: accent, marginLeft: 4, flex: '0 0 auto' }}>#{scanIndex}</span>
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
         <span
           style={{
             fontSize: 10,
-            background: color + '33',
-            color,
+            background: accent + '33',
+            color: accent,
             borderRadius: 4,
             padding: '1px 5px',
             flex: '0 0 auto',
@@ -54,9 +52,10 @@ function ParameterNode({ data, selected }) {
         <span style={{ fontSize: 11, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {valStr}
         </span>
+        {invalidConfig && <span title="Invalid parameter configuration" style={{ fontSize: 12, flex: '0 0 auto' }}>⛔</span>}
         {hasWarning && <span title="Graph warning" style={{ fontSize: 12, flex: '0 0 auto' }}>⚠️</span>}
       </div>
-      <Handle type="source" position={Position.Bottom} style={{ background: color, width: 8, height: 8 }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: accent, width: 8, height: 8 }} />
     </div>
   );
 }

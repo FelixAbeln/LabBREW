@@ -35,6 +35,7 @@ def test_condition_plugin_evaluates_rule_style_condition_to_boolean() -> None:
     assert param.state["params"] == {"threshold": 70.0}
     assert param.state["sources"] == ["reactor.temp"]
     assert param.state["matched"] is True
+    assert param.state["invalid_config"] is False
     assert param.state["last_error"] == ""
 
 
@@ -61,6 +62,21 @@ def test_condition_plugin_dependencies_include_sources_under_event_wrappers() ->
     )
 
     assert param.dependencies() == ["temp", "pressure"]
+
+
+def test_condition_plugin_expression_field_reports_inline_dependencies() -> None:
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "expr_ready",
+        config={
+            "expression": "all(cond:temp:>=:20;cond:pressure:>:1.5)",
+            "condition": "",
+            "enable_param": "logic.enable",
+        },
+        value=False,
+    )
+
+    assert param.dependencies() == ["logic.enable", "temp", "pressure"]
 
 
 def test_condition_plugin_sets_missing_value_error_and_keeps_existing_value() -> None:
@@ -297,7 +313,26 @@ def test_condition_plugin_reports_invalid_condition_config() -> None:
     param.scan(_ctx(ParameterStore()))
 
     assert param.get_value() is False
+    assert param.state["invalid_config"] is True
     assert "Invalid wait syntax" in param.state["last_error"]
+
+
+def test_condition_plugin_reports_dependencies_for_malformed_inline_wrapper() -> None:
+    plugin = ConditionPlugin()
+    param = plugin.create(
+        "bad_wrapper",
+        config={
+            "condition": "risng(cond:test:<=:1)",
+            "enable_param": "logic.enable",
+        },
+        value=False,
+    )
+
+    assert param.dependencies() == ["logic.enable", "test"]
+
+    param.scan(_ctx(ParameterStore()))
+    assert param.state["invalid_config"] is True
+    assert "invalid condition logic" in param.state["last_error"]
 
 
 def test_condition_plugin_reports_invalid_negative_pulse_hold_seconds() -> None:

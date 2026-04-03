@@ -44,6 +44,19 @@ def _get_control_spec(record: dict | None = None) -> dict:
     }
 
 
+def _get_graph_spec(record: dict | None = None) -> dict:
+    controls = _get_control_spec(record).get("controls", [])
+    seen: set[str] = set()
+    depends_on: list[str] = []
+    for control in controls:
+        target = str(control.get("target") or "").strip()
+        if not target or target in seen:
+            continue
+        seen.add(target)
+        depends_on.append(target)
+    return {"depends_on": depends_on}
+
+
 def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec(record)
@@ -51,6 +64,7 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
         "source_type": "brewtools_kvaser",
         "display_name": "Brewtools CAN (Kvaser)",
         "description": "Receives Brewtools CAN measurements over Kvaser and mirrors them into parameters, with optional agitator PWM commands and density polling.",
+        "graph": _get_graph_spec(record),
         "create": {
             "required": ["name", "config.channel", "config.bitrate"],
             "defaults": {

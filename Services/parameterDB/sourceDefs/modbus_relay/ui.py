@@ -29,6 +29,18 @@ def _get_control_spec(record: dict | None = None) -> dict:
     }
 
 
+def _get_graph_spec(record: dict | None = None) -> dict:
+    controls = _get_control_spec(record).get("controls", [])
+    depends_on = []
+    seen = set()
+
+    for control in controls:
+        target = str(control.get("target") or "").strip()
+        if target and target not in seen:
+            depends_on.append(target)
+            seen.add(target)
+
+    return {"depends_on": depends_on}
 def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec(record)
@@ -36,6 +48,7 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
         "source_type": "modbus_relay",
         "display_name": "Modbus Relay Board",
         "description": "Mirrors relay channel booleans to a Modbus-TCP relay board and republishes actual relay states.",
+        "graph": _get_graph_spec(record),
         "create": {
             "required": ["name", "config.host"],
             "defaults": {

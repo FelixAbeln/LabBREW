@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any
 
@@ -15,6 +16,7 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 
 _CONDITION_ENGINE = ConditionEngine(load_registry())
 _WAIT_ENGINE = WaitEngine(_CONDITION_ENGINE)
+_INLINE_COND_SOURCE_RE = re.compile(r"(?:^|[;(])\s*cond\s*:\s*([^:;()\s]+)\s*:", re.IGNORECASE)
 
 
 def _condition_fingerprint(payload: Any) -> str:
@@ -51,6 +53,31 @@ def _collect_wait_sources(spec: WaitSpec | None) -> list[str]:
         for child in spec.children:
             sources.extend(_collect_wait_sources(child))
         return sources
+    return []
+
+
+def _fallback_collect_sources(raw_logic: Any) -> list[str]:
+    if raw_logic is None:
+        return []
+
+    if isinstance(raw_logic, str):
+        return [match.group(1).strip() for match in _INLINE_COND_SOURCE_RE.finditer(raw_logic) if match.group(1).strip()]
+
+    if isinstance(raw_logic, dict):
+        sources: list[str] = []
+        source = str(raw_logic.get("source") or "").strip()
+        if source:
+            sources.append(source)
+        for value in raw_logic.values():
+            sources.extend(_fallback_collect_sources(value))
+        return sources
+
+    if isinstance(raw_logic, list):
+        sources: list[str] = []
+        for item in raw_logic:
+            sources.extend(_fallback_collect_sources(item))
+        return sources
+
     return []
 
 
@@ -170,6 +197,7 @@ class ConditionParameter(ParameterBase):
             parsed_wait_spec, parsed_condition = self._normalize_wait_payload(raw_logic)
         except Exception as exc:
             self._cached_error = f"invalid condition logic: {exc}"
+            self._cached_sources = list(dict.fromkeys(_fallback_collect_sources(raw_logic)))
             return
 
         self._cached_wait_spec = parsed_wait_spec
@@ -189,6 +217,9 @@ class ConditionParameter(ParameterBase):
         store = ctx.store
         enable_param = self.config.get("enable_param")
 
+        self._compile_condition()
+        self.state["invalid_config"] = bool(self._cached_error)
+
         enabled = True
         if enable_param:
             enabled = bool(store.get_value(enable_param, True))
@@ -197,7 +228,7 @@ class ConditionParameter(ParameterBase):
             self._wait_state = WaitState()
             self._logic_started_monotonic = None
             self._last_enabled = False
-            self.state["last_error"] = ""
+            self.state["last_error"] = self._cached_error or ""
             return
 
         if not self._last_enabled:
@@ -205,7 +236,6 @@ class ConditionParameter(ParameterBase):
             self._logic_started_monotonic = None
         self._last_enabled = True
 
-        self._compile_condition()
         if self._cached_error:
             self.state["last_error"] = self._cached_error
             return
@@ -214,6 +244,7 @@ class ConditionParameter(ParameterBase):
         # treat this as a recoverable configuration error instead of
         # raising an AssertionError.
         if self._cached_wait_spec is None:
+            self.state["invalid_config"] = True
             self.state["last_error"] = "invalid or empty wait configuration"
             return
 
@@ -276,6 +307,7 @@ class ConditionParameter(ParameterBase):
         else:
             self.value = bool(result.matched)
             self._write_output_targets(store, self.value)
+            self.state["invalid_config"] = False
             self.state["last_error"] = ""
 
 

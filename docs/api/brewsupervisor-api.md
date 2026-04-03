@@ -223,6 +223,37 @@ Deletes a parameter.
 
 Returns dependency graph information used by the ParameterDB graph view.
 
+Response includes the raw ParameterDB graph (`scan_order`, `dependencies`, `write_targets`, `warnings`) plus an enriched `sources` object from the datasource admin service. Each source may include `graph.depends_on` when the source definition publishes explicit dependency metadata.
+
+**Response** `200 OK`
+
+```json
+{
+  "ok": true,
+  "graph": {
+    "store_revision": 42,
+    "scan_order": ["reactor.temp", "logic.ready"],
+    "dependencies": {
+      "logic.ready": ["reactor.temp"]
+    },
+    "write_targets": {},
+    "warnings": [],
+    "sources": {
+      "relay": {
+        "source_type": "modbus_relay",
+        "running": true,
+        "config": {
+          "parameter_prefix": "relay"
+        },
+        "graph": {
+          "depends_on": ["relay.ch1", "relay.ch2"]
+        }
+      }
+    }
+  }
+}
+```
+
 ### `GET /fermenters/{fermenter_id}/parameterdb/stats`
 
 Returns scan-engine statistics and utilization information.

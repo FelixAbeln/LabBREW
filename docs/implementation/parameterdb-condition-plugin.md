@@ -165,6 +165,7 @@ Condition-specific keys commonly exposed:
 - enabled
 - output_targets
 - missing_output_targets
+- invalid_config
 
 Notes:
 
@@ -174,6 +175,7 @@ Notes:
 - `required_for_s` reports the active threshold for the top-level timing gate, for example `elapsed:900` or `cond:...:120`.
 - `output_targets` lists the parameter names that were successfully written during the last scan cycle.
 - `missing_output_targets` lists any `output_params` entries that do not exist in the store; absent from state when all targets are present.
+- `invalid_config` is `true` when the configured logic cannot be compiled (invalid DSL or malformed condition payload).
 
 ## Error Behavior
 
@@ -185,6 +187,8 @@ The plugin sets `last_error` for recoverable issues, including:
 - malformed operator parameters
 
 When a referenced value is missing, the plugin preserves the previous stored boolean and reports the error for that scan cycle.
+
+When logic is invalid, the plugin marks `invalid_config=true` and keeps the previous stored boolean value.
 
 ## Examples
 

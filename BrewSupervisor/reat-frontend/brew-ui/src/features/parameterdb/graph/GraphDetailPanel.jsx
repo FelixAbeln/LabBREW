@@ -40,7 +40,7 @@ export function GraphDetailPanel({ selected, graph, onClear }) {
             </div>
             {selected.feedsFrom?.length > 0 && (
               <div className="pdb-detail-section">
-                <div className="pdb-detail-section-title">Feeds From</div>
+                <div className="pdb-detail-section-title">Depends On</div>
                 {selected.feedsFrom.map((param) => <div key={param} className="pdb-detail-tag">{param}</div>)}
               </div>
             )}
