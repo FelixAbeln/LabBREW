@@ -69,5 +69,71 @@ services:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="cannot define url_flag together with host_flag/port_flag"):
+    with pytest.raises(ValueError) as exc:
         YamlTopologyLoader().load(config_path)
+
+    assert str(exc.value) == (
+        "Service 'schedule_service'.backends['data_service'] cannot define url_flag together with host_flag/port_flag"
+    )
+
+
+def test_loader_requires_host_and_port_when_url_flag_missing(tmp_path: Path) -> None:
+    config_path = tmp_path / "topology.yaml"
+    config_path.write_text(
+        """
+services:
+  schedule_service:
+    module: Services.schedule_service.service
+    listen:
+      host: 0.0.0.0
+      port: 8768
+      proto: http
+      path: /
+    backends:
+      data_service:
+        host_flag: --data-backend-host
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc:
+        YamlTopologyLoader().load(config_path)
+
+    assert str(exc.value) == (
+        "Service 'schedule_service'.backends['data_service'].port_flag must be a non-empty string"
+    )
+
+
+def test_loader_rejects_url_flag_external_http_non_agent_port(tmp_path: Path) -> None:
+    config_path = tmp_path / "topology.yaml"
+    config_path.write_text(
+        """
+external_capabilities:
+  database.local:
+    endpoint:
+      host: 10.10.0.20
+      port: 8769
+      proto: http
+      path: /data
+services:
+  schedule_service:
+    module: Services.schedule_service.service
+    listen:
+      host: 0.0.0.0
+      port: 8768
+      proto: http
+      path: /
+    backends:
+      database.local:
+        url_flag: --data-backend-url
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc:
+        YamlTopologyLoader().load(config_path)
+
+    assert str(exc.value) == (
+        "Service 'schedule_service'.backends['database.local'] uses url_flag with external HTTP capability "
+        "that does not target Supervisor Agent port 8780"
+    )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import time
 from typing import Any
 
 import requests
@@ -27,9 +28,11 @@ class FermenterNode:
 
 
 class FermenterRegistry:
-    def __init__(self, browser: Any, timeout_s: float = 3.0) -> None:
+    def __init__(self, browser: Any, timeout_s: float = 3.0, snapshot_cache_ttl_s: float = 0.5) -> None:
         self._browser = browser
         self._timeout_s = timeout_s
+        self._snapshot_cache_ttl_s = max(0.0, float(snapshot_cache_ttl_s))
+        self._snapshot_cache: tuple[float, list[FermenterNode]] | None = None
         self._session = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=32, max_retries=0)
         self._session.mount('http://', adapter)
@@ -85,10 +88,31 @@ class FermenterRegistry:
     def _pick_preferred_node(nodes: list[FermenterNode]) -> FermenterNode:
         online_nodes = [node for node in nodes if node.online]
         if online_nodes:
-            return online_nodes[0]
-        return nodes[0]
+            return sorted(
+                online_nodes,
+                key=lambda node: (
+                    (node.name or '').lower(),
+                    (node.host or '').lower(),
+                    (node.address or '').lower(),
+                    (node.agent_base_url or '').lower(),
+                ),
+            )[0]
+        return sorted(
+            nodes,
+            key=lambda node: (
+                (node.name or '').lower(),
+                (node.host or '').lower(),
+                (node.address or '').lower(),
+                (node.agent_base_url or '').lower(),
+            ),
+        )[0]
 
-    def snapshot(self) -> list[FermenterNode]:
+    def snapshot(self, *, force_refresh: bool = False) -> list[FermenterNode]:
+        if not force_refresh and self._snapshot_cache_ttl_s > 0.0 and self._snapshot_cache is not None:
+            cached_at, cached_nodes = self._snapshot_cache
+            if (time.monotonic() - cached_at) < self._snapshot_cache_ttl_s:
+                return list(cached_nodes)
+
         raw_nodes = [self._build_node(agent) for agent in self._browser.snapshot()]
         grouped: dict[str, list[FermenterNode]] = {}
         for node in raw_nodes:
@@ -130,7 +154,8 @@ class FermenterRegistry:
             if not merged[-1].online:
                 errors = [node.last_error for node in group if node.last_error]
                 merged[-1].last_error = '; '.join(dict.fromkeys(errors)) if errors else None
-        return merged
+        self._snapshot_cache = (time.monotonic(), list(merged))
+        return list(merged)
 
     def get_node(self, node_id: str) -> FermenterNode | None:
         for node in self.snapshot():
@@ -149,4 +174,5 @@ class FermenterRegistry:
 
 
     def close(self) -> None:
+        self._snapshot_cache = None
         self._session.close()

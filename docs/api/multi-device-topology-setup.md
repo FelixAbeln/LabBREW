@@ -19,6 +19,7 @@ BrewSupervisor can route per service to different agents as long as the split no
 4. In each device topology YAML, advertise only services actually hosted on that device.
 5. For cross-device dependencies, use `external_capabilities` in YAML.
 6. For HTTP dependencies, target the remote Supervisor Agent (`:8780`) instead of direct service ports.
+7. URL-mode backend mappings (`url_flag`) that reference external HTTP capabilities are validated to require Agent port `8780`.
 
 ## Identity and Discovery
 
@@ -171,6 +172,10 @@ Agent bridging in this guide applies to HTTP capabilities (`control_service`, `s
 
 `ParameterDB` remains a binary TCP capability and is configured with direct TCP endpoints.
 
+WebSocket upgrade proxying is not supported by the current HTTP bridge implementation. For split deployments, keep WebSocket consumers on the same node as the target service or expose a dedicated WebSocket-capable path.
+
+For topology `proto` values, prefer `tcp` for binary capabilities. Some legacy examples use `ParameterDB_Binary` for service listen metadata, but `tcp` is the canonical value to use in new split-topology files.
+
 ## Custom Capability Aliases (database.local pattern)
 
 You can define topology-level aliases for remote capabilities and inject them as URL endpoints.
@@ -204,6 +209,36 @@ services:
 With this setup, Supervisor injects a URL endpoint (including path) and the service talks to `http://10.10.0.20:8780/data/...`, which is forwarded by node B's Agent to its local `data_service`.
 
 This enables supervisor-managed remote backend indirection without changing service business logic.
+
+## Fermenter-Side Datasource Example
+
+If datasources run on the fermenter node and ParameterDB runs on a remote high-speed server, place `ParameterDB_DataSource` on the fermenter topology and bind it to remote `ParameterDB` via external capability.
+
+```yaml
+external_capabilities:
+  ParameterDB:
+    endpoint:
+      host: 10.10.0.20
+      port: 8765
+      proto: tcp
+      path: /
+
+services:
+  ParameterDB_DataSource:
+    module: Services.parameterDB.serviceDS
+    docs: docs/api/parameterdb-api.md
+    listen:
+      host: 0.0.0.0
+      port: 8766
+      proto: tcp
+      path: /
+    backend: ParameterDB
+    static_args: []
+    advertise_as:
+      - ParameterDB_DataSource
+```
+
+This keeps hardware-near datasource execution on the fermenter while centralizing ParameterDB storage/scan execution on the remote server.
 
 ## Recommended Rollout
 

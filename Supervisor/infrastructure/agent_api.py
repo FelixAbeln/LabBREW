@@ -116,6 +116,14 @@ def build_agent_app(
         return f"{prefix.strip('/')}/{suffix}"
 
     async def _proxy_to_service(request: Request, service_name: str, service_path: str = ''):
+        upgrade = str(request.headers.get('upgrade') or '').lower()
+        connection = str(request.headers.get('connection') or '').lower()
+        if upgrade == 'websocket' or 'upgrade' in connection:
+            raise HTTPException(
+                status_code=501,
+                detail='WebSocket upgrade is not supported by the HTTP service proxy; use a direct WebSocket-capable endpoint',
+            )
+
         services = service_map()
         target = services.get(service_name)
         if not target or not target.get('healthy'):
@@ -288,7 +296,8 @@ def build_agent_app(
         return {'ok': True}
 
     @app.api_route('/proxy/{service_name}/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
-    async def proxy(service_name: str, service_path: str, request: Request):
+    @app.api_route('/proxy/{service_name}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy(service_name: str, request: Request, service_path: str = ''):
         return await _proxy_to_service(request, service_name, service_path)
 
     @app.api_route('/control/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])

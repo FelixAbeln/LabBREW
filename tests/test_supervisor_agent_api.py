@@ -266,3 +266,39 @@ def test_agent_bridge_returns_404_when_service_unavailable(monkeypatch) -> None:
 
     response = client.get("/control/read/reactor.temp")
     assert response.status_code == 404
+
+
+def test_agent_proxy_service_root_route_forwards_without_path(monkeypatch) -> None:
+    proxy_session = _FakeProxySession()
+    client = _build_client(
+        monkeypatch,
+        proxy_session=proxy_session,
+        service_map=lambda: {
+            "control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"},
+        },
+    )
+
+    response = client.get("/proxy/control_service")
+
+    assert response.status_code == 200
+    assert proxy_session.calls
+    assert proxy_session.calls[-1]["url"] == "http://127.0.0.1:8767"
+
+
+def test_agent_proxy_rejects_websocket_upgrade(monkeypatch) -> None:
+    proxy_session = _FakeProxySession()
+    client = _build_client(
+        monkeypatch,
+        proxy_session=proxy_session,
+        service_map=lambda: {
+            "control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"},
+        },
+    )
+
+    response = client.get(
+        "/proxy/control_service/ws/live",
+        headers={"Connection": "Upgrade", "Upgrade": "websocket"},
+    )
+
+    assert response.status_code == 501
+    assert "WebSocket upgrade" in response.json().get("detail", "")

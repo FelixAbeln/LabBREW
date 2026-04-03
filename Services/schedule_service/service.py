@@ -1,4 +1,5 @@
 import threading
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 import uvicorn
@@ -21,15 +22,18 @@ def main():
     thread = threading.Thread(target=runtime.start_background, daemon=True)
     thread.start()
 
-    app = FastAPI()
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        try:
+            yield
+        finally:
+            runtime.shutdown()
+            control_client.close()
+            data_client.close()
+
+    app = FastAPI(lifespan=lifespan)
     set_runtime(runtime)
     app.include_router(schedule_router)
-
-    @app.on_event('shutdown')
-    def _shutdown() -> None:
-        runtime.shutdown()
-        control_client.close()
-        data_client.close()
 
     uvicorn.run(app, host=args.host, port=args.port)
 

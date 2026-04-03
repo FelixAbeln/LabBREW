@@ -24,7 +24,6 @@ class CapabilityResolver:
                 external=True,
             )
 
-        provider_by_capability: dict[str, str] = {}
         for service in topology.services:
             if not service.enabled:
                 continue
@@ -43,7 +42,6 @@ class CapabilityResolver:
                     provider_service=service.name,
                     external=False,
                 )
-                provider_by_capability[provided.name] = service.name
 
         dependencies: dict[str, set[str]] = {}
         for service in topology.services:

@@ -247,3 +247,5 @@ If schedule service on node A is configured with `--data-backend-host <node-b-ag
 This gives a service-to-agent-to-service hop for cross-node HTTP dependencies.
 
 Topology can also inject custom backend aliases using URL flags (for example `database.local` -> `--data-backend-url http://node-b-agent:8780/data`), which still use the same bridge mechanism.
+
+Note: WebSocket upgrade proxying is not supported by this HTTP proxy path. Requests carrying `Upgrade: websocket` receive `501`.

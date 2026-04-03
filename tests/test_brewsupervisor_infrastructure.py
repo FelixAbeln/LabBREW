@@ -300,6 +300,46 @@ def test_get_node_for_service_falls_back_when_service_unknown(monkeypatch) -> No
     assert selected.id == "01"
 
 
+def test_fermenter_registry_snapshot_cache_avoids_duplicate_fetches(monkeypatch) -> None:
+    agent = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+    browser = SimpleNamespace(snapshot=lambda: [agent])
+    registry = FermenterRegistry(browser, snapshot_cache_ttl_s=5.0)
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    fake_session.queue(_FakeResponse(payload={"services": {"control_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"control_available": True}))
+
+    first = registry.snapshot()
+    second = registry.snapshot()
+
+    assert len(first) == 1
+    assert len(second) == 1
+    assert len(fake_session.calls) == 2
+
+
+def test_fermenter_registry_prefers_stable_order_when_multiple_online() -> None:
+    browser = SimpleNamespace(snapshot=lambda: [])
+    registry = FermenterRegistry(browser)
+
+    node_b = SimpleNamespace(name="Fermenter", host="b-host", address="10.0.0.20", agent_base_url="http://10.0.0.20:8780", online=True)
+    node_a = SimpleNamespace(name="Fermenter", host="a-host", address="10.0.0.10", agent_base_url="http://10.0.0.10:8780", online=True)
+
+    picked = registry._pick_preferred_node([node_b, node_a])
+    assert picked is node_a
+
+
 def test_discovery_decode_urls_start_refresh_remove_snapshot_and_close(monkeypatch) -> None:
     assert discovery_module._decode_property(b"abc") == "abc"
     assert discovery_module._decode_property(None) == ""

@@ -36,19 +36,22 @@ class YamlTopologyLoader:
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
 
         external_capabilities = []
+        external_endpoint_by_name: dict[str, Endpoint] = {}
         for name, raw in (data.get("external_capabilities") or {}).items():
             ep = raw["endpoint"]
+            endpoint = Endpoint(
+                host=ep["host"],
+                port=int(ep["port"]),
+                proto=ep.get("proto", "tcp"),
+                path=ep.get("path", ""),
+            )
             external_capabilities.append(
                 ExternalCapability(
                     name=name,
-                    endpoint=Endpoint(
-                        host=ep["host"],
-                        port=int(ep["port"]),
-                        proto=ep.get("proto", "tcp"),
-                        path=ep.get("path", ""),
-                    ),
+                    endpoint=endpoint,
                 )
             )
+            external_endpoint_by_name[str(name)] = endpoint
 
         services = []
         for name, raw in (data.get("services") or {}).items():
@@ -128,6 +131,19 @@ class YamlTopologyLoader:
                 )
                 for item in backend_mappings
             )
+
+            for item in backend_mappings:
+                if item.get("mode") != "url":
+                    continue
+                capability = str(item["capability"])
+                endpoint = external_endpoint_by_name.get(capability)
+                if endpoint is None:
+                    continue
+                if str(endpoint.proto).lower() == "http" and int(endpoint.port) != 8780:
+                    raise ValueError(
+                        f"Service '{name}'.backends['{capability}'] uses url_flag with external HTTP capability "
+                        "that does not target Supervisor Agent port 8780"
+                    )
 
             # Bind args come from the new listen block. This is what prevents services
             # from silently falling back to their internal default port.
