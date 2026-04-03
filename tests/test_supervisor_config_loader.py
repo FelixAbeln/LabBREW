@@ -130,10 +130,23 @@ services:
         encoding="utf-8",
     )
 
+    # default agent_port (8780) — external endpoint is on 8769, must raise
     with pytest.raises(ValueError) as exc:
         YamlTopologyLoader().load(config_path)
 
     assert str(exc.value) == (
         "Service 'schedule_service'.backends['database.local'] uses url_flag with external HTTP capability "
         "that does not target Supervisor Agent port 8780"
+    )
+
+    # custom agent_port matching the external endpoint port — must not raise
+    YamlTopologyLoader().load(config_path, agent_port=8769)
+
+    # custom agent_port that still doesn't match — error reports the custom port
+    with pytest.raises(ValueError) as exc2:
+        YamlTopologyLoader().load(config_path, agent_port=9000)
+
+    assert str(exc2.value) == (
+        "Service 'schedule_service'.backends['database.local'] uses url_flag with external HTTP capability "
+        "that does not target Supervisor Agent port 9000"
     )

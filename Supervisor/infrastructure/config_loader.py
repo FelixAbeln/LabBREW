@@ -32,7 +32,7 @@ _ALLOWED_LISTEN_KEYS = {"host", "port", "proto", "path"}
 
 
 class YamlTopologyLoader:
-    def load(self, path: str | Path) -> Topology:
+    def load(self, path: str | Path, *, agent_port: int = 8780) -> Topology:
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
 
         external_capabilities = []
@@ -139,10 +139,10 @@ class YamlTopologyLoader:
                 endpoint = external_endpoint_by_name.get(capability)
                 if endpoint is None:
                     continue
-                if str(endpoint.proto).lower() == "http" and int(endpoint.port) != 8780:
+                if str(endpoint.proto).lower() == "http" and int(endpoint.port) != agent_port:
                     raise ValueError(
                         f"Service '{name}'.backends['{capability}'] uses url_flag with external HTTP capability "
-                        "that does not target Supervisor Agent port 8780"
+                        f"that does not target Supervisor Agent port {agent_port}"
                     )
 
             # Bind args come from the new listen block. This is what prevents services

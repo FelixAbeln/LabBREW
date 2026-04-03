@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import threading
 import time
 from typing import Any
 
@@ -32,6 +33,7 @@ class FermenterRegistry:
         self._browser = browser
         self._timeout_s = timeout_s
         self._snapshot_cache_ttl_s = max(0.0, float(snapshot_cache_ttl_s))
+        self._snapshot_lock = threading.Lock()
         self._snapshot_cache: tuple[float, list[FermenterNode]] | None = None
         self._session = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=32, max_retries=0)
@@ -108,10 +110,12 @@ class FermenterRegistry:
         )[0]
 
     def snapshot(self, *, force_refresh: bool = False) -> list[FermenterNode]:
-        if not force_refresh and self._snapshot_cache_ttl_s > 0.0 and self._snapshot_cache is not None:
-            cached_at, cached_nodes = self._snapshot_cache
-            if (time.monotonic() - cached_at) < self._snapshot_cache_ttl_s:
-                return list(cached_nodes)
+        if not force_refresh and self._snapshot_cache_ttl_s > 0.0:
+            with self._snapshot_lock:
+                if self._snapshot_cache is not None:
+                    cached_at, cached_nodes = self._snapshot_cache
+                    if (time.monotonic() - cached_at) < self._snapshot_cache_ttl_s:
+                        return list(cached_nodes)
 
         raw_nodes = [self._build_node(agent) for agent in self._browser.snapshot()]
         grouped: dict[str, list[FermenterNode]] = {}
@@ -154,7 +158,8 @@ class FermenterRegistry:
             if not merged[-1].online:
                 errors = [node.last_error for node in group if node.last_error]
                 merged[-1].last_error = '; '.join(dict.fromkeys(errors)) if errors else None
-        self._snapshot_cache = (time.monotonic(), list(merged))
+        with self._snapshot_lock:
+            self._snapshot_cache = (time.monotonic(), list(merged))
         return list(merged)
 
     def get_node(self, node_id: str) -> FermenterNode | None:
@@ -174,5 +179,6 @@ class FermenterRegistry:
 
 
     def close(self) -> None:
-        self._snapshot_cache = None
+        with self._snapshot_lock:
+            self._snapshot_cache = None
         self._session.close()

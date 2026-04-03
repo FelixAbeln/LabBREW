@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument('--check-interval', type=float, default=2.0)
     args = parser.parse_args()
 
-    topology = YamlTopologyLoader().load(args.config)
+    topology = YamlTopologyLoader().load(args.config, agent_port=args.agent_port)
     supervisor = TopologySupervisor(
         topology=topology,
         root_dir=Path(args.root_dir),
