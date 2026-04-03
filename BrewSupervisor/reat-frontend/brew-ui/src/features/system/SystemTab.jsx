@@ -1,6 +1,31 @@
+import { useState } from 'react'
+
 function shortSha(value) {
   if (typeof value !== 'string' || !value.trim()) return '-'
   return value.slice(0, 8)
+}
+
+function UpdateConfirmModal({ onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="update-confirm-title">
+      <div className="modal-box">
+        <h3 id="update-confirm-title" style={{ marginTop: 0 }}>Apply update?</h3>
+        <p>
+          Applying the update will <strong>restart all services</strong> on this node.
+        </p>
+        <ul style={{ marginBottom: '1rem', paddingLeft: '1.25rem' }}>
+          <li>Any running schedule will be <strong>aborted</strong>.</li>
+          <li>All active setpoints will be <strong>released</strong>.</li>
+          <li>The node will be unreachable for a few seconds during the restart.</li>
+        </ul>
+        <p>Make sure the process is in a safe, manual state before continuing.</p>
+        <div className="control-button-group" style={{ justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+          <button className="secondary-button" onClick={onCancel}>Cancel</button>
+          <button className="primary-button danger-button" onClick={onConfirm}>Yes, update and restart</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function SystemTab({
@@ -13,10 +38,27 @@ export function SystemTab({
   onRefreshRepoStatus,
   onApplyRepoUpdate,
 }) {
+  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false)
   const updateError = typeof repoUpdateStatus?.error === 'string' ? repoUpdateStatus.error : ''
   const isOutdated = Boolean(repoUpdateStatus?.outdated)
 
+  function handleUpdateClick() {
+    setShowUpdateConfirm(true)
+  }
+
+  function handleConfirmUpdate() {
+    setShowUpdateConfirm(false)
+    onApplyRepoUpdate()
+  }
+
   return (
+    <>
+      {showUpdateConfirm && (
+        <UpdateConfirmModal
+          onConfirm={handleConfirmUpdate}
+          onCancel={() => setShowUpdateConfirm(false)}
+        />
+      )}
     <div className="tab-content-grid system-layout">
       {onOpenParameterDB && (
         <div className="control-bar pdb-open-btn-card pdb-open-btn-sticky">
@@ -78,7 +120,7 @@ export function SystemTab({
               </button>
               <button
                 className="primary-button"
-                onClick={onApplyRepoUpdate}
+                onClick={handleUpdateClick}
                 disabled={repoUpdateLoading || repoStatusLoading || updateError || !isOutdated}
               >
                 {repoUpdateLoading ? 'Updating…' : 'Update from GitHub'}
@@ -118,5 +160,6 @@ export function SystemTab({
       </div>
 
     </div>
+    </>
   )
 }

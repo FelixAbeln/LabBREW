@@ -728,6 +728,41 @@ input {
   animation: none;
 }
 
+/* ── Generic confirmation modal ──────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-box {
+  background: #18202a;
+  border: 1px solid #263241;
+  border-radius: 12px;
+  padding: 24px 28px;
+  width: 440px;
+  max-width: 95vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  color: #e2e8f0;
+}
+
+.modal-box p,
+.modal-box li {
+  line-height: 1.6;
+  font-size: 0.93rem;
+  color: #cbd5e1;
+}
+
+.modal-box ul {
+  margin-top: 0.25rem;
+}
+/* ────────────────────────────────────────────────────────────────── */
+
 .system-service-stack {
   display: grid;
   gap: 12px;
