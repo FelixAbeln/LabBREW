@@ -201,11 +201,16 @@ function App() {
     setRulesSnapshot(snapshotPayload)
   }
 
-  async function loadControlUiSpec(id = selectedId, { quiet = false } = {}) {
+  async function loadControlUiSpec(id = selectedId, { quiet = false, includeEmptyCards = false } = {}) {
     if (!id) return null
     if (!quiet) setControlUiLoading(true)
     try {
-      const payload = await api(`/fermenters/${id}/system/control-ui-spec`)
+      const params = new URLSearchParams()
+      if (includeEmptyCards) {
+        params.set('include_empty_cards', 'true')
+      }
+      const query = params.toString()
+      const payload = await api(`/fermenters/${id}/system/control-ui-spec${query ? `?${query}` : ''}`)
       setControlUiSpec(payload && typeof payload === 'object' ? payload : null)
       return payload
     } finally {

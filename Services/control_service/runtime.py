@@ -315,7 +315,7 @@ class ControlRuntime:
             "available_targets": sorted(values.keys()),
         }
 
-    def get_datasource_contract_snapshot(self) -> dict[str, Any]:
+    def get_datasource_contract_snapshot(self, include_empty_cards: bool = False) -> dict[str, Any]:
         control_contract_snapshot = self.get_control_contract_snapshot()
         resolved_controls = control_contract_snapshot.get("resolved_controls", [])
         controls_by_target: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -525,6 +525,15 @@ class ControlRuntime:
                     }
                 )
 
+        if not include_empty_cards:
+            ui_cards = [
+                card
+                for card in ui_cards
+                if isinstance(card, dict)
+                and isinstance(card.get("controls"), list)
+                and len(card.get("controls", [])) > 0
+            ]
+
         orphan_sources: list[dict[str, Any]] = []
         for source_name in sorted(source_parameters):
             if source_name in active_source_names:
@@ -641,8 +650,8 @@ class ControlRuntime:
             "ui_cards": ui_cards,
         }
 
-    def get_control_ui_spec(self) -> dict[str, Any]:
-        snapshot = self.get_datasource_contract_snapshot()
+    def get_control_ui_spec(self, include_empty_cards: bool = False) -> dict[str, Any]:
+        snapshot = self.get_datasource_contract_snapshot(include_empty_cards=include_empty_cards)
         return {
             "ok": bool(snapshot.get("ok", False)),
             "manual_owner": MANUAL_OWNER,
@@ -651,6 +660,7 @@ class ControlRuntime:
             "cards": snapshot.get("ui_cards", []),
             "datasource_backend": snapshot.get("datasource_backend", {}),
             "control_map": snapshot.get("control_map", {}),
+            "include_empty_cards": bool(include_empty_cards),
         }
 
     def start_ramp(self, action: dict, values: dict[str, Any] | None = None) -> dict:

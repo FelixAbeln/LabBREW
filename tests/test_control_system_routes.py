@@ -11,6 +11,7 @@ from Services.control_service.api import routes_control, routes_system
 class StubRuntime:
     def __init__(self):
         self.snapshot_targets = None
+        self.control_ui_include_empty_cards = None
 
     def get_live_snapshot(self, *, targets):
         self.snapshot_targets = targets
@@ -22,8 +23,9 @@ class StubRuntime:
     def get_datasource_contract_snapshot(self):
         return {"datasource": True}
 
-    def get_control_ui_spec(self):
-        return {"cards": []}
+    def get_control_ui_spec(self, include_empty_cards: bool = False):
+        self.control_ui_include_empty_cards = include_empty_cards
+        return {"cards": [], "include_empty_cards": include_empty_cards}
 
 
 def _client(runtime: StubRuntime | None = None) -> TestClient:
@@ -97,4 +99,11 @@ def test_contract_and_ui_spec_endpoints_delegate_to_runtime() -> None:
 
     assert client.get("/system/control-contract").json() == {"contract": True}
     assert client.get("/system/datasource-contract").json() == {"datasource": True}
-    assert client.get("/system/control-ui-spec").json() == {"cards": []}
+    assert client.get("/system/control-ui-spec").json() == {"cards": [], "include_empty_cards": False}
+    assert runtime.control_ui_include_empty_cards is False
+
+    assert client.get("/system/control-ui-spec", params={"include_empty_cards": "true"}).json() == {
+        "cards": [],
+        "include_empty_cards": True,
+    }
+    assert runtime.control_ui_include_empty_cards is True

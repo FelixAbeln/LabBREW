@@ -73,6 +73,9 @@ def schema():
         },
         "control_ui_spec": {
             "path": "/system/control-ui-spec",
+            "query": {
+                "include_empty_cards": "optional bool, include datasource cards that have zero writable controls",
+            },
             "fields": ["cards", "write_path", "release_path", "manual_owner"],
         },
         "manual_control": {
@@ -110,6 +113,6 @@ def datasource_contract():
 
 
 @router.get("/control-ui-spec")
-def control_ui_spec():
+def control_ui_spec(include_empty_cards: bool = False):
     runtime = _require_runtime()
-    return runtime.get_control_ui_spec()
+    return runtime.get_control_ui_spec(include_empty_cards=include_empty_cards)

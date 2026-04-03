@@ -494,6 +494,41 @@ def test_get_datasource_contract_snapshot_marks_backend_unreachable_on_list_fail
     assert "offline" in str(snap["datasource_backend"]["error"])
 
 
+def test_datasource_contract_snapshot_hides_empty_datasource_ui_cards() -> None:
+    runtime = _make_runtime()
+    runtime.get_control_contract_snapshot = lambda: {"source": "map.json", "resolved_controls": []}
+    runtime.backend.describe = lambda: {
+        "tilt_hydrometer.temperature": {
+            "parameter_type": "float",
+            "value": 20.0,
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "tilt",
+                "source_type": "tilt_hydrometer",
+                "role": "state",
+            },
+        }
+    }
+    runtime.datasource_admin._sources = {
+        "tilt": {
+            "source_type": "tilt_hydrometer",
+            "running": True,
+            "config": {},
+        }
+    }
+    runtime.datasource_admin._ui_specs = {
+        "tilt_hydrometer": {
+            "controls": [],
+        }
+    }
+
+    snap = runtime.get_datasource_contract_snapshot()
+
+    assert len(snap["datasources"]) == 1
+    assert snap["datasources"][0]["control_count"] == 0
+    assert snap["ui_cards"] == []
+
+
 def test_collect_sources_handles_nested_conditions_and_non_dict() -> None:
     assert control_runtime_module.collect_sources(["not", "a", "dict"]) == set()
 
@@ -572,7 +607,7 @@ def test_control_runtime_init_and_ui_spec_projection(monkeypatch) -> None:
     assert runtime.datasource_admin.port == control_runtime_module.DATASOURCE_ADMIN_PORT
     assert fake_rule_engine.pruned == {"r1"}
 
-    runtime.get_datasource_contract_snapshot = lambda: {
+    runtime.get_datasource_contract_snapshot = lambda include_empty_cards=False: {
         "ok": True,
         "ui_cards": [{"card_id": "x"}],
         "datasource_backend": {"reachable": True},
@@ -582,6 +617,27 @@ def test_control_runtime_init_and_ui_spec_projection(monkeypatch) -> None:
     assert ui["ok"] is True
     assert ui["manual_owner"] == "operator"
     assert ui["cards"] == [{"card_id": "x"}]
+
+
+def test_get_control_ui_spec_passes_include_empty_cards_to_snapshot() -> None:
+    runtime = _make_runtime()
+    calls: list[bool] = []
+
+    def fake_snapshot(include_empty_cards: bool = False):
+        calls.append(include_empty_cards)
+        return {
+            "ok": True,
+            "ui_cards": [],
+            "datasource_backend": {"reachable": True},
+            "control_map": {},
+        }
+
+    runtime.get_datasource_contract_snapshot = fake_snapshot
+
+    runtime.get_control_ui_spec()
+    runtime.get_control_ui_spec(include_empty_cards=True)
+
+    assert calls == [False, True]
 
 
 def test_runtime_iter_actions_release_guard_and_run_error_branch(monkeypatch) -> None:

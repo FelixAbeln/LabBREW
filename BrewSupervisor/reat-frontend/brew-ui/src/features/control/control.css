@@ -23,10 +23,6 @@
   gap: 10px;
 }
 
-.control-device-card.is-empty {
-  gap: 8px;
-}
-
 .control-item-stack {
   display: grid;
   gap: 8px;
