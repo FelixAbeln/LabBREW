@@ -109,6 +109,65 @@ def build_agent_app(
         graph['sources'] = sources
         return graph
 
+    def _join_bridge_path(prefix: str, suffix: str = '') -> str:
+        suffix = suffix.strip('/')
+        if not suffix:
+            return prefix.strip('/')
+        return f"{prefix.strip('/')}/{suffix}"
+
+    async def _proxy_to_service(request: Request, service_name: str, service_path: str = ''):
+        upgrade = str(request.headers.get('upgrade') or '').lower()
+        connection = str(request.headers.get('connection') or '').lower()
+        if upgrade == 'websocket' or 'upgrade' in connection:
+            raise HTTPException(
+                status_code=501,
+                detail='WebSocket upgrade is not supported by the HTTP service proxy; use a direct WebSocket-capable endpoint',
+            )
+
+        services = service_map()
+        target = services.get(service_name)
+        if not target or not target.get('healthy'):
+            raise HTTPException(status_code=404, detail=f'service {service_name!r} not available')
+
+        base_url = str(target['base_url']).rstrip('/')
+        url = f"{base_url}/{service_path.lstrip('/')}" if service_path else base_url
+        body = await request.body()
+        headers = {k: v for k, v in request.headers.items() if k.lower() != 'host'}
+        try:
+            resp = proxy_session.request(
+                method=request.method,
+                url=url,
+                params=request.query_params,
+                data=body,
+                headers=headers,
+                timeout=10,
+                stream=True,
+            )
+        except requests.RequestException as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        content_type = resp.headers.get('content-type', 'application/json')
+        if 'application/json' in content_type:
+            try:
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+            finally:
+                resp.close()
+
+        passthrough_headers = {}
+        content_disposition = resp.headers.get('content-disposition')
+        if content_disposition:
+            passthrough_headers['content-disposition'] = content_disposition
+        content_length = resp.headers.get('content-length')
+        if content_length:
+            passthrough_headers['content-length'] = content_length
+        return StreamingResponse(
+            resp.iter_content(chunk_size=64 * 1024),
+            status_code=resp.status_code,
+            media_type=content_type,
+            headers=passthrough_headers,
+            background=BackgroundTask(resp.close),
+        )
+
     @app.get('/agent/info')
     def agent_info() -> dict[str, Any]:
         return {
@@ -237,49 +296,39 @@ def build_agent_app(
         return {'ok': True}
 
     @app.api_route('/proxy/{service_name}/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
-    async def proxy(service_name: str, service_path: str, request: Request):
-        services = service_map()
-        target = services.get(service_name)
-        if not target or not target.get('healthy'):
-            raise HTTPException(status_code=404, detail=f'service {service_name!r} not available')
-        base_url = target['base_url'].rstrip('/')
-        url = f"{base_url}/{service_path.lstrip('/')}"
-        body = await request.body()
-        headers = {k: v for k, v in request.headers.items() if k.lower() != 'host'}
-        try:
-            resp = proxy_session.request(
-                method=request.method,
-                url=url,
-                params=request.query_params,
-                data=body,
-                headers=headers,
-                timeout=10,
-                stream=True,
-            )
-        except requests.RequestException as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    @app.api_route('/proxy/{service_name}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy(service_name: str, request: Request, service_path: str = ''):
+        return await _proxy_to_service(request, service_name, service_path)
 
-        content_type = resp.headers.get('content-type', 'application/json')
-        if 'application/json' in content_type:
-            try:
-                return JSONResponse(status_code=resp.status_code, content=resp.json())
-            finally:
-                resp.close()
+    @app.api_route('/control/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @app.api_route('/control', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_control(request: Request, service_path: str = ''):
+        return await _proxy_to_service(request, 'control_service', _join_bridge_path('control', service_path))
 
-        passthrough_headers = {}
-        content_disposition = resp.headers.get('content-disposition')
-        if content_disposition:
-            passthrough_headers['content-disposition'] = content_disposition
-        content_length = resp.headers.get('content-length')
-        if content_length:
-            passthrough_headers['content-length'] = content_length
-        return StreamingResponse(
-            resp.iter_content(chunk_size=64 * 1024),
-            status_code=resp.status_code,
-            media_type=content_type,
-            headers=passthrough_headers,
-            background=BackgroundTask(resp.close),
-        )
+    @app.api_route('/schedule/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @app.api_route('/schedule', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_schedule(request: Request, service_path: str = ''):
+        return await _proxy_to_service(request, 'schedule_service', _join_bridge_path('schedule', service_path))
+
+    @app.api_route('/rules/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @app.api_route('/rules', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_rules(request: Request, service_path: str = ''):
+        return await _proxy_to_service(request, 'control_service', _join_bridge_path('rules', service_path))
+
+    @app.api_route('/system/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @app.api_route('/system', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_system(request: Request, service_path: str = ''):
+        return await _proxy_to_service(request, 'control_service', _join_bridge_path('system', service_path))
+
+    @app.api_route('/ws/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @app.api_route('/ws', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_ws(request: Request, service_path: str = ''):
+        return await _proxy_to_service(request, 'control_service', _join_bridge_path('ws', service_path))
+
+    @app.api_route('/data/{service_path:path}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    @app.api_route('/data', methods=['GET', 'POST', 'PUT', 'DELETE'])
+    async def proxy_data(request: Request, service_path: str = ''):
+        return await _proxy_to_service(request, 'data_service', service_path.strip('/'))
 
     return app
 

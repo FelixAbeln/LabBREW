@@ -19,6 +19,7 @@ LabBREW is a microservices-based fermentation management and control system. Thi
 |---|---|
 | [Schedule Excel Import](./schedule-excel-import.md) | Workbook sheet layout, column syntax, wait expressions, and validation rules for importing `.xlsx` schedules |
 | [Manual Control Map Setup](./manual-control-map.md) | How to configure `data/control_variable_map.json` for custom manual controls in the Control tab |
+| [Multi-Device Topology Setup](./multi-device-topology-setup.md) | Configure split-service fermenter deployments across multiple devices, including YAML topology patterns |
 
 ## Requirements Contracts
 

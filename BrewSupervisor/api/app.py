@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +17,10 @@ async def lifespan(app: FastAPI):
     browser = MdnsDiscoveryBrowser()
     browser.start()
     app.state.discovery_browser = browser
-    app.state.registry = FermenterRegistry(browser)
+    app.state.registry = FermenterRegistry(
+        browser,
+        snapshot_cache_ttl_s=float(os.environ.get('REGISTRY_CACHE_TTL_S', '0.5')),
+    )
     app.state.proxy = HttpServiceProxy(timeout_s=8.0)
     try:
         yield

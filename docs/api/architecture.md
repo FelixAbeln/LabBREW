@@ -142,3 +142,5 @@ services:
 ```
 
 The optional `docs` field is surfaced by the Supervisor Agent so clients can link each running service back to its reference documentation. The Supervisor resolves the dependency graph, starts services in the correct order, and performs TCP health checks before marking each service as healthy.
+
+For split-service deployments (one fermenter across multiple hosts), use the same `node_id`/`node_name` on each participating node and advertise only the services hosted locally. You can also define custom capability aliases (for example `database.local`) and map them to remote Agent bridge URLs in topology. Detailed examples: [Multi-Device Topology Setup](./multi-device-topology-setup.md).

@@ -15,13 +15,29 @@ from BrewSupervisor.api.routes import build_router
 
 class StubRegistry:
     def __init__(self, nodes):
-        self._nodes = {node.id: node for node in nodes}
+        self._nodes = list(nodes)
 
     def snapshot(self):
-        return list(self._nodes.values())
+        return list(self._nodes)
 
     def get_node(self, fermenter_id: str):
-        return self._nodes.get(fermenter_id)
+        for node in self._nodes:
+            if node.id == fermenter_id:
+                return node
+        return None
+
+    def get_node_for_service(self, fermenter_id: str, service_name: str):
+        matching = [node for node in self._nodes if node.id == fermenter_id]
+        if not matching:
+            return None
+        service_matching = [
+            node
+            for node in matching
+            if service_name in (getattr(node, "service_agents", {}) or {})
+            or service_name in (getattr(node, "services", {}) or {})
+            or service_name in (getattr(node, "services_hint", []) or [])
+        ]
+        return (service_matching or matching)[0]
 
 
 class StubProxy:
@@ -78,6 +94,7 @@ def _make_node(node_id: str = "01"):
         agent_base_url="http://127.0.0.1:8780",
         services_hint=["control_service", "schedule_service", "data_service"],
         services={"control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"}},
+        service_agents={"control_service": "http://127.0.0.1:8780"},
         summary={"schedule_available": True, "control_available": True},
         last_error=None,
     )
@@ -231,6 +248,100 @@ def test_proxy_routes_cover_service_wrappers() -> None:
     for path in paths:
         response = client.get(path)
         assert response.status_code == 200
+
+
+def test_split_service_routing_targets_service_specific_agent() -> None:
+    control_payload = _make_node("01").__dict__.copy()
+    control_payload.update({
+        "agent_base_url": "http://10.0.0.10:8780",
+        "services_hint": ["control_service"],
+        "services": {"control_service": {"healthy": True}},
+        "service_agents": {"control_service": "http://10.0.0.10:8780"},
+    })
+    control_node = SimpleNamespace(**control_payload)
+
+    schedule_payload = _make_node("01").__dict__.copy()
+    schedule_payload.update({
+        "agent_base_url": "http://10.0.0.11:8780",
+        "services_hint": ["schedule_service"],
+        "services": {"schedule_service": {"healthy": True}},
+        "service_agents": {"schedule_service": "http://10.0.0.11:8780"},
+    })
+    schedule_node = SimpleNamespace(**schedule_payload)
+    proxy = StubProxy()
+    client = _client(nodes=[control_node, schedule_node], proxy=proxy)
+
+    control_response = client.get("/fermenters/01/control/read/reactor.temp.setpoint")
+    schedule_response = client.get("/fermenters/01/schedule/status")
+
+    assert control_response.status_code == 200
+    assert schedule_response.status_code == 200
+
+    control_call = next(call for call in proxy.calls if call[1].endswith("/proxy/control_service/control/read/reactor.temp.setpoint"))
+    schedule_call = next(call for call in proxy.calls if call[1].endswith("/proxy/schedule_service/schedule/status"))
+
+    assert control_call[1].startswith("http://10.0.0.10:8780")
+    assert schedule_call[1].startswith("http://10.0.0.11:8780")
+
+
+def test_data_archive_routing_targets_data_service_agent() -> None:
+    data_payload = _make_node("01").__dict__.copy()
+    data_payload.update({
+        "agent_base_url": "http://10.0.0.12:8780",
+        "services_hint": ["data_service"],
+        "services": {"data_service": {"healthy": True}},
+        "service_agents": {"data_service": "http://10.0.0.12:8780"},
+    })
+    data_node = SimpleNamespace(**data_payload)
+
+    control_payload = _make_node("01").__dict__.copy()
+    control_payload.update({
+        "agent_base_url": "http://10.0.0.10:8780",
+        "services_hint": ["control_service"],
+        "services": {"control_service": {"healthy": True}},
+        "service_agents": {"control_service": "http://10.0.0.10:8780"},
+    })
+    control_node = SimpleNamespace(**control_payload)
+
+    proxy = StubProxy()
+    client = _client(nodes=[control_node, data_node], proxy=proxy)
+
+    response = client.get("/fermenters/01/data/archives/download/session.zip")
+    assert response.status_code == 200
+
+    raw_call = next(call for call in proxy.calls if call[0] == "raw:GET")
+    assert raw_call[1].startswith("http://10.0.0.12:8780/proxy/data_service/archives/download/")
+
+
+def test_build_service_proxy_url_uses_service_agent_mapping() -> None:
+    node = SimpleNamespace(
+        agent_base_url="http://10.0.0.1:8780",
+        service_agents={"schedule_service": "http://10.0.0.11:8780"},
+    )
+
+    schedule_url = supervisor_routes._build_service_proxy_url(node, "schedule_service", "schedule/status")
+    control_url = supervisor_routes._build_service_proxy_url(node, "control_service", "control/read/x")
+
+    assert schedule_url == "http://10.0.0.11:8780/proxy/schedule_service/schedule/status"
+    assert control_url == "http://10.0.0.1:8780/proxy/control_service/control/read/x"
+
+
+def test_get_service_node_falls_back_for_legacy_registry() -> None:
+    class LegacyRegistry:
+        def __init__(self, node):
+            self.node = node
+
+        def get_node(self, fermenter_id: str):
+            return self.node if fermenter_id == "01" else None
+
+    node = _make_node("01")
+    registry = LegacyRegistry(node)
+
+    resolved = supervisor_routes._get_service_node(registry, "01", "control_service")
+    missing = supervisor_routes._get_service_node(registry, "missing", "control_service")
+
+    assert resolved is node
+    assert missing is None
 
 
 def test_download_data_archive_streaming_passthrough_headers() -> None:
