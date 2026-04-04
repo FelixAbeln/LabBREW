@@ -247,7 +247,7 @@ class RelaySimulator:
       3 vent
     """
 
-    def __init__(self, plant: FermentationPlant, host: str = "127.0.0.1", port: int = 502, unit_id: int = 1, channel_count: int = 8):
+    def __init__(self, plant: FermentationPlant, host: str = "127.0.0.1", port: int = 4196, unit_id: int = 1, channel_count: int = 8):
         self.plant = plant
         self.host = host
         self.port = int(port)
@@ -705,7 +705,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cycle-seconds", type=float, default=3600.0, help="Length of one simulated fermentation cycle in real seconds. Default: 3600")
     parser.add_argument("--no-gui", action="store_true", help="Run headless and print live values to the console")
     parser.add_argument("--modbus-host", default="127.0.0.1", help="Modbus TCP listen host")
-    parser.add_argument("--modbus-port", type=int, default=502, help="Modbus TCP listen port. Matches Z_relay_simulator.py default")
+    parser.add_argument("--modbus-port", type=int, default=4196, help="Modbus TCP listen port. Matches Z_relay_simulator.py default")
     parser.add_argument("--modbus-unit", type=int, default=1, help="Modbus unit id")
     parser.add_argument("--modbus-channels", type=int, default=8, help="Number of Modbus relay channels")
     parser.add_argument("--can-interface", default="kvaser", help="python-can interface. Matches Z_Brewtools_Simulator.py default")
