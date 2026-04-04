@@ -173,3 +173,80 @@ def test_measure_stop_without_writer_returns_basic_success(tmp_path: Path) -> No
 
     stopped = runtime.measure_stop()
     assert stopped == {"ok": True, "message": "Recording stopped"}
+
+
+def test_recovery_sweep_archives_leftover_session_files(tmp_path: Path) -> None:
+    runtime = _runtime(FakeBackend())
+    measurement_file = tmp_path / "crash-session.jsonl"
+    loadsteps_file = tmp_path / "crash-session.loadsteps.jsonl"
+    run_log_file = tmp_path / "crash-session.run.log"
+    schedule_file = tmp_path / "crash-session.schedule.json"
+    recipe_file = tmp_path / "crash-session.recipe.json"
+    measurement_file.write_text('{"value": 1}\n', encoding="utf-8")
+    loadsteps_file.write_text('{"step": "a"}\n', encoding="utf-8")
+    run_log_file.write_text("run log line\n", encoding="utf-8")
+    schedule_file.write_text('{"name": "schedule-a"}\n', encoding="utf-8")
+    recipe_file.write_text('{"name": "recipe-a"}\n', encoding="utf-8")
+
+    result = runtime._recover_unarchived_outputs(output_dir=str(tmp_path))
+
+    archive_path = tmp_path / "crash-session.archive.zip"
+    assert result["ok"] is True
+    assert str(archive_path) in result["recovered_archives"]
+    assert archive_path.exists()
+    assert not measurement_file.exists()
+    assert not loadsteps_file.exists()
+    assert not run_log_file.exists()
+    assert not schedule_file.exists()
+    assert not recipe_file.exists()
+
+    with zipfile.ZipFile(archive_path) as zf:
+        assert sorted(zf.namelist()) == [
+            "crash-session.jsonl",
+            "crash-session.loadsteps.jsonl",
+            "crash-session.recipe.json",
+            "crash-session.run.log",
+            "crash-session.schedule.json",
+        ]
+
+
+def test_recovery_sweep_skips_when_archive_already_exists(tmp_path: Path) -> None:
+    runtime = _runtime(FakeBackend())
+    measurement_file = tmp_path / "existing-session.jsonl"
+    archive_path = tmp_path / "existing-session.archive.zip"
+    measurement_file.write_text('{"value": 2}\n', encoding="utf-8")
+    archive_path.write_bytes(b"PK\x03\x04")
+
+    result = runtime._recover_unarchived_outputs(output_dir=str(tmp_path))
+
+    assert result["ok"] is True
+    assert result["recovered_archives"] == []
+    assert result["skipped_sessions"] == ["existing-session"]
+    assert measurement_file.exists()
+
+
+def test_recovery_sweep_archives_session_without_measurement_file(tmp_path: Path) -> None:
+    runtime = _runtime(FakeBackend())
+    loadsteps_file = tmp_path / "no-main.loadsteps.parquet"
+    run_log_file = tmp_path / "no-main.run.log"
+    schedule_file = tmp_path / "no-main.schedule.json"
+    loadsteps_file.write_text("stub", encoding="utf-8")
+    run_log_file.write_text("run log line\n", encoding="utf-8")
+    schedule_file.write_text('{"name": "schedule-no-main"}\n', encoding="utf-8")
+
+    result = runtime._recover_unarchived_outputs(output_dir=str(tmp_path))
+
+    archive_path = tmp_path / "no-main.archive.zip"
+    assert result["ok"] is True
+    assert str(archive_path) in result["recovered_archives"]
+    assert archive_path.exists()
+    assert not loadsteps_file.exists()
+    assert not run_log_file.exists()
+    assert not schedule_file.exists()
+
+    with zipfile.ZipFile(archive_path) as zf:
+        assert sorted(zf.namelist()) == [
+            "no-main.loadsteps.parquet",
+            "no-main.run.log",
+            "no-main.schedule.json",
+        ]

@@ -87,6 +87,12 @@ class DataRecordingRuntime:
         self._running = True
         last_write_time = time.time()
 
+        # Recovery sweep: archive leftover session files from a previous crash.
+        try:
+            self._recover_unarchived_outputs(output_dir="data/measurements")
+        except Exception as exc:
+            print(f"Startup archive recovery failed: {exc}")
+
         while self._running:
             try:
                 current_time = time.time()
@@ -149,6 +155,11 @@ class DataRecordingRuntime:
 
             if not parameters:
                 return {"ok": False, "error": "At least one parameter is required"}
+
+            try:
+                self._recover_unarchived_outputs(output_dir=output_dir)
+            except Exception as exc:
+                self._setup_warnings.append(f"Archive recovery sweep failed: {exc}")
 
             if not self.backend.connected():
                 return {"ok": False, "error": "parameterDB backend not connected"}
@@ -522,14 +533,104 @@ class DataRecordingRuntime:
 
         output_dir = os.path.abspath(self.config.output_dir)
         archive_path = os.path.join(output_dir, f"{self.config.session_name}.archive.zip")
-        tmp_archive_path = f"{archive_path}.tmp"
-
         candidates = [measurement_file, loadsteps_file, *list(extra_files or [])]
+        return self._build_archive_from_sources(archive_path=archive_path, source_files=candidates)
+
+    def _recover_unarchived_outputs(self, *, output_dir: str) -> dict[str, Any]:
+        """Archive leftover measurement outputs that were not zipped due to crashes."""
+        target_dir = os.path.abspath(str(output_dir or "").strip() or "data/measurements")
+        os.makedirs(target_dir, exist_ok=True)
+
+        measurement_exts = {".jsonl", ".csv", ".parquet"}
+        recovered_archives: list[str] = []
+        skipped_sessions: list[str] = []
+        sessions: dict[str, dict[str, str]] = {}
+
+        for name in sorted(os.listdir(target_dir)):
+            file_path = os.path.join(target_dir, name)
+            if not os.path.isfile(file_path):
+                continue
+
+            if name.endswith(".tmp"):
+                continue
+
+            session_name: str | None = None
+            measurement_file: str | None = None
+            loadsteps_file: str | None = None
+
+            root, ext = os.path.splitext(name)
+            ext = ext.lower()
+
+            if ext in measurement_exts and not root.endswith(".loadsteps"):
+                session_name = root
+                measurement_file = file_path
+                loadsteps_file = os.path.join(target_dir, f"{session_name}.loadsteps{ext}")
+            elif ext in measurement_exts and root.endswith(".loadsteps"):
+                session_name = root[:-len(".loadsteps")]
+                loadsteps_file = file_path
+                measurement_file = os.path.join(target_dir, f"{session_name}{ext}")
+            elif name.endswith(".run.log"):
+                session_name = name[:-len(".run.log")]
+            elif name.endswith(".schedule.json"):
+                session_name = name[:-len(".schedule.json")]
+            elif name.endswith(".recipe.json"):
+                session_name = name[:-len(".recipe.json")]
+
+            if not session_name:
+                continue
+
+            entry = sessions.setdefault(session_name, {})
+            if measurement_file:
+                entry["measurement"] = measurement_file
+            if loadsteps_file:
+                entry["loadsteps"] = loadsteps_file
+            entry.setdefault("run_log", os.path.join(target_dir, f"{session_name}.run.log"))
+            entry.setdefault("schedule", os.path.join(target_dir, f"{session_name}.schedule.json"))
+            entry.setdefault("recipe", os.path.join(target_dir, f"{session_name}.recipe.json"))
+
+        for session_name in sorted(sessions):
+            archive_name = f"{session_name}.archive.zip"
+            archive_path = os.path.join(target_dir, archive_name)
+            if os.path.exists(archive_path):
+                skipped_sessions.append(session_name)
+                continue
+
+            entry = sessions[session_name]
+            sources = [
+                entry.get("measurement", ""),
+                entry.get("loadsteps", ""),
+                entry.get("run_log", ""),
+                entry.get("schedule", ""),
+                entry.get("recipe", ""),
+            ]
+            archive = self._build_archive_from_sources(
+                archive_path=archive_path,
+                source_files=[source for source in sources if source],
+            )
+            if archive.get("archive_path"):
+                recovered_archives.append(archive_path)
+
+        return {
+            "ok": True,
+            "output_dir": target_dir,
+            "recovered_archives": recovered_archives,
+            "skipped_sessions": skipped_sessions,
+        }
+
+    def _build_archive_from_sources(self, *, archive_path: str, source_files: list[str]) -> dict[str, Any]:
+        """Build an archive from concrete source file paths and remove archived source files."""
+        archive_path = os.path.abspath(str(archive_path or "").strip())
+        if not archive_path:
+            return {"archive_path": None, "members": [], "missing": []}
+
+        tmp_archive_path = f"{archive_path}.tmp"
+        candidates = list(source_files or [])
+
         existing: list[str] = []
         missing: list[str] = []
         seen: set[str] = set()
         for raw in candidates:
-            path = os.path.abspath(str(raw or '').strip())
+            path = os.path.abspath(str(raw or "").strip())
             if not path or path in seen:
                 continue
             seen.add(path)
@@ -541,7 +642,7 @@ class DataRecordingRuntime:
         if not existing:
             return {"archive_path": None, "members": [], "missing": missing}
 
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(archive_path) or ".", exist_ok=True)
 
         members: list[str] = []
         try:
@@ -560,7 +661,6 @@ class DataRecordingRuntime:
                 pass
             raise
 
-        # Best-effort cleanup: keep only the archive by removing included source files.
         for file_path in existing:
             try:
                 if os.path.abspath(file_path) != os.path.abspath(archive_path):
