@@ -515,9 +515,31 @@ resolve_source_dir() {
 
 run_wizard() {
   prompt_install_dir
-  suggest_unique_node_identity
-  prompt_default NODE_ID 'Fermenter node id' "$NODE_ID"
-  prompt_default NODE_NAME 'Fermenter display name' "$NODE_NAME"
+
+  local original_node_id="$NODE_ID"
+  local original_node_name="$NODE_NAME"
+  local suggested_node_id="$NODE_ID"
+  local suggested_node_name="$NODE_NAME"
+  local node_id_default="$NODE_ID"
+  local node_name_default="$NODE_NAME"
+
+  if [[ -z "$original_node_id" || -z "$original_node_name" ]]; then
+    suggest_unique_node_identity
+    suggested_node_id="$NODE_ID"
+    suggested_node_name="$NODE_NAME"
+    NODE_ID="$original_node_id"
+    NODE_NAME="$original_node_name"
+  fi
+
+  if [[ -z "$node_id_default" ]]; then
+    node_id_default="$suggested_node_id"
+  fi
+  if [[ -z "$node_name_default" ]]; then
+    node_name_default="$suggested_node_name"
+  fi
+
+  prompt_default NODE_ID 'Fermenter node id' "$node_id_default"
+  prompt_default NODE_NAME 'Fermenter display name' "$node_name_default"
   warn_if_node_identity_conflicts
   if [[ -z "$PI_HOSTNAME" ]]; then
     PI_HOSTNAME="$(sanitize_hostname "$NODE_NAME")"
