@@ -104,6 +104,16 @@
   flex-shrink: 0;
 }
 
+.pdb-pin-error {
+  margin: 0 16px 8px;
+  padding: 7px 10px;
+  background: #3a1111;
+  border: 1px solid #7f1d1d;
+  border-radius: 6px;
+  color: #fca5a5;
+  font-size: 12px;
+}
+
 .pdb-toolbar-filter { flex: 1; max-width: 320px; }
 
 .pdb-input {
@@ -312,6 +322,19 @@
 .pdb-cell-deps { max-width: 180px; }
 .pdb-cell-actions { white-space: nowrap; text-align: right; }
 .pdb-cell-nil { color: #334155; }
+
+.pdb-action-group {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.pdb-btn-pin-active {
+  color: #fde68a;
+  border-color: #854d0e;
+  background: #3f2f10;
+}
 
 .pdb-param-name {
   background: #1e293b;

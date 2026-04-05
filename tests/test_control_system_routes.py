@@ -82,6 +82,8 @@ def test_system_schema_contains_manual_control_paths() -> None:
     schema = response.json()
     assert schema["manual_control"]["write_path"] == "/control/manual-write"
     assert schema["manual_control"]["release_path"] == "/control/release-manual"
+    assert schema["manual_control"]["pin_path"] == "/control/manual-map/pin"
+    assert schema["manual_control"]["unpin_path"] == "/control/manual-map/unpin"
 
 
 def test_snapshot_with_empty_targets_uses_none() -> None:

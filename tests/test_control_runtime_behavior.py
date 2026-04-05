@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -914,6 +915,56 @@ def test_datasource_contract_snapshot_discovers_command_and_control_parameters()
     assert controls["src.count"]["write"] == {"kind": "number"}
     assert controls["src.label"]["widget"] == "text"
     assert controls["src.label"]["write"] == {"kind": "string"}
+
+
+def test_pin_and_unpin_control_parameter_persists_map_and_forces_manual_card(monkeypatch, tmp_path: Path) -> None:
+    runtime = _make_runtime({"src.setpoint": 12.5})
+
+    contract_file = tmp_path / "control_variable_map.json"
+    monkeypatch.setattr(control_runtime_module, "CONTROL_VARIABLE_MAP_FILE", contract_file)
+
+    pinned = runtime.pin_control_parameter(
+        "src.setpoint",
+        label="Source Setpoint",
+        pin_scope="manual",
+    )
+    assert pinned["ok"] is True
+    assert pinned["created"] is True
+
+    saved = json.loads(contract_file.read_text(encoding="utf-8"))
+    assert saved["controls"][0]["target"] == "src.setpoint"
+    assert saved["controls"][0]["pin_scope"] == "manual"
+
+    runtime.backend.describe = lambda: {
+        "src.setpoint": {
+            "parameter_type": "float",
+            "value": 12.5,
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "src",
+                "source_type": "demo",
+                "role": "command",
+            },
+        }
+    }
+    runtime.datasource_admin._sources = {
+        "src": {
+            "source_type": "demo",
+            "running": True,
+            "config": {},
+        }
+    }
+
+    snapshot = runtime.get_datasource_contract_snapshot()
+    manual_targets = {item["target"] for item in snapshot["manual_controls"]}
+    assert "src.setpoint" in manual_targets
+
+    unpinned = runtime.unpin_control_parameter("src.setpoint")
+    assert unpinned["ok"] is True
+    assert unpinned["removed"] == 1
+
+    saved_after = json.loads(contract_file.read_text(encoding="utf-8"))
+    assert saved_after["controls"] == []
 
 
 def test_tick_uses_ramp_generic_and_error_action_paths(monkeypatch) -> None:

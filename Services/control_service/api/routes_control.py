@@ -96,6 +96,28 @@ def release_manual_controls(data: dict | None = None):
     return runtime.release_manual_controls(targets=targets)
 
 
+@router.post("/manual-map/pin")
+def pin_manual_control(data: dict):
+    runtime = _require_runtime()
+    return runtime.pin_control_parameter(
+        target=data["target"],
+        label=data.get("label"),
+        group=data.get("group", "general"),
+        widget=data.get("widget"),
+        unit=data.get("unit"),
+        step=data.get("step"),
+        min_value=data.get("min"),
+        max_value=data.get("max"),
+        pin_scope=data.get("pin_scope", "manual"),
+    )
+
+
+@router.post("/manual-map/unpin")
+def unpin_manual_control(data: dict):
+    runtime = _require_runtime()
+    return runtime.unpin_control_parameter(target=data["target"])
+
+
 @router.post("/ramp")
 def start_ramp(data: dict):
     runtime = _require_runtime()

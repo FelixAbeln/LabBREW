@@ -2,7 +2,17 @@ import { useState } from 'react';
 import { deleteParam } from './loaders.js';
 import { ParameterEditModal } from './ParameterEditModal.jsx';
 
-export function ParameterList({ fermenterId, params, graph, paramTypes, onRefresh }) {
+export function ParameterList({
+  fermenterId,
+  params,
+  graph,
+  paramTypes,
+  pinnedTargets,
+  pinBusyTarget,
+  pinError,
+  onTogglePin,
+  onRefresh,
+}) {
   const [filter, setFilter] = useState('');
   const [editTarget, setEditTarget] = useState(null);   // null | {name, rec} | 'create'
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -52,6 +62,7 @@ export function ParameterList({ fermenterId, params, graph, paramTypes, onRefres
           + Add Parameter
         </button>
       </div>
+      {pinError && <div className="pdb-pin-error">Pin update failed: {pinError}</div>}
 
       {/* Table */}
       <div className="pdb-table-wrap">
@@ -78,6 +89,8 @@ export function ParameterList({ fermenterId, params, graph, paramTypes, onRefres
               const usedBy = entries.filter(([n]) => (deps[n] ?? []).includes(name)).map(([n]) => n);
               const writesTo = writes[name] ?? [];
               const isInvalid = Boolean(rec?.state?.invalid_config);
+              const isPinned = pinnedTargets instanceof Set ? pinnedTargets.has(name) : false;
+              const pinBusy = pinBusyTarget === name;
 
               return (
                 <tr key={name} className={`pdb-tr ${isInvalid ? 'pdb-tr-invalid' : ''}`}>
@@ -112,14 +125,24 @@ export function ParameterList({ fermenterId, params, graph, paramTypes, onRefres
                       : <span className="pdb-cell-nil">—</span>}
                   </td>
                   <td className="pdb-cell-actions">
-                    <button
-                      className="pdb-btn-ghost pdb-btn-sm"
-                      onClick={() => setEditTarget({ name, rec })}
-                    >Edit</button>
-                    <button
-                      className="pdb-btn-danger pdb-btn-sm"
-                      onClick={() => { setDeleteTarget(name); setDeleteError(''); }}
-                    >Del</button>
+                    <div className="pdb-action-group">
+                      <button
+                        className={`pdb-btn-ghost pdb-btn-sm ${isPinned ? 'pdb-btn-pin-active' : ''}`}
+                        onClick={() => onTogglePin?.(name, isPinned)}
+                        disabled={Boolean(pinBusyTarget)}
+                        title={isPinned ? 'Remove from custom manual controls' : 'Add to custom manual controls'}
+                      >
+                        {pinBusy ? '…' : isPinned ? 'Unpin' : 'Pin'}
+                      </button>
+                      <button
+                        className="pdb-btn-ghost pdb-btn-sm"
+                        onClick={() => setEditTarget({ name, rec })}
+                      >Edit</button>
+                      <button
+                        className="pdb-btn-danger pdb-btn-sm"
+                        onClick={() => { setDeleteTarget(name); setDeleteError(''); }}
+                      >Del</button>
+                    </div>
                   </td>
                 </tr>
               );

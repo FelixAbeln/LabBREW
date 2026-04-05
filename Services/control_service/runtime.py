@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
@@ -62,6 +65,7 @@ class ControlRuntime:
         self.ownership = OwnershipManager()
         self._rule_states: dict[str, ActiveRuleState] = {}
         self._ramps: dict[str, dict[str, Any]] = {}
+        self._control_map_lock = threading.Lock()
         self._stop_event = threading.Event()
         self.reload_rules()
 
@@ -248,6 +252,206 @@ class ControlRuntime:
             "skipped": sorted(skipped),
         }
 
+    def _control_map_lock_or_create(self) -> threading.Lock:
+        lock = getattr(self, "_control_map_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._control_map_lock = lock
+        return lock
+
+    def _normalize_control_id(self, target: str) -> str:
+        slug = re.sub(r"[^a-zA-Z0-9_]+", "_", target).strip("_")
+        slug = slug or "control"
+        return f"manual_{slug}"
+
+    def _label_from_target(self, target: str) -> str:
+        parts = re.split(r"[._\-/]+", target)
+        normalized = [part for part in parts if part]
+        if not normalized:
+            return target
+        return " ".join(word.capitalize() for word in normalized)
+
+    def _infer_widget_from_value(self, value: Any) -> str:
+        if isinstance(value, bool):
+            return "toggle"
+        if isinstance(value, (int, float)):
+            return "number"
+        return "text"
+
+    def _save_control_contract(self, contract: dict[str, Any]) -> None:
+        payload = dict(contract)
+        payload.pop("error", None)
+        if not isinstance(payload.get("controls"), list):
+            payload["controls"] = []
+        if not isinstance(payload.get("groups"), list):
+            payload["groups"] = []
+        CONTROL_VARIABLE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        # Atomic write: temp file + fsync + replace to prevent corruption on crash.
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{CONTROL_VARIABLE_MAP_FILE.name}.",
+            suffix=".tmp",
+            dir=str(CONTROL_VARIABLE_MAP_FILE.parent),
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_name, CONTROL_VARIABLE_MAP_FILE)
+            try:
+                dir_fd = os.open(str(CONTROL_VARIABLE_MAP_FILE.parent), os.O_RDONLY)
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
+            except OSError:
+                pass
+        except Exception:
+            try:
+                if os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+
+    def pin_control_parameter(
+        self,
+        target: str,
+        *,
+        label: str | None = None,
+        group: str | None = "general",
+        widget: str | None = None,
+        unit: str | None = None,
+        step: float | int | None = None,
+        min_value: float | int | None = None,
+        max_value: float | int | None = None,
+        pin_scope: str = "manual",
+    ) -> dict[str, Any]:
+        target_name = str(target or "").strip()
+        if not target_name:
+            return {
+                "ok": False,
+                "error": "target is required",
+            }
+
+        lock = self._control_map_lock_or_create()
+        with lock:
+            contract = self._load_control_contract()
+            contract.pop("error", None)
+
+            controls = [
+                dict(item)
+                for item in contract.get("controls", [])
+                if isinstance(item, dict)
+            ]
+            groups = [
+                dict(item)
+                for item in contract.get("groups", [])
+                if isinstance(item, dict)
+            ]
+
+            existing_index = next(
+                (index for index, item in enumerate(controls) if str(item.get("target", "")).strip() == target_name),
+                None,
+            )
+
+            existing_control = controls[existing_index] if existing_index is not None else {}
+            current_value = self.backend.get_value(target_name, None)
+            normalized_group = str(group).strip() if group is not None else ""
+            normalized_scope = str(pin_scope).strip().lower() or "manual"
+
+            control: dict[str, Any] = dict(existing_control)
+            control["id"] = str(control.get("id") or self._normalize_control_id(target_name))
+            control["target"] = target_name
+            control["label"] = str(label).strip() if label is not None else str(control.get("label") or self._label_from_target(target_name))
+            control["group"] = normalized_group or str(control.get("group") or "general")
+            control["widget"] = str(widget).strip() if widget is not None else str(control.get("widget") or self._infer_widget_from_value(current_value))
+            control["pin_scope"] = normalized_scope
+
+            if unit is not None:
+                control["unit"] = str(unit).strip() or None
+            elif "unit" not in control:
+                described = self.backend.describe().get(target_name, {}) if hasattr(self.backend, "describe") else {}
+                metadata = described.get("metadata") if isinstance(described, dict) else {}
+                if isinstance(metadata, dict) and metadata.get("unit"):
+                    control["unit"] = metadata.get("unit")
+
+            if min_value is not None:
+                control["min"] = min_value
+            if max_value is not None:
+                control["max"] = max_value
+            if step is not None:
+                control["step"] = step
+
+            if existing_index is None:
+                controls.append(control)
+            else:
+                controls[existing_index] = control
+
+            group_id = str(control.get("group") or "").strip()
+            if group_id and not any(str(item.get("id", "")).strip() == group_id for item in groups):
+                groups.append({"id": group_id, "label": self._label_from_target(group_id)})
+
+            contract["controls"] = controls
+            contract["groups"] = groups
+            self._save_control_contract(contract)
+
+        snapshot = self.get_control_contract_snapshot()
+        return {
+            "ok": True,
+            "target": target_name,
+            "created": existing_index is None,
+            "control": control,
+            "resolved": next(
+                (
+                    item
+                    for item in snapshot.get("resolved_controls", [])
+                    if isinstance(item, dict)
+                    and str(item.get("target", "")).strip() == target_name
+                ),
+                None,
+            ),
+            "contract": snapshot.get("contract", {}),
+        }
+
+    def unpin_control_parameter(self, target: str) -> dict[str, Any]:
+        target_name = str(target or "").strip()
+        if not target_name:
+            return {
+                "ok": False,
+                "error": "target is required",
+            }
+
+        lock = self._control_map_lock_or_create()
+        with lock:
+            contract = self._load_control_contract()
+            contract.pop("error", None)
+            controls = [
+                dict(item)
+                for item in contract.get("controls", [])
+                if isinstance(item, dict)
+            ]
+            kept_controls = [
+                item
+                for item in controls
+                if str(item.get("target", "")).strip() != target_name
+            ]
+            removed_count = len(controls) - len(kept_controls)
+
+            if removed_count > 0:
+                contract["controls"] = kept_controls
+                self._save_control_contract(contract)
+
+        snapshot = self.get_control_contract_snapshot()
+        return {
+            "ok": True,
+            "target": target_name,
+            "removed": removed_count,
+            "contract": snapshot.get("contract", {}),
+        }
+
     def _load_control_contract(self) -> dict[str, Any]:
         default_contract: dict[str, Any] = {
             "version": 1,
@@ -332,6 +536,7 @@ class ControlRuntime:
                 "label": control.get("label"),
                 "group": control.get("group"),
                 "target": target,
+                "pin_scope": control.get("pin_scope"),
                 "widget": control.get("widget"),
                 "write": deepcopy(control.get("write")) if isinstance(control.get("write"), dict) else control.get("write"),
                 "kind": control.get("kind"),
@@ -568,9 +773,11 @@ class ControlRuntime:
 
         manual_controls: list[dict[str, Any]] = []
         for target, map_items in all_controls_by_target.items():
-            if target in all_source_parameter_names:
-                continue
             map_item = map_items[0] if map_items else {}
+            pin_scope = str(map_item.get("pin_scope") or "").strip().lower()
+            force_manual_card = pin_scope == "manual"
+            if target in all_source_parameter_names and not force_manual_card:
+                continue
             widget = map_item.get("widget") or "text"
             # Build a write configuration for manual controls so that the UI
             # can infer input type and bounds from kind/min/max/step.
