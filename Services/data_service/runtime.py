@@ -20,12 +20,14 @@ from collections import deque
 from datetime import datetime
 
 from .._shared.parameterDB.paremeterDB import SignalStoreBackend
+from .._shared.storage_paths import default_measurements_dir
 from .storage.writer import FileWriter, FileWriterFactory
 from .storage.loadstep import LoadstepAverager
 
 # Sleep durations for the recording loop
 _IDLE_SLEEP_INTERVAL = 0.1      # 100ms when not recording (reduces idle CPU usage)
 _MIN_SAMPLE_SLEEP = 0.0005      # 0.5ms minimum sleep floor to prevent busy-waiting
+DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
 
 
 @dataclass
@@ -33,7 +35,7 @@ class MeasurementConfig:
     """Configuration for a measurement session."""
     parameters: list[str] = field(default_factory=list)
     hz: float = 10.0  # Recording frequency (1-150 Hz)
-    output_dir: str = "data/measurements"
+    output_dir: str = DEFAULT_MEASUREMENTS_DIR
     output_format: str = "parquet"  # "parquet", "csv", or "jsonl"
     session_name: str = ""  # Auto-generated if empty
     include_files: list[str] = field(default_factory=list)
@@ -89,7 +91,7 @@ class DataRecordingRuntime:
 
         # Recovery sweep: archive leftover session files from a previous crash.
         try:
-            self._recover_unarchived_outputs(output_dir="data/measurements")
+            self._recover_unarchived_outputs(output_dir=DEFAULT_MEASUREMENTS_DIR)
         except Exception as exc:
             print(f"Startup archive recovery failed: {exc}")
 
@@ -129,7 +131,7 @@ class DataRecordingRuntime:
         self._running = False
 
     def setup_measurement(self, parameters: list[str], hz: float = 10.0,
-                         output_dir: str = "data/measurements",
+                         output_dir: str = DEFAULT_MEASUREMENTS_DIR,
                          output_format: str = "parquet",
                          session_name: str = "",
                          include_files: list[str] | None = None) -> dict:
@@ -538,7 +540,7 @@ class DataRecordingRuntime:
 
     def _recover_unarchived_outputs(self, *, output_dir: str) -> dict[str, Any]:
         """Archive leftover measurement outputs that were not zipped due to crashes."""
-        target_dir = os.path.abspath(str(output_dir or "").strip() or "data/measurements")
+        target_dir = os.path.abspath(str(output_dir or "").strip() or DEFAULT_MEASUREMENTS_DIR)
         os.makedirs(target_dir, exist_ok=True)
 
         measurement_exts = {".jsonl", ".csv", ".parquet"}
@@ -688,7 +690,7 @@ class DataRecordingRuntime:
             return os.path.abspath(str(output_dir).strip())
         if self.config and self.config.output_dir:
             return os.path.abspath(self.config.output_dir)
-        return os.path.abspath("data/measurements")
+        return os.path.abspath(DEFAULT_MEASUREMENTS_DIR)
 
     def _safe_archive_name(self, archive_name: str) -> str:
         name = os.path.basename(str(archive_name or "").strip())

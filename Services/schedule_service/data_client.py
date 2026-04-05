@@ -5,6 +5,11 @@ from typing import Any
 import requests
 from requests.adapters import HTTPAdapter
 
+from .._shared.storage_paths import default_measurements_dir
+
+
+DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
+
 
 class DataClient:
     def __init__(self, base_url: str = 'http://127.0.0.1:8769', timeout_s: float = 8.0) -> None:
@@ -25,7 +30,7 @@ class DataClient:
         *,
         parameters: list[str],
         hz: float = 10.0,
-        output_dir: str = 'data/measurements',
+        output_dir: str = DEFAULT_MEASUREMENTS_DIR,
         output_format: str = 'parquet',
         session_name: str = '',
         include_files: list[str] | None = None,

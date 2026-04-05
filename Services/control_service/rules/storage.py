@@ -5,10 +5,10 @@ import os
 import tempfile
 from pathlib import Path
 
+from ..._shared.storage_paths import storage_subdir
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-RULE_DIR = PROJECT_ROOT / "Data" / "Rules"
-RULE_DIR = Path("./Data/Rules")
+
+RULE_DIR = storage_subdir("Rules")
 
 
 def get_rule_dir() -> Path:

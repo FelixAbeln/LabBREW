@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..._shared.storage_paths import default_parameterdb_audit_path, default_parameterdb_snapshot_path
+
 from .engine import ScanEngine
 from .event_broker import EventBroker
 from .loader import PluginRegistry, autodiscover_plugins
@@ -20,14 +22,19 @@ def build_service(
     target_utilization: float = 0.7,
     min_period_s: float = 0.002,
     max_period_s: float = 0.05,
-    snapshot_path: str = './data/parameterdb_snapshot.json',
+    snapshot_path: str | None = None,
     snapshot_interval_s: float = 5.0,
     restore_snapshot: bool = True,
     enable_snapshot_persistence: bool = True,
-    audit_log_path: str = "./data/parameterdb_audit.jsonl",
+    audit_log_path: str | None = None,
     enable_audit_log: bool = True,
     audit_external_writes: bool = False,
 ):
+    if snapshot_path is None:
+        snapshot_path = default_parameterdb_snapshot_path()
+    if audit_log_path is None:
+        audit_log_path = default_parameterdb_audit_path()
+
     registry = PluginRegistry()
     loaded = autodiscover_plugins(plugin_root, registry)
     broker = EventBroker()
@@ -75,11 +82,11 @@ def main() -> None:
     parser.add_argument('--min-period', type=float, default=0.002)
     parser.add_argument('--max-period', type=float, default=0.05)
     parser.add_argument('--plugin-root', default='./plugins')
-    parser.add_argument('--snapshot-path', default='./data/parameterdb_snapshot.json')
+    parser.add_argument('--snapshot-path', default=default_parameterdb_snapshot_path())
     parser.add_argument('--snapshot-interval', type=float, default=5.0)
     parser.add_argument('--no-restore-snapshot', action='store_true')
     parser.add_argument('--no-snapshot-persistence', action='store_true')
-    parser.add_argument('--audit-log-path', default='./data/parameterdb_audit.jsonl')
+    parser.add_argument('--audit-log-path', default=default_parameterdb_audit_path())
     parser.add_argument('--no-audit-log', action='store_true')
     parser.add_argument('--audit-external-writes', action='store_true')
     args = parser.parse_args()

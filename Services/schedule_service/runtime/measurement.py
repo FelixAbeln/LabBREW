@@ -16,7 +16,11 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any
 
+from ..._shared.storage_paths import default_measurements_dir
 from ..._shared.wait_engine import WaitContext, WaitState, parse_wait_spec
+
+
+DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
 
 if TYPE_CHECKING:
     from ..models import ScheduleDefinition, ScheduleStep
@@ -120,7 +124,7 @@ class _MeasurementMixin:
             return
 
         hz = float(config.get('hz') or 10.0)
-        output_dir = str(config.get('output_dir') or 'data/measurements')
+        output_dir = str(config.get('output_dir') or DEFAULT_MEASUREMENTS_DIR)
         output_format = str(config.get('output_format') or 'parquet')
         session_name = str(
             config.get('session_name')
@@ -188,7 +192,7 @@ class _MeasurementMixin:
             raise RuntimeError('global_measurement start requires parameters or a non-empty control snapshot')
 
         hz = float(params.get('hz', 10.0))
-        output_dir = str(params.get('output_dir', 'data/measurements'))
+        output_dir = str(params.get('output_dir', DEFAULT_MEASUREMENTS_DIR))
         output_format = str(params.get('output_format', 'parquet'))
         session_name = str(params.get('session_name') or self._default_data_name())
 

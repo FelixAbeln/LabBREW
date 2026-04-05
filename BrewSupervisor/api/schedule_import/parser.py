@@ -5,6 +5,11 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from Services._shared.storage_paths import default_measurements_dir
+
+
+DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
+
 from Services._shared.wait_engine.parser import (
     normalize_scalar as _shared_normalize_scalar,
     parse_condition_expr as _shared_parse_condition_expr,
@@ -111,7 +116,7 @@ def _build_meta_defaults(meta: dict[str, str], wb=None) -> dict[str, Any]:
 
     measurement_config = {
         'hz': measurement_hz,
-        'output_dir': _meta_get(meta, 'measurement_output_dir', 'measurement.output_dir') or 'data/measurements',
+        'output_dir': _meta_get(meta, 'measurement_output_dir', 'measurement.output_dir') or DEFAULT_MEASUREMENTS_DIR,
         'output_format': _meta_get(meta, 'measurement_output_format', 'measurement.output_format') or 'parquet',
         'session_name': _meta_get(meta, 'measurement_name', 'measurement.name', 'measurement.session_name'),
     }

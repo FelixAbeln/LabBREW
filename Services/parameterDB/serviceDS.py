@@ -18,6 +18,7 @@ from .parameterdb_sources.base import DataSourceBase
 from .parameterdb_sources.loader import DataSourceRegistry, autodiscover_sources
 
 from .._shared.cli import parse_args
+from .._shared.storage_paths import default_sources_dir
 
 
 @dataclass(slots=True)
@@ -214,7 +215,7 @@ def _builtin_source_root() -> str:
 
 
 def _default_config_dir() -> str:
-    return './data/sources'
+    return default_sources_dir()
 
 def main() -> None:
     args = parse_args("Datasource Service")
