@@ -30,10 +30,10 @@ def test_storage_defaults_with_override(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("LABBREW_STORAGE_ROOT", str(root))
     monkeypatch.delenv("LABBREW_TOPOLOGY_PATH", raising=False)
 
-    assert default_parameterdb_snapshot_path() == str((root / "data" / "parameterdb_snapshot.json").resolve())
-    assert default_parameterdb_audit_path() == str((root / "data" / "parameterdb_audit.jsonl").resolve())
-    assert default_sources_dir() == str((root / "data" / "sources").resolve())
-    assert default_measurements_dir() == str((root / "data" / "measurements").resolve())
+    assert default_parameterdb_snapshot_path() == str((root / "parameterdb_snapshot.json").resolve())
+    assert default_parameterdb_audit_path() == str((root / "parameterdb_audit.jsonl").resolve())
+    assert default_sources_dir() == str((root / "sources").resolve())
+    assert default_measurements_dir() == str((root / "measurements").resolve())
 
 
 def test_topology_path_explicit_override(monkeypatch, tmp_path: Path) -> None:
