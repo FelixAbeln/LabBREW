@@ -157,7 +157,7 @@ Edit:
 Backup:
 
 ```bash
-sudo cp canlib.py canlib.py.bak
+sudo cp /opt/labbrew/.venv/lib/python3.13/site-packages/can/interfaces/kvaser/canlib.py /opt/labbrew/.venv/lib/python3.13/site-packages/can/interfaces/kvaser/canlib.py.bak
 ```
 
 Comment out the LOCAL_TXACK block:
