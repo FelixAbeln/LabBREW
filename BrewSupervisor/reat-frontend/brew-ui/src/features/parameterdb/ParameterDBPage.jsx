@@ -42,27 +42,32 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
   const refresh = useCallback(async () => {
     if (!fermenterId) return;
     try {
-      const [pRes, gRes, sRes, cRes] = await Promise.all([
+      const [pRes, gRes, sRes] = await Promise.all([
         fetchParams(fermenterId),
         fetchGraph(fermenterId),
         fetchStats(fermenterId),
-        fetchControlContract(fermenterId),
       ]);
       setParams(pRes?.params ?? {});
       setGraph(gRes?.graph ?? null);
       setStats(sRes?.stats ?? null);
-
-      const controlTargets = new Set();
-      const resolvedControls = Array.isArray(cRes?.resolved_controls) ? cRes.resolved_controls : [];
-      resolvedControls.forEach(item => {
-        const target = typeof item?.target === 'string' ? item.target.trim() : '';
-        if (target) {
-          controlTargets.add(target);
-        }
-      });
-      setPinnedTargets(controlTargets);
-      setPinError('');
       setError('');
+
+      try {
+        const cRes = await fetchControlContract(fermenterId);
+        const controlTargets = new Set();
+        const resolvedControls = Array.isArray(cRes?.resolved_controls) ? cRes.resolved_controls : [];
+        resolvedControls.forEach(item => {
+          const target = typeof item?.target === 'string' ? item.target.trim() : '';
+          if (target) {
+            controlTargets.add(target);
+          }
+        });
+        setPinnedTargets(controlTargets);
+        setPinError('');
+      } catch (e) {
+        setPinnedTargets(new Set());
+        setPinError(String(e));
+      }
     } catch (e) {
       setError(String(e));
     } finally {
