@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
@@ -284,10 +286,35 @@ class ControlRuntime:
         if not isinstance(payload.get("groups"), list):
             payload["groups"] = []
         CONTROL_VARIABLE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CONTROL_VARIABLE_MAP_FILE.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=True) + "\n",
-            encoding="utf-8",
+
+        # Atomic write: temp file + fsync + replace to prevent corruption on crash.
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{CONTROL_VARIABLE_MAP_FILE.name}.",
+            suffix=".tmp",
+            dir=str(CONTROL_VARIABLE_MAP_FILE.parent),
         )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_name, CONTROL_VARIABLE_MAP_FILE)
+            try:
+                dir_fd = os.open(str(CONTROL_VARIABLE_MAP_FILE.parent), os.O_RDONLY)
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
+            except OSError:
+                pass
+        except Exception:
+            try:
+                if os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
 
     def pin_control_parameter(
         self,

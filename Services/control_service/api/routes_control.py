@@ -100,7 +100,7 @@ def release_manual_controls(data: dict | None = None):
 def pin_manual_control(data: dict):
     runtime = _require_runtime()
     return runtime.pin_control_parameter(
-        target=data.get("target"),
+        target=data["target"],
         label=data.get("label"),
         group=data.get("group", "general"),
         widget=data.get("widget"),
@@ -115,7 +115,7 @@ def pin_manual_control(data: dict):
 @router.post("/manual-map/unpin")
 def unpin_manual_control(data: dict):
     runtime = _require_runtime()
-    return runtime.unpin_control_parameter(target=data.get("target"))
+    return runtime.unpin_control_parameter(target=data["target"])
 
 
 @router.post("/ramp")
