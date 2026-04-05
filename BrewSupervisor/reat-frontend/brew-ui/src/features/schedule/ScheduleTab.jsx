@@ -15,7 +15,21 @@ export function ScheduleTab({
   importWarningIssues,
 }) {
   const logRef = useRef(null)
+  const fileInputRef = useRef(null)
   const [followLogBottom, setFollowLogBottom] = useState(true)
+
+  const workbookActionDisabledReason =
+    !selected
+      ? 'Select a fermenter first'
+      : !scheduleFile
+        ? 'Choose a workbook first'
+        : loadingAction
+          ? 'Action in progress'
+          : ''
+
+  function openWorkbookFilePicker() {
+    fileInputRef.current?.click()
+  }
 
   function handleEventLogScroll() {
     const el = logRef.current
@@ -129,15 +143,20 @@ export function ScheduleTab({
       <div className="info-card workbook-card">
         <h3>Schedule workbook</h3>
         <div className="upload-row">
-          <label className="file-picker-button">
+          <button type="button" className="file-picker-button" onClick={openWorkbookFilePicker}>
             Choose workbook
-            <input
-              type="file"
-              accept=".xlsx"
-              onChange={(e) => setScheduleFile(e.target.files?.[0] || null)}
-              className="hidden-file-input"
-            />
-          </label>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx"
+            onClick={(e) => {
+              // Allow re-selecting the same file and still trigger onChange.
+              e.currentTarget.value = ''
+            }}
+            onChange={(e) => setScheduleFile(e.target.files?.[0] || null)}
+            className="hidden-file-input"
+          />
 
           <div className="selected-file-name">
             {scheduleFile ? scheduleFile.name : 'No file selected'}
@@ -148,6 +167,7 @@ export function ScheduleTab({
           <button
             className="secondary-button"
             disabled={!selected || !scheduleFile || loadingAction}
+            title={workbookActionDisabledReason}
             onClick={() => uploadWorkbook('/schedule/validate-import')}
           >
             Validate workbook
@@ -156,6 +176,7 @@ export function ScheduleTab({
           <button
             className="primary-button"
             disabled={!selected || !scheduleFile || loadingAction}
+            title={workbookActionDisabledReason}
             onClick={() => uploadWorkbook('/schedule/import')}
           >
             Import workbook
