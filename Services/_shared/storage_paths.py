@@ -52,16 +52,16 @@ def storage_path_text(default_relative_path: str) -> str:
 
 
 def default_parameterdb_snapshot_path() -> str:
-    return storage_path_text("parameterdb_snapshot.json")
+    return storage_path_text("./data/parameterdb_snapshot.json")
 
 
 def default_parameterdb_audit_path() -> str:
-    return storage_path_text("parameterdb_audit.jsonl")
+    return storage_path_text("./data/parameterdb_audit.jsonl")
 
 
 def default_sources_dir() -> str:
-    return storage_path_text("sources")
+    return storage_path_text("./data/sources")
 
 
 def default_measurements_dir() -> str:
-    return storage_path_text("measurements")
+    return storage_path_text("data/measurements")

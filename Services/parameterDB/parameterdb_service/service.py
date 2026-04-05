@@ -22,14 +22,19 @@ def build_service(
     target_utilization: float = 0.7,
     min_period_s: float = 0.002,
     max_period_s: float = 0.05,
-    snapshot_path: str = default_parameterdb_snapshot_path(),
+    snapshot_path: str | None = None,
     snapshot_interval_s: float = 5.0,
     restore_snapshot: bool = True,
     enable_snapshot_persistence: bool = True,
-    audit_log_path: str = default_parameterdb_audit_path(),
+    audit_log_path: str | None = None,
     enable_audit_log: bool = True,
     audit_external_writes: bool = False,
 ):
+    if snapshot_path is None:
+        snapshot_path = default_parameterdb_snapshot_path()
+    if audit_log_path is None:
+        audit_log_path = default_parameterdb_audit_path()
+
     registry = PluginRegistry()
     loaded = autodiscover_plugins(plugin_root, registry)
     broker = EventBroker()

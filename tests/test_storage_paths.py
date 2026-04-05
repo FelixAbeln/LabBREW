@@ -10,6 +10,8 @@ from Services._shared.storage_paths import (
     storage_path,
     topology_path,
 )
+from Services.parameterDB import serviceDB as parameterdb_service
+from Services.parameterDB.parameterdb_service import service as parameterdb_legacy_service
 
 
 def test_storage_defaults_without_override(monkeypatch) -> None:
@@ -42,3 +44,15 @@ def test_topology_path_explicit_override(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("LABBREW_STORAGE_ROOT", raising=False)
 
     assert topology_path() == topology_file.resolve()
+
+
+def test_parameterdb_build_service_signature_uses_call_time_defaults() -> None:
+    kwdefaults = parameterdb_service.build_service.__kwdefaults__ or {}
+    assert kwdefaults.get("snapshot_path") is None
+    assert kwdefaults.get("audit_log_path") is None
+
+
+def test_parameterdb_legacy_build_service_signature_uses_call_time_defaults() -> None:
+    kwdefaults = parameterdb_legacy_service.build_service.__kwdefaults__ or {}
+    assert kwdefaults.get("snapshot_path") is None
+    assert kwdefaults.get("audit_log_path") is None
