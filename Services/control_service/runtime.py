@@ -14,6 +14,7 @@ from collections import defaultdict
 
 from ..parameterDB.parameterdb_core.client import SignalSession
 from .._shared.parameterDB.paremeterDB import SignalStoreBackend
+from .._shared.storage_paths import storage_path
 from .rules.storage import load_rules
 from .rules.engine import RuleEngine
 from .control.executor import execute_action, read_value, set_value_checked
@@ -21,8 +22,7 @@ from .control.ownership import OwnershipManager
 from .control.utils import get_targets
 
 
-ROOT = Path(__file__).resolve().parents[2]
-CONTROL_VARIABLE_MAP_FILE = ROOT / "data" / "control_variable_map.json"
+CONTROL_VARIABLE_MAP_FILE = storage_path("control_variable_map.json")
 SAFETY_OWNER = "safety"
 MANUAL_OWNER = "operator"
 DATASOURCE_ADMIN_PORT = 8766

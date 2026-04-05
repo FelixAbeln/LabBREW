@@ -33,6 +33,7 @@ Options:
                            Default (non-interactive): https://github.com/FelixAbeln/LabBREW.git
   --git-ref REF           Optional git branch/tag/commit to check out after clone.
   --install-dir PATH      Target install directory. Default: /opt/labbrew
+                          Interactive mode can show mounted locations and pick one.
   --service-name NAME     systemd unit name. Default: labbrew-supervisor
   --run-user USER         Dedicated service user. Default: labbrew
   --node-id ID            Fermenter node id. Default: 01
@@ -138,6 +139,80 @@ prompt_yes_no() {
       printf -v "$variable_name" '0'
       return
     fi
+  done
+}
+
+build_install_location_candidates() {
+  local line mount_point
+  local -n out_ref="$1"
+  declare -A seen=()
+
+  out_ref=()
+
+  for mount_point in /opt /srv /home /mnt /media; do
+    if [[ -d "$mount_point" && -z "${seen[$mount_point]:-}" ]]; then
+      out_ref+=("$mount_point")
+      seen["$mount_point"]=1
+    fi
+  done
+
+  if command -v lsblk >/dev/null 2>&1; then
+    while IFS= read -r line; do
+      mount_point="$(awk '{print $1}' <<< "$line")"
+      [[ -z "$mount_point" ]] && continue
+      [[ "$mount_point" == "[SWAP]" ]] && continue
+      [[ ! -d "$mount_point" ]] && continue
+      if [[ -z "${seen[$mount_point]:-}" ]]; then
+        out_ref+=("$mount_point")
+        seen["$mount_point"]=1
+      fi
+    done < <(lsblk -nrpo MOUNTPOINT,SIZE,FSTYPE,RM 2>/dev/null)
+  fi
+}
+
+prompt_install_dir() {
+  local current_value="$INSTALL_DIR"
+  local answer='' idx=0
+  local -a candidates=()
+
+  if ! is_interactive; then
+    return
+  fi
+
+  build_install_location_candidates candidates
+
+  printf '\nAvailable install locations (current: %s):\n' "$current_value"
+  printf '  0) Keep current (%s)\n' "$current_value"
+  for idx in "${!candidates[@]}"; do
+    printf '  %d) %s/labbrew\n' "$((idx + 1))" "${candidates[$idx]}"
+  done
+
+  if command -v lsblk >/dev/null 2>&1; then
+    printf '\nMounted block devices:\n'
+    lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT,RM || true
+  fi
+
+  while true; do
+    read -r -p "Select location number, enter absolute path, or press Enter to keep current: " answer
+    if [[ -z "$answer" || "$answer" == '0' ]]; then
+      return
+    fi
+
+    if [[ "$answer" =~ ^[0-9]+$ ]]; then
+      if (( answer >= 1 && answer <= ${#candidates[@]} )); then
+        INSTALL_DIR="${candidates[$((answer - 1))]}/labbrew"
+        return
+      fi
+      printf 'Invalid selection. Choose 0-%d.\n' "${#candidates[@]}"
+      continue
+    fi
+
+    if [[ "$answer" = /* ]]; then
+      INSTALL_DIR="$answer"
+      return
+    fi
+
+    printf 'Please enter a valid selection or an absolute path (example: /mnt/usb/labbrew).\n'
   done
 }
 
@@ -336,6 +411,7 @@ resolve_source_dir() {
 }
 
 run_wizard() {
+  prompt_install_dir
   prompt_default NODE_ID 'Fermenter node id' "$NODE_ID"
   prompt_default NODE_NAME 'Fermenter display name' "$NODE_NAME"
   if [[ -z "$PI_HOSTNAME" ]]; then

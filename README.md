@@ -190,6 +190,30 @@ python run_FrontEndsupervisor.py
 
 Node topology is configured in [`data/system_topology.yaml`](./data/system_topology.yaml). An example fermentation schedule is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
 
+### Global Storage / Topology Override
+
+You can move runtime files (snapshots, audits, rules, schedule state, measurements, source configs) to another drive, such as a USB stick, by setting environment variables before launch.
+
+```bash
+# Optional: move all runtime storage to another location
+export LABBREW_STORAGE_ROOT=/mnt/usb/labbrew-data
+
+# Optional: override topology file location explicitly
+export LABBREW_TOPOLOGY_PATH=/mnt/usb/labbrew-data/system_topology.yaml
+
+python run_supervisor.py
+```
+
+Windows PowerShell example:
+
+```powershell
+$env:LABBREW_STORAGE_ROOT = "E:\labbrew-data"
+$env:LABBREW_TOPOLOGY_PATH = "E:\labbrew-data\system_topology.yaml"
+python .\run_supervisor.py
+```
+
+If `LABBREW_STORAGE_ROOT` is not set, existing `./data/...` defaults are used.
+
 ### Raspberry Pi Backend Install
 
 To install the backend stack on a Raspberry Pi without the React frontend, you can either run the installer from a checked-out repository or let it clone the repository from GitHub and walk you through setup.

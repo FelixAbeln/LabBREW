@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import ScheduleDefinition
+from .._shared.storage_paths import storage_path
 
 _STALE_TMP_AGE_SECS: float = 60.0  # Only delete temp files older than this threshold
 
@@ -32,8 +33,7 @@ class InMemoryScheduleRepository:
 class JsonScheduleStateStore:
     def __init__(self, path: str | Path | None = None) -> None:
         if path is None:
-            ROOT = Path(__file__).resolve().parents[2]
-            state_file = ROOT / "data" / "schedule_state.json"
+            state_file = storage_path("schedule_state.json")
         else:
             state_file = Path(path)
         self.path = Path(state_file)
