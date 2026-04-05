@@ -136,6 +136,15 @@ input {
   opacity: 0.98;
 }
 
+/* Prevent the hidden (off-canvas) part of the collapsed sidebar from stealing clicks. */
+.sidebar-dock.is-collapsed {
+  pointer-events: none;
+}
+
+.sidebar-dock.is-collapsed .sidebar-dock-toggle {
+  pointer-events: auto;
+}
+
 .sidebar-dock-toggle {
   position: absolute;
   right: -12px;

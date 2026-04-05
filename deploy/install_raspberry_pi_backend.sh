@@ -26,6 +26,7 @@ The script:
   - writes and enables a systemd service for the topology supervisor
   - verifies that the service starts and the local agent API answers
   - can set the Pi hostname to match the fermenter name
+  - in interactive mode, scans existing _fcs._tcp services and suggests a unique node identity
 
 Options:
   --source-dir PATH       Source repository to install from.
@@ -140,6 +141,118 @@ prompt_yes_no() {
       return
     fi
   done
+}
+
+discover_existing_fcs_services() {
+  local -n out_ref="$1"
+  out_ref=()
+
+  if ! command -v avahi-browse >/dev/null 2>&1; then
+    return
+  fi
+
+  while IFS= read -r service_name; do
+    [[ -n "$service_name" ]] || continue
+    out_ref+=("$service_name")
+  done < <(
+    avahi-browse -rt _fcs._tcp --parsable 2>/dev/null \
+      | awk -F';' '$1=="=" && $4!="" { print $4 }' \
+      | sort -u
+  )
+}
+
+extract_service_id_hint() {
+  local service_name="$1"
+  local hint=''
+
+  if [[ "$service_name" =~ \(([0-9]{1,3})\)$ ]]; then
+    hint="${BASH_REMATCH[1]}"
+  elif [[ "$service_name" =~ (^|[^0-9])([0-9]{1,3})$ ]]; then
+    hint="${BASH_REMATCH[2]}"
+  fi
+
+  printf '%s\n' "$hint"
+}
+
+suggest_unique_node_identity() {
+  local -a discovered_services=()
+  local service_name=''
+  local id_hint=''
+  local node_id_width=2
+  local start_id=1
+  local candidate=1
+  local padded=''
+  local -A used_names=()
+  local -A used_ids=()
+
+  if ! is_interactive; then
+    return
+  fi
+
+  discover_existing_fcs_services discovered_services
+  if (( ${#discovered_services[@]} == 0 )); then
+    return
+  fi
+
+  printf '\nDetected existing _fcs._tcp services on the network:\n'
+  for service_name in "${discovered_services[@]}"; do
+    printf '  - %s\n' "$service_name"
+    used_names["$service_name"]=1
+    id_hint="$(extract_service_id_hint "$service_name")"
+    if [[ -n "$id_hint" ]]; then
+      used_ids["$id_hint"]=1
+    fi
+  done
+
+  if [[ "$NODE_ID" =~ ^[0-9]+$ ]]; then
+    node_id_width=${#NODE_ID}
+    start_id=$((10#$NODE_ID))
+    candidate=$start_id
+    while true; do
+      padded="$(printf "%0${node_id_width}d" "$candidate")"
+      if [[ -z "${used_ids[$padded]:-}" && -z "${used_ids[$candidate]:-}" ]]; then
+        NODE_ID="$padded"
+        break
+      fi
+      candidate=$((candidate + 1))
+      if (( candidate > 999 )); then
+        break
+      fi
+    done
+  fi
+
+  if [[ -n "${used_names[$NODE_NAME]:-}" ]]; then
+    local base_name="${NODE_NAME}-${NODE_ID}"
+    local candidate_name="$base_name"
+    local name_suffix=2
+    while [[ -n "${used_names[$candidate_name]:-}" ]]; do
+      candidate_name="${base_name}-${name_suffix}"
+      name_suffix=$((name_suffix + 1))
+      if (( name_suffix > 999 )); then
+        break
+      fi
+    done
+    NODE_NAME="$candidate_name"
+  fi
+
+  printf 'Suggested node identity: NODE_ID=%s NODE_NAME=%s\n' "$NODE_ID" "$NODE_NAME"
+}
+
+warn_if_node_identity_conflicts() {
+  local -a discovered_services=()
+
+  if ! is_interactive; then
+    return
+  fi
+
+  discover_existing_fcs_services discovered_services
+  if (( ${#discovered_services[@]} == 0 )); then
+    return
+  fi
+
+  if printf '%s\n' "${discovered_services[@]}" | grep -Fxq "$NODE_NAME"; then
+    warn "NODE_NAME '$NODE_NAME' already appears on the network and may cause mDNS conflicts."
+  fi
 }
 
 build_install_location_candidates() {
@@ -412,8 +525,32 @@ resolve_source_dir() {
 
 run_wizard() {
   prompt_install_dir
-  prompt_default NODE_ID 'Fermenter node id' "$NODE_ID"
-  prompt_default NODE_NAME 'Fermenter display name' "$NODE_NAME"
+
+  local original_node_id="$NODE_ID"
+  local original_node_name="$NODE_NAME"
+  local suggested_node_id="$NODE_ID"
+  local suggested_node_name="$NODE_NAME"
+  local node_id_default="$NODE_ID"
+  local node_name_default="$NODE_NAME"
+
+  if [[ -z "$original_node_id" || -z "$original_node_name" ]]; then
+    suggest_unique_node_identity
+    suggested_node_id="$NODE_ID"
+    suggested_node_name="$NODE_NAME"
+    NODE_ID="$original_node_id"
+    NODE_NAME="$original_node_name"
+  fi
+
+  if [[ -z "$node_id_default" ]]; then
+    node_id_default="$suggested_node_id"
+  fi
+  if [[ -z "$node_name_default" ]]; then
+    node_name_default="$suggested_node_name"
+  fi
+
+  prompt_default NODE_ID 'Fermenter node id' "$node_id_default"
+  prompt_default NODE_NAME 'Fermenter display name' "$node_name_default"
+  warn_if_node_identity_conflicts
   if [[ -z "$PI_HOSTNAME" ]]; then
     PI_HOSTNAME="$(sanitize_hostname "$NODE_NAME")"
   fi

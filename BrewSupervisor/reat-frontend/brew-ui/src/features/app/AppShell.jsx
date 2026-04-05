@@ -40,16 +40,20 @@ export function AppShell({
   useEffect(() => {
     if (sidebarHidden) return undefined;
 
-    function handleOutsidePointerDown(event) {
+    function handleOutsideClick(event) {
       const dock = sidebarDockRef.current;
       if (!dock) return;
+      const target = event.target;
+      if (target && typeof target.closest === 'function') {
+        if (target.closest('[data-no-sidebar-autoclose="true"]')) return;
+      }
       if (dock.contains(event.target)) return;
       setSidebarHidden(true);
     }
 
-    window.addEventListener('pointerdown', handleOutsidePointerDown);
+    window.addEventListener('click', handleOutsideClick);
     return () => {
-      window.removeEventListener('pointerdown', handleOutsidePointerDown);
+      window.removeEventListener('click', handleOutsideClick);
     };
   }, [sidebarHidden]);
 
