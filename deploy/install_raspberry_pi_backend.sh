@@ -222,7 +222,17 @@ suggest_unique_node_identity() {
   fi
 
   if [[ -n "${used_names[$NODE_NAME]:-}" ]]; then
-    NODE_NAME="${NODE_NAME}-${NODE_ID}"
+    local base_name="${NODE_NAME}-${NODE_ID}"
+    local candidate_name="$base_name"
+    local name_suffix=2
+    while [[ -n "${used_names[$candidate_name]:-}" ]]; do
+      candidate_name="${base_name}-${name_suffix}"
+      name_suffix=$((name_suffix + 1))
+      if (( name_suffix > 999 )); then
+        break
+      fi
+    done
+    NODE_NAME="$candidate_name"
   fi
 
   printf 'Suggested node identity: NODE_ID=%s NODE_NAME=%s\n' "$NODE_ID" "$NODE_NAME"

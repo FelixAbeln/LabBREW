@@ -251,6 +251,14 @@ If you use the `brewtools_kvaser` datasource, the remaining manual step is insta
 
 Follow this guide for the full Pi driver build/install workflow: [Kvaser CANlib Setup on Raspberry Pi (Leaf v3)](./docs/implementation/kvaser_pi_setup_updated.md).
 
+For serial-port access on Raspberry Pi, add the service user (and optionally the default `pi` user) to `dialout`, then reboot:
+
+```bash
+sudo usermod -aG dialout labbrew
+sudo usermod -aG dialout pi
+sudo reboot
+```
+
 ---
 
 ---

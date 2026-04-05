@@ -148,17 +148,25 @@ Function canIoCtl failed - Error in parameter [Error Code -1]
 
 ### Fix
 
-Edit:
+Locate the installed file path first (works across Python minor versions):
 
-```
-/opt/labbrew/.venv/lib/python3.13/site-packages/can/interfaces/kvaser/canlib.py
+```bash
+CANLIB_PY="$(python - <<'PY'
+import inspect
+import can.interfaces.kvaser.canlib as mod
+print(inspect.getfile(mod))
+PY
+)"
+echo "$CANLIB_PY"
 ```
 
 Backup:
 
 ```bash
-sudo cp canlib.py canlib.py.bak
+sudo cp "$CANLIB_PY" "$CANLIB_PY.bak"
 ```
+
+Then edit `$CANLIB_PY`.
 
 Comment out the LOCAL_TXACK block:
 
