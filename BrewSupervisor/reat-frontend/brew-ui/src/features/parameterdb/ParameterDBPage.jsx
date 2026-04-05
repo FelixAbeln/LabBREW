@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { exportSnapshotFile, fetchParams, fetchGraph, fetchStats, fetchParamTypes, importSnapshotFile } from './loaders.js';
+import {
+  exportSnapshotFile,
+  fetchParams,
+  fetchGraph,
+  fetchStats,
+  fetchParamTypes,
+  importSnapshotFile,
+  fetchControlContract,
+  pinControlParameter,
+  unpinControlParameter,
+} from './loaders.js';
 import { ParameterList } from './ParameterList.jsx';
 import { ParameterGraph } from './ParameterGraph.jsx';
 import { SourcesPanel } from './SourcesPanel.jsx';
@@ -14,6 +24,9 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
   const [paramTypes, setParamTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [pinBusyTarget, setPinBusyTarget] = useState('');
+  const [pinnedTargets, setPinnedTargets] = useState(new Set());
+  const [pinError, setPinError] = useState('');
   const [error, setError] = useState('');
   const pollRef = useRef(null);
   const snapshotFileInputRef = useRef(null);
@@ -29,14 +42,26 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
   const refresh = useCallback(async () => {
     if (!fermenterId) return;
     try {
-      const [pRes, gRes, sRes] = await Promise.all([
+      const [pRes, gRes, sRes, cRes] = await Promise.all([
         fetchParams(fermenterId),
         fetchGraph(fermenterId),
         fetchStats(fermenterId),
+        fetchControlContract(fermenterId),
       ]);
       setParams(pRes?.params ?? {});
       setGraph(gRes?.graph ?? null);
       setStats(sRes?.stats ?? null);
+
+      const controlTargets = new Set();
+      const resolvedControls = Array.isArray(cRes?.resolved_controls) ? cRes.resolved_controls : [];
+      resolvedControls.forEach(item => {
+        const target = typeof item?.target === 'string' ? item.target.trim() : '';
+        if (target) {
+          controlTargets.add(target);
+        }
+      });
+      setPinnedTargets(controlTargets);
+      setPinError('');
       setError('');
     } catch (e) {
       setError(String(e));
@@ -101,6 +126,29 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
       setError(`Snapshot import failed: ${String(e)}`);
     } finally {
       setSnapshotBusy(false);
+    }
+  }
+
+  async function handleTogglePin(target, isPinned) {
+    if (!fermenterId || !target || pinBusyTarget) {
+      return;
+    }
+    setPinBusyTarget(target);
+    setPinError('');
+    try {
+      if (isPinned) {
+        await unpinControlParameter(fermenterId, target);
+      } else {
+        await pinControlParameter(fermenterId, {
+          target,
+          pin_scope: 'manual',
+        });
+      }
+      await refresh();
+    } catch (e) {
+      setPinError(String(e));
+    } finally {
+      setPinBusyTarget('');
     }
   }
 
@@ -181,6 +229,10 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
             params={params}
             graph={graph}
             paramTypes={paramTypes}
+            pinnedTargets={pinnedTargets}
+            pinBusyTarget={pinBusyTarget}
+            pinError={pinError}
+            onTogglePin={handleTogglePin}
             onRefresh={refresh}
           />
         ) : view === 'graph' ? (

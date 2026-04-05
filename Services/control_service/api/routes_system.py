@@ -81,6 +81,8 @@ def schema():
         "manual_control": {
             "write_path": "/control/manual-write",
             "release_path": "/control/release-manual",
+            "pin_path": "/control/manual-map/pin",
+            "unpin_path": "/control/manual-map/unpin",
             "manual_owner": "operator",
             "protected_owner": "safety",
         },

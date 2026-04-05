@@ -7,6 +7,9 @@ function base(fermenterId) {
 export async function fetchParams(fermenterId)       { return api(`${base(fermenterId)}/params`); }
 export async function fetchGraph(fermenterId)        { return api(`${base(fermenterId)}/graph`); }
 export async function fetchStats(fermenterId)        { return api(`${base(fermenterId)}/stats`); }
+export async function fetchControlContract(fermenterId) {
+  return api(`/fermenters/${encodeURIComponent(fermenterId)}/system/control-contract`);
+}
 export async function exportSnapshotFile(fermenterId){ return api(`${base(fermenterId)}/snapshot-file`); }
 export async function importSnapshotFile(fermenterId, snapshot, options = {}) {
   return api(`${base(fermenterId)}/snapshot-file`, {
@@ -80,6 +83,20 @@ export async function updateSource(fermenterId, name, config) {
 
 export async function deleteSource(fermenterId, name) {
   return api(`${base(fermenterId)}/sources/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
+export async function pinControlParameter(fermenterId, payload) {
+  return api(`/fermenters/${encodeURIComponent(fermenterId)}/control/manual-map/pin`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function unpinControlParameter(fermenterId, target) {
+  return api(`/fermenters/${encodeURIComponent(fermenterId)}/control/manual-map/unpin`, {
+    method: 'POST',
+    body: JSON.stringify({ target }),
+  });
 }
 
 // Parameter names can contain dots (e.g. twin.connected) – encode each segment

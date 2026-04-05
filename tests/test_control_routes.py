@@ -33,6 +33,8 @@ class StubRuntime:
         self.backend = SimpleNamespace(snapshot=lambda targets: {name: 12.5 for name in targets})
         self.manual_calls: list[dict[str, object]] = []
         self.release_manual_targets: list[list[str] | None] = []
+        self.pin_calls: list[dict[str, object]] = []
+        self.unpin_calls: list[str] = []
         self.ramp_calls: list[tuple[dict[str, object], dict[str, float]]] = []
         self.request_calls: list[tuple[str, str]] = []
         self.release_calls: list[tuple[str, str]] = []
@@ -84,6 +86,14 @@ class StubRuntime:
     def release_manual_controls(self, *, targets: list[str] | None) -> dict[str, object]:
         self.release_manual_targets.append(targets)
         return {"ok": True, "targets": targets}
+
+    def pin_control_parameter(self, **payload: object) -> dict[str, object]:
+        self.pin_calls.append(payload)
+        return {"ok": True, **payload}
+
+    def unpin_control_parameter(self, *, target: str) -> dict[str, object]:
+        self.unpin_calls.append(target)
+        return {"ok": True, "target": target}
 
     def start_ramp(self, data: dict[str, object], *, values: dict[str, float]) -> dict[str, object]:
         self.ramp_calls.append((data, values))
@@ -187,6 +197,36 @@ def test_basic_control_endpoints_delegate_to_runtime() -> None:
     assert runtime.clear_calls == 1
     assert runtime.read_calls == ["t1"]
     assert runtime.write_calls == [{"target": "t1", "value": 7.5, "owner": "alice"}]
+
+
+def test_manual_map_pin_delegates_to_runtime() -> None:
+    runtime = StubRuntime()
+    response = _client(runtime).post(
+        "/control/manual-map/pin",
+        json={
+            "target": "reactor.temp.setpoint",
+            "label": "Temp",
+            "group": "manual",
+            "pin_scope": "manual",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert runtime.pin_calls[-1]["target"] == "reactor.temp.setpoint"
+    assert runtime.pin_calls[-1]["label"] == "Temp"
+
+
+def test_manual_map_unpin_delegates_to_runtime() -> None:
+    runtime = StubRuntime()
+    response = _client(runtime).post(
+        "/control/manual-map/unpin",
+        json={"target": "reactor.temp.setpoint"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "target": "reactor.temp.setpoint"}
+    assert runtime.unpin_calls == ["reactor.temp.setpoint"]
 
 
 def test_ramp_requires_owner() -> None:
