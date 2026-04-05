@@ -249,6 +249,8 @@ The GitHub update feature does not require the React frontend. On a command-line
 
 If you use the `brewtools_kvaser` datasource, the remaining manual step is installing the vendor Kvaser Linux CANlib driver/userspace on the Pi. That part is not automated by this repository because it depends on vendor-distributed software outside the project.
 
+Follow this guide for the full Pi driver build/install workflow: [Kvaser CANlib Setup on Raspberry Pi (Leaf v3)](./docs/implementation/kvaser_pi_setup_updated.md).
+
 ---
 
 ---
