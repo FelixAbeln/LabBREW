@@ -41,21 +41,27 @@ def storage_path_text(default_relative_path: str) -> str:
         return default_relative_path
 
     normalized = default_relative_path.strip().replace("\\", "/")
-    normalized = normalized.lstrip("./")
+    if normalized.startswith("./data/"):
+        normalized = normalized.removeprefix("./data/")
+    elif normalized.startswith("data/"):
+        normalized = normalized.removeprefix("data/")
+    elif normalized.startswith("./"):
+        normalized = normalized.removeprefix("./")
+
     return str((root / normalized).resolve())
 
 
 def default_parameterdb_snapshot_path() -> str:
-    return storage_path_text("./data/parameterdb_snapshot.json")
+    return storage_path_text("parameterdb_snapshot.json")
 
 
 def default_parameterdb_audit_path() -> str:
-    return storage_path_text("./data/parameterdb_audit.jsonl")
+    return storage_path_text("parameterdb_audit.jsonl")
 
 
 def default_sources_dir() -> str:
-    return storage_path_text("./data/sources")
+    return storage_path_text("sources")
 
 
 def default_measurements_dir() -> str:
-    return storage_path_text("data/measurements")
+    return storage_path_text("measurements")
