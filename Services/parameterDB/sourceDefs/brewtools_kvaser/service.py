@@ -86,11 +86,12 @@ class BrewtoolsKvaserSource(DataSourceBase):
         *,
         value: Any = None,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> bool:
         if name in self._known_parameters:
-            return
+            return False
         self.ensure_parameter(name, parameter_type, value=value, metadata=metadata)
         self._known_parameters.add(name)
+        return True
 
     def _connect_bus(self):
         if self._bus is not None:
@@ -204,12 +205,27 @@ class BrewtoolsKvaserSource(DataSourceBase):
                     continue
         return sorted({node for node in result if node >= 0})
 
+    def _pressure_nodes(self) -> list[int]:
+        raw = self.config.get("pressure_nodes") or []
+        result: list[int] = []
+        if isinstance(raw, Iterable) and not isinstance(raw, (str, bytes, dict)):
+            for item in raw:
+                try:
+                    result.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+        return sorted({node for node in result if node >= 0})
+
     def _agitator_allowed(self, node_id: int) -> bool:
         allowed = set(self._agitator_nodes())
         return not allowed or int(node_id) in allowed
 
     def _density_allowed(self, node_id: int) -> bool:
         allowed = set(self._density_nodes())
+        return not allowed or int(node_id) in allowed
+
+    def _pressure_allowed(self, node_id: int) -> bool:
+        allowed = set(self._pressure_nodes())
         return not allowed or int(node_id) in allowed
 
     def _ensure_agitator_param(self, node_id: int) -> None:
@@ -302,7 +318,7 @@ class BrewtoolsKvaserSource(DataSourceBase):
 
     def _note_pressure_node(self, node_id: int) -> None:
         node_id = int(node_id)
-        if node_id < 0:
+        if node_id < 0 or not self._pressure_allowed(node_id):
             return
         if node_id not in self._seen_pressure_nodes:
             self._seen_pressure_nodes.add(node_id)
@@ -499,6 +515,7 @@ class BrewtoolsKvaserSourceSpec(DataSourceSpec):
             "density_request_interval_s": 2.0,
             "parameter_prefix": "brewcan",
             "density_nodes": [],
+            "pressure_nodes": [],
             "agitator_nodes": [],
             "initial_pwm": 0.0,
         }
