@@ -84,7 +84,7 @@ def _get_control_spec(record: dict | None = None) -> dict:
         "spec_version": 1,
         "source_type": "brewtools_kvaser",
         "display_name": "Brewtools CAN (Kvaser)",
-        "description": "Writable agitator PWM controls and density calibration triggers.",
+        "description": "Writable agitator PWM controls, density calibration triggers, and pressure sensor zeroing controls.",
         "controls": controls,
         "discovery": {
             "fallback_roles": ["command"],

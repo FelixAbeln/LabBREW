@@ -16,7 +16,7 @@
     "last_node_id_param": "",
     "measurement_params": null,
     "parameter_prefix": "brewcan",
-    "pressure_nodes": null,
+    "pressure_nodes": [],
     "reconnect_delay_s": 2,
     "recv_timeout_s": 0.1
   },
