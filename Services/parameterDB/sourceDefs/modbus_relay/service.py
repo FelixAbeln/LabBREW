@@ -263,26 +263,32 @@ class ModbusRelaySource(DataSourceBase):
         for channel, actual_state in refreshed.items():
             if bool(desired.get(channel, False)) == bool(post_desired.get(channel, False)):
                 # No concurrent write on this channel: safe to publish actual board state.
-                self.client.set_value(self._channel_param(channel), actual_state)
+                self.client.set_value(self._channel_param(channel), bool(actual_state))
             # else: a write arrived mid-cycle; leave paramDB intact so the next
             # cycle picks up the new desired value and applies it to the board.
 
         self._set_status("connected", True)
         self._set_status("last_error", "")
-        self._set_status("last_sync", __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat().replace("+00:00", "Z"))
+        self._set_status("last_sync", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
 
     def _watch_for_writes(self) -> None:
         """Background thread: subscribes to channel params and sets _wakeup on any write."""
         channel_params = [self._channel_param(ch) for ch in range(1, self._channel_count() + 1)]
-        try:
-            with self.client.subscribe(names=channel_params, send_initial=False) as sub:
-                for _msg in sub:
-                    if self.should_stop():
-                        break
-                    self._wakeup.set()
-        except Exception:
-            pass  # If subscription fails, the polling fallback still runs.
+        retry_delay = float(self.config.get("reconnect_delay_s", 2.0))
 
+        while not self.should_stop():
+            try:
+                with self.client.subscribe(names=channel_params, send_initial=False) as sub:
+                    for _msg in sub:
+                        if self.should_stop():
+                            break
+                        self._wakeup.set()
+            except Exception as exc:
+                self._set_error(f"Write watcher subscription failed: {exc}")
+                # Polling fallback still runs; retry so transient subscription errors
+                # do not permanently disable the fast-path.
+                if self.sleep(retry_delay):
+                    break
     def run(self) -> None:
         interval = float(self.config.get("update_interval_s", 0.25))
         reconnect_delay = float(self.config.get("reconnect_delay_s", 2.0))
