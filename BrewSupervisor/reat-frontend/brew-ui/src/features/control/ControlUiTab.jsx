@@ -17,6 +17,53 @@ function hasDraft(drafts, target) {
   return Object.prototype.hasOwnProperty.call(drafts, target)
 }
 
+function nodeFromTarget(target, kind) {
+  if (!target) return null
+  const match = String(target).match(new RegExp(`\\.${kind}\\.(\\d+)\\.`))
+  if (!match) return null
+  return Number.parseInt(match[1], 10)
+}
+
+function friendlyControlLabel(control, target) {
+  const explicit = String(control?.label || '').trim()
+  if (explicit && explicit !== target) return explicit
+
+  const densityNode = nodeFromTarget(target, 'density')
+  if (densityNode !== null && target.endsWith('.calibrate')) return `Density Calibration Node ${densityNode}`
+
+  const pressureNode = nodeFromTarget(target, 'pressure')
+  if (pressureNode !== null && target.endsWith('.calibrate')) return `Pressure Zero Node ${pressureNode}`
+
+  const agitatorNode = nodeFromTarget(target, 'agitator')
+  if (agitatorNode !== null && target.endsWith('.set_pwm')) return `Agitator PWM Node ${agitatorNode}`
+
+  const parts = String(target || '').split('.').filter(Boolean)
+  if (!parts.length) return '-'
+  const tail = parts.slice(-2).join(' ')
+  return tail.replace(/_/g, ' ')
+}
+
+function friendlyActionLabel(control, target) {
+  const explicit = String(control?.label || '').trim()
+  const writeKind = String(control?.write?.kind || '')
+  const widget = String(control?.widget || '')
+
+  if (explicit && explicit !== target) {
+    if (widget === 'number_button') return explicit
+    if (widget === 'button' || writeKind === 'pulse') return explicit
+  }
+
+  const densityNode = nodeFromTarget(target, 'density')
+  if (densityNode !== null && target.endsWith('.calibrate')) return `Calibrate Density ${densityNode}`
+
+  const pressureNode = nodeFromTarget(target, 'pressure')
+  if (pressureNode !== null && target.endsWith('.calibrate')) return `Zero Pressure ${pressureNode}`
+
+  if (widget === 'toggle' || writeKind === 'bool') return 'Toggle'
+  if (widget === 'button' || writeKind === 'pulse') return 'Run'
+  return 'Apply'
+}
+
 export function ControlUiTab({
   selected,
   controlUiSpec,
@@ -151,14 +198,22 @@ export function ControlUiTab({
                         const writeKind = control?.write?.kind || ''
                         const widget = control?.widget || ''
                         const currentValue = control?.current_value
+                        const controlLabel = friendlyControlLabel(control, target)
+                        const actionLabel = friendlyActionLabel(control, target)
+                        const isStackedLayout = widget === 'number_button' || widget === 'button' || writeKind === 'pulse' || widget === 'toggle' || writeKind === 'bool' || widget === 'number' || writeKind === 'number'
                         const draftExists = target && hasDraft(controlDrafts, target)
                         const draftValue = draftExists ? controlDrafts[target] : currentValue
                         const isWriting = controlWriteTarget === target
 
+                        // number_button companion field values (hoisted to avoid IIFE inside JSX)
+                        const vtTarget = widget === 'number_button' ? String(control?.value_target || '').trim() : ''
+                        const vtDraftExists = vtTarget && hasDraft(controlDrafts, vtTarget)
+                        const vtDraftValue = vtDraftExists ? controlDrafts[vtTarget] : control?.value_target_current_value
+
                         return (
-                          <div key={`${control.id || target}-${target}`} className="control-item-row">
+                          <div key={`${control.id || target}-${target}`} className={`control-item-row${isStackedLayout ? ' control-item-row--stacked' : ''}`}>
                             <div className="control-item-meta">
-                              <strong>{control.label || target}</strong>
+                              <strong>{controlLabel}</strong>
                               <div className="small-text control-item-target">{target || '-'}</div>
                               <div className="small-text">
                                 Current: {formatCurrentValue(currentValue)}
@@ -167,13 +222,33 @@ export function ControlUiTab({
                             </div>
 
                             <div className="control-item-inputs">
-                              {(widget === 'button' || writeKind === 'pulse') ? (
+                              {widget === 'number_button' ? (
+                                <>
+                                  <input
+                                    className="data-control"
+                                    type="number"
+                                    step={control?.value_write?.step ?? 'any'}
+                                    min={control?.value_write?.min}
+                                    max={control?.value_write?.max}
+                                    value={String(vtDraftValue ?? '')}
+                                    placeholder={control.unit || 'value'}
+                                    onChange={(event) => onDraftChange(vtTarget, event.target.value)}
+                                  />
+                                  <button
+                                    className="warning-button"
+                                    disabled={!target || isWriting || controlUiLoading}
+                                    onClick={() => onWrite(control)}
+                                  >
+                                    {isWriting ? 'Sending…' : actionLabel}
+                                  </button>
+                                </>
+                              ) : (widget === 'button' || writeKind === 'pulse') ? (
                                 <button
                                   className="warning-button"
                                   disabled={!target || isWriting || controlUiLoading}
                                   onClick={() => onWrite(control, true)}
                                 >
-                                  {isWriting ? 'Sending…' : (control.label || 'Pulse')}
+                                  {isWriting ? 'Sending…' : actionLabel}
                                 </button>
                               ) : (widget === 'toggle' || writeKind === 'bool') ? (
                                 <button

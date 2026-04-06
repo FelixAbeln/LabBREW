@@ -43,6 +43,14 @@
   min-width: 0;
 }
 
+.control-item-row--stacked {
+  grid-template-columns: 1fr;
+}
+
+.control-item-row--stacked .control-item-inputs {
+  justify-content: flex-end;
+}
+
 .control-item-meta strong {
   display: block;
   overflow-wrap: anywhere;
@@ -94,6 +102,10 @@
   .control-item-inputs {
     justify-content: flex-start;
     padding-top: 6px;
+  }
+
+  .control-item-row--stacked .control-item-inputs {
+    justify-content: flex-end;
   }
 }
 

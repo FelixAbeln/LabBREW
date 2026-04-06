@@ -633,20 +633,25 @@ class ControlRuntime:
                     param = parameters_by_name.get(target)
                     map_hint = controls_by_target.get(target, [])
                     map_item = map_hint[0] if map_hint else {}
-                    control_items.append(
-                        {
-                            "id": control.get("id") or map_item.get("id") or target,
-                            "label": map_item.get("label") or control.get("label") or target,
-                            "target": target,
-                            "widget": map_item.get("widget") or control.get("widget") or "text",
-                            "unit": map_item.get("unit") or control.get("unit") or (param.get("unit") if isinstance(param, dict) else None),
-                            "write": control.get("write") if isinstance(control.get("write"), dict) else {},
-                            "role": control.get("role") or (param.get("role") if isinstance(param, dict) else None),
-                            "current_value": param.get("value") if isinstance(param, dict) else None,
-                            "source": "sourcedef",
-                            "mapped": bool(map_item),
-                        }
-                    )
+                    value_target = str(control.get("value_target", "")).strip()
+                    vt_param = parameters_by_name.get(value_target) if value_target else None
+                    item: dict[str, Any] = {
+                        "id": control.get("id") or map_item.get("id") or target,
+                        "label": map_item.get("label") or control.get("label") or target,
+                        "target": target,
+                        "widget": map_item.get("widget") or control.get("widget") or "text",
+                        "unit": map_item.get("unit") or control.get("unit") or (param.get("unit") if isinstance(param, dict) else None),
+                        "write": control.get("write") if isinstance(control.get("write"), dict) else {},
+                        "role": control.get("role") or (param.get("role") if isinstance(param, dict) else None),
+                        "current_value": param.get("value") if isinstance(param, dict) else None,
+                        "source": "sourcedef",
+                        "mapped": bool(map_item),
+                    }
+                    if value_target:
+                        item["value_target"] = value_target
+                        item["value_write"] = control.get("value_write") if isinstance(control.get("value_write"), dict) else None
+                        item["value_target_current_value"] = vt_param.get("value") if isinstance(vt_param, dict) else None
+                    control_items.append(item)
 
                 for parameter in parameters:
                     role = str(parameter.get("role") or "").strip().lower()
@@ -655,7 +660,29 @@ class ControlRuntime:
                         continue
                     seen_targets.add(target)
                     value = parameter.get("value")
-                    if isinstance(value, bool):
+                    meta = parameter.get("metadata") or {}
+                    meta_widget_hint = str(meta.get("widget_hint") or "").strip()
+                    meta_value_target = str(meta.get("value_target") or "").strip()
+                    extra: dict[str, Any] = {}
+                    if meta_widget_hint == "number_button" and meta_value_target:
+                        widget = "number_button"
+                        write = {"kind": "pulse", "value": True}
+                        vt_param = parameters_by_name.get(meta_value_target)
+                        extra = {
+                            "value_target": meta_value_target,
+                            "value_write": {
+                                "kind": "number",
+                                "min": meta.get("value_write_min"),
+                                "max": meta.get("value_write_max"),
+                                "step": meta.get("value_write_step"),
+                            },
+                            "value_target_current_value": vt_param.get("value") if isinstance(vt_param, dict) else None,
+                        }
+                        seen_targets.add(meta_value_target)
+                    elif meta_widget_hint == "button":
+                        widget = "button"
+                        write = {"kind": "pulse", "value": True}
+                    elif isinstance(value, bool):
                         widget = "toggle"
                         write = {"kind": "bool"}
                     elif isinstance(value, (int, float)):
@@ -678,6 +705,7 @@ class ControlRuntime:
                             "current_value": value,
                             "source": "discovered",
                             "mapped": bool(map_item),
+                            **extra,
                         }
                     )
 

@@ -16,6 +16,30 @@ def _get_control_spec(record: dict | None = None) -> dict:
                 nodes.append(node_id)
     nodes = sorted(set(nodes))
 
+    raw_density_nodes = config.get("density_nodes") or []
+    density_nodes: list[int] = []
+    if isinstance(raw_density_nodes, list):
+        for value in raw_density_nodes:
+            try:
+                node_id = int(value)
+            except Exception:
+                continue
+            if node_id >= 0:
+                density_nodes.append(node_id)
+    density_nodes = sorted(set(density_nodes))
+
+    raw_pressure_nodes = config.get("pressure_nodes") or []
+    pressure_nodes: list[int] = []
+    if isinstance(raw_pressure_nodes, list):
+        for value in raw_pressure_nodes:
+            try:
+                node_id = int(value)
+            except Exception:
+                continue
+            if node_id >= 0:
+                pressure_nodes.append(node_id)
+    pressure_nodes = sorted(set(pressure_nodes))
+
     controls = [
         {
             "id": f"agitator_pwm_{node_id}",
@@ -28,13 +52,39 @@ def _get_control_spec(record: dict | None = None) -> dict:
             "node_id": node_id,
         }
         for node_id in nodes
+    ] + [
+        {
+            "id": f"density_calibrate_{node_id}",
+            "label": f"Calibrate Density Node {node_id}",
+            "target": f"{prefix}.density.{node_id}.calibrate",
+            "value_target": f"{prefix}.density.{node_id}.calibrate_sg",
+            "widget": "number_button",
+            "unit": "SG",
+            "write": {"kind": "pulse", "value": True},
+            "value_write": {"kind": "number", "min": 0.900, "max": 1.200, "step": 0.001},
+            "role": "command",
+            "node_id": node_id,
+        }
+        for node_id in density_nodes
+    ] + [
+        {
+            "id": f"pressure_calibrate_{node_id}",
+            "label": f"Zero Pressure Sensor (Node {node_id})",
+            "target": f"{prefix}.pressure.{node_id}.calibrate",
+            "widget": "button",
+            "write": {"kind": "pulse", "value": True},
+            "role": "command",
+            "node_id": node_id,
+            "hint": "Ensure sensor is at atmospheric pressure before zeroing.",
+        }
+        for node_id in pressure_nodes
     ]
 
     return {
         "spec_version": 1,
         "source_type": "brewtools_kvaser",
         "display_name": "Brewtools CAN (Kvaser)",
-        "description": "Writable agitator PWM controls.",
+        "description": "Writable agitator PWM controls and density calibration triggers.",
         "controls": controls,
         "discovery": {
             "fallback_roles": ["command"],
@@ -77,6 +127,7 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                     "density_request_interval_s": 2.0,
                     "parameter_prefix": "brewcan",
                     "density_nodes": [],
+                    "pressure_nodes": [],
                     "agitator_nodes": [],
                     "initial_pwm": 0.0,
                 }
@@ -106,6 +157,14 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                         {"key": "config.density_request_interval_s", "label": "Density Request Interval (s)", "type": "float", "required": True},
                     ],
                 },
+                {
+                    "title": "Device Nodes",
+                    "fields": [
+                        {"key": "config.agitator_nodes", "label": "Agitator Node IDs", "type": "json", "required": False, "hint": "e.g. [0, 1]"},
+                        {"key": "config.density_nodes", "label": "Density Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
+                        {"key": "config.pressure_nodes", "label": "Pressure Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
+                    ],
+                },
             ],
         },
         "edit": {
@@ -132,6 +191,14 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                     "fields": [
                         {"key": "config.initial_pwm", "label": "Initial PWM", "type": "float", "required": False},
                         {"key": "config.density_request_interval_s", "label": "Density Request Interval (s)", "type": "float", "required": True},
+                    ],
+                },
+                {
+                    "title": "Device Nodes",
+                    "fields": [
+                        {"key": "config.agitator_nodes", "label": "Agitator Node IDs", "type": "json", "required": False, "hint": "e.g. [0, 1]"},
+                        {"key": "config.density_nodes", "label": "Density Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
+                        {"key": "config.pressure_nodes", "label": "Pressure Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
                     ],
                 },
                 {
