@@ -769,7 +769,11 @@ write_wrapper_script() {
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$ENV_FILE"
+  # Export all sourced values so runtime-only settings (for example LABBREW_GITHUB_TOKEN)
+  # are visible to the supervisor process.
+  set -a
+  source "$ENV_FILE"
+  set +a
 
 exec "$VENV_DIR/bin/labbrew-supervisor" \
   --config "\$CONFIG_PATH" \
