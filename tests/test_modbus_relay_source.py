@@ -280,3 +280,72 @@ def test_watch_for_writes_wakes_source_immediately():
     client.close_subscriptions()
     watcher.join(timeout=0.5)
     assert not watcher.is_alive(), "watcher thread did not exit cleanly"
+
+
+def test_run_wakes_early_on_subscription_event():
+    client = _FakeClient({"relay.ch1": False})
+    src = _make_source(client, channel_count=1)
+    src.config["update_interval_s"] = 30.0
+
+    first_sync = threading.Event()
+    second_sync = threading.Event()
+    sync_times: list[float] = []
+    board = _FakeBoard(channel_count=1)
+
+    src._connect_board = lambda: board
+
+    def fake_sync(_board):
+        sync_times.append(time.perf_counter())
+        if len(sync_times) == 1:
+            first_sync.set()
+        elif len(sync_times) == 2:
+            second_sync.set()
+            src.stop()
+
+    src._sync_once = fake_sync
+
+    runner = threading.Thread(target=src.run, daemon=True)
+    runner.start()
+
+    assert first_sync.wait(timeout=0.5), "run loop never entered first sync"
+
+    started_at = time.perf_counter()
+    client.publish_subscription_message({"name": "relay.ch1", "value": True})
+
+    assert second_sync.wait(timeout=0.5), "subscription event did not wake run loop"
+    assert (time.perf_counter() - started_at) < 0.5, "run loop wakeup took too long"
+
+    client.close_subscriptions()
+    runner.join(timeout=0.5)
+    assert not runner.is_alive(), "run loop did not exit after stop"
+    assert len(sync_times) == 2
+    assert (sync_times[1] - sync_times[0]) < 0.5, "run loop fell back to long polling instead of fast wakeup"
+
+
+def test_run_stop_exits_promptly_during_wait():
+    client = _FakeClient({"relay.ch1": False})
+    src = _make_source(client, channel_count=1)
+    src.config["update_interval_s"] = 30.0
+
+    first_sync = threading.Event()
+    board = _FakeBoard(channel_count=1)
+
+    src._connect_board = lambda: board
+
+    def fake_sync(_board):
+        first_sync.set()
+
+    src._sync_once = fake_sync
+
+    runner = threading.Thread(target=src.run, daemon=True)
+    runner.start()
+
+    assert first_sync.wait(timeout=0.5), "run loop never entered sync before stop"
+
+    started_at = time.perf_counter()
+    src.stop()
+    client.close_subscriptions()
+    runner.join(timeout=0.5)
+
+    assert not runner.is_alive(), "run loop did not exit promptly after stop"
+    assert (time.perf_counter() - started_at) < 0.5, "stop should interrupt the long wait immediately"
