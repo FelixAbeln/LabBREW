@@ -259,7 +259,7 @@ class ModbusRelaySource(DataSourceBase):
         for channel, actual_state in refreshed.items():
             if bool(desired.get(channel, False)) == bool(post_desired.get(channel, False)):
                 # No concurrent write on this channel: safe to publish actual board state.
-                self.client.set_value(self._channel_param(channel), actual_state)
+                self.client.set_value(self._channel_param(channel), bool(actual_state))
             # else: a write arrived mid-cycle; leave paramDB intact so the next
             # cycle picks up the new desired value and applies it to the board.
 
