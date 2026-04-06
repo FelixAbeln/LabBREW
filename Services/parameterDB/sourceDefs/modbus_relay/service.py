@@ -265,7 +265,7 @@ class ModbusRelaySource(DataSourceBase):
 
         self._set_status("connected", True)
         self._set_status("last_error", "")
-        self._set_status("last_sync", __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat().replace("+00:00", "Z"))
+        self._set_status("last_sync", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
 
     def _watch_for_writes(self) -> None:
         """Background thread: subscribes to channel params and sets _wakeup on any write."""
