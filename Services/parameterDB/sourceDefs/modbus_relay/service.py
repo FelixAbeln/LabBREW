@@ -6,7 +6,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
-from ...parameterdb_core.client import SignalClient, SupportsSignalRequests
+from ...parameterdb_core.client import SupportsSignalRequests
 from ...parameterdb_sources.base import DataSourceBase, DataSourceSpec
 
 
@@ -160,6 +160,10 @@ class ModbusRelaySource(DataSourceBase):
         self._board: RelayBoard | None = None
         self._wakeup = threading.Event()
 
+    def stop(self) -> None:
+        super().stop()
+        self._wakeup.set()
+
     def _channel_count(self) -> int:
         return max(1, int(self.config.get("channel_count", 8)))
 
@@ -290,9 +294,11 @@ class ModbusRelaySource(DataSourceBase):
             try:
                 board = self._connect_board()
                 self._sync_once(board)
+                if self.should_stop():
+                    break
                 # Wait for either a push notification (fast path) or the polling interval.
-                self._wakeup.wait(timeout=interval)
                 self._wakeup.clear()
+                self._wakeup.wait(timeout=interval)
             except Exception as exc:
                 self._disconnect_board()
                 self._set_error(str(exc))
