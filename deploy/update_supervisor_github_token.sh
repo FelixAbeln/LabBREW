@@ -117,6 +117,9 @@ BACKUP_PATH="${ENV_FILE}.bak.$(date +%Y%m%d-%H%M%S)"
 cp "$ENV_FILE" "$BACKUP_PATH"
 log "Backup created: $BACKUP_PATH"
 
+ORIG_OWNER="$(stat -c '%u' "$ENV_FILE")"
+ORIG_GROUP="$(stat -c '%g' "$ENV_FILE")"
+
 TMP_FILE="$(mktemp)"
 trap 'rm -f "$TMP_FILE"' EXIT
 
@@ -127,6 +130,9 @@ printf 'LABBREW_GITHUB_TOKEN=%q\n' "$TOKEN" >> "$TMP_FILE"
 
 install -m 640 "$TMP_FILE" "$ENV_FILE"
 unset TOKEN
+
+# Keep original owner/group so the service account can still read this file.
+chown "$ORIG_OWNER:$ORIG_GROUP" "$ENV_FILE"
 
 log "Updated GitHub updater credentials in: $ENV_FILE"
 
