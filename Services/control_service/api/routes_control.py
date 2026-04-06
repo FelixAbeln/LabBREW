@@ -38,9 +38,7 @@ def release(data: dict):
 @router.post("/force-takeover")
 def force_takeover(data: dict):
     runtime = _require_runtime()
-    return runtime.force_takeover(
-        data["target"],
-        data["owner"],
+    return runtime.force_takeover( 
         reason=data.get("reason", ""),
     )
 
