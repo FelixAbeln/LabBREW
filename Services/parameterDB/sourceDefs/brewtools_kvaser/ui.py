@@ -160,9 +160,27 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Device Nodes",
                     "fields": [
-                        {"key": "config.agitator_nodes", "label": "Agitator Node IDs", "type": "json", "required": False, "hint": "e.g. [0, 1]"},
-                        {"key": "config.density_nodes", "label": "Density Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
-                        {"key": "config.pressure_nodes", "label": "Pressure Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
+                        {
+                            "key": "config.agitator_nodes",
+                            "label": "Agitator Node IDs (optional allowlist)",
+                            "type": "json",
+                            "required": False,
+                            "hint": "Use [0, 1] to limit nodes, or [] to allow/discover all.",
+                        },
+                        {
+                            "key": "config.density_nodes",
+                            "label": "Density Sensor Node IDs (optional allowlist)",
+                            "type": "json",
+                            "required": False,
+                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                        },
+                        {
+                            "key": "config.pressure_nodes",
+                            "label": "Pressure Sensor Node IDs (optional allowlist)",
+                            "type": "json",
+                            "required": False,
+                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                        },
                     ],
                 },
             ],
@@ -196,9 +214,27 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Device Nodes",
                     "fields": [
-                        {"key": "config.agitator_nodes", "label": "Agitator Node IDs", "type": "json", "required": False, "hint": "e.g. [0, 1]"},
-                        {"key": "config.density_nodes", "label": "Density Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
-                        {"key": "config.pressure_nodes", "label": "Pressure Sensor Node IDs", "type": "json", "required": False, "hint": "e.g. [0]"},
+                        {
+                            "key": "config.agitator_nodes",
+                            "label": "Agitator Node IDs (optional allowlist)",
+                            "type": "json",
+                            "required": False,
+                            "hint": "Use [0, 1] to limit nodes, or [] to allow/discover all.",
+                        },
+                        {
+                            "key": "config.density_nodes",
+                            "label": "Density Sensor Node IDs (optional allowlist)",
+                            "type": "json",
+                            "required": False,
+                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                        },
+                        {
+                            "key": "config.pressure_nodes",
+                            "label": "Pressure Sensor Node IDs (optional allowlist)",
+                            "type": "json",
+                            "required": False,
+                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                        },
                     ],
                 },
                 {
