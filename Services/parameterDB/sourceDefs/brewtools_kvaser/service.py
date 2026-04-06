@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 import time
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -34,6 +35,7 @@ class BrewtoolsKvaserSource(DataSourceBase):
         self._last_density_request_s: dict[int, float] = {}
         self._seen_agitator_nodes: set[int] = set()
         self._seen_density_nodes: set[int] = set()
+        self._seen_pressure_nodes: set[int] = set()
         self._known_parameters: set[str] = set()
 
     def _prefix(self) -> str:
@@ -84,11 +86,12 @@ class BrewtoolsKvaserSource(DataSourceBase):
         *,
         value: Any = None,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> bool:
         if name in self._known_parameters:
-            return
+            return False
         self.ensure_parameter(name, parameter_type, value=value, metadata=metadata)
         self._known_parameters.add(name)
+        return True
 
     def _connect_bus(self):
         if self._bus is not None:
@@ -141,6 +144,21 @@ class BrewtoolsKvaserSource(DataSourceBase):
         frame = CanFrame(can_id=can_id, body=RawBody(subindex=0, raw=bytes([pct & 0xFF])))
         return frame.to_can()
 
+    def _build_calibration_frame(self, *, node_id: int, receiver_node_type: int, value: float = 0.0) -> tuple[int, bytes]:
+        from .brewtools_can import BrewtoolsCanId, CanFrame, MsgType, NodeType, Priority
+        from .brewtools_can import RawBody
+
+        can_id = BrewtoolsCanId(
+            priority=Priority.HIGH,
+            sender_node_type=NodeType.NODE_TYPE_PLC,
+            receiver_node_type=receiver_node_type,
+            secondary_node_id=int(node_id),
+            msg_type=MsgType.MSG_TYPE_CALIBRATION_CMD,
+        )
+        # Payload is a 4-byte little-endian float (subindex byte is handled by RawBody)
+        frame = CanFrame(can_id=can_id, body=RawBody(subindex=0, raw=struct.pack('<f', float(value))))
+        return frame.to_can()
+
     def _build_start_measurement_frame(self, *, node_id: int, receiver_node_type: int) -> tuple[int, bytes]:
         from .brewtools_can import BrewtoolsCanId, CanFrame, MsgType, NodeType, Priority
         from .brewtools_can import RawBody
@@ -187,12 +205,27 @@ class BrewtoolsKvaserSource(DataSourceBase):
                     continue
         return sorted({node for node in result if node >= 0})
 
+    def _pressure_nodes(self) -> list[int]:
+        raw = self.config.get("pressure_nodes") or []
+        result: list[int] = []
+        if isinstance(raw, Iterable) and not isinstance(raw, (str, bytes, dict)):
+            for item in raw:
+                try:
+                    result.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+        return sorted({node for node in result if node >= 0})
+
     def _agitator_allowed(self, node_id: int) -> bool:
         allowed = set(self._agitator_nodes())
         return not allowed or int(node_id) in allowed
 
     def _density_allowed(self, node_id: int) -> bool:
         allowed = set(self._density_nodes())
+        return not allowed or int(node_id) in allowed
+
+    def _pressure_allowed(self, node_id: int) -> bool:
+        allowed = set(self._pressure_nodes())
         return not allowed or int(node_id) in allowed
 
     def _ensure_agitator_param(self, node_id: int) -> None:
@@ -204,6 +237,68 @@ class BrewtoolsKvaserSource(DataSourceBase):
             value=float(self.config.get("initial_pwm", 0.0)),
             metadata={**owned, "role": "command", "unit": "%", "node_type": "agitator", "node_id": node_id},
         )
+
+    def _density_calibrate_param(self, node_id: int) -> str:
+        return f"{self._prefix()}.density.{int(node_id)}.calibrate"
+
+    def _density_calibrate_sg_param(self, node_id: int) -> str:
+        return f"{self._prefix()}.density.{int(node_id)}.calibrate_sg"
+
+    def _density_calibrate_status_param(self, node_id: int) -> str:
+        return f"{self._prefix()}.density.{int(node_id)}.calibrate_status"
+
+    def _pressure_calibrate_param(self, node_id: int) -> str:
+        return f"{self._prefix()}.pressure.{int(node_id)}.calibrate"
+
+    def _pressure_calibrate_status_param(self, node_id: int) -> str:
+        return f"{self._prefix()}.pressure.{int(node_id)}.calibrate_status"
+
+    def _ensure_density_calibrate_params(self, node_id: int) -> None:
+        node_id = int(node_id)
+        owned = self.build_owned_metadata(device="brewtools_can")
+        sg_param = self._density_calibrate_sg_param(node_id)
+        calibrate_param = self._density_calibrate_param(node_id)
+        sg_meta = {**owned, "role": "value", "unit": "SG", "node_type": "density", "node_id": node_id}
+        cal_meta = {
+            **owned,
+            "role": "command",
+            "node_type": "density",
+            "node_id": node_id,
+            "widget_hint": "number_button",
+            "value_target": sg_param,
+            "value_write_min": 0.9,
+            "value_write_max": 1.2,
+            "value_write_step": 0.001,
+        }
+        status_meta = {**owned, "role": "status", "node_type": "density", "node_id": node_id}
+        if not self._ensure_parameter_once(sg_param, "static", value=1.000, metadata=sg_meta):
+            self.client.update_metadata(sg_param, **sg_meta)
+        if not self._ensure_parameter_once(calibrate_param, "static", value=False, metadata=cal_meta):
+            self.client.update_metadata(calibrate_param, **cal_meta)
+        if not self._ensure_parameter_once(
+            self._density_calibrate_status_param(node_id), "static", value="", metadata=status_meta
+        ):
+            pass  # status — no patch needed
+
+    def _ensure_pressure_calibrate_params(self, node_id: int) -> None:
+        node_id = int(node_id)
+        owned = self.build_owned_metadata(device="brewtools_can")
+        cal_meta = {
+            **owned,
+            "role": "command",
+            "node_type": "pressure",
+            "node_id": node_id,
+            "widget_hint": "button",
+        }
+        status_meta = {**owned, "role": "status", "node_type": "pressure", "node_id": node_id}
+        if not self._ensure_parameter_once(
+            self._pressure_calibrate_param(node_id), "static", value=False, metadata=cal_meta
+        ):
+            self.client.update_metadata(self._pressure_calibrate_param(node_id), **cal_meta)
+        if not self._ensure_parameter_once(
+            self._pressure_calibrate_status_param(node_id), "static", value="", metadata=status_meta
+        ):
+            pass  # status — no patch needed
 
     def _note_agitator_node(self, node_id: int) -> None:
         node_id = int(node_id)
@@ -217,7 +312,17 @@ class BrewtoolsKvaserSource(DataSourceBase):
         node_id = int(node_id)
         if node_id < 0 or not self._density_allowed(node_id):
             return
-        self._seen_density_nodes.add(node_id)
+        if node_id not in self._seen_density_nodes:
+            self._seen_density_nodes.add(node_id)
+            self._ensure_density_calibrate_params(node_id)
+
+    def _note_pressure_node(self, node_id: int) -> None:
+        node_id = int(node_id)
+        if node_id < 0 or not self._pressure_allowed(node_id):
+            return
+        if node_id not in self._seen_pressure_nodes:
+            self._seen_pressure_nodes.add(node_id)
+            self._ensure_pressure_calibrate_params(node_id)
 
     def _discover_capabilities(self, frame: Any, obj: object | None) -> None:
         node_id = int(getattr(frame.can_id, "secondary_node_id", -1))
@@ -232,11 +337,14 @@ class BrewtoolsKvaserSource(DataSourceBase):
 
         # Capability discovery is driven by traffic we know always appears.
         # - RPM messages identify agitator nodes.
-        # - Temperature messages identify density sensor nodes.
+        # - Temperature messages from density sensors identify density nodes.
+        # - Pressure messages identify pressure sensor nodes.
         if cls_name == "RpmMeasurement":
             self._note_agitator_node(obj_node_id)
         elif cls_name == "TemperatureMeasurement":
             self._note_density_node(obj_node_id)
+        elif cls_name == "PressureMeasurement":
+            self._note_pressure_node(obj_node_id)
 
     def _apply_outputs(self, bus: Any) -> None:
         for node_id in sorted(self._seen_agitator_nodes):
@@ -247,6 +355,38 @@ class BrewtoolsKvaserSource(DataSourceBase):
             msg = self._can.Message(arbitration_id=int(arb_id), data=data, is_extended_id=True)
             bus.send(msg)
             self._last_pwm_by_node[node_id] = desired
+
+    def _apply_density_commands(self, bus: Any) -> None:
+        from .brewtools_can import NodeType
+        for node_id in sorted(self._seen_density_nodes):
+            trigger = self.client.get_value(self._density_calibrate_param(node_id), False)
+            if trigger:
+                sg = self._coerce_float(self.client.get_value(self._density_calibrate_sg_param(node_id), 1.000), 1.000)
+                arb_id, data = self._build_calibration_frame(
+                    node_id=node_id,
+                    receiver_node_type=int(NodeType.NODE_TYPE_DENSITY_SENSOR),
+                    value=sg,
+                )
+                msg = self._can.Message(arbitration_id=int(arb_id), data=data, is_extended_id=True)
+                bus.send(msg)
+                self.client.set_value(self._density_calibrate_param(node_id), False)
+                self.client.set_value(self._density_calibrate_status_param(node_id), "calibrating")
+
+    def _apply_pressure_commands(self, bus: Any) -> None:
+        from .brewtools_can import NodeType
+        for node_id in sorted(self._seen_pressure_nodes):
+            trigger = self.client.get_value(self._pressure_calibrate_param(node_id), False)
+            if trigger:
+                # Pressure calibration: send float 0.0 — sensor reads current atmospheric as zero
+                arb_id, data = self._build_calibration_frame(
+                    node_id=node_id,
+                    receiver_node_type=int(NodeType.NODE_TYPE_PRESSURE_SENSOR),
+                    value=0.0,
+                )
+                msg = self._can.Message(arbitration_id=int(arb_id), data=data, is_extended_id=True)
+                bus.send(msg)
+                self.client.set_value(self._pressure_calibrate_param(node_id), False)
+                self.client.set_value(self._pressure_calibrate_status_param(node_id), "calibrating")
 
     def _poll_density_requests(self, bus: Any, now_s: float) -> None:
         interval_s = max(0.1, float(self.config.get("density_request_interval_s", 2.0)))
@@ -305,6 +445,21 @@ class BrewtoolsKvaserSource(DataSourceBase):
             self._publish_measurement("min", int(obj.node_id), float(obj.value))
         elif cls_name == "MaxValue":
             self._publish_measurement("max", int(obj.node_id), float(obj.value))
+        elif cls_name == "CalibrationAck":
+            from .brewtools_can.enums import AckType
+            ack_map = {
+                int(AckType.ACK_TYPE_CALIBRATING): "calibrating",
+                int(AckType.ACK_TYPE_OK): "ok",
+                int(AckType.ACK_TYPE_ERROR): "error",
+            }
+            cal_node_id = int(obj.node_id)
+            status = ack_map.get(int(obj.ack_type), "unknown")
+            density_status_param = self._density_calibrate_status_param(cal_node_id)
+            pressure_status_param = self._pressure_calibrate_status_param(cal_node_id)
+            if density_status_param in self._known_parameters:
+                self.client.set_value(density_status_param, status)
+            if pressure_status_param in self._known_parameters:
+                self.client.set_value(pressure_status_param, status)
 
     def _receive_once(self, bus: Any, timeout_s: float) -> BrewtoolsFrameEvent | None:
         msg = bus.recv(timeout=timeout_s)
@@ -324,6 +479,8 @@ class BrewtoolsKvaserSource(DataSourceBase):
             try:
                 bus = self._connect_bus()
                 self._apply_outputs(bus)
+                self._apply_density_commands(bus)
+                self._apply_pressure_commands(bus)
                 event = self._receive_once(bus, recv_timeout_s)
                 if event is not None:
                     self._handle_event(event)
@@ -358,6 +515,7 @@ class BrewtoolsKvaserSourceSpec(DataSourceSpec):
             "density_request_interval_s": 2.0,
             "parameter_prefix": "brewcan",
             "density_nodes": [],
+            "pressure_nodes": [],
             "agitator_nodes": [],
             "initial_pwm": 0.0,
         }

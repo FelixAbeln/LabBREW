@@ -239,6 +239,34 @@ function App() {
     const expectsNumber = writeKind === 'number' || widget === 'number'
     const expectsBool = writeKind === 'bool' || widget === 'toggle'
     const expectsPulse = writeKind === 'pulse' || widget === 'button'
+
+    // number_button: SG companion field + calibrate trigger in one row.
+    // Write the number value to value_target first, then pulse the trigger.
+    if (widget === 'number_button') {
+      const valueTarget = String(control?.value_target || '').trim()
+      if (valueTarget) {
+        const sgRaw = Object.prototype.hasOwnProperty.call(controlDrafts, valueTarget)
+          ? controlDrafts[valueTarget]
+          : control?.value_target_current_value
+        const sgNumeric = Number(sgRaw)
+        if (Number.isFinite(sgNumeric)) {
+          try {
+            setControlWriteTarget(target)
+            setError('')
+            await api(`/fermenters/${selected.id}/control/manual-write`, {
+              method: 'POST',
+              body: JSON.stringify({ target: valueTarget, value: sgNumeric, reason: 'manual control ui' }),
+            })
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unknown error')
+            setControlWriteTarget('')
+            return
+          }
+        }
+      }
+      // Fall through with explicit true to pulse the trigger
+      explicitValue = true
+    }
     let value = explicitValue
     if (value === undefined) {
       value = Object.prototype.hasOwnProperty.call(controlDrafts, target)

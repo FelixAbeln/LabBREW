@@ -1,9 +1,0 @@
-{
-  "name": "clock_main",
-  "source_type": "system_time",
-  "config": {
-    "parameter_name": "system.time.iso",
-    "update_interval_s": 1.0,
-    "mode": "iso"
-  }
-}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import inspect
 import os
 
 from fastapi import FastAPI
@@ -17,10 +18,16 @@ async def lifespan(app: FastAPI):
     browser = MdnsDiscoveryBrowser()
     browser.start()
     app.state.discovery_browser = browser
-    app.state.registry = FermenterRegistry(
-        browser,
-        snapshot_cache_ttl_s=float(os.environ.get('REGISTRY_CACHE_TTL_S', '0.5')),
-    )
+    registry_kwargs: dict[str, float] = {}
+    try:
+        params = inspect.signature(FermenterRegistry).parameters
+        if 'snapshot_cache_ttl_s' in params:
+            registry_kwargs['snapshot_cache_ttl_s'] = float(os.environ.get('REGISTRY_CACHE_TTL_S', '0.5'))
+    except (TypeError, ValueError):
+        # Some test doubles may not expose an inspectable signature.
+        pass
+
+    app.state.registry = FermenterRegistry(browser, **registry_kwargs)
     app.state.proxy = HttpServiceProxy(timeout_s=8.0)
     try:
         yield
