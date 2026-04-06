@@ -367,3 +367,9 @@ parameterdb_audit.jsonl
 /data/sources
 control_variable_map.json
 data/system_topology.yaml
+data/measurements/
+data/Rules/
+data/sources/
+control_variable_map.json
+system_topology.yaml
+
