@@ -1,6 +1,8 @@
 
 from __future__ import annotations
 
+import base64
+import os
 import signal
 import subprocess
 import sys
@@ -99,18 +101,40 @@ class TopologySupervisor:
             handle.write(line + "\n")
             handle.flush()
 
-    def _run_git(self, args: list[str], *, timeout_s: float = 20.0) -> str:
+    @staticmethod
+    def _is_https_github_url(value: str | None) -> bool:
+        return bool(value and value.startswith('https://github.com/'))
+
+    def _git_env_for_remote(self, remote_url: str | None) -> dict[str, str] | None:
+        if not self._is_https_github_url(remote_url):
+            return None
+        token = os.environ.get('LABBREW_GITHUB_TOKEN', '').strip()
+        if not token:
+            return None
+        username = os.environ.get('LABBREW_GITHUB_USER', 'x-access-token').strip() or 'x-access-token'
+        basic = base64.b64encode(f'{username}:{token}'.encode('utf-8')).decode('ascii')
+        env = os.environ.copy()
+        env['GIT_CONFIG_COUNT'] = '1'
+        env['GIT_CONFIG_KEY_0'] = 'http.https://github.com/.extraheader'
+        env['GIT_CONFIG_VALUE_0'] = f'AUTHORIZATION: basic {basic}'
+        return env
+
+    def _run_git(self, args: list[str], *, timeout_s: float = 20.0, remote_url: str | None = None) -> str:
+        env = self._git_env_for_remote(remote_url)
         proc = subprocess.run(
             ["git", "-C", str(self.root_dir), *args],
             capture_output=True,
             text=True,
             timeout=timeout_s,
             check=False,
+            env=env,
         )
         if proc.returncode != 0:
             stderr = (proc.stderr or "").strip()
             stdout = (proc.stdout or "").strip()
             detail = stderr or stdout or f"git exited with code {proc.returncode}"
+            if self._is_https_github_url(remote_url) and 'repository not found' in detail.lower() and not os.environ.get('LABBREW_GITHUB_TOKEN'):
+                detail += ' (private repo likely requires LABBREW_GITHUB_TOKEN for headless updates)'
             raise RuntimeError(detail)
         return (proc.stdout or "").strip()
 
@@ -186,7 +210,7 @@ class TopologySupervisor:
 
                 branch = str(status.get("branch") or "")
                 remote_ref = f"refs/heads/{branch}" if branch and branch != "HEAD" else "HEAD"
-                remote_line = self._run_git(["ls-remote", repo_url, remote_ref], timeout_s=25.0)
+                remote_line = self._run_git(["ls-remote", repo_url, remote_ref], timeout_s=25.0, remote_url=repo_url)
                 status["remote_revision"] = remote_line.split()[0] if remote_line else None
 
                 local_rev = str(status.get("local_revision") or "")
@@ -264,11 +288,11 @@ class TopologySupervisor:
             repo_url = str(before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git")
 
             try:
-                self._run_git(["fetch", repo_url, current_branch], timeout_s=35.0)
+                self._run_git(["fetch", repo_url, current_branch], timeout_s=35.0, remote_url=repo_url)
                 details.append(f"fetched latest {current_branch} from GitHub")
                 refreshed = self.repo_update_status(force=True)
                 if refreshed.get("outdated"):
-                    self._run_git(["pull", "--ff-only", repo_url, current_branch], timeout_s=45.0)
+                    self._run_git(["pull", "--ff-only", repo_url, current_branch], timeout_s=45.0, remote_url=repo_url)
                     details.append("fast-forward pull applied")
                     self._refresh_python_runtime(details)
                     updated = True

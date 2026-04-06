@@ -46,6 +46,11 @@ Options:
   --agent-host HOST       Bind host for the local agent API. Default: 0.0.0.0
   --agent-port PORT       Bind port for the local agent API. Default: 8780
   --check-interval SEC    Supervisor health-check interval. Default: 2.0
+  --github-user USER      Optional GitHub username used for private HTTPS auto-updates.
+  --github-token TOKEN    Optional GitHub token used for private HTTPS auto-updates.
+                          Less secure: may appear in shell history/process list.
+  --github-token-file P   Optional file path containing GitHub token used for private HTTPS auto-updates.
+  --prompt-github-token   Prompt securely for GitHub token (no echo).
   --skip-apt              Skip apt package installation.
   --non-interactive       Fail instead of prompting when required values are missing.
   --help                  Show this help text.
@@ -391,6 +396,11 @@ ADVERTISE_HOST="$(detect_advertise_host)"
 AGENT_HOST='0.0.0.0'
 AGENT_PORT='8780'
 CHECK_INTERVAL='2.0'
+GITHUB_USER=''
+GITHUB_TOKEN=''
+GITHUB_TOKEN_FILE=''
+PROMPT_GITHUB_TOKEN='0'
+GITHUB_TOKEN_SOURCE=''
 SKIP_APT='0'
 NON_INTERACTIVE='0'
 
@@ -456,6 +466,23 @@ while [[ $# -gt 0 ]]; do
       CHECK_INTERVAL="$2"
       shift 2
       ;;
+    --github-user)
+      GITHUB_USER="$2"
+      shift 2
+      ;;
+    --github-token)
+      GITHUB_TOKEN="$2"
+      GITHUB_TOKEN_SOURCE='arg'
+      shift 2
+      ;;
+    --github-token-file)
+      GITHUB_TOKEN_FILE="$2"
+      shift 2
+      ;;
+    --prompt-github-token)
+      PROMPT_GITHUB_TOKEN='1'
+      shift
+      ;;
     --skip-apt)
       SKIP_APT='1'
       shift
@@ -474,6 +501,29 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "$GITHUB_TOKEN_FILE" ]]; then
+  [[ -r "$GITHUB_TOKEN_FILE" ]] || fail "Cannot read --github-token-file: $GITHUB_TOKEN_FILE"
+  GITHUB_TOKEN="$(head -n 1 "$GITHUB_TOKEN_FILE" | tr -d '\r\n')"
+  GITHUB_TOKEN_SOURCE='file'
+fi
+
+if [[ "$PROMPT_GITHUB_TOKEN" == '1' && -z "$GITHUB_TOKEN" ]]; then
+  if ! is_interactive; then
+    fail '--prompt-github-token requires an interactive terminal.'
+  fi
+  read -r -s -p 'GitHub token for private auto-updates: ' GITHUB_TOKEN
+  printf '\n'
+  GITHUB_TOKEN_SOURCE='prompt'
+fi
+
+if [[ "$GITHUB_TOKEN_SOURCE" == 'arg' && -n "$GITHUB_TOKEN" ]]; then
+  warn 'Using --github-token can expose secrets in shell history/process lists. Prefer --github-token-file or --prompt-github-token.'
+fi
+
+if [[ -n "$GITHUB_TOKEN" && -z "$GITHUB_USER" ]]; then
+  GITHUB_USER='x-access-token'
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -701,6 +751,12 @@ write_environment_file() {
     printf 'AGENT_HOST=%q\n' "$AGENT_HOST"
     printf 'AGENT_PORT=%q\n' "$AGENT_PORT"
     printf 'CHECK_INTERVAL=%q\n' "$CHECK_INTERVAL"
+    if [[ -n "$GITHUB_USER" ]]; then
+      printf 'LABBREW_GITHUB_USER=%q\n' "$GITHUB_USER"
+    fi
+    if [[ -n "$GITHUB_TOKEN" ]]; then
+      printf 'LABBREW_GITHUB_TOKEN=%q\n' "$GITHUB_TOKEN"
+    fi
   } > "$ENV_FILE"
   chown root:"$RUN_GROUP" "$ENV_FILE"
   chmod 640 "$ENV_FILE"
