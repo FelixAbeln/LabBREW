@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import queue
+import threading
+import time
+
 import pytest
 
 from Services.parameterDB.sourceDefs.modbus_relay.service import (
@@ -19,6 +23,8 @@ class _FakeClient:
     def __init__(self, initial: dict | None = None) -> None:
         self._store: dict = dict(initial or {})
         self.written: list[tuple[str, object]] = []
+        self.subscribe_calls: list[dict[str, object]] = []
+        self._subscriptions: list[_FakeSubscription] = []
 
     def get_value(self, name: str, default=None):
         return self._store.get(name, default)
@@ -38,6 +44,48 @@ class _FakeClient:
         if names is None:
             return dict(self._store)
         return {k: self._store[k] for k in names if k in self._store}
+
+    def subscribe(self, names=None, send_initial=True, max_queue=1000):
+        self.subscribe_calls.append({
+            "names": list(names or []),
+            "send_initial": send_initial,
+            "max_queue": max_queue,
+        })
+        subscription = _FakeSubscription()
+        self._subscriptions.append(subscription)
+        return subscription
+
+    def publish_subscription_message(self, message: dict[str, object]) -> None:
+        for subscription in list(self._subscriptions):
+            subscription.push(message)
+
+    def close_subscriptions(self) -> None:
+        for subscription in list(self._subscriptions):
+            subscription.close()
+
+
+class _FakeSubscription:
+    def __init__(self) -> None:
+        self._queue: queue.Queue[dict[str, object] | None] = queue.Queue()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+    def __iter__(self):
+        while True:
+            message = self._queue.get(timeout=1.0)
+            if message is None:
+                break
+            yield message
+
+    def push(self, message: dict[str, object]) -> None:
+        self._queue.put(message)
+
+    def close(self) -> None:
+        self._queue.put(None)
 
 
 class _FakeBoard:
@@ -207,3 +255,28 @@ def test_sync_publishes_board_failure_when_no_concurrent_write():
     # Board is stuck off; paramDB should reflect the actual hardware state so
     # the user can see it didn't apply.
     assert client.get_value("relay.ch1") is False
+
+
+def test_watch_for_writes_wakes_source_immediately():
+    client = _FakeClient({"relay.ch1": False, "relay.ch2": False})
+    src = _make_source(client)
+
+    watcher = threading.Thread(target=src._watch_for_writes, daemon=True)
+    watcher.start()
+
+    started_at = time.perf_counter()
+    client.publish_subscription_message({"name": "relay.ch1", "value": True})
+
+    assert src._wakeup.wait(timeout=0.5), "subscription update did not wake relay source"
+    latency_ms = (time.perf_counter() - started_at) * 1000.0
+    print(f"relay subscription wakeup latency: {latency_ms:.3f} ms")
+    assert client.subscribe_calls == [{
+        "names": ["relay.ch1", "relay.ch2"],
+        "send_initial": False,
+        "max_queue": 1000,
+    }]
+
+    src.stop()
+    client.close_subscriptions()
+    watcher.join(timeout=0.5)
+    assert not watcher.is_alive(), "watcher thread did not exit cleanly"
