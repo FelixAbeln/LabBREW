@@ -531,7 +531,6 @@ def test_discovery_snapshot_restarts_periodically_when_agents_present(monkeypatc
         summary_path="/agent/summary",
         services_hint=[],
     )
-    assert len(snapshot) == 1
     snapshot = browser.snapshot()
     assert len(snapshot) == 1
     assert starts["count"] == 1
