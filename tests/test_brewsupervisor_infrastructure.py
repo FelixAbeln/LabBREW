@@ -497,7 +497,7 @@ def test_discovery_snapshot_restarts_when_empty(monkeypatch) -> None:
 
 def test_discovery_snapshot_restarts_periodically_when_agents_present(monkeypatch) -> None:
     starts = {"count": 0}
-    monotonic_times = iter([10.0, 12.0, 16.0])
+    monotonic_times = iter([10.0, 12.0, 16.0, 16.0])
 
     class _FakeZeroconf:
         def close(self):
