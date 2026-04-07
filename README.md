@@ -279,8 +279,6 @@ LabBREW/
 ├── data/                 # Topology config, example schedule, rule definitions
 └── docs/api/             # Full API reference
 ```
-
-
 ## Philosophy
 
 LabBREW is built to advance brewing and fermentation understanding.
