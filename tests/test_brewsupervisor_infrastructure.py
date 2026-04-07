@@ -467,3 +467,29 @@ def test_discovery_decode_urls_start_refresh_remove_snapshot_and_close(monkeypat
     assert browser2.zeroconf is None
     assert browser2.listener is None
     assert browser2.browser is None
+
+
+def test_discovery_snapshot_restarts_when_empty(monkeypatch) -> None:
+    starts = {"count": 0}
+
+    class _FakeZeroconf:
+        def close(self):
+            pass
+
+    class _FakeBrowser:
+        def __init__(self, zeroconf, service_type, listener):
+            _ = (zeroconf, service_type, listener)
+
+    def _factory():
+        starts["count"] += 1
+        return _FakeZeroconf()
+
+    monkeypatch.setattr(discovery_module, "Zeroconf", _factory)
+    monkeypatch.setattr(discovery_module, "ServiceBrowser", _FakeBrowser)
+
+    browser = discovery_module.MdnsDiscoveryBrowser(restart_cooldown_s=0.0)
+    assert browser.start() is True
+    assert starts["count"] == 1
+
+    assert browser.snapshot() == []
+    assert starts["count"] == 2

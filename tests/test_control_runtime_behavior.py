@@ -380,11 +380,28 @@ def test_get_datasource_contract_snapshot_source_ui_exception_and_control_item_g
     assert snapshot["datasources"][0]["source_control_spec_error"] == "ui failed"
     assert snapshot["datasources"][0]["controls"] == []
 
-    runtime.datasource_admin.get_source_type_ui = lambda *_a, **_k: {"controls": ["bad", {"target": "   "}]}
+    runtime.datasource_admin.get_source_type_ui = lambda *_a, **_k: {
+        "controls": [
+            "bad",
+            {"target": "   "},
+            {"target": None},
+            {"target": "src.value", "value_target": None},
+        ]
+    }
     snapshot = runtime.get_datasource_contract_snapshot()
 
-    assert snapshot["datasources"][0]["source_control_spec"] == {"controls": ["bad", {"target": "   "}]}
-    assert snapshot["datasources"][0]["controls"] == []
+    assert snapshot["datasources"][0]["source_control_spec"] == {
+        "controls": [
+            "bad",
+            {"target": "   "},
+            {"target": None},
+            {"target": "src.value", "value_target": None},
+        ]
+    }
+    controls = snapshot["datasources"][0]["controls"]
+    assert len(controls) == 1
+    assert controls[0]["target"] == "src.value"
+    assert "value_target" not in controls[0]
 
 
 def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_cards() -> None:

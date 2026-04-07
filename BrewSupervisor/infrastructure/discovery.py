@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 import socket
+import time
 
 try:
     from zeroconf import ServiceBrowser, ServiceInfo, Zeroconf
@@ -66,10 +67,12 @@ class _DiscoveryListener:
 @dataclass(slots=True)
 class MdnsDiscoveryBrowser:
     service_type: str = SERVICE_TYPE
+    restart_cooldown_s: float = 10.0
     zeroconf: Optional[Any] = field(init=False, default=None)
     browser: Optional[Any] = field(init=False, default=None)
     listener: Optional[Any] = field(init=False, default=None)
     _agents: dict[str, DiscoveredAgent] = field(init=False, default_factory=dict)
+    _last_restart_monotonic: float = field(init=False, default=0.0)
 
     def start(self) -> bool:
         if Zeroconf is None or ServiceBrowser is None:
@@ -79,7 +82,25 @@ class MdnsDiscoveryBrowser:
         self.zeroconf = Zeroconf()
         self.listener = _DiscoveryListener(self)
         self.browser = ServiceBrowser(self.zeroconf, self.service_type, self.listener)
+        self._last_restart_monotonic = time.monotonic()
         return True
+
+    def _restart(self) -> bool:
+        self.close()
+        return self.start()
+
+    def _ensure_browser_alive(self) -> None:
+        if Zeroconf is None or ServiceBrowser is None:
+            return
+        if self.zeroconf is None:
+            self.start()
+            return
+        if self._agents:
+            return
+        now = time.monotonic()
+        if now - self._last_restart_monotonic < max(self.restart_cooldown_s, 0.0):
+            return
+        self._restart()
 
     def _refresh_service(self, name: str) -> None:
         if self.zeroconf is None:
@@ -129,6 +150,7 @@ class MdnsDiscoveryBrowser:
         self._agents.pop(name, None)
 
     def snapshot(self) -> list[DiscoveredAgent]:
+        self._ensure_browser_alive()
         return sorted(self._agents.values(), key=lambda item: ((item.node_name or "").lower(), (item.address or item.host or "").lower()))
 
     def close(self) -> None:

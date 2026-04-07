@@ -28,6 +28,12 @@ MANUAL_OWNER = "operator"
 DATASOURCE_ADMIN_PORT = 8766
 
 
+def _normalize_target(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
 @dataclass
 class ActiveRuleState:
     active: bool = False
@@ -353,7 +359,7 @@ class ControlRuntime:
             ]
 
             existing_index = next(
-                (index for index, item in enumerate(controls) if str(item.get("target", "")).strip() == target_name),
+                (index for index, item in enumerate(controls) if _normalize_target(item.get("target")) == target_name),
                 None,
             )
 
@@ -409,7 +415,7 @@ class ControlRuntime:
                     item
                     for item in snapshot.get("resolved_controls", [])
                     if isinstance(item, dict)
-                    and str(item.get("target", "")).strip() == target_name
+                    and _normalize_target(item.get("target")) == target_name
                 ),
                 None,
             ),
@@ -436,7 +442,7 @@ class ControlRuntime:
             kept_controls = [
                 item
                 for item in controls
-                if str(item.get("target", "")).strip() != target_name
+                if _normalize_target(item.get("target")) != target_name
             ]
             removed_count = len(controls) - len(kept_controls)
 
@@ -502,7 +508,7 @@ class ControlRuntime:
             if not isinstance(control, dict):
                 continue
             item = dict(control)
-            target = str(item.get("target", "")).strip()
+            target = _normalize_target(item.get("target"))
             owner_meta = ownership.get(target) if target else None
             item["manual_owner"] = MANUAL_OWNER
             item["target_exists"] = bool(target) and (target in values)
@@ -528,7 +534,7 @@ class ControlRuntime:
         for control in resolved_controls:
             if not isinstance(control, dict):
                 continue
-            target = str(control.get("target", "")).strip()
+            target = _normalize_target(control.get("target"))
             if not target:
                 continue
             map_item = {
@@ -626,14 +632,14 @@ class ControlRuntime:
                 for control in source_control_spec.get("controls", []) if isinstance(source_control_spec.get("controls"), list) else []:
                     if not isinstance(control, dict):
                         continue
-                    target = str(control.get("target", "")).strip()
+                    target = _normalize_target(control.get("target"))
                     if not target:
                         continue
                     seen_targets.add(target)
                     param = parameters_by_name.get(target)
                     map_hint = controls_by_target.get(target, [])
                     map_item = map_hint[0] if map_hint else {}
-                    value_target = str(control.get("value_target", "")).strip()
+                    value_target = _normalize_target(control.get("value_target"))
                     vt_param = parameters_by_name.get(value_target) if value_target else None
                     item: dict[str, Any] = {
                         "id": control.get("id") or map_item.get("id") or target,
@@ -655,14 +661,14 @@ class ControlRuntime:
 
                 for parameter in parameters:
                     role = str(parameter.get("role") or "").strip().lower()
-                    target = str(parameter.get("name") or "").strip()
+                    target = _normalize_target(parameter.get("name"))
                     if not target or role not in {"command", "control"} or target in seen_targets:
                         continue
                     seen_targets.add(target)
                     value = parameter.get("value")
                     meta = parameter.get("metadata") or {}
                     meta_widget_hint = str(meta.get("widget_hint") or "").strip()
-                    meta_value_target = str(meta.get("value_target") or "").strip()
+                    meta_value_target = _normalize_target(meta.get("value_target"))
                     extra: dict[str, Any] = {}
                     if meta_widget_hint == "number_button" and meta_value_target:
                         widget = "number_button"
