@@ -279,7 +279,9 @@ LabBREW/
 ├── data/                 # Topology config, example schedule, rule definitions
 └── docs/api/             # Full API reference
 ```
+## License
 
+Unsure. I am not sure which one to use yet. 
 
 ## Philosophy
 
