@@ -493,3 +493,43 @@ def test_discovery_snapshot_restarts_when_empty(monkeypatch) -> None:
 
     assert browser.snapshot() == []
     assert starts["count"] == 2
+
+
+def test_discovery_snapshot_restarts_periodically_when_agents_present(monkeypatch) -> None:
+    starts = {"count": 0}
+
+    class _FakeZeroconf:
+        def close(self):
+            pass
+
+    class _FakeBrowser:
+        def __init__(self, zeroconf, service_type, listener):
+            _ = (zeroconf, service_type, listener)
+
+    def _factory():
+        starts["count"] += 1
+        return _FakeZeroconf()
+
+    monkeypatch.setattr(discovery_module, "Zeroconf", _factory)
+    monkeypatch.setattr(discovery_module, "ServiceBrowser", _FakeBrowser)
+
+    browser = discovery_module.MdnsDiscoveryBrowser(rebrowse_interval_s=0.0)
+    assert browser.start() is True
+    assert starts["count"] == 1
+
+    browser._agents["svc"] = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="node-1",
+        node_name="Node 1",
+        address="10.0.0.2",
+        host="node-1",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=[],
+    )
+
+    snapshot = browser.snapshot()
+    assert len(snapshot) == 0
+    assert starts["count"] == 2

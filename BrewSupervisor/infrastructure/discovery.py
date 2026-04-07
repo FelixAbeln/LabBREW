@@ -68,6 +68,7 @@ class _DiscoveryListener:
 class MdnsDiscoveryBrowser:
     service_type: str = SERVICE_TYPE
     restart_cooldown_s: float = 10.0
+    rebrowse_interval_s: float = 120.0
     zeroconf: Optional[Any] = field(init=False, default=None)
     browser: Optional[Any] = field(init=False, default=None)
     listener: Optional[Any] = field(init=False, default=None)
@@ -89,16 +90,21 @@ class MdnsDiscoveryBrowser:
         self.close()
         return self.start()
 
+    def _restart_interval_s(self) -> float:
+        interval = self.rebrowse_interval_s if self._agents else self.restart_cooldown_s
+        return max(float(interval), 0.0)
+
+    def _should_restart(self, now_monotonic: float) -> bool:
+        return (now_monotonic - self._last_restart_monotonic) >= self._restart_interval_s()
+
     def _ensure_browser_alive(self) -> None:
         if Zeroconf is None or ServiceBrowser is None:
             return
         if self.zeroconf is None:
             self.start()
             return
-        if self._agents:
-            return
         now = time.monotonic()
-        if now - self._last_restart_monotonic < max(self.restart_cooldown_s, 0.0):
+        if not self._should_restart(now):
             return
         self._restart()
 

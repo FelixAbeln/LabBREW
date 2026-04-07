@@ -15,7 +15,18 @@ from .routes import build_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    browser = MdnsDiscoveryBrowser()
+    browser_kwargs: dict[str, float] = {}
+    try:
+        browser_params = inspect.signature(MdnsDiscoveryBrowser).parameters
+        if 'restart_cooldown_s' in browser_params:
+            browser_kwargs['restart_cooldown_s'] = float(os.environ.get('MDNS_RESTART_COOLDOWN_S', '10.0'))
+        if 'rebrowse_interval_s' in browser_params:
+            browser_kwargs['rebrowse_interval_s'] = float(os.environ.get('MDNS_REBROWSE_INTERVAL_S', '30.0'))
+    except (TypeError, ValueError):
+        # Some test doubles may not expose an inspectable signature.
+        pass
+
+    browser = MdnsDiscoveryBrowser(**browser_kwargs)
     browser.start()
     app.state.discovery_browser = browser
     registry_kwargs: dict[str, float] = {}
