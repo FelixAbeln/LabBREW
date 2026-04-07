@@ -46,11 +46,6 @@ Options:
   --agent-host HOST       Bind host for the local agent API. Default: 0.0.0.0
   --agent-port PORT       Bind port for the local agent API. Default: 8780
   --check-interval SEC    Supervisor health-check interval. Default: 2.0
-  --github-user USER      Optional GitHub username used for private HTTPS auto-updates.
-  --github-token TOKEN    Optional GitHub token used for private HTTPS auto-updates.
-                          Less secure: may appear in shell history/process list.
-  --github-token-file P   Optional file path containing GitHub token used for private HTTPS auto-updates.
-  --prompt-github-token   Prompt securely for GitHub token (no echo).
   --skip-apt              Skip apt package installation.
   --non-interactive       Fail instead of prompting when required values are missing.
   --help                  Show this help text.
@@ -396,11 +391,6 @@ ADVERTISE_HOST="$(detect_advertise_host)"
 AGENT_HOST='0.0.0.0'
 AGENT_PORT='8780'
 CHECK_INTERVAL='2.0'
-GITHUB_USER=''
-GITHUB_TOKEN=''
-GITHUB_TOKEN_FILE=''
-PROMPT_GITHUB_TOKEN='0'
-GITHUB_TOKEN_SOURCE=''
 SKIP_APT='0'
 NON_INTERACTIVE='0'
 
@@ -466,23 +456,6 @@ while [[ $# -gt 0 ]]; do
       CHECK_INTERVAL="$2"
       shift 2
       ;;
-    --github-user)
-      GITHUB_USER="$2"
-      shift 2
-      ;;
-    --github-token)
-      GITHUB_TOKEN="$2"
-      GITHUB_TOKEN_SOURCE='arg'
-      shift 2
-      ;;
-    --github-token-file)
-      GITHUB_TOKEN_FILE="$2"
-      shift 2
-      ;;
-    --prompt-github-token)
-      PROMPT_GITHUB_TOKEN='1'
-      shift
-      ;;
     --skip-apt)
       SKIP_APT='1'
       shift
@@ -501,29 +474,6 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-
-if [[ -n "$GITHUB_TOKEN_FILE" ]]; then
-  [[ -r "$GITHUB_TOKEN_FILE" ]] || fail "Cannot read --github-token-file: $GITHUB_TOKEN_FILE"
-  GITHUB_TOKEN="$(head -n 1 "$GITHUB_TOKEN_FILE" | tr -d '\r\n')"
-  GITHUB_TOKEN_SOURCE='file'
-fi
-
-if [[ "$PROMPT_GITHUB_TOKEN" == '1' && -z "$GITHUB_TOKEN" ]]; then
-  if ! is_interactive; then
-    fail '--prompt-github-token requires an interactive terminal.'
-  fi
-  read -r -s -p 'GitHub token for private auto-updates: ' GITHUB_TOKEN
-  printf '\n'
-  GITHUB_TOKEN_SOURCE='prompt'
-fi
-
-if [[ "$GITHUB_TOKEN_SOURCE" == 'arg' && -n "$GITHUB_TOKEN" ]]; then
-  warn 'Using --github-token can expose secrets in shell history/process lists. Prefer --github-token-file or --prompt-github-token.'
-fi
-
-if [[ -n "$GITHUB_TOKEN" && -z "$GITHUB_USER" ]]; then
-  GITHUB_USER='x-access-token'
-fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -575,31 +525,9 @@ resolve_source_dir() {
 
 run_wizard() {
   prompt_install_dir
-
-  local original_node_id="$NODE_ID"
-  local original_node_name="$NODE_NAME"
-  local suggested_node_id="$NODE_ID"
-  local suggested_node_name="$NODE_NAME"
-  local node_id_default="$NODE_ID"
-  local node_name_default="$NODE_NAME"
-
-  if [[ -z "$original_node_id" || -z "$original_node_name" ]]; then
-    suggest_unique_node_identity
-    suggested_node_id="$NODE_ID"
-    suggested_node_name="$NODE_NAME"
-    NODE_ID="$original_node_id"
-    NODE_NAME="$original_node_name"
-  fi
-
-  if [[ -z "$node_id_default" ]]; then
-    node_id_default="$suggested_node_id"
-  fi
-  if [[ -z "$node_name_default" ]]; then
-    node_name_default="$suggested_node_name"
-  fi
-
-  prompt_default NODE_ID 'Fermenter node id' "$node_id_default"
-  prompt_default NODE_NAME 'Fermenter display name' "$node_name_default"
+  suggest_unique_node_identity
+  prompt_default NODE_ID 'Fermenter node id' "$NODE_ID"
+  prompt_default NODE_NAME 'Fermenter display name' "$NODE_NAME"
   warn_if_node_identity_conflicts
   if [[ -z "$PI_HOSTNAME" ]]; then
     PI_HOSTNAME="$(sanitize_hostname "$NODE_NAME")"
@@ -751,12 +679,6 @@ write_environment_file() {
     printf 'AGENT_HOST=%q\n' "$AGENT_HOST"
     printf 'AGENT_PORT=%q\n' "$AGENT_PORT"
     printf 'CHECK_INTERVAL=%q\n' "$CHECK_INTERVAL"
-    if [[ -n "$GITHUB_USER" ]]; then
-      printf 'LABBREW_GITHUB_USER=%q\n' "$GITHUB_USER"
-    fi
-    if [[ -n "$GITHUB_TOKEN" ]]; then
-      printf 'LABBREW_GITHUB_TOKEN=%q\n' "$GITHUB_TOKEN"
-    fi
   } > "$ENV_FILE"
   chown root:"$RUN_GROUP" "$ENV_FILE"
   chmod 640 "$ENV_FILE"
@@ -769,11 +691,7 @@ write_wrapper_script() {
 #!/usr/bin/env bash
 set -euo pipefail
 
-  # Export all sourced values so runtime-only settings (for example LABBREW_GITHUB_TOKEN)
-  # are visible to the supervisor process.
-  set -a
-  source "$ENV_FILE"
-  set +a
+source "$ENV_FILE"
 
 exec "$VENV_DIR/bin/labbrew-supervisor" \
   --config "\$CONFIG_PATH" \
