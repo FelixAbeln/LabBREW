@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from types import SimpleNamespace
 
 from fastapi import APIRouter, FastAPI
@@ -221,5 +222,47 @@ def test_lifespan_preserves_browser_defaults_when_mdns_env_is_unset(monkeypatch)
         async with app_module.lifespan(app):
             assert app.state.discovery_browser.restart_cooldown_s == 10.0
             assert app.state.discovery_browser.rebrowse_interval_s == 120.0
+
+    asyncio.run(_run())
+
+
+def test_lifespan_tolerates_valueerror_from_signature_inspection(monkeypatch) -> None:
+    class _Browser:
+        def start(self):
+            pass
+
+        def close(self):
+            pass
+
+    class _Registry:
+        def __init__(self, browser):
+            self.browser = browser
+
+        def close(self):
+            pass
+
+    class _Proxy:
+        def __init__(self, timeout_s):
+            self.timeout_s = timeout_s
+
+        def close(self):
+            pass
+
+    def _signature(obj):
+        if obj in (_Browser, _Registry):
+            raise ValueError("no signature")
+        return inspect.signature(obj)
+
+    monkeypatch.setattr(app_module, "MdnsDiscoveryBrowser", _Browser)
+    monkeypatch.setattr(app_module, "FermenterRegistry", _Registry)
+    monkeypatch.setattr(app_module, "HttpServiceProxy", _Proxy)
+    monkeypatch.setattr(app_module.inspect, "signature", _signature)
+
+    app = FastAPI()
+
+    async def _run() -> None:
+        async with app_module.lifespan(app):
+            assert isinstance(app.state.discovery_browser, _Browser)
+            assert isinstance(app.state.registry, _Registry)
 
     asyncio.run(_run())

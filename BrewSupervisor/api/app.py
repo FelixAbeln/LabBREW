@@ -31,7 +31,13 @@ def _read_optional_float_env(name: str) -> float | None:
     raw_value = os.environ.get(name)
     if raw_value is None:
         return None
-    return _read_float_env(name, 0.0)
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
 
 
 @asynccontextmanager
@@ -47,7 +53,7 @@ async def lifespan(app: FastAPI):
             rebrowse_interval_s = _read_optional_float_env('MDNS_REBROWSE_INTERVAL_S')
             if rebrowse_interval_s is not None:
                 browser_kwargs['rebrowse_interval_s'] = rebrowse_interval_s
-    except TypeError:
+    except (TypeError, ValueError):
         # Some test doubles may not expose an inspectable signature.
         pass
 
@@ -59,7 +65,7 @@ async def lifespan(app: FastAPI):
         params = inspect.signature(FermenterRegistry).parameters
         if 'snapshot_cache_ttl_s' in params:
             registry_kwargs['snapshot_cache_ttl_s'] = _read_float_env('REGISTRY_CACHE_TTL_S', 0.5)
-    except TypeError:
+    except (TypeError, ValueError):
         # Some test doubles may not expose an inspectable signature.
         pass
 
