@@ -101,17 +101,17 @@ class MdnsDiscoveryBrowser:
 
     def _restart(self) -> bool:
         preserved_agents = dict(self._agents)
-        preserve_until = time.monotonic() + max(float(self.preserved_agent_ttl_s), 0.0)
+        preserve_ttl_s = max(float(self.preserved_agent_ttl_s), 0.0)
+        preserve_until = time.monotonic() + preserve_ttl_s if preserved_agents else 0.0
         self._close_browser()
+        self._agents = {}
+        self._preserved_agent_deadlines = {}
         started = self.start()
-        if preserved_agents:
-            merged_agents = dict(preserved_agents)
-            merged_agents.update(self._agents)
-            self._agents = merged_agents
+        if preserved_agents and preserve_ttl_s > 0.0:
+            self._agents.update(preserved_agents)
             self._preserved_agent_deadlines = {
                 name: preserve_until
                 for name in preserved_agents
-                if name not in self._agents or name in preserved_agents
             }
         return started
 
