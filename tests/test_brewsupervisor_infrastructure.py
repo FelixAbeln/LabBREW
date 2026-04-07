@@ -493,3 +493,117 @@ def test_discovery_snapshot_restarts_when_empty(monkeypatch) -> None:
 
     assert browser.snapshot() == []
     assert starts["count"] == 2
+
+
+def test_discovery_snapshot_restarts_periodically_when_agents_present(monkeypatch) -> None:
+    starts = {"count": 0}
+    monotonic_times = iter([10.0, 12.0, 16.0, 16.0, 16.5])
+
+    class _FakeZeroconf:
+        def close(self):
+            pass
+
+    class _FakeBrowser:
+        def __init__(self, zeroconf, service_type, listener):
+            _ = (zeroconf, service_type, listener)
+
+    def _factory():
+        starts["count"] += 1
+        return _FakeZeroconf()
+
+    monkeypatch.setattr(discovery_module, "Zeroconf", _factory)
+    monkeypatch.setattr(discovery_module, "ServiceBrowser", _FakeBrowser)
+    monkeypatch.setattr(discovery_module.time, "monotonic", lambda: next(monotonic_times))
+
+    browser = discovery_module.MdnsDiscoveryBrowser(rebrowse_interval_s=5.0, preserved_agent_ttl_s=5.0)
+    assert browser.start() is True
+    assert starts["count"] == 1
+
+    browser._agents["svc"] = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="node-1",
+        node_name="Node 1",
+        address="10.0.0.2",
+        host="node-1",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=[],
+    )
+    snapshot = browser.snapshot()
+    assert len(snapshot) == 1
+    assert starts["count"] == 1
+
+    snapshot = browser.snapshot()
+    assert len(snapshot) == 1
+    assert starts["count"] == 2
+
+
+def test_discovery_preserved_agents_expire_if_not_rediscovered(monkeypatch) -> None:
+    starts = {"count": 0}
+    monotonic_times = iter([10.0, 12.0, 16.0, 16.0, 16.1, 22.5])
+
+    class _FakeZeroconf:
+        def close(self):
+            pass
+
+    class _FakeBrowser:
+        def __init__(self, zeroconf, service_type, listener):
+            _ = (zeroconf, service_type, listener)
+
+    def _factory():
+        starts["count"] += 1
+        return _FakeZeroconf()
+
+    monkeypatch.setattr(discovery_module, "Zeroconf", _factory)
+    monkeypatch.setattr(discovery_module, "ServiceBrowser", _FakeBrowser)
+    monkeypatch.setattr(discovery_module.time, "monotonic", lambda: next(monotonic_times))
+
+    browser = discovery_module.MdnsDiscoveryBrowser(rebrowse_interval_s=5.0, preserved_agent_ttl_s=5.0)
+    assert browser.start() is True
+
+    browser._agents["svc"] = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="node-1",
+        node_name="Node 1",
+        address="10.0.0.2",
+        host="node-1",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=[],
+    )
+
+    assert len(browser.snapshot()) == 1
+    assert starts["count"] == 1
+
+    assert len(browser.snapshot()) == 1
+    assert starts["count"] == 2
+
+    assert len(browser.snapshot()) == 0
+    assert starts["count"] == 2
+
+
+def test_discovery_restart_interval_guards_non_finite_values() -> None:
+    browser = discovery_module.MdnsDiscoveryBrowser()
+
+    browser.restart_cooldown_s = float("nan")
+    browser._agents.clear()
+    assert browser._restart_interval_s() == 0.0
+
+    browser.rebrowse_interval_s = float("inf")
+    browser._agents["svc"] = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="node-1",
+        node_name="Node 1",
+        address="10.0.0.2",
+        host="node-1",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=[],
+    )
+    assert browser._restart_interval_s() == 0.0
