@@ -497,6 +497,7 @@ def test_discovery_snapshot_restarts_when_empty(monkeypatch) -> None:
 
 def test_discovery_snapshot_restarts_periodically_when_agents_present(monkeypatch) -> None:
     starts = {"count": 0}
+    monotonic_times = iter([10.0, 12.0, 16.0])
 
     class _FakeZeroconf:
         def close(self):
@@ -512,8 +513,9 @@ def test_discovery_snapshot_restarts_periodically_when_agents_present(monkeypatc
 
     monkeypatch.setattr(discovery_module, "Zeroconf", _factory)
     monkeypatch.setattr(discovery_module, "ServiceBrowser", _FakeBrowser)
+    monkeypatch.setattr(discovery_module.time, "monotonic", lambda: next(monotonic_times))
 
-    browser = discovery_module.MdnsDiscoveryBrowser(rebrowse_interval_s=0.0)
+    browser = discovery_module.MdnsDiscoveryBrowser(rebrowse_interval_s=5.0)
     assert browser.start() is True
     assert starts["count"] == 1
 
@@ -531,5 +533,9 @@ def test_discovery_snapshot_restarts_periodically_when_agents_present(monkeypatc
     )
 
     snapshot = browser.snapshot()
-    assert len(snapshot) == 0
+    assert len(snapshot) == 1
+    assert starts["count"] == 1
+
+    snapshot = browser.snapshot()
+    assert len(snapshot) == 1
     assert starts["count"] == 2

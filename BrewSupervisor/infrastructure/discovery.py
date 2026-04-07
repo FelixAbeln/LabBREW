@@ -86,8 +86,18 @@ class MdnsDiscoveryBrowser:
         self._last_restart_monotonic = time.monotonic()
         return True
 
+    def _close_browser(self) -> None:
+        if self.zeroconf is not None:
+            try:
+                self.zeroconf.close()
+            except Exception:
+                pass
+        self.browser = None
+        self.listener = None
+        self.zeroconf = None
+
     def _restart(self) -> bool:
-        self.close()
+        self._close_browser()
         return self.start()
 
     def _restart_interval_s(self) -> float:
@@ -161,11 +171,4 @@ class MdnsDiscoveryBrowser:
 
     def close(self) -> None:
         self._agents.clear()
-        if self.zeroconf is not None:
-            try:
-                self.zeroconf.close()
-            except Exception:
-                pass
-        self.browser = None
-        self.listener = None
-        self.zeroconf = None
+        self._close_browser()

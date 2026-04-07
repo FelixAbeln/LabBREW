@@ -135,3 +135,48 @@ def test_lifespan_passes_mdns_timing_env_to_browser(monkeypatch) -> None:
     assert "browser.init:2.5:15.0" in calls
     assert "browser.start" in calls
     assert "browser.close" in calls
+
+
+def test_lifespan_ignores_bad_mdns_env_without_dropping_other_values(monkeypatch) -> None:
+    class _Browser:
+        def __init__(self, restart_cooldown_s: float = 0.0, rebrowse_interval_s: float = 0.0):
+            self.restart_cooldown_s = restart_cooldown_s
+            self.rebrowse_interval_s = rebrowse_interval_s
+
+        def start(self):
+            pass
+
+        def close(self):
+            pass
+
+    class _Registry:
+        def __init__(self, browser, snapshot_cache_ttl_s: float = 0.0):
+            self.browser = browser
+            self.snapshot_cache_ttl_s = snapshot_cache_ttl_s
+
+        def close(self):
+            pass
+
+    class _Proxy:
+        def __init__(self, timeout_s):
+            self.timeout_s = timeout_s
+
+        def close(self):
+            pass
+
+    monkeypatch.setenv("MDNS_RESTART_COOLDOWN_S", "bad-value")
+    monkeypatch.setenv("MDNS_REBROWSE_INTERVAL_S", "15")
+    monkeypatch.setenv("REGISTRY_CACHE_TTL_S", "1.25")
+    monkeypatch.setattr(app_module, "MdnsDiscoveryBrowser", _Browser)
+    monkeypatch.setattr(app_module, "FermenterRegistry", _Registry)
+    monkeypatch.setattr(app_module, "HttpServiceProxy", _Proxy)
+
+    app = FastAPI()
+
+    async def _run() -> None:
+        async with app_module.lifespan(app):
+            assert app.state.discovery_browser.restart_cooldown_s == 10.0
+            assert app.state.discovery_browser.rebrowse_interval_s == 15.0
+            assert app.state.registry.snapshot_cache_ttl_s == 1.25
+
+    asyncio.run(_run())
