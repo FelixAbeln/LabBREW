@@ -21,7 +21,9 @@ async def lifespan(app: FastAPI):
         if 'restart_cooldown_s' in browser_params:
             browser_kwargs['restart_cooldown_s'] = float(os.environ.get('MDNS_RESTART_COOLDOWN_S', '10.0'))
         if 'rebrowse_interval_s' in browser_params:
-            browser_kwargs['rebrowse_interval_s'] = float(os.environ.get('MDNS_REBROWSE_INTERVAL_S', '30.0'))
+            rebrowse_interval_s = os.environ.get('MDNS_REBROWSE_INTERVAL_S')
+            if rebrowse_interval_s is not None:
+                browser_kwargs['rebrowse_interval_s'] = float(rebrowse_interval_s)
     except (TypeError, ValueError):
         # Some test doubles may not expose an inspectable signature.
         pass
