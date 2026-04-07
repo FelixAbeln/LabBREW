@@ -97,8 +97,14 @@ class MdnsDiscoveryBrowser:
         self.zeroconf = None
 
     def _restart(self) -> bool:
+        preserved_agents = dict(self._agents)
         self._close_browser()
-        return self.start()
+        started = self.start()
+        if preserved_agents:
+            merged_agents = dict(preserved_agents)
+            merged_agents.update(self._agents)
+            self._agents = merged_agents
+        return started
 
     def _restart_interval_s(self) -> float:
         interval = self.rebrowse_interval_s if self._agents else self.restart_cooldown_s
