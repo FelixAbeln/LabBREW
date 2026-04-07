@@ -335,7 +335,7 @@ class ControlRuntime:
         max_value: float | int | None = None,
         pin_scope: str = "manual",
     ) -> dict[str, Any]:
-        target_name = str(target or "").strip()
+        target_name = _normalize_target(target)
         if not target_name:
             return {
                 "ok": False,
@@ -423,7 +423,7 @@ class ControlRuntime:
         }
 
     def unpin_control_parameter(self, target: str) -> dict[str, Any]:
-        target_name = str(target or "").strip()
+        target_name = _normalize_target(target)
         if not target_name:
             return {
                 "ok": False,
@@ -509,6 +509,9 @@ class ControlRuntime:
                 continue
             item = dict(control)
             target = _normalize_target(item.get("target"))
+            if not target:
+                continue
+            item["target"] = target
             owner_meta = ownership.get(target) if target else None
             item["manual_owner"] = MANUAL_OWNER
             item["target_exists"] = bool(target) and (target in values)

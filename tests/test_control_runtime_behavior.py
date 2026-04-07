@@ -722,10 +722,20 @@ def test_control_contract_and_datasource_contract_guards(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime,
         "_load_control_contract",
-        lambda: {"controls": [{"id": "ok", "target": "x"}, "bad", 123], "groups": []},
+        lambda: {
+            "controls": [
+                {"id": "ok", "target": " x "},
+                {"id": "none", "target": None},
+                {"id": "blank", "target": "   "},
+                "bad",
+                123,
+            ],
+            "groups": [],
+        },
     )
     snap = runtime.get_control_contract_snapshot()
     assert len(snap["resolved_controls"]) == 1
+    assert snap["resolved_controls"][0]["target"] == "x"
 
     runtime.get_control_contract_snapshot = lambda: {
         "source": "map.json",
@@ -940,6 +950,10 @@ def test_pin_and_unpin_control_parameter_persists_map_and_forces_manual_card(mon
     contract_file = tmp_path / "control_variable_map.json"
     monkeypatch.setattr(control_runtime_module, "CONTROL_VARIABLE_MAP_FILE", contract_file)
 
+    bad_pin = runtime.pin_control_parameter(None)
+    assert bad_pin["ok"] is False
+    assert bad_pin["error"] == "target is required"
+
     pinned = runtime.pin_control_parameter(
         "src.setpoint",
         label="Source Setpoint",
@@ -975,6 +989,10 @@ def test_pin_and_unpin_control_parameter_persists_map_and_forces_manual_card(mon
     snapshot = runtime.get_datasource_contract_snapshot()
     manual_targets = {item["target"] for item in snapshot["manual_controls"]}
     assert "src.setpoint" in manual_targets
+
+    bad_unpin = runtime.unpin_control_parameter(None)
+    assert bad_unpin["ok"] is False
+    assert bad_unpin["error"] == "target is required"
 
     unpinned = runtime.unpin_control_parameter("src.setpoint")
     assert unpinned["ok"] is True
