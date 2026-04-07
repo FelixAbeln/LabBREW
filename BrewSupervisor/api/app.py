@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import inspect
+import math
 import os
 
 from fastapi import FastAPI
@@ -18,9 +19,19 @@ def _read_float_env(name: str, default: float) -> float:
     if raw_value is None:
         return default
     try:
-        return float(raw_value)
+        value = float(raw_value)
     except ValueError:
         return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def _read_optional_float_env(name: str) -> float | None:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return None
+    return _read_float_env(name, 0.0)
 
 
 @asynccontextmanager
@@ -29,9 +40,13 @@ async def lifespan(app: FastAPI):
     try:
         browser_params = inspect.signature(MdnsDiscoveryBrowser).parameters
         if 'restart_cooldown_s' in browser_params:
-            browser_kwargs['restart_cooldown_s'] = _read_float_env('MDNS_RESTART_COOLDOWN_S', 10.0)
+            restart_cooldown_s = _read_optional_float_env('MDNS_RESTART_COOLDOWN_S')
+            if restart_cooldown_s is not None:
+                browser_kwargs['restart_cooldown_s'] = restart_cooldown_s
         if 'rebrowse_interval_s' in browser_params:
-            browser_kwargs['rebrowse_interval_s'] = _read_float_env('MDNS_REBROWSE_INTERVAL_S', 30.0)
+            rebrowse_interval_s = _read_optional_float_env('MDNS_REBROWSE_INTERVAL_S')
+            if rebrowse_interval_s is not None:
+                browser_kwargs['rebrowse_interval_s'] = rebrowse_interval_s
     except TypeError:
         # Some test doubles may not expose an inspectable signature.
         pass

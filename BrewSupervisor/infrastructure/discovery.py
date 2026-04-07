@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any, Optional
 import socket
 import time
@@ -69,10 +70,12 @@ class MdnsDiscoveryBrowser:
     service_type: str = SERVICE_TYPE
     restart_cooldown_s: float = 10.0
     rebrowse_interval_s: float = 120.0
+    preserved_agent_ttl_s: float = 5.0
     zeroconf: Optional[Any] = field(init=False, default=None)
     browser: Optional[Any] = field(init=False, default=None)
     listener: Optional[Any] = field(init=False, default=None)
     _agents: dict[str, DiscoveredAgent] = field(init=False, default_factory=dict)
+    _preserved_agent_deadlines: dict[str, float] = field(init=False, default_factory=dict)
     _last_restart_monotonic: float = field(init=False, default=0.0)
 
     def start(self) -> bool:
@@ -98,28 +101,53 @@ class MdnsDiscoveryBrowser:
 
     def _restart(self) -> bool:
         preserved_agents = dict(self._agents)
+        preserve_until = time.monotonic() + max(float(self.preserved_agent_ttl_s), 0.0)
         self._close_browser()
         started = self.start()
         if preserved_agents:
             merged_agents = dict(preserved_agents)
             merged_agents.update(self._agents)
             self._agents = merged_agents
+            self._preserved_agent_deadlines = {
+                name: preserve_until
+                for name in preserved_agents
+                if name not in self._agents or name in preserved_agents
+            }
         return started
+
+    def _prune_expired_preserved_agents(self, now_monotonic: float | None = None) -> None:
+        if not self._preserved_agent_deadlines:
+            return
+        now = time.monotonic() if now_monotonic is None else now_monotonic
+        expired = [
+            name
+            for name, deadline in self._preserved_agent_deadlines.items()
+            if now >= deadline
+        ]
+        for name in expired:
+            self._preserved_agent_deadlines.pop(name, None)
+            self._agents.pop(name, None)
 
     def _restart_interval_s(self) -> float:
         interval = self.rebrowse_interval_s if self._agents else self.restart_cooldown_s
-        return max(float(interval), 0.0)
+        try:
+            normalized = float(interval)
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(normalized):
+            return 0.0
+        return max(0.0, normalized)
 
     def _should_restart(self, now_monotonic: float) -> bool:
         return (now_monotonic - self._last_restart_monotonic) >= self._restart_interval_s()
 
-    def _ensure_browser_alive(self) -> None:
+    def _ensure_browser_alive(self, now_monotonic: float | None = None) -> None:
         if Zeroconf is None or ServiceBrowser is None:
             return
         if self.zeroconf is None:
             self.start()
             return
-        now = time.monotonic()
+        now = time.monotonic() if now_monotonic is None else now_monotonic
         if not self._should_restart(now):
             return
         self._restart()
@@ -142,6 +170,7 @@ class MdnsDiscoveryBrowser:
         properties = getattr(info, "properties", {}) or {}
         role = _decode_property(properties.get(b"role")) or ""
         if role != EXPECTED_ROLE:
+            self._preserved_agent_deadlines.pop(name, None)
             self._agents.pop(name, None)
             return
 
@@ -167,14 +196,19 @@ class MdnsDiscoveryBrowser:
             services_hint=services_hint,
             role=role,
         )
+        self._preserved_agent_deadlines.pop(name, None)
 
     def _remove_service(self, name: str) -> None:
+        self._preserved_agent_deadlines.pop(name, None)
         self._agents.pop(name, None)
 
     def snapshot(self) -> list[DiscoveredAgent]:
-        self._ensure_browser_alive()
+        now = time.monotonic()
+        self._prune_expired_preserved_agents(now)
+        self._ensure_browser_alive(now)
         return sorted(self._agents.values(), key=lambda item: ((item.node_name or "").lower(), (item.address or item.host or "").lower()))
 
     def close(self) -> None:
         self._agents.clear()
+        self._preserved_agent_deadlines.clear()
         self._close_browser()
