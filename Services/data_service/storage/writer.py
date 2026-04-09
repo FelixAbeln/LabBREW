@@ -99,7 +99,9 @@ class ParquetWriter(FileWriter):
             return value
         if isinstance(value, datetime):
             return value.isoformat()
-        if isinstance(value, (dict, list, tuple, set)):
+        if isinstance(value, set):
+            value = sorted(str(v) for v in value)
+        if isinstance(value, (dict, list, tuple)):
             try:
                 return json.dumps(
                     value, ensure_ascii=False, sort_keys=True, default=str
