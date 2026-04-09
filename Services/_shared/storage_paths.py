@@ -115,12 +115,7 @@ def load_topology_document() -> dict:
         return {}
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-        _LOG.warning(
-            "Failed to load topology document at %s (%s); returning empty topology.",
-            path,
-            exc,
-        )
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
         return {}
     if not isinstance(data, dict):
         _LOG.warning(
