@@ -265,7 +265,7 @@ class JSONLWriter(FileWriter):
         """Open the JSONL file for writing."""
         try:
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-            self.file_handle = os.fdopen(fd, "w")
+            self.file_handle = os.fdopen(fd, "w", encoding="utf-8")
         except Exception as e:
             print(f"Error opening JSONL file: {e}")
 
