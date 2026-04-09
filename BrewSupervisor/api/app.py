@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import inspect
 import math
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,14 +45,14 @@ async def lifespan(app: FastAPI):
     browser_kwargs: dict[str, float] = {}
     try:
         browser_params = inspect.signature(MdnsDiscoveryBrowser).parameters
-        if 'restart_cooldown_s' in browser_params:
-            restart_cooldown_s = _read_optional_float_env('MDNS_RESTART_COOLDOWN_S')
+        if "restart_cooldown_s" in browser_params:
+            restart_cooldown_s = _read_optional_float_env("MDNS_RESTART_COOLDOWN_S")
             if restart_cooldown_s is not None:
-                browser_kwargs['restart_cooldown_s'] = restart_cooldown_s
-        if 'rebrowse_interval_s' in browser_params:
-            rebrowse_interval_s = _read_optional_float_env('MDNS_REBROWSE_INTERVAL_S')
+                browser_kwargs["restart_cooldown_s"] = restart_cooldown_s
+        if "rebrowse_interval_s" in browser_params:
+            rebrowse_interval_s = _read_optional_float_env("MDNS_REBROWSE_INTERVAL_S")
             if rebrowse_interval_s is not None:
-                browser_kwargs['rebrowse_interval_s'] = rebrowse_interval_s
+                browser_kwargs["rebrowse_interval_s"] = rebrowse_interval_s
     except (TypeError, ValueError):
         # Some test doubles may not expose an inspectable signature.
         pass
@@ -63,8 +63,10 @@ async def lifespan(app: FastAPI):
     registry_kwargs: dict[str, float] = {}
     try:
         params = inspect.signature(FermenterRegistry).parameters
-        if 'snapshot_cache_ttl_s' in params:
-            registry_kwargs['snapshot_cache_ttl_s'] = _read_float_env('REGISTRY_CACHE_TTL_S', 0.5)
+        if "snapshot_cache_ttl_s" in params:
+            registry_kwargs["snapshot_cache_ttl_s"] = _read_float_env(
+                "REGISTRY_CACHE_TTL_S", 0.5
+            )
     except (TypeError, ValueError):
         # Some test doubles may not expose an inspectable signature.
         pass
@@ -80,13 +82,13 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title='Brew Supervisor', version='0.1.0', lifespan=lifespan)
+    app = FastAPI(title="Brew Supervisor", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=['*'],
+        allow_origins=["*"],
         allow_credentials=True,
-        allow_methods=['*'],
-        allow_headers=['*'],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.include_router(build_router())
     return app

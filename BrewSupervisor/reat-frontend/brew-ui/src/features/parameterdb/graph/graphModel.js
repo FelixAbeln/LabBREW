@@ -39,6 +39,66 @@ function normalizeStringList(values) {
   return result;
 }
 
+export function buildSourceInventory(params, sources) {
+  const inventory = new Map();
+
+  Object.entries(params ?? {}).forEach(([name, rec]) => {
+    const metadata = rec?.metadata ?? {};
+    if (metadata?.created_by !== 'data_source') return;
+    const owner = String(metadata?.owner ?? '').trim();
+    if (!owner) return;
+
+    const sourceRecord = sources?.[owner];
+    if (!inventory.has(owner)) {
+      inventory.set(owner, {
+        name: owner,
+        sourceType: String(metadata?.source_type ?? sourceRecord?.source_type ?? 'data_source'),
+        device: metadata?.device ? String(metadata.device) : '',
+        publishedParams: [],
+        publishedCount: 0,
+        feedsFrom: normalizeStringList(sourceRecord?.graph?.depends_on),
+        sourceRecord: sourceRecord && typeof sourceRecord === 'object' ? sourceRecord : null,
+      });
+    }
+
+    const entry = inventory.get(owner);
+    entry.publishedParams.push(name);
+    if (!entry.device && metadata?.device) entry.device = String(metadata.device);
+    if (!entry.sourceType && metadata?.source_type) entry.sourceType = String(metadata.source_type);
+  });
+
+  Object.entries(sources ?? {}).forEach(([sourceName, sourceRecord]) => {
+    if (!inventory.has(sourceName)) {
+      inventory.set(sourceName, {
+        name: sourceName,
+        sourceType: String(sourceRecord?.source_type ?? 'data_source'),
+        device: '',
+        publishedParams: [],
+        publishedCount: 0,
+        feedsFrom: normalizeStringList(sourceRecord?.graph?.depends_on),
+        sourceRecord: sourceRecord && typeof sourceRecord === 'object' ? sourceRecord : null,
+      });
+      return;
+    }
+
+    const entry = inventory.get(sourceName);
+    entry.sourceRecord = sourceRecord && typeof sourceRecord === 'object' ? sourceRecord : entry.sourceRecord;
+    entry.feedsFrom = normalizeStringList(sourceRecord?.graph?.depends_on);
+    if (sourceRecord?.source_type) entry.sourceType = String(sourceRecord.source_type);
+  });
+
+  inventory.forEach((entry) => {
+    const feedSet = new Set(entry.feedsFrom);
+    if (feedSet.size > 0) {
+      entry.publishedParams = entry.publishedParams.filter((paramName) => !feedSet.has(paramName));
+    }
+    entry.publishedParams.sort((a, b) => a.localeCompare(b));
+    entry.publishedCount = entry.publishedParams.length;
+  });
+
+  return inventory;
+}
+
 function applyLayout(nodes, edges) {
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
@@ -86,63 +146,28 @@ export function buildGraph(params, graph) {
     },
   }));
 
+  const sourceInventory = buildSourceInventory(params, sources);
   const sourceNodes = new Map();
-  Object.entries(params).forEach(([name, rec]) => {
-    const metadata = rec?.metadata ?? {};
-    if (metadata?.created_by !== 'data_source') return;
-    const owner = String(metadata?.owner ?? '').trim();
-    if (!owner) return;
-    if (!sourceNodes.has(owner)) {
-      sourceNodes.set(owner, {
-        id: `source:${owner}`,
-        type: 'source',
-        position: { x: 0, y: 0 },
-        data: {
-          name: owner,
-          kind: 'source',
-          sourceType: String(metadata?.source_type ?? 'data_source'),
-          device: metadata?.device ? String(metadata.device) : '',
-          publishedCount: 0,
-          publishedParams: [],
-        },
-      });
-    }
-    sourceNodes.get(owner).data.publishedCount += 1;
-    sourceNodes.get(owner).data.publishedParams.push(name);
-  });
-
-  Object.entries(sources ?? {}).forEach(([sourceName, sourceRecord]) => {
-    if (!sourceNodes.has(sourceName)) {
-      sourceNodes.set(sourceName, {
-        id: `source:${sourceName}`,
-        type: 'source',
-        position: { x: 0, y: 0 },
-        data: {
-          name: sourceName,
-          kind: 'source',
-          sourceType: String(sourceRecord?.source_type ?? 'data_source'),
-          device: '',
-          publishedCount: 0,
-          publishedParams: [],
-          feedsFrom: [],
-        },
-      });
-    }
+  sourceInventory.forEach((entry, sourceName) => {
+    sourceNodes.set(sourceName, {
+      id: `source:${sourceName}`,
+      type: 'source',
+      position: { x: 0, y: 0 },
+      data: {
+        name: sourceName,
+        kind: 'source',
+        sourceType: entry.sourceType,
+        device: entry.device,
+        publishedCount: entry.publishedCount,
+        publishedParams: [...entry.publishedParams],
+        feedsFrom: [...entry.feedsFrom],
+      },
+    });
   });
 
   const sourceLinksByName = new Map();
-  sourceNodes.forEach((sourceNode, sourceName) => {
-    const sourceRecord = sources?.[sourceName];
-    const links = { feedsFrom: normalizeStringList(sourceRecord?.graph?.depends_on) };
-    const feedSet = new Set(links.feedsFrom);
-
-    sourceNode.data.feedsFrom = links.feedsFrom;
-    if (feedSet.size > 0) {
-      sourceNode.data.publishedParams = sourceNode.data.publishedParams.filter((paramName) => !feedSet.has(paramName));
-      sourceNode.data.publishedCount = sourceNode.data.publishedParams.length;
-    }
-
-    sourceLinksByName.set(sourceName, links);
+  sourceInventory.forEach((entry, sourceName) => {
+    sourceLinksByName.set(sourceName, { feedsFrom: [...entry.feedsFrom] });
   });
 
   nodes.push(...sourceNodes.values());
@@ -180,22 +205,19 @@ export function buildGraph(params, graph) {
     }
   }
 
-  Object.entries(params).forEach(([name, rec]) => {
-    const metadata = rec?.metadata ?? {};
-    if (metadata?.created_by !== 'data_source') return;
-    const owner = String(metadata?.owner ?? '').trim();
-    if (!owner || !sourceNodes.has(owner)) return;
-    const feedSet = new Set(sourceLinksByName.get(owner)?.feedsFrom ?? []);
-    if (feedSet.has(name)) return;
-    const ownerColor = sourceColor(String(metadata?.source_type ?? 'data_source'));
-    edges.push({
-      id: `src:${owner}→${name}`,
-      source: `source:${owner}`,
-      target: name,
-      type: 'smoothstep',
-      animated: false,
-      style: { stroke: ownerColor, strokeWidth: 1.5 },
-      markerEnd: { type: 'arrowclosed', color: ownerColor },
+  sourceInventory.forEach((entry, sourceName) => {
+    const ownerColor = sourceColor(entry.sourceType);
+    entry.publishedParams.forEach((paramName) => {
+      if (!params[paramName] || !sourceNodes.has(sourceName)) return;
+      edges.push({
+        id: `src:${sourceName}→${paramName}`,
+        source: `source:${sourceName}`,
+        target: paramName,
+        type: 'smoothstep',
+        animated: false,
+        style: { stroke: ownerColor, strokeWidth: 1.5 },
+        markerEnd: { type: 'arrowclosed', color: ownerColor },
+      });
     });
   });
 

@@ -2,17 +2,16 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import math
-import os
 import statistics
 import sys
 import time
 import uuid
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
-
 
 try:
     import matplotlib.pyplot as plt
@@ -24,8 +23,15 @@ DEFAULT_PREFIX_ROOT = "loadtest"
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Load-test scan cycle time across parameter counts and plugin mixes.")
-    p.add_argument("--repo-root", default=".", help="Repo root containing parameterdb_core")
+    p = argparse.ArgumentParser(
+        description=(
+            "Load-test scan cycle time across parameter counts "
+            "and plugin mixes."
+        )
+    )
+    p.add_argument(
+        "--repo-root", default=".", help="Repo root containing parameterdb_core"
+    )
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument(
@@ -38,15 +44,28 @@ def parse_args() -> argparse.Namespace:
         default="0,50,100,200,500,1000",
         help="Comma-separated target total parameter counts",
     )
-    p.add_argument("--settle-s", type=float, default=1.0, help="Seconds to wait after each load change")
-    p.add_argument("--sample-s", type=float, default=2.0, help="Seconds to sample stats for each point")
-    p.add_argument("--poll-s", type=float, default=0.05, help="Polling interval while sampling")
+    p.add_argument(
+        "--settle-s",
+        type=float,
+        default=1.0,
+        help="Seconds to wait after each load change",
+    )
+    p.add_argument(
+        "--sample-s",
+        type=float,
+        default=2.0,
+        help="Seconds to sample stats for each point",
+    )
+    p.add_argument(
+        "--poll-s", type=float, default=0.05, help="Polling interval while sampling"
+    )
     p.add_argument("--output-dir", default="load_test_results")
     p.add_argument(
         "--prefix",
         default=None,
         help=(
-            "Optional fixed prefix root for temporary parameters. The script will delete existing parameters "
+            "Optional fixed prefix root for temporary parameters. "
+            "The script will delete existing parameters "
             "whose names start with '<prefix>.' before creating new ones."
         ),
     )
@@ -59,8 +78,8 @@ def percentile(sorted_values: list[float], q: float) -> float:
     if len(sorted_values) == 1:
         return sorted_values[0]
     pos = (len(sorted_values) - 1) * q
-    lo = int(math.floor(pos))
-    hi = int(math.ceil(pos))
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
     if lo == hi:
         return sorted_values[lo]
     frac = pos - lo
@@ -85,16 +104,22 @@ class LoadBuilder:
     def _name(self, suffix: str) -> str:
         return f"{self.prefix}.{suffix}"
 
-    def create(self, name: str, parameter_type: str, *, value=None, config=None, metadata=None) -> None:
-        self.client.create_parameter(name, parameter_type, value=value, config=config or {}, metadata=metadata or {})
+    def create(
+        self, name: str, parameter_type: str, *, value=None, config=None, metadata=None
+    ) -> None:
+        self.client.create_parameter(
+            name,
+            parameter_type,
+            value=value,
+            config=config or {},
+            metadata=metadata or {},
+        )
         self.created.append(name)
 
     def clear(self) -> None:
         for name in reversed(self.created):
-            try:
+            with contextlib.suppress(Exception):
                 self.client.delete_parameter(name)
-            except Exception:
-                pass
         self.created.clear()
 
     def build_static(self, target_count: int) -> int:
@@ -161,7 +186,9 @@ class LoadBuilder:
 
         pid_controllers = pid_param_target // 3
         deadband_controllers = deadband_param_target // 3
-        static_count = max(0, target_count - (pid_controllers * 3 + deadband_controllers * 3))
+        static_count = max(
+            0, target_count - (pid_controllers * 3 + deadband_controllers * 3)
+        )
 
         self.build_static(static_count)
 
@@ -227,7 +254,13 @@ def wait_for_new_cycles(client, duration_s: float, poll_s: float) -> SampleSumma
         time.sleep(poll_s)
 
     if not samples_ms:
-        return SampleSummary(observed_cycles=0, min_ms=math.nan, avg_ms=math.nan, p95_ms=math.nan, max_ms=math.nan)
+        return SampleSummary(
+            observed_cycles=0,
+            min_ms=math.nan,
+            avg_ms=math.nan,
+            p95_ms=math.nan,
+            max_ms=math.nan,
+        )
 
     samples_ms.sort()
     return SampleSummary(
@@ -252,7 +285,7 @@ def make_builder_fn(kind: str) -> Callable[[LoadBuilder, int], int]:
 
 
 def ensure_client(repo_root: str, host: str, port: int):
-    repo_root = os.path.abspath(repo_root)
+    repo_root = str(Path(repo_root).resolve())
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
     from parameterdb_core.client import SignalClient
@@ -267,7 +300,9 @@ def cleanup_existing_test_parameters(client, prefix_root: str) -> list[str]:
     except Exception as exc:
         raise RuntimeError(f"Unable to list parameters for cleanup: {exc}") from exc
 
-    to_delete = sorted((name for name in names if name.startswith(marker)), reverse=True)
+    to_delete = sorted(
+        (name for name in names if name.startswith(marker)), reverse=True
+    )
     deleted: list[str] = []
     for name in to_delete:
         try:
@@ -279,7 +314,16 @@ def cleanup_existing_test_parameters(client, prefix_root: str) -> list[str]:
     return deleted
 
 
-def run_one_kind(client, kind: str, counts: Iterable[int], settle_s: float, sample_s: float, poll_s: float, output_dir: Path, prefix: str) -> Path:
+def run_one_kind(
+    client,
+    kind: str,
+    counts: Iterable[int],
+    settle_s: float,
+    sample_s: float,
+    poll_s: float,
+    output_dir: Path,
+    prefix: str,
+) -> Path:
     builder = LoadBuilder(client, prefix=f"{prefix}.{kind}")
     build_fn = make_builder_fn(kind)
     rows: list[dict[str, object]] = []
@@ -302,7 +346,11 @@ def run_one_kind(client, kind: str, counts: Iterable[int], settle_s: float, samp
                 "max_cycle_ms": round(summary.max_ms, 6),
             }
             rows.append(row)
-            print(f"[{kind}] target={count:>5} actual={actual_count:>5} avg={summary.avg_ms:8.4f} ms p95={summary.p95_ms:8.4f} ms max={summary.max_ms:8.4f} ms")
+            print(
+                f"[{kind}] target={count:>5} actual={actual_count:>5} "
+                f"avg={summary.avg_ms:8.4f} ms p95={summary.p95_ms:8.4f} ms "
+                f"max={summary.max_ms:8.4f} ms"
+            )
     finally:
         builder.clear()
 
@@ -397,7 +445,11 @@ def main() -> int:
     prefix_root = args.prefix or DEFAULT_PREFIX_ROOT
     deleted = cleanup_existing_test_parameters(client, prefix_root)
     if deleted:
-        print(f"Deleted {len(deleted)} leftover test parameters for prefix root '{prefix_root}'")
+        print(
+            "Deleted "
+            f"{len(deleted)} leftover test parameters for "
+            f"prefix root '{prefix_root}'"
+        )
 
     run_id = uuid.uuid4().hex[:8]
     base_prefix = f"{prefix_root}.{run_id}"

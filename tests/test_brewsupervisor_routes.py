@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import ClassVar
 
-from fastapi import FastAPI
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
 import pytest
 import requests
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 from BrewSupervisor.api import routes as supervisor_routes
 from BrewSupervisor.api.routes import build_router
@@ -59,7 +59,10 @@ class StubProxy:
 
         body = json_body
         if body is None and data_body:
-            body = json.loads(data_body.decode('utf-8'))
+            try:
+                body = json.loads(data_body.decode('utf-8'))
+            except Exception:
+                body = {'raw_size': len(data_body)}
         return 200, {"ok": True, "url": url, "method": method, "params": params, "json": body}
 
     def request_raw(self, *, method, url, params=None, json_body=None, data_body=None, headers=None, stream=False):
@@ -67,7 +70,7 @@ class StubProxy:
 
         class _RawResponse:
             status_code = 200
-            headers = {
+            headers: ClassVar[dict[str, str]] = {
                 "content-type": "application/zip",
                 "content-disposition": 'attachment; filename="archive.zip"',
                 "content-length": "4",
@@ -313,6 +316,174 @@ def test_data_archive_routing_targets_data_service_agent() -> None:
     assert raw_call[1].startswith("http://10.0.0.12:8780/proxy/data_service/archives/download/")
 
 
+def test_datasource_fmu_gateway_targets_datasource_agent() -> None:
+    datasource_payload = _make_node("01").__dict__.copy()
+    datasource_payload.update({
+        "agent_base_url": "http://10.0.0.30:8780",
+        "services_hint": ["ParameterDB_DataSource"],
+        "services": {"ParameterDB_DataSource": {"healthy": True}},
+        "service_agents": {"ParameterDB_DataSource": "http://10.0.0.30:8780"},
+    })
+    datasource_node = SimpleNamespace(**datasource_payload)
+
+    control_payload = _make_node("01").__dict__.copy()
+    control_payload.update({
+        "agent_base_url": "http://10.0.0.10:8780",
+        "services_hint": ["control_service"],
+        "services": {"control_service": {"healthy": True}},
+        "service_agents": {"control_service": "http://10.0.0.10:8780"},
+    })
+    control_node = SimpleNamespace(**control_payload)
+
+    proxy = StubProxy()
+    client = _client(nodes=[control_node, datasource_node], proxy=proxy)
+
+    list_response = client.get("/fermenters/01/datasource-files/fmu")
+    assert list_response.status_code == 200
+
+    upload_response = client.post(
+        "/fermenters/01/datasource-files/fmu",
+        files={"file": ("controller.fmu", b"FMU_BYTES", "application/octet-stream")},
+    )
+    assert upload_response.status_code == 200
+
+    list_call = next(call for call in proxy.calls if call[0] == "GET" and "/parameterdb/fmu-files" in call[1])
+    upload_call = next(call for call in proxy.calls if call[0] == "POST" and "/parameterdb/fmu-files" in call[1])
+
+    assert list_call[1].startswith("http://10.0.0.30:8780")
+    assert upload_call[1].startswith("http://10.0.0.30:8780")
+
+
+def test_agent_storage_overview_and_actions_route_to_selected_agent() -> None:
+    agent_a_payload = _make_node("01").__dict__.copy()
+    agent_a_payload.update({
+        "agent_base_url": "http://10.0.0.31:8780",
+        "services_hint": ["control_service"],
+        "services": {"control_service": {"healthy": True}},
+        "service_agents": {"control_service": "http://10.0.0.31:8780"},
+    })
+    agent_a = SimpleNamespace(**agent_a_payload)
+
+    agent_b_payload = _make_node("01").__dict__.copy()
+    agent_b_payload.update({
+        "agent_base_url": "http://10.0.0.32:8780",
+        "services_hint": ["ParameterDB_DataSource"],
+        "services": {"ParameterDB_DataSource": {"healthy": True}},
+        "service_agents": {"ParameterDB_DataSource": "http://10.0.0.32:8780"},
+    })
+    agent_b = SimpleNamespace(**agent_b_payload)
+
+    proxy = StubProxy()
+    client = _client(nodes=[agent_a, agent_b], proxy=proxy)
+
+    overview = client.get("/fermenters/01/agents/storage")
+    assert overview.status_code == 200
+
+    action = client.post(
+        "/fermenters/01/agents/storage/list",
+        json={
+            "agent_base_url": "http://10.0.0.32:8780",
+            "root": "data",
+            "path": "",
+        },
+    )
+    assert action.status_code == 200
+
+    storage_roots_calls = [call for call in proxy.calls if call[0] == "GET" and call[1].endswith("/agent/storage/roots")]
+    assert len(storage_roots_calls) == 2
+    assert any(call[1].startswith("http://10.0.0.31:8780") for call in storage_roots_calls)
+    assert any(call[1].startswith("http://10.0.0.32:8780") for call in storage_roots_calls)
+
+    list_call = next(call for call in proxy.calls if call[0] == "POST" and call[1].endswith("/agent/storage/list"))
+    assert list_call[1].startswith("http://10.0.0.32:8780")
+
+
+def test_agent_storage_network_drive_broadcasts_to_all_agents() -> None:
+    agent_a_payload = _make_node("01").__dict__.copy()
+    agent_a_payload.update({
+        "agent_base_url": "http://10.0.0.31:8780",
+        "services_hint": ["control_service"],
+        "services": {"control_service": {"healthy": True}},
+        "service_agents": {"control_service": "http://10.0.0.31:8780"},
+    })
+    agent_a = SimpleNamespace(**agent_a_payload)
+
+    agent_b_payload = _make_node("01").__dict__.copy()
+    agent_b_payload.update({
+        "agent_base_url": "http://10.0.0.32:8780",
+        "services_hint": ["ParameterDB_DataSource"],
+        "services": {"ParameterDB_DataSource": {"healthy": True}},
+        "service_agents": {"ParameterDB_DataSource": "http://10.0.0.32:8780"},
+    })
+    agent_b = SimpleNamespace(**agent_b_payload)
+
+    proxy = StubProxy()
+    client = _client(nodes=[agent_a, agent_b], proxy=proxy)
+
+    response = client.post(
+        "/fermenters/01/agents/storage/network-drive",
+        json={"name": "shared", "path": r"\\server\brewshare"},
+    )
+
+    assert response.status_code == 200
+    drive_calls = [call for call in proxy.calls if call[0] == "POST" and call[1].endswith("/agent/storage/network-drive")]
+    assert len(drive_calls) == 2
+    assert any(call[1].startswith("http://10.0.0.31:8780") for call in drive_calls)
+    assert any(call[1].startswith("http://10.0.0.32:8780") for call in drive_calls)
+
+
+def test_agent_storage_file_routes_target_selected_agent() -> None:
+    agent_payload = _make_node("01").__dict__.copy()
+    agent_payload.update({
+        "agent_base_url": "http://10.0.0.32:8780",
+        "services_hint": ["ParameterDB_DataSource"],
+        "services": {"ParameterDB_DataSource": {"healthy": True}},
+        "service_agents": {"ParameterDB_DataSource": "http://10.0.0.32:8780"},
+    })
+    agent_node = SimpleNamespace(**agent_payload)
+
+    proxy = StubProxy()
+    client = _client(nodes=[agent_node], proxy=proxy)
+
+    read_response = client.post(
+        "/fermenters/01/agents/storage/read-file",
+        json={
+            "agent_base_url": "http://10.0.0.32:8780",
+            "root": "data",
+            "path": "system_topology.yaml",
+        },
+    )
+    write_response = client.post(
+        "/fermenters/01/agents/storage/write-file",
+        json={
+            "agent_base_url": "http://10.0.0.32:8780",
+            "root": "data",
+            "path": "system_topology.yaml",
+            "content": "services: {}\n",
+        },
+    )
+    download_response = client.get(
+        "/fermenters/01/agents/storage/download",
+        params={
+            "agent_base_url": "http://10.0.0.32:8780",
+            "root": "data",
+            "path": "system_topology.yaml",
+        },
+    )
+
+    assert read_response.status_code == 200
+    assert write_response.status_code == 200
+    assert download_response.status_code == 200
+
+    read_call = next(call for call in proxy.calls if call[0] == "POST" and call[1].endswith("/agent/storage/read-file"))
+    write_call = next(call for call in proxy.calls if call[0] == "POST" and call[1].endswith("/agent/storage/write-file"))
+    raw_call = next(call for call in proxy.calls if call[0] == "raw:GET" and call[1].endswith("/agent/storage/download"))
+
+    assert read_call[1].startswith("http://10.0.0.32:8780")
+    assert write_call[1].startswith("http://10.0.0.32:8780")
+    assert raw_call[1].startswith("http://10.0.0.32:8780")
+
+
 def test_build_service_proxy_url_uses_service_agent_mapping() -> None:
     node = SimpleNamespace(
         agent_base_url="http://10.0.0.1:8780",
@@ -376,11 +547,11 @@ def test_schedule_import_returns_422_when_validation_fails(monkeypatch) -> None:
     proxy = StubProxy()
     client = _client(nodes=[_make_node()], proxy=proxy)
 
-    monkeypatch.setattr(
-        supervisor_routes,
-        "parse_schedule_workbook",
-        lambda _bytes, filename=None: {"id": "imported", "plan_steps": [], "setup_steps": [], "measurement_config": {}},
-    )
+    def _parse_schedule(_bytes, filename=None):
+        _ = filename
+        return {"id": "imported", "plan_steps": [], "setup_steps": [], "measurement_config": {}}
+
+    monkeypatch.setattr(supervisor_routes, "parse_schedule_workbook", _parse_schedule)
     monkeypatch.setattr(
         supervisor_routes,
         "collect_workbook_parameter_references",
@@ -417,11 +588,11 @@ def test_validate_schedule_import_includes_backend_issue(monkeypatch) -> None:
     proxy = StubProxy()
     client = _client(nodes=[_make_node()], proxy=proxy)
 
-    monkeypatch.setattr(
-        supervisor_routes,
-        "parse_schedule_workbook",
-        lambda _bytes, filename=None: {"id": "imported", "plan_steps": [], "setup_steps": []},
-    )
+    def _parse_schedule(_bytes, filename=None):
+        _ = filename
+        return {"id": "imported", "plan_steps": [], "setup_steps": []}
+
+    monkeypatch.setattr(supervisor_routes, "parse_schedule_workbook", _parse_schedule)
     monkeypatch.setattr(supervisor_routes, "collect_workbook_parameter_references", lambda _bytes: set())
     monkeypatch.setattr(
         supervisor_routes,

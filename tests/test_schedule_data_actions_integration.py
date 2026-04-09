@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
-from tests.integration_helpers import IntegrationApi, managed_test_parameters, skip_if_parameterdb_unreachable, skip_if_unreachable, utc_stamp, wait_until
-
+from tests.integration_helpers import (
+    IntegrationApi,
+    managed_test_parameters,
+    skip_if_parameterdb_unreachable,
+    skip_if_unreachable,
+    utc_stamp,
+    wait_until,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -71,18 +79,12 @@ def _build_schedule(schedule_id: str, measurement_parameter: str) -> dict:
 
 
 def _hard_reset(schedule_api: IntegrationApi, data_api: IntegrationApi) -> None:
-    try:
+    with contextlib.suppress(Exception):
         schedule_api.post("/schedule/stop")
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         schedule_api.delete("/schedule")
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         data_api.post("/measurement/stop")
-    except Exception:
-        pass
 
 
 @pytest.fixture

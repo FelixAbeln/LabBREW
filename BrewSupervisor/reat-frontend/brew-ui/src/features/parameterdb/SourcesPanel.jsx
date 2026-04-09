@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchSources, fetchSourceTypes, fetchSourceTypeUi,
   createSource, updateSource, deleteSource,
 } from './loaders.js';
 import { SchemaForm } from './SchemaForm.jsx';
-import { buildFormData, buildSections, collectJsonFieldKeys, collectRequiredPaths, derivePublishedParametersByOwner, deriveSourceLinks, getByPath, setByPath } from './schemaUtils.js';
+import { buildFormData, buildSections, collectJsonFieldKeys, collectRequiredPaths, getByPath, setByPath } from './schemaUtils.js';
+import { buildSourceInventory } from './graph/graphModel.js';
 
 function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterNames, onSave, onClose }) {
   const isCreate = mode === 'create';
@@ -117,6 +118,7 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
           )}
           {schemaUi && (
             <SchemaForm
+              fermenterId={fermenterId}
               sections={sections}
               data={draft}
               errors={errors}
@@ -139,40 +141,28 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
   );
 }
 
-export function SourcesPanel({ fermenterId, parameterNames, params }) {
+export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
   const [sources, setSources] = useState({});
   const [sourceTypes, setSourceTypes] = useState({});
-  const [sourceUiByName, setSourceUiByName] = useState({});
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // null | {mode:'create'|'edit', record?:...}
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState('');
 
-  async function reload() {
+  const reload = useCallback(async () => {
     try {
       const [s, t] = await Promise.all([fetchSources(fermenterId), fetchSourceTypes(fermenterId)]);
       setSources(s.sources ?? {});
       setSourceTypes(t.types ?? {});
-      const uiEntries = await Promise.all(
-        Object.entries(s.sources ?? {}).map(async ([name, rec]) => {
-          try {
-            const response = await fetchSourceTypeUi(fermenterId, rec.source_type, name, 'edit');
-            return [name, response?.ui ?? null];
-          } catch {
-            return [name, null];
-          }
-        }),
-      );
-      setSourceUiByName(Object.fromEntries(uiEntries));
       setError('');
     } catch (err) {
       setError(err?.message ?? 'Load failed');
     } finally {
       setLoading(false);
     }
-  }
+  }, [fermenterId]);
 
-  useEffect(() => { reload(); }, [fermenterId]);
+  useEffect(() => { reload(); }, [reload]);
 
   async function handleSave({ name, source_type, config }) {
     if (modal?.mode === 'create') {
@@ -195,8 +185,13 @@ export function SourcesPanel({ fermenterId, parameterNames, params }) {
     }
   }
 
-  const rows = Object.entries(sources);
-  const publishedByOwner = useMemo(() => derivePublishedParametersByOwner(params), [params]);
+  const effectiveSources = useMemo(() => {
+    const graphSources = graph?.sources;
+    return graphSources && typeof graphSources === 'object' ? graphSources : sources;
+  }, [graph?.sources, sources]);
+
+  const sourceInventory = useMemo(() => buildSourceInventory(params, effectiveSources), [effectiveSources, params]);
+  const rows = useMemo(() => Object.entries(sources), [sources]);
 
   return (
     <div className="pdb-sources-panel">
@@ -225,13 +220,14 @@ export function SourcesPanel({ fermenterId, parameterNames, params }) {
           <tbody>
             {rows.map(([name, rec]) => (
               (() => {
-                const links = deriveSourceLinks({ name, ...rec }, sourceUiByName[name]);
-                const feedSet = new Set(links.feedsFrom);
-                const publishes = (publishedByOwner[name] ?? []).filter((item) => !feedSet.has(item));
+                const sourceSummary = sourceInventory.get(name);
+                const links = sourceSummary?.feedsFrom ?? [];
+                const publishes = sourceSummary?.publishedParams ?? [];
+                const sourceType = sourceSummary?.sourceType || rec.source_type;
                 return (
                   <tr key={name}>
                     <td className="pdb-cell-name">{name}</td>
-                    <td><span className="pdb-type-badge">{rec.source_type}</span></td>
+                    <td><span className="pdb-type-badge">{sourceType}</span></td>
                     <td>
                       <span className="pdb-status-indicator">
                         <span
@@ -242,8 +238,8 @@ export function SourcesPanel({ fermenterId, parameterNames, params }) {
                       </span>
                     </td>
                     <td className="pdb-cell-deps">
-                      {links.feedsFrom.length
-                        ? links.feedsFrom.map((item) => <code key={item} className="pdb-dep-chip">{item}</code>)
+                      {links.length
+                        ? links.map((item) => <code key={item} className="pdb-dep-chip">{item}</code>)
                         : <span className="pdb-cell-nil">—</span>}
                     </td>
                     <td className="pdb-cell-deps">
@@ -256,7 +252,7 @@ export function SourcesPanel({ fermenterId, parameterNames, params }) {
                     </td>
                     <td className="pdb-cell-actions">
                       <button className="pdb-btn-ghost pdb-btn-sm"
-                        onClick={() => setModal({ mode: 'edit', record: { name, ...rec } })}>Edit</button>
+                        onClick={() => setModal({ mode: 'edit', record: { name, ...rec, source_type: sourceType } })}>Edit</button>
                       <button className="pdb-btn-danger pdb-btn-sm"
                         disabled={deleting === name}
                         onClick={() => handleDelete(name)}>

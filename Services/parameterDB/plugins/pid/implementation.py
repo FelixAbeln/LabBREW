@@ -8,7 +8,10 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 class PIDParameter(ParameterBase):
     parameter_type = "pid"
     display_name = "PID"
-    description = "PID controller using other DB parameters as PV/SP. Output can also be mirrored to other parameters."
+    description = (
+        "PID controller using other DB parameters as PV/SP. "
+        "Output can also be mirrored to other parameters."
+    )
 
     def __init__(
         self,
@@ -102,9 +105,15 @@ class PIDParameter(ParameterBase):
 
         if mode == "manual":
             if manual_out_param:
-                manual_out = float(store.get_value(manual_out_param, self.value if self.value is not None else 0.0))
+                manual_out = float(
+                    store.get_value(
+                        manual_out_param, self.value if self.value is not None else 0.0
+                    )
+                )
             else:
-                manual_out = float(cfg.get("manual_out", self.value if self.value is not None else 0.0))
+                manual_out = float(
+                    cfg.get("manual_out", self.value if self.value is not None else 0.0)
+                )
             self.value = manual_out
             self._write_output_targets(store, manual_out)
             self.state["mode"] = "manual"
@@ -139,7 +148,9 @@ class PIDPlugin(PluginSpec):
     display_name = "PID"
     description = "PID controller"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
         return PIDParameter(name, config=config, value=value, metadata=metadata)
 
     def default_config(self) -> dict[str, Any]:

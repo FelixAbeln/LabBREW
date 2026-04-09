@@ -101,7 +101,7 @@ def test_data_service_main_module_entrypoint(monkeypatch) -> None:
     monkeypatch.setattr("Services.data_service.runtime.DataRecordingRuntime", _fake_runtime_ctor)
     monkeypatch.setattr("threading.Thread", _fake_thread_ctor)
     monkeypatch.setattr("Services.data_service.api.routes.set_runtime", lambda _runtime: None)
-    monkeypatch.setattr("uvicorn.run", lambda app, host, port: uvicorn_holder.update({"host": host, "port": port}))
+    monkeypatch.setattr("uvicorn.run", lambda _app, host, port: uvicorn_holder.update({"host": host, "port": port}))
 
     with warnings.catch_warnings():
         warnings.filterwarnings(

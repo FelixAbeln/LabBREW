@@ -32,16 +32,21 @@ def validate_topology(topology: Topology) -> None:
             _validate_rule(service.name, known_capabilities, rule)
 
 
-def _validate_rule(service_name: str, known_capabilities: set[str], rule: CapabilityArgRule) -> None:
+def _validate_rule(
+    service_name: str, known_capabilities: set[str], rule: CapabilityArgRule
+) -> None:
     if rule.capability not in known_capabilities:
         raise ValidationError(
-            f"Service '{service_name}' has arg rule for unknown capability '{rule.capability}'"
+            f"Service '{service_name}' has arg rule for unknown "
+            f"capability '{rule.capability}'"
         )
     if rule.mode == "url" and not rule.url_flag:
         raise ValidationError(
-            f"Service '{service_name}' capability '{rule.capability}' uses url mode without url_flag"
+            f"Service '{service_name}' capability '{rule.capability}' "
+            "uses url mode without url_flag"
         )
     if rule.mode == "host_port" and (not rule.host_flag or not rule.port_flag):
         raise ValidationError(
-            f"Service '{service_name}' capability '{rule.capability}' uses host_port mode without host_flag/port_flag"
+            f"Service '{service_name}' capability '{rule.capability}' "
+            "uses host_port mode without host_flag/port_flag"
         )

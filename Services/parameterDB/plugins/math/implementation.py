@@ -8,7 +8,6 @@ from typing import Any
 
 from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 
-
 _ALLOWED_BINARY_OPS = {
     ast.Add: lambda a, b: a + b,
     ast.Sub: lambda a, b: a - b,
@@ -52,10 +51,10 @@ class _ExpressionSymbolCollector(ast.NodeVisitor):
         self.names: list[str] = []
         self.function_names: set[str] = set()
 
-    def visit_Name(self, node: ast.Name) -> None:  # noqa: N802
+    def visit_Name(self, node: ast.Name) -> None:
         self.names.append(node.id)
 
-    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+    def visit_Call(self, node: ast.Call) -> None:
         if isinstance(node.func, ast.Name):
             self.function_names.add(node.func.id)
         self.generic_visit(node)
@@ -64,7 +63,10 @@ class _ExpressionSymbolCollector(ast.NodeVisitor):
 class MathParameter(ParameterBase):
     parameter_type = "math"
     display_name = "Math"
-    description = "Evaluates a symbolic equation from other DB parameters. Output can also be mirrored to other parameters."
+    description = (
+        "Evaluates a symbolic equation from other DB parameters. "
+        "Output can also be mirrored to other parameters."
+    )
 
     def __init__(
         self,
@@ -84,7 +86,9 @@ class MathParameter(ParameterBase):
     def _rewrite_dotted_symbols(self, equation: str) -> tuple[str, dict[str, str]]:
         alias_to_symbol: dict[str, str] = {}
         symbol_to_alias: dict[str, str] = {}
-        dotted_symbol_pattern = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+\b")
+        dotted_symbol_pattern = re.compile(
+            r"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+\b"
+        )
         used_identifiers = set(re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*\b", equation))
 
         def _new_alias(symbol: str) -> str:
@@ -185,7 +189,9 @@ class MathParameter(ParameterBase):
         if enable_param:
             deps.append(str(enable_param))
         deps.extend(self._cached_symbols)
-        return [name for name in list(dict.fromkeys(deps)) if name and name != self.name]
+        return [
+            name for name in list(dict.fromkeys(deps)) if name and name != self.name
+        ]
 
     def _eval_expr(self, node: ast.AST, values: dict[str, float]) -> float:
         if isinstance(node, ast.Expression):
@@ -205,7 +211,12 @@ class MathParameter(ParameterBase):
             op = _ALLOWED_BINARY_OPS.get(op_type)
             if op is None:
                 raise ValueError(f"unsupported operator: {op_type.__name__}")
-            return float(op(self._eval_expr(node.left, values), self._eval_expr(node.right, values)))
+            return float(
+                op(
+                    self._eval_expr(node.left, values),
+                    self._eval_expr(node.right, values),
+                )
+            )
         if isinstance(node, ast.UnaryOp):
             op_type = type(node.op)
             op = _ALLOWED_UNARY_OPS.get(op_type)
@@ -246,10 +257,10 @@ class MathParameter(ParameterBase):
         values: dict[str, float] = {}
         missing: list[str] = []
         bad_values: list[str] = []
-        ast_names = [
-            name for name in self._cached_alias_to_symbol.keys()
-        ] + [
-            symbol for symbol in self._cached_symbols if symbol not in self._cached_alias_to_symbol.values()
+        ast_names = [name for name in self._cached_alias_to_symbol] + [
+            symbol
+            for symbol in self._cached_symbols
+            if symbol not in self._cached_alias_to_symbol.values()
         ]
 
         for name in ast_names:
@@ -264,10 +275,14 @@ class MathParameter(ParameterBase):
                 bad_values.append(source_symbol)
 
         if missing:
-            self.state["last_error"] = "missing parameters in equation: " + ", ".join(missing)
+            self.state["last_error"] = "missing parameters in equation: " + ", ".join(
+                missing
+            )
             return
         if bad_values:
-            self.state["last_error"] = "non-numeric parameters in equation: " + ", ".join(bad_values)
+            self.state["last_error"] = (
+                "non-numeric parameters in equation: " + ", ".join(bad_values)
+            )
             return
 
         try:
@@ -288,7 +303,9 @@ class MathPlugin(PluginSpec):
     display_name = "Math"
     description = "Symbolic equation evaluator"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
         return MathParameter(name, config=config, value=value, metadata=metadata)
 
     def default_config(self) -> dict[str, Any]:

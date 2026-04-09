@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from test_parameterdb_server_handlers import FakeAudit
+
 from Services.parameterDB.parameterdb_service.engine import ScanEngine
 from Services.parameterDB.parameterdb_service.event_broker import EventBroker
 from Services.parameterDB.parameterdb_service.loader import PluginRegistry
@@ -7,11 +9,14 @@ from Services.parameterDB.parameterdb_service.server import SignalTCPServer
 from Services.parameterDB.parameterdb_service.store import ParameterStore
 from Services.parameterDB.plugins.median.implementation import MedianPlugin
 from Services.parameterDB.plugins.median.ui import get_ui_spec as get_median_ui_spec
-from Services.parameterDB.plugins.moving_average.implementation import MovingAveragePlugin
-from Services.parameterDB.plugins.moving_average.ui import get_ui_spec as get_moving_average_ui_spec
+from Services.parameterDB.plugins.moving_average.implementation import (
+    MovingAveragePlugin,
+)
+from Services.parameterDB.plugins.moving_average.ui import (
+    get_ui_spec as get_moving_average_ui_spec,
+)
 from Services.parameterDB.plugins.static.implementation import StaticPlugin
 from Services.parameterDB.plugins.static.ui import get_ui_spec as get_static_ui_spec
-from test_parameterdb_server_handlers import FakeAudit
 
 
 def _build_server_with_signal_filters() -> SignalTCPServer:

@@ -19,7 +19,10 @@ def get_ui_spec() -> dict:
                             "label": "Name",
                             "type": "string",
                             "required": True,
-                            "help": "Unique parameter name used by the runtime and other plugins.",
+                            "help": (
+                                "Unique parameter name used by the runtime "
+                                "and other plugins."
+                            ),
                         },
                     ],
                 },
@@ -30,7 +33,11 @@ def get_ui_spec() -> dict:
                             "key": "value",
                             "label": "Initial Value",
                             "type": "json",
-                            "help": "Seed value to create the retained parameter with. Any JSON-compatible value is allowed.",
+                            "help": (
+                                "Seed value to create the retained "
+                                "parameter with. Any JSON-compatible "
+                                "value is allowed."
+                            ),
                         },
                     ],
                 },
@@ -59,12 +66,22 @@ def get_ui_spec() -> dict:
                 {
                     "title": "Value",
                     "fields": [
-                        {"key": "name", "label": "Name", "type": "string", "required": True, "readonly": True},
+                        {
+                            "key": "name",
+                            "label": "Name",
+                            "type": "string",
+                            "required": True,
+                            "readonly": True,
+                        },
                         {
                             "key": "value",
                             "label": "Value",
                             "type": "json",
-                            "help": "Live retained value. Use this for quick manual forcing and tuning during development.",
+                            "help": (
+                                "Live retained value. Use this for quick "
+                                "manual forcing and tuning during "
+                                "development."
+                            ),
                         },
                     ],
                 },

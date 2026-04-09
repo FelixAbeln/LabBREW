@@ -7,7 +7,6 @@ from pathlib import Path
 
 from ..._shared.storage_paths import storage_subdir
 
-
 RULE_DIR = storage_subdir("Rules")
 
 
@@ -32,7 +31,7 @@ def load_rules() -> list[dict]:
 
     for file in sorted(rule_dir.glob("*.json")):
         try:
-            with open(file, "r", encoding="utf-8") as f:
+            with file.open(encoding="utf-8") as f:
                 rules.append(json.load(f))
         except Exception as exc:
             print(f"Failed to load rule file {file}: {exc}")
@@ -60,7 +59,7 @@ def save_rule(rule: dict) -> Path:
             f.flush()
             os.fsync(f.fileno())
 
-        os.replace(tmp_name, path)
+        Path(tmp_name).replace(path)
 
         try:
             dir_fd = os.open(str(path.parent), os.O_RDONLY)
@@ -72,8 +71,9 @@ def save_rule(rule: dict) -> Path:
             pass
     except Exception:
         try:
-            if os.path.exists(tmp_name):
-                os.unlink(tmp_name)
+            tmp_path = Path(tmp_name)
+            if tmp_path.exists():
+                tmp_path.unlink()
         except OSError:
             pass
         raise

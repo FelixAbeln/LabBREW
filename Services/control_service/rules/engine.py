@@ -1,10 +1,9 @@
-import time
 import threading
+import time
 
-from ..._shared.operator_engine.loader import load_registry
 from ..._shared.operator_engine.evaluator import ConditionEngine
+from ..._shared.operator_engine.loader import load_registry
 from ..._shared.operator_engine.models import EvaluationState
-
 from .parser import parse_condition
 
 
@@ -28,11 +27,17 @@ class RuleEngine:
     def prune_rules(self, active_rule_ids: set[str]) -> None:
         """Drop state/locks for rules that no longer exist."""
         with self._states_lock:
-            stale_state_ids = [rule_id for rule_id in self._states if rule_id not in active_rule_ids]
+            stale_state_ids = [
+                rule_id for rule_id in self._states if rule_id not in active_rule_ids
+            ]
             for rule_id in stale_state_ids:
                 self._states.pop(rule_id, None)
 
-            stale_lock_ids = [rule_id for rule_id in self._rule_locks if rule_id not in active_rule_ids]
+            stale_lock_ids = [
+                rule_id
+                for rule_id in self._rule_locks
+                if rule_id not in active_rule_ids
+            ]
             for rule_id in stale_lock_ids:
                 self._rule_locks.pop(rule_id, None)
 

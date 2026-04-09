@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from ...parameterdb_core.errors import ValidationError
-
 
 
 def require_dict(payload: dict[str, Any], key: str) -> dict[str, Any]:
@@ -14,13 +13,11 @@ def require_dict(payload: dict[str, Any], key: str) -> dict[str, Any]:
     return value
 
 
-
 def require_str(payload: dict[str, Any], key: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValidationError(f"Field '{key}' must be a non-empty string")
     return value
-
 
 
 def optional_str(payload: dict[str, Any], key: str) -> str | None:
@@ -32,13 +29,11 @@ def optional_str(payload: dict[str, Any], key: str) -> str | None:
     return value
 
 
-
 def optional_bool(payload: dict[str, Any], key: str, default: bool = False) -> bool:
     value = payload.get(key, default)
     if not isinstance(value, bool):
         raise ValidationError(f"Field '{key}' must be a boolean")
     return value
-
 
 
 def optional_list_of_str(payload: dict[str, Any], key: str) -> list[str]:
@@ -50,13 +45,11 @@ def optional_list_of_str(payload: dict[str, Any], key: str) -> list[str]:
     return list(value)
 
 
-
 def optional_path_str(payload: dict[str, Any], key: str) -> str | None:
     value = optional_str(payload, key)
     if value is None:
         return None
     return str(Path(value))
-
 
 
 def validate_empty_ok(payload: dict[str, Any]) -> dict[str, Any]:
@@ -65,10 +58,8 @@ def validate_empty_ok(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-
 def validate_get_parameter_type_ui(payload: dict[str, Any]) -> dict[str, Any]:
     return {"parameter_type": require_str(payload, "parameter_type")}
-
 
 
 def validate_create_parameter(payload: dict[str, Any]) -> dict[str, Any]:
@@ -87,30 +78,29 @@ def validate_create_parameter(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-
 def validate_delete_parameter(payload: dict[str, Any]) -> dict[str, Any]:
     return {"name": require_str(payload, "name")}
-
 
 
 def validate_get_value(payload: dict[str, Any]) -> dict[str, Any]:
     return {"name": require_str(payload, "name"), "default": payload.get("default")}
 
 
-
 def validate_set_value(payload: dict[str, Any]) -> dict[str, Any]:
     return {"name": require_str(payload, "name"), "value": payload.get("value")}
 
 
-
 def validate_update_changes(payload: dict[str, Any]) -> dict[str, Any]:
-    return {"name": require_str(payload, "name"), "changes": require_dict(payload, "changes")}
-
+    return {
+        "name": require_str(payload, "name"),
+        "changes": require_dict(payload, "changes"),
+    }
 
 
 def validate_load_parameter_type_folder(payload: dict[str, Any]) -> dict[str, Any]:
-    return {"folder": optional_path_str(payload, "folder") or require_str(payload, "folder")}
-
+    return {
+        "folder": optional_path_str(payload, "folder") or require_str(payload, "folder")
+    }
 
 
 def validate_subscribe(payload: dict[str, Any]) -> dict[str, Any]:

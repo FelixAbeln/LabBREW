@@ -8,7 +8,7 @@ class LoadstepAverager:
 
     def __init__(self, parameters: list[str], duration_seconds: float):
         """Initialize the averager.
-        
+
         Args:
             parameters: List of parameter names to average
             duration_seconds: Duration of the loadstep
@@ -20,7 +20,7 @@ class LoadstepAverager:
 
     def add_sample(self, data: dict[str, Any]) -> None:
         """Add a sample to the averager.
-        
+
         Args:
             data: Dictionary of parameter names to values
         """
@@ -30,7 +30,7 @@ class LoadstepAverager:
 
     def get_average(self) -> dict[str, float | None]:
         """Calculate and return the average of all samples.
-        
+
         Returns:
             Dictionary of parameter names to average values
         """

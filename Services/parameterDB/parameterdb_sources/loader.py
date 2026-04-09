@@ -37,7 +37,13 @@ class DataSourceRegistry:
     def list_types(self) -> list[str]:
         return sorted(self._specs)
 
-    def _resolve_ui_spec(self, source_type: str, *, record: dict[str, Any] | None = None, mode: str | None = None) -> dict[str, Any]:
+    def _resolve_ui_spec(
+        self,
+        source_type: str,
+        *,
+        record: dict[str, Any] | None = None,
+        mode: str | None = None,
+    ) -> dict[str, Any]:
         try:
             provider = self._ui_specs[source_type]
         except KeyError as exc:
@@ -64,7 +70,13 @@ class DataSourceRegistry:
             }
         return result
 
-    def get_ui_spec(self, source_type: str, *, record: dict[str, Any] | None = None, mode: str | None = None) -> dict[str, Any]:
+    def get_ui_spec(
+        self,
+        source_type: str,
+        *,
+        record: dict[str, Any] | None = None,
+        mode: str | None = None,
+    ) -> dict[str, Any]:
         return self._resolve_ui_spec(source_type, record=record, mode=mode)
 
 
@@ -93,7 +105,9 @@ def _extract_ui_spec(ui_module: Any | None) -> Any | None:
     return None
 
 
-def load_source_folder(folder: str | Path, registry: DataSourceRegistry) -> LoadedSourceType:
+def load_source_folder(
+    folder: str | Path, registry: DataSourceRegistry
+) -> LoadedSourceType:
     path = Path(folder)
     print(path)
 
@@ -108,7 +122,9 @@ def load_source_folder(folder: str | Path, registry: DataSourceRegistry) -> Load
     # Services.parameterDB.sourceDefs.brewtools_kvaser
 
     service_module = importlib.import_module(f"{module_base}.service")
-    ui_module = importlib.import_module(f"{module_base}.ui") if ui_file.exists() else None
+    ui_module = (
+        importlib.import_module(f"{module_base}.ui") if ui_file.exists() else None
+    )
 
     spec = getattr(service_module, "SOURCE", None)
     if spec is None:
@@ -116,7 +132,9 @@ def load_source_folder(folder: str | Path, registry: DataSourceRegistry) -> Load
 
     ui_spec = _extract_ui_spec(ui_module)
     registry.register(spec, ui_spec)
-    return LoadedSourceType(source_type=spec.source_type, folder=str(path), ui_spec=ui_spec)
+    return LoadedSourceType(
+        source_type=spec.source_type, folder=str(path), ui_spec=ui_spec
+    )
 
 
 def autodiscover_sources(root: str | Path, registry: DataSourceRegistry) -> list[str]:

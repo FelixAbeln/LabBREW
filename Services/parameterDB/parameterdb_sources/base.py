@@ -12,7 +12,13 @@ class DataSourceBase(ABC):
     display_name = "Base Data Source"
     description = "Base external data source"
 
-    def __init__(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> None:
         self.name = name
         self.client = client
         self.config = dict(config or {})
@@ -45,17 +51,29 @@ class DataSourceBase(ABC):
         config: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
+        config_payload = config or {}
+        metadata_payload = metadata or self.build_owned_metadata()
         try:
             self.client.create_parameter(
                 name,
                 parameter_type,
                 value=value,
-                config=config or {},
-                metadata=metadata or self.build_owned_metadata(),
+                config=config_payload,
+                metadata=metadata_payload,
             )
         except Exception:
-            # Parameter already exists or service unavailable; keep startup tolerant.
-            pass
+            # Existing parameters still need datasource ownership/config
+            # metadata repaired so UI features can discover published params
+            # and source-generated controls.
+            try:
+                if config_payload:
+                    self.client.update_config(name, **config_payload)
+                if metadata_payload:
+                    self.client.update_metadata(name, **metadata_payload)
+            except Exception:
+                # Parameter already exists or service unavailable;
+                # keep startup tolerant.
+                pass
 
     @abstractmethod
     def ensure_parameters(self) -> None:
@@ -75,7 +93,13 @@ class DataSourceSpec(ABC):
     description = "Base external data source"
 
     @abstractmethod
-    def create(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> DataSourceBase:
+    def create(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> DataSourceBase:
         raise NotImplementedError
 
     def default_config(self) -> dict[str, Any]:

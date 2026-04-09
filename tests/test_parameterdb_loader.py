@@ -2,19 +2,23 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from uuid import uuid4
 
 import pytest
 
 import Services.parameterDB.parameterdb_service.loader as loader_module
 from Services.parameterDB.parameterdb_service.loader import PluginRegistry
-from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase, PluginSpec
+from Services.parameterDB.parameterdb_service.plugin_api import (
+    ParameterBase,
+    PluginSpec,
+)
 
 
 class FakeParam(ParameterBase):
     parameter_type = "fake"
 
-    def scan(self, ctx) -> None:
+    def scan(self, _ctx) -> None:
         return None
 
 
@@ -71,7 +75,7 @@ def test_extract_ui_spec_paths() -> None:
             return {"display_name": "From getter"}
 
     class WithUiSpec:
-        UI_SPEC = {"display_name": "From constant"}
+        UI_SPEC: ClassVar[dict[str, str]] = {"display_name": "From constant"}
 
     class WithBadGetter:
         @staticmethod
@@ -79,7 +83,7 @@ def test_extract_ui_spec_paths() -> None:
             return ["bad"]
 
     class WithBadUiSpec:
-        UI_SPEC = ["bad"]
+        UI_SPEC: ClassVar[list[str]] = ["bad"]
 
     assert loader_module._extract_ui_spec(None) is None
     assert loader_module._extract_ui_spec(WithGetter())["display_name"] == "From getter"

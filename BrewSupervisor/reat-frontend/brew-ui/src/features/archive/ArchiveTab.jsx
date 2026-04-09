@@ -25,6 +25,7 @@ export function ArchiveTab({
   archivePayload,
   deletingArchiveName,
   onDelete,
+  onView,
 }) {
   const archives = Array.isArray(archivePayload?.archives) ? archivePayload.archives : []
   const disk = archivePayload?.disk && typeof archivePayload.disk === 'object' ? archivePayload.disk : null
@@ -82,6 +83,13 @@ export function ArchiveTab({
                     <span>{formatBytes(archive?.size_bytes)}</span>
                     <span>{formatDate(archive?.modified_at)}</span>
                     <div className="button-row compact-actions">
+                      <button
+                        className="secondary-button"
+                        disabled={!name}
+                        onClick={() => onView(name)}
+                      >
+                        View
+                      </button>
                       <a className="secondary-button" href={downloadHref}>
                         Download
                       </a>

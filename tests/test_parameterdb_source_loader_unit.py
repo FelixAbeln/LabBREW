@@ -63,7 +63,7 @@ def test_extract_ui_spec_none_and_load_source_folder_missing_source(monkeypatch,
     class ServiceModuleWithoutSource:
         pass
 
-    monkeypatch.setattr(loader.importlib, "import_module", lambda name: ServiceModuleWithoutSource)
+    monkeypatch.setattr(loader.importlib, "import_module", lambda _name: ServiceModuleWithoutSource)
 
     with pytest.raises(ValueError, match="must define SOURCE"):
         loader.load_source_folder(folder, loader.DataSourceRegistry())

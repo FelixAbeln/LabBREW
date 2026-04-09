@@ -32,6 +32,7 @@ export function SystemTab({
   selected,
   healthyServices,
   onOpenParameterDB,
+  onOpenStorageManager,
   repoUpdateStatus,
   repoStatusLoading,
   repoUpdateLoading,
@@ -60,7 +61,20 @@ export function SystemTab({
         />
       )}
     <div className="tab-content-grid system-layout">
-      {onOpenParameterDB && (
+      {(onOpenParameterDB || onOpenStorageManager) && (
+        <>
+        {onOpenStorageManager && (
+          <div className="control-bar pdb-open-btn-card pdb-open-btn-sticky">
+            <div className="control-bar-copy">
+              <strong>Storage Manager</strong>
+              <span>Open the cross-agent storage manager to browse, create, move and delete managed files.</span>
+            </div>
+            <div className="control-button-group">
+              <button className="primary-button" onClick={onOpenStorageManager}>Storage</button>
+            </div>
+          </div>
+        )}
+        {onOpenParameterDB && (
         <div className="control-bar pdb-open-btn-card pdb-open-btn-sticky">
           <div className="control-bar-copy">
             <strong>ParameterDB</strong>
@@ -70,6 +84,8 @@ export function SystemTab({
             <button className="primary-button" onClick={onOpenParameterDB}>ParameterDB</button>
           </div>
         </div>
+        )}
+        </>
       )}
 
       <div className="system-left-column">

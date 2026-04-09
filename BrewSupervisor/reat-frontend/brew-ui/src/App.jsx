@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import './features/parameterdb/parameterdb.css'
 import './features/data/data.css'
@@ -19,6 +19,7 @@ import { getRunToggle } from './features/schedule/scheduleUtils'
 import { AppShell } from './features/app/AppShell'
 import { FermenterTabContent } from './features/app/FermenterTabContent'
 import { useAdaptivePolling } from './hooks/useAdaptivePolling'
+import { ArchiveViewerPage } from './features/archive/ArchiveViewerPage'
 
 function App() {
   const brewApiRef = useRef(null)
@@ -57,6 +58,11 @@ function App() {
   const [repoStatusLoading, setRepoStatusLoading] = useState(false)
   const [repoUpdateLoading, setRepoUpdateLoading] = useState(false)
   const [archivePayload, setArchivePayload] = useState(null)
+  const [selectedArchiveName, setSelectedArchiveName] = useState('')
+  const [archiveViewPayload, setArchiveViewPayload] = useState(null)
+  const [archiveViewLoading, setArchiveViewLoading] = useState(false)
+  const [archiveViewError, setArchiveViewError] = useState('')
+  const archiveViewRequestRef = useRef(0)
   const [deletingArchiveName, setDeletingArchiveName] = useState('')
   const [dataHz, setDataHz] = useState('10')
   const [loadstepSeconds, setLoadstepSeconds] = useState('30')
@@ -77,31 +83,43 @@ function App() {
     return operatorMap.get(ruleForm.operator) || null
   }, [operatorMap, ruleForm?.operator])
 
-  async function loadDataTab(id = selectedId) {
+  const loadDataTab = useCallback(async (id = selectedId) => {
     if (!id) return null
+    const selectedFermenter = fermenters.find((item) => item.id === id) || null
     const { snapshotPayload, statusPayload } = await loadDataTabPayload(brewApi, id, {
-      includeStatus: dataServiceHealthy,
+      includeStatus: Boolean(selectedFermenter?.services?.data_service?.healthy),
     })
     setRulesSnapshot(snapshotPayload && typeof snapshotPayload === 'object' ? snapshotPayload : null)
     setDataServiceStatus(statusPayload && typeof statusPayload === 'object' ? statusPayload : null)
     return { snapshotPayload, statusPayload }
-  }
+  }, [brewApi, fermenters, selectedId])
 
-  function getArchiveOutputDir() {
+  const getArchiveOutputDir = useCallback(() => {
+    const archiveOutputDir = archivePayload?.output_dir
+    if (typeof archiveOutputDir === 'string') {
+      const trimmedArchiveOutputDir = archiveOutputDir.trim()
+      if (trimmedArchiveOutputDir) return trimmedArchiveOutputDir
+    }
     const outputDir = dataServiceStatus?.config?.output_dir
     if (typeof outputDir !== 'string') return undefined
     const trimmed = outputDir.trim()
     return trimmed || undefined
-  }
+  }, [archivePayload?.output_dir, dataServiceStatus?.config?.output_dir])
 
-  async function loadArchiveTab(id = selectedId) {
+  const loadArchiveTab = useCallback(async (id = selectedId) => {
     if (!id) return null
     const payload = await loadArchiveTabPayload(brewApi, id, {
       outputDir: getArchiveOutputDir(),
     })
     setArchivePayload(payload && typeof payload === 'object' ? payload : null)
+    const archives = Array.isArray(payload?.archives) ? payload.archives : []
+    if (selectedArchiveName && !archives.some((item) => item?.name === selectedArchiveName)) {
+      setSelectedArchiveName('')
+      setArchiveViewPayload(null)
+      setArchiveViewError('')
+    }
     return payload
-  }
+  }, [brewApi, getArchiveOutputDir, selectedArchiveName, selectedId])
 
   async function deleteArchive(name) {
     if (!selected?.id || !name) return
@@ -113,12 +131,45 @@ function App() {
       await brewApi.deleteDataArchive(selected.id, name, {
         outputDir: getArchiveOutputDir(),
       })
+      if (selectedArchiveName === name) {
+        setSelectedArchiveName('')
+        setArchiveViewPayload(null)
+        setArchiveViewError('')
+      }
       brewApi.invalidateFermenter(selected.id)
       await loadArchiveTab(selected.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setDeletingArchiveName('')
+    }
+  }
+
+  async function viewArchive(name) {
+    if (!selected?.id || !name || archiveViewLoading) return
+    const requestId = archiveViewRequestRef.current + 1
+    archiveViewRequestRef.current = requestId
+    try {
+      setArchiveViewLoading(true)
+      setArchiveViewError('')
+      setArchiveViewPayload(null)
+      setSelectedArchiveName(name)
+      setGlobalView('archive-viewer')
+      const payload = await brewApi.getDataArchiveView(selected.id, name, {
+        outputDir: getArchiveOutputDir(),
+        maxPoints: 1800,
+        force: true,
+      })
+      if (archiveViewRequestRef.current !== requestId) return
+      setArchiveViewPayload(payload && typeof payload === 'object' ? payload : null)
+    } catch (err) {
+      if (archiveViewRequestRef.current !== requestId) return
+      setArchiveViewPayload(null)
+      setArchiveViewError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      if (archiveViewRequestRef.current === requestId) {
+        setArchiveViewLoading(false)
+      }
     }
   }
 
@@ -194,14 +245,14 @@ function App() {
     }
   }
 
-  async function loadRules(id = selectedId) {
+  const loadRules = useCallback(async (id = selectedId) => {
     if (!id) return
     const { rulesPayload, snapshotPayload } = await loadRulesTabPayload(brewApi, id)
     setRules(rulesPayload)
     setRulesSnapshot(snapshotPayload)
-  }
+  }, [brewApi, selectedId])
 
-  async function loadControlUiSpec(id = selectedId, { quiet = false, includeEmptyCards = false } = {}) {
+  const loadControlUiSpec = useCallback(async (id = selectedId, { quiet = false, includeEmptyCards = false } = {}) => {
     if (!id) return null
     if (!quiet) setControlUiLoading(true)
     try {
@@ -216,7 +267,7 @@ function App() {
     } finally {
       if (!quiet) setControlUiLoading(false)
     }
-  }
+  }, [selectedId])
 
   function updateControlDraft(target, value) {
     if (!target) return
@@ -580,16 +631,16 @@ function App() {
     [rulesSnapshot],
   )
 
-  async function loadFermenters() {
+  const loadFermenters = useCallback(async () => {
     const data = await loadFermentersData(brewApi)
     setFermenters(data)
     if (!selectedId && data.length) {
       setSelectedId(data[0].id)
     }
     return data
-  }
+  }, [brewApi, selectedId])
 
-  async function loadDetails(id) {
+  const loadDetails = useCallback(async (id) => {
     const requestId = dashboardRequestRef.current + 1
     dashboardRequestRef.current = requestId
 
@@ -605,9 +656,9 @@ function App() {
     setSchedule(payload?.schedule || null)
     setScheduleDefinition(payload?.schedule_definition || null)
     setOwnedTargetValues(Array.isArray(payload?.owned_target_values) ? payload.owned_target_values : [])
-  }
+  }, [brewApi])
 
-  async function refreshRepoUpdateStatus(id = selectedId, { force = false, quiet = false } = {}) {
+  const refreshRepoUpdateStatus = useCallback(async (id = selectedId, { force = false, quiet = false } = {}) => {
     if (!id) return null
     if (!quiet) setRepoStatusLoading(true)
     try {
@@ -625,7 +676,7 @@ function App() {
     } finally {
       if (!quiet) setRepoStatusLoading(false)
     }
-  }
+  }, [brewApi, selectedId])
 
   async function applyRepoUpdate() {
     if (!selected?.id || repoUpdateLoading) return
@@ -649,7 +700,7 @@ function App() {
     }
   }
 
-  async function refreshAll() {
+  const refreshAll = useCallback(async () => {
     try {
       setError('')
       brewApi.invalidateFermenters()
@@ -672,7 +723,7 @@ function App() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     }
-  }
+  }, [brewApi, loadDetails, loadFermenters, selectedId])
 
   async function runAction(path) {
     if (!selected) return
@@ -728,7 +779,7 @@ function App() {
 
   useEffect(() => {
     refreshAll()
-  }, [])
+  }, [refreshAll])
 
   useEffect(() => {
     const summaryStatus = selected?.summary?.repo_update
@@ -824,7 +875,9 @@ function App() {
   useEffect(() => {
     try {
       window.localStorage.setItem('brew-ui.starred-params', JSON.stringify(starredParams))
-    } catch {}
+    } catch {
+      // Ignore storage failures and keep UI responsive.
+    }
   }, [starredParams])
 
   useEffect(() => {
@@ -832,14 +885,22 @@ function App() {
     loadArchiveTab(selected.id).catch((err) => {
       setError(err instanceof Error ? err.message : 'Unknown error')
     })
-  }, [activeTab, selected?.id])
+  }, [activeTab, loadArchiveTab, selected?.id])
+
+  useEffect(() => {
+    archiveViewRequestRef.current += 1
+    setSelectedArchiveName('')
+    setArchiveViewPayload(null)
+    setArchiveViewError('')
+    setArchiveViewLoading(false)
+  }, [selected?.id])
 
   useEffect(() => {
     if (activeTab !== 'control' || !selected?.id) return
     loadControlUiSpec(selected.id).catch((err) => {
       setError(err instanceof Error ? err.message : 'Unknown error')
     })
-  }, [activeTab, selected?.id])
+  }, [activeTab, loadControlUiSpec, selected?.id])
 
   function toggleStarredParam(name) {
     setStarredParams((current) =>
@@ -901,6 +962,7 @@ function App() {
     archivePayload,
     deletingArchiveName,
     onDelete: deleteArchive,
+    onView: viewArchive,
   }
 
   const rulesTabProps = {
@@ -921,6 +983,7 @@ function App() {
     selected,
     healthyServices,
     onOpenParameterDB: () => setGlobalView('parameterdb'),
+    onOpenStorageManager: () => setGlobalView('storage-manager'),
     repoUpdateStatus,
     repoStatusLoading,
     repoUpdateLoading,
@@ -966,6 +1029,10 @@ function App() {
         globalView={globalView}
         setGlobalView={setGlobalView}
         ruleEditorProps={ruleEditorProps}
+        archiveViewPayload={archiveViewPayload}
+        selectedArchiveName={selectedArchiveName}
+        archiveViewLoading={archiveViewLoading}
+        archiveViewError={archiveViewError}
       />
     </AppShell>
   )

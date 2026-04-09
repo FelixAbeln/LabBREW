@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.test_schedule_runtime_behavior import FakeControlClient, FakeDataClient, _make_runtime
+from tests.test_schedule_runtime_behavior import (
+    FakeControlClient,
+    FakeDataClient,
+    _make_runtime,
+)
 
 
 def test_schedule_runtime_moves_from_setup_to_plan(tmp_path: Path) -> None:

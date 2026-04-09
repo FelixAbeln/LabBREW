@@ -13,8 +13,8 @@ from .registry import OperatorPlugin, OperatorRegistry
 __all__ = [
     "AtomicCondition",
     "CompositeCondition",
-    "ConditionNode",
     "ConditionEngine",
+    "ConditionNode",
     "EvaluationResult",
     "EvaluationState",
     "OperatorMetadata",

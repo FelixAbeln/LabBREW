@@ -8,7 +8,10 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 class LowpassParameter(ParameterBase):
     parameter_type = "lowpass"
     display_name = "Lowpass"
-    description = "Applies first-order lowpass filtering to a source parameter. Output can also be mirrored to other parameters."
+    description = (
+        "Applies first-order lowpass filtering to a source parameter. "
+        "Output can also be mirrored to other parameters."
+    )
 
     def __init__(
         self,
@@ -132,7 +135,9 @@ class LowpassPlugin(PluginSpec):
     display_name = "Lowpass"
     description = "First-order lowpass filter"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
         return LowpassParameter(name, config=config, value=value, metadata=metadata)
 
     def default_config(self) -> dict[str, Any]:

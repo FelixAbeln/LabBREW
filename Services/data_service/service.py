@@ -5,12 +5,14 @@ at a configurable frequency, storing to files, and generating loadstep averages.
 """
 
 import threading
-from fastapi import FastAPI
+
 import uvicorn
+from fastapi import FastAPI
 
 from .._shared.cli import parse_args
+from .api.routes import router as measurement_router
+from .api.routes import set_runtime
 from .runtime import DataRecordingRuntime
-from .api.routes import router as measurement_router, set_runtime
 
 
 def main():

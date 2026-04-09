@@ -60,7 +60,9 @@ class SeenServiceType:
 
 
 class MdnsProbeListener:
-    def __init__(self, zeroconf: Any, service_type: str, expected_role: str, verbose_props: bool) -> None:
+    def __init__(
+        self, zeroconf: Any, service_type: str, expected_role: str, verbose_props: bool
+    ) -> None:
         self._zeroconf = zeroconf
         self._service_type = service_type
         self._expected_role = expected_role
@@ -68,14 +70,13 @@ class MdnsProbeListener:
         self._lock = threading.Lock()
         self._seen: dict[str, SeenService] = {}
 
-    def add_service(self, zeroconf: Any, service_type: str, name: str) -> None:
+    def add_service(self, _zeroconf: Any, _service_type: str, name: str) -> None:
         self._refresh(name, "ADD")
 
-    def update_service(self, zeroconf: Any, service_type: str, name: str) -> None:
+    def update_service(self, _zeroconf: Any, _service_type: str, name: str) -> None:
         self._refresh(name, "UPD")
 
-    def remove_service(self, zeroconf: Any, service_type: str, name: str) -> None:
-        now = time.monotonic()
+    def remove_service(self, _zeroconf: Any, _service_type: str, name: str) -> None:
         with self._lock:
             previous = self._seen.pop(name, None)
         stamp = time.strftime("%H:%M:%S")
@@ -89,7 +90,9 @@ class MdnsProbeListener:
 
     def _refresh(self, name: str, event: str) -> None:
         try:
-            info = self._zeroconf.get_service_info(self._service_type, name, timeout=1000)
+            info = self._zeroconf.get_service_info(
+                self._service_type, name, timeout=1000
+            )
         except Exception as exc:
             stamp = time.strftime("%H:%M:%S")
             print(f"[{stamp}] {event} {name} info_error={exc}")
@@ -133,7 +136,8 @@ class MdnsProbeListener:
         status = "RELEVANT" if relevant else "other"
         print(
             f"[{stamp}] {event} {name} addr={seen.address}:{seen.port} "
-            f"host={seen.host} node_id={seen.node_id} role={seen.role or '-'} [{status}]"
+            f"host={seen.host} node_id={seen.node_id} "
+            f"role={seen.role or '-'} [{status}]"
         )
         if self._verbose_props:
             print(f"[{stamp}]      TXT={props}")
@@ -200,9 +204,14 @@ class DnsSdCatalogListener:
     def print_summary(self) -> None:
         stamp = time.strftime("%H:%M:%S")
         with self._lock:
-            rows = sorted(self._seen.values(), key=lambda item: item.service_type.lower())
+            rows = sorted(
+                self._seen.values(), key=lambda item: item.service_type.lower()
+            )
         relevant_rows = [row for row in rows if row.relevant]
-        print(f"[{stamp}] SUMMARY service_types total={len(rows)} relevant={len(relevant_rows)}")
+        print(
+            f"[{stamp}] SUMMARY service_types total={len(rows)} "
+            f"relevant={len(relevant_rows)}"
+        )
         for row in rows:
             age_s = max(0.0, time.monotonic() - row.last_seen_monotonic)
             marker = "*" if row.relevant else "-"
@@ -211,7 +220,10 @@ class DnsSdCatalogListener:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Raw mDNS probe for _fcs._tcp.local services with relevance filtering."
+        description=(
+            "Raw mDNS probe for _fcs._tcp.local services "
+            "with relevance filtering."
+        )
     )
     parser.add_argument(
         "--service-type",
@@ -237,13 +249,19 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dns-sd-catalog",
         action="store_true",
-        help="Browse _services._dns-sd._udp.local and list all advertised service types",
+        help=(
+            "Browse _services._dns-sd._udp.local and list "
+            "all advertised service types"
+        ),
     )
     parser.add_argument(
         "--relevant-service-type",
         action="append",
         default=[],
-        help="Service type to mark as relevant in DNS-SD catalog mode (can be repeated)",
+        help=(
+            "Service type to mark as relevant in DNS-SD "
+            "catalog mode (can be repeated)"
+        ),
     )
     return parser
 
@@ -289,12 +307,17 @@ def main() -> int:
         print(f"Starting DNS-SD catalog probe for service_type={service_type}")
         print(f"Relevant service types: {relevant_display}")
     else:
-        print(f"Starting mDNS probe for service_type={service_type} expected_role={expected_role}")
+        print(
+            f"Starting mDNS probe for service_type={service_type} "
+            f"expected_role={expected_role}"
+        )
     print("Press Ctrl+C to stop.")
 
     zc = Zeroconf()
     if use_dns_sd_catalog:
-        listener: Any = DnsSdCatalogListener(relevant_service_types=relevant_service_types)
+        listener: Any = DnsSdCatalogListener(
+            relevant_service_types=relevant_service_types
+        )
     else:
         listener = MdnsProbeListener(
             zc,
@@ -305,7 +328,9 @@ def main() -> int:
     browser = ServiceBrowser(zc, service_type, listener)
     _ = browser
 
-    next_summary = time.monotonic() + summary_every if summary_every > 0.0 else float("inf")
+    next_summary = (
+        time.monotonic() + summary_every if summary_every > 0.0 else float("inf")
+    )
 
     try:
         while not stop_event.wait(0.25):

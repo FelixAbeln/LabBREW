@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.request import Request, urlopen
 
 from ...parameterdb_core.client import SupportsSignalRequests
 from ...parameterdb_sources.base import DataSourceBase, DataSourceSpec
-
 
 _TILT_COLORS = (
     "Red",
@@ -41,9 +41,18 @@ _APPLE_COMPANY_ID = 0x004C
 class TiltHydrometerSource(DataSourceBase):
     source_type = "tilt_hydrometer"
     display_name = "Tilt Hydrometer"
-    description = "Reads Tilt Bridge JSON and publishes gravity/temperature for one selected Tilt color."
+    description = (
+        "Reads Tilt Bridge JSON and publishes gravity/temperature "
+        "for one selected Tilt color."
+    )
 
-    def __init__(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(name, client, config=config)
         self._last_seen_monotonic: float | None = None
         self._last_battery_weeks: float | None = None
@@ -75,7 +84,9 @@ class TiltHydrometerSource(DataSourceBase):
         canonical = _TILT_COLOR_CANONICAL.get(raw.lower())
         if canonical is None:
             allowed = ", ".join(_TILT_COLORS)
-            raise ValueError(f"Unsupported Tilt color '{raw}'. Allowed colors: {allowed}")
+            raise ValueError(
+                f"Unsupported Tilt color '{raw}'. Allowed colors: {allowed}"
+            )
         return canonical
 
     @staticmethod
@@ -103,7 +114,10 @@ class TiltHydrometerSource(DataSourceBase):
 
     @staticmethod
     def _normalize_temp_f(item: dict[str, Any]) -> float | None:
-        raw = item.get("temp", item.get("Temp", item.get("temperature_f", item.get("temperatureF"))))
+        raw = item.get(
+            "temp",
+            item.get("Temp", item.get("temperature_f", item.get("temperatureF"))),
+        )
         value = TiltHydrometerSource._to_float(raw)
         if value is None:
             return None
@@ -123,7 +137,10 @@ class TiltHydrometerSource(DataSourceBase):
         return str(item.get("color", item.get("Color", ""))).strip().title()
 
     def _bridge_url(self) -> str:
-        return str(self.config.get("bridge_url", "http://tiltbridge.local/json") or "http://tiltbridge.local/json").strip()
+        return str(
+            self.config.get("bridge_url", "http://tiltbridge.local/json")
+            or "http://tiltbridge.local/json"
+        ).strip()
 
     def _transport(self) -> str:
         raw = str(self.config.get("transport", "bridge") or "bridge").strip().lower()
@@ -137,7 +154,10 @@ class TiltHydrometerSource(DataSourceBase):
         return max(15.0, scan_timeout * 3.0)
 
     def _fetch_payload(self) -> list[dict[str, Any]]:
-        req = Request(self._bridge_url(), headers={"Accept": "application/json", "User-Agent": "LabBREW-Tilt/1.0"})
+        req = Request(
+            self._bridge_url(),
+            headers={"Accept": "application/json", "User-Agent": "LabBREW-Tilt/1.0"},
+        )
         timeout_s = float(self.config.get("request_timeout_s", 3.0))
         with urlopen(req, timeout=timeout_s) as resp:  # nosec: B310 - trusted operator-configured Tilt Bridge URL
             body = resp.read().decode("utf-8", errors="replace")
@@ -153,10 +173,13 @@ class TiltHydrometerSource(DataSourceBase):
         return _TILT_COLOR_UUIDS[color]
 
     @staticmethod
-    def _decode_tilt_from_manufacturer_data(manufacturer_data: dict[int, bytes], wanted_uuid: str) -> dict[str, Any] | None:
+    def _decode_tilt_from_manufacturer_data(
+        manufacturer_data: dict[int, bytes], wanted_uuid: str
+    ) -> dict[str, Any] | None:
         blob = manufacturer_data.get(_APPLE_COMPANY_ID)
         # bleak manufacturer_data bytes do not include the 2-byte company ID.
-        # Standard iBeacon payload here is 23 bytes: 0x02,0x15 + UUID(16) + major(2) + minor(2) + tx(1).
+        # Standard iBeacon payload here is 23 bytes:
+        # 0x02,0x15 + UUID(16) + major(2) + minor(2) + tx(1).
         if not blob or len(blob) < 23:
             return None
         # Apple iBeacon framing: 0x02 0x15 + UUID(16) + major(2) + minor(2) + tx(1)
@@ -180,30 +203,38 @@ class TiltHydrometerSource(DataSourceBase):
 
         scan_timeout_s = float(self.config.get("ble_scan_timeout_s", 4.0))
         wanted_uuid = self._tilt_uuid_for_color()
-        wanted_address = str(self.config.get("ble_device_address", "") or "").strip().lower()
+        wanted_address = (
+            str(self.config.get("ble_device_address", "") or "").strip().lower()
+        )
         found_event = asyncio.Event()
         selected: dict[str, Any] = {}
 
         def _on_detection(device: Any, adv_data: Any) -> None:
             if selected:
                 return
-            if wanted_address and str(getattr(device, "address", "")).strip().lower() != wanted_address:
+            if (
+                wanted_address
+                and str(getattr(device, "address", "")).strip().lower()
+                != wanted_address
+            ):
                 return
-            decoded = self._decode_tilt_from_manufacturer_data(getattr(adv_data, "manufacturer_data", {}) or {}, wanted_uuid)
+            decoded = self._decode_tilt_from_manufacturer_data(
+                getattr(adv_data, "manufacturer_data", {}) or {}, wanted_uuid
+            )
             if decoded is None:
                 return
             decoded["Color"] = self._selected_color()
-            decoded["RSSI"] = float(getattr(adv_data, "rssi", getattr(device, "rssi", 0.0)))
+            decoded["RSSI"] = float(
+                getattr(adv_data, "rssi", getattr(device, "rssi", 0.0))
+            )
             selected.update(decoded)
             found_event.set()
 
         scanner = BleakScanner(detection_callback=_on_detection)
         await scanner.start()
         try:
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(found_event.wait(), timeout=scan_timeout_s)
-            except TimeoutError:
-                pass
         finally:
             await scanner.stop()
         return dict(selected) if selected else None
@@ -220,22 +251,77 @@ class TiltHydrometerSource(DataSourceBase):
 
     def ensure_parameters(self) -> None:
         owned = self.build_owned_metadata(device="tilt_hydrometer")
-        self.ensure_parameter(self._measurement_param("gravity"), "static", value=None, metadata={**owned, "role": "measurement", "unit": "SG"})
-        self.ensure_parameter(self._measurement_param("temperature_f"), "static", value=None, metadata={**owned, "role": "measurement", "unit": "F"})
-        self.ensure_parameter(self._measurement_param("temperature_c"), "static", value=None, metadata={**owned, "role": "measurement", "unit": "C"})
-        self.ensure_parameter(self._measurement_param("rssi"), "static", value=None, metadata={**owned, "role": "measurement", "unit": "dBm"})
-        self.ensure_parameter(self._measurement_param("battery_weeks"), "static", value=None, metadata={**owned, "role": "measurement", "unit": "weeks"})
-        self.ensure_parameter(self._measurement_param("tilt_color"), "static", value=self._selected_color(), metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._measurement_param("raw"), "static", value={}, metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._status_param("connected"), "static", value=False, metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._status_param("last_error"), "static", value="", metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._status_param("last_sync"), "static", value="", metadata={**owned, "role": "status"})
+        self.ensure_parameter(
+            self._measurement_param("gravity"),
+            "static",
+            value=None,
+            metadata={**owned, "role": "measurement", "unit": "SG"},
+        )
+        self.ensure_parameter(
+            self._measurement_param("temperature_f"),
+            "static",
+            value=None,
+            metadata={**owned, "role": "measurement", "unit": "F"},
+        )
+        self.ensure_parameter(
+            self._measurement_param("temperature_c"),
+            "static",
+            value=None,
+            metadata={**owned, "role": "measurement", "unit": "C"},
+        )
+        self.ensure_parameter(
+            self._measurement_param("rssi"),
+            "static",
+            value=None,
+            metadata={**owned, "role": "measurement", "unit": "dBm"},
+        )
+        self.ensure_parameter(
+            self._measurement_param("battery_weeks"),
+            "static",
+            value=None,
+            metadata={**owned, "role": "measurement", "unit": "weeks"},
+        )
+        self.ensure_parameter(
+            self._measurement_param("tilt_color"),
+            "static",
+            value=self._selected_color(),
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._measurement_param("raw"),
+            "static",
+            value={},
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._status_param("connected"),
+            "static",
+            value=False,
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._status_param("last_error"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._status_param("last_sync"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
 
     def _publish_selected(self, selected: dict[str, Any]) -> None:
         gravity = self._normalize_gravity(selected)
         temp_f = self._normalize_temp_f(selected)
         temp_c = self._temp_c_from_f(temp_f)
-        battery_weeks = self._to_float(selected.get("weeks_on_battery", selected.get("WeeksOnBattery", selected.get("battery_weeks"))))
+        battery_weeks = self._to_float(
+            selected.get(
+                "weeks_on_battery",
+                selected.get("WeeksOnBattery", selected.get("battery_weeks")),
+            )
+        )
         rssi = self._to_float(selected.get("rssi", selected.get("RSSI")))
 
         if battery_weeks is not None:
@@ -243,7 +329,10 @@ class TiltHydrometerSource(DataSourceBase):
         elif self._last_battery_weeks is not None:
             battery_weeks = self._last_battery_weeks
 
-        self.client.set_value(self._measurement_param("tilt_color"), self._normalize_color(selected) or self._selected_color())
+        self.client.set_value(
+            self._measurement_param("tilt_color"),
+            self._normalize_color(selected) or self._selected_color(),
+        )
         self.client.set_value(self._measurement_param("gravity"), gravity)
         self.client.set_value(self._measurement_param("temperature_f"), temp_f)
         self.client.set_value(self._measurement_param("temperature_c"), temp_c)
@@ -252,7 +341,7 @@ class TiltHydrometerSource(DataSourceBase):
         self.client.set_value(self._measurement_param("raw"), dict(selected))
         self._set_status("connected", True)
         self._set_status("last_error", "")
-        self._set_status("last_sync", datetime.now(timezone.utc).isoformat())
+        self._set_status("last_sync", datetime.now(UTC).isoformat())
         self._last_seen_monotonic = time.monotonic()
 
     def run(self) -> None:
@@ -264,19 +353,29 @@ class TiltHydrometerSource(DataSourceBase):
                     selected = self._fetch_ble_selected()
                     if selected is None:
                         last_seen = self._last_seen_monotonic
-                        age_s = (time.monotonic() - last_seen) if last_seen is not None else None
+                        age_s = (
+                            (time.monotonic() - last_seen)
+                            if last_seen is not None
+                            else None
+                        )
                         if age_s is not None and age_s <= self._ble_stale_after_s():
                             self._set_status("connected", True)
                             self._set_status("last_error", "")
                         else:
-                            self._set_error(f"Tilt color '{self._selected_color()}' not seen over BLE")
+                            self._set_error(
+                                f"Tilt color '{self._selected_color()}' "
+                                "not seen over BLE"
+                            )
                     else:
                         self._publish_selected(selected)
                 else:
                     payload = self._fetch_payload()
                     selected = self._find_selected(payload)
                     if selected is None:
-                        self._set_error(f"Tilt color '{self._selected_color()}' not present in bridge payload")
+                        self._set_error(
+                            f"Tilt color '{self._selected_color()}' "
+                            "not present in bridge payload"
+                        )
                     else:
                         self._publish_selected(selected)
             except Exception as exc:
@@ -289,9 +388,17 @@ class TiltHydrometerSource(DataSourceBase):
 class TiltHydrometerSourceSpec(DataSourceSpec):
     source_type = "tilt_hydrometer"
     display_name = "Tilt Hydrometer"
-    description = "Reads one Tilt color from Tilt Bridge JSON and publishes SG + temperature."
+    description = (
+        "Reads one Tilt color from Tilt Bridge JSON and publishes SG + temperature."
+    )
 
-    def create(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> DataSourceBase:
+    def create(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> DataSourceBase:
         return TiltHydrometerSource(name, client, config=config)
 
     def default_config(self) -> dict[str, Any]:

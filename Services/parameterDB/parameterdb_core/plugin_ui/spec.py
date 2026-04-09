@@ -3,7 +3,6 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-
 DEFAULT_CREATE = {
     "required": ["name"],
     "defaults": {
@@ -20,7 +19,13 @@ DEFAULT_EDIT = {
 }
 
 
-def normalize_ui_spec(parameter_type: str, spec: dict[str, Any] | None, *, display_name: str = "", description: str = "") -> dict[str, Any]:
+def normalize_ui_spec(
+    parameter_type: str,
+    spec: dict[str, Any] | None,
+    *,
+    display_name: str = "",
+    description: str = "",
+) -> dict[str, Any]:
     raw = deepcopy(spec or {})
     normalized: dict[str, Any] = {
         "parameter_type": raw.get("parameter_type", parameter_type),
@@ -32,7 +37,9 @@ def normalize_ui_spec(parameter_type: str, spec: dict[str, Any] | None, *, displ
 
     create = raw.get("create") or {}
     normalized["create"].update(create)
-    normalized["create"]["required"] = list(normalized["create"].get("required") or ["name"])
+    normalized["create"]["required"] = list(
+        normalized["create"].get("required") or ["name"]
+    )
     defaults = dict(DEFAULT_CREATE["defaults"])
     defaults.update(normalized["create"].get("defaults") or {})
     defaults["config"] = dict(defaults.get("config") or {})

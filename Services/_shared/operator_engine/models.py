@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-
 ValueType = Literal['number', 'bool', 'any']
 
 
@@ -30,7 +29,7 @@ class AtomicCondition:
 @dataclass(frozen=True, slots=True)
 class CompositeCondition:
     kind: Literal['all', 'any', 'not']
-    children: tuple['ConditionNode', ...]
+    children: tuple[ConditionNode, ...]
     for_s: float = 0.0
     node_id: str | None = None
     label: str = ''
@@ -65,5 +64,5 @@ class EvaluationResult:
     node_id: str
     message: str
     observed_values: dict[str, Any] = field(default_factory=dict)
-    children: list['EvaluationResult'] = field(default_factory=list)
+    children: list[EvaluationResult] = field(default_factory=list)
     next_state: EvaluationState = field(default_factory=EvaluationState)

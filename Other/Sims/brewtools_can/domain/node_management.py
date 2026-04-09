@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
+
 from ..bodies import NodeIdBody
-from ..frame import CanFrame
 from ..can_id import BrewtoolsCanId
-from ..enums import MsgType, Priority, NodeType
+from ..enums import MsgType, NodeType, Priority
+from ..frame import CanFrame
 from .base import DomainMessage, node_id_from_frame
+
 
 @dataclass(frozen=True)
 class NodeIdUpdate(DomainMessage):
@@ -24,9 +26,16 @@ class NodeIdUpdate(DomainMessage):
             secondary_node_id=int(self.old_node_id),
             msg_type=int(MsgType.MSG_TYPE_NODE_ID),
         )
-        return CanFrame(can_id, NodeIdBody(subindex=self.subindex, new_node_id=self.new_node_id))
+        return CanFrame(
+            can_id,
+            NodeIdBody(subindex=self.subindex, new_node_id=self.new_node_id),
+        )
 
-def decode_node_id_update(frame: CanFrame) -> Optional[NodeIdUpdate]:
+def decode_node_id_update(frame: CanFrame) -> NodeIdUpdate | None:
     if not isinstance(frame.body, NodeIdBody):
         return None
-    return NodeIdUpdate(old_node_id=node_id_from_frame(frame), new_node_id=frame.body.new_node_id, subindex=frame.body.subindex)
+    return NodeIdUpdate(
+        old_node_id=node_id_from_frame(frame),
+        new_node_id=frame.body.new_node_id,
+        subindex=frame.body.subindex,
+    )

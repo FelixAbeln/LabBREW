@@ -7,16 +7,25 @@ from typing import Any
 
 from ...._shared.operator_engine.evaluator import ConditionEngine
 from ...._shared.operator_engine.loader import load_registry
-from ...._shared.operator_engine.models import AtomicCondition, CompositeCondition, ConditionNode
-from ...._shared.wait_engine.evaluator import WaitEngine, parse_condition_node, parse_wait_spec
+from ...._shared.operator_engine.models import (
+    AtomicCondition,
+    CompositeCondition,
+    ConditionNode,
+)
+from ...._shared.wait_engine.evaluator import (
+    WaitEngine,
+    parse_condition_node,
+    parse_wait_spec,
+)
 from ...._shared.wait_engine.models import WaitContext, WaitSpec, WaitState
 from ...._shared.wait_engine.parser import parse_wait_expr_string
 from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 
-
 _CONDITION_ENGINE = ConditionEngine(load_registry())
 _WAIT_ENGINE = WaitEngine(_CONDITION_ENGINE)
-_INLINE_COND_SOURCE_RE = re.compile(r"(?:^|[;(])\s*cond\s*:\s*([^:;()\s]+)\s*:", re.IGNORECASE)
+_INLINE_COND_SOURCE_RE = re.compile(
+    r"(?:^|[;(])\s*cond\s*:\s*([^:;()\s]+)\s*:", re.IGNORECASE
+)
 
 
 def _condition_fingerprint(payload: Any) -> str:
@@ -41,10 +50,11 @@ def _collect_wait_sources(spec: WaitSpec | None) -> list[str]:
         return []
     if spec.kind == "condition":
         condition = spec.condition
-        if isinstance(condition, dict):
-            node = parse_condition_node(condition)
-        else:
-            node = condition
+        node = (
+            parse_condition_node(condition)
+            if isinstance(condition, dict)
+            else condition
+        )
         return _collect_condition_sources(node)
     if spec.kind in {"rising", "falling", "pulse"}:
         return _collect_wait_sources(spec.child)
@@ -61,7 +71,11 @@ def _fallback_collect_sources(raw_logic: Any) -> list[str]:
         return []
 
     if isinstance(raw_logic, str):
-        return [match.group(1).strip() for match in _INLINE_COND_SOURCE_RE.finditer(raw_logic) if match.group(1).strip()]
+        return [
+            match.group(1).strip()
+            for match in _INLINE_COND_SOURCE_RE.finditer(raw_logic)
+            if match.group(1).strip()
+        ]
 
     if isinstance(raw_logic, dict):
         sources: list[str] = []
@@ -96,7 +110,10 @@ def _wait_kind(spec: WaitSpec | None) -> str:
 class ConditionParameter(ParameterBase):
     parameter_type = "condition"
     display_name = "Condition"
-    description = "Evaluates the shared condition syntax and stores the boolean result. Output can also be mirrored to other parameters."
+    description = (
+        "Evaluates the shared condition syntax and stores the boolean result. "
+        "Output can also be mirrored to other parameters."
+    )
 
     def __init__(
         self,
@@ -149,25 +166,39 @@ class ConditionParameter(ParameterBase):
             self.state.pop("missing_output_targets", None)
 
     def _raw_logic(self) -> Any:
-        if "expression" in self.config and str(self.config.get("expression") or "").strip():
+        if (
+            "expression" in self.config
+            and str(self.config.get("expression") or "").strip()
+        ):
             return self.config.get("expression")
         return self.config.get("condition")
 
-    def _normalize_wait_payload(self, raw_logic: Any) -> tuple[WaitSpec | None, ConditionNode | None]:
+    def _normalize_wait_payload(
+        self, raw_logic: Any
+    ) -> tuple[WaitSpec | None, ConditionNode | None]:
         if isinstance(raw_logic, str):
             parsed_payload = parse_wait_expr_string(raw_logic)
             parsed_wait_spec = parse_wait_spec(parsed_payload)
             parsed_condition = None
-            if isinstance(parsed_payload, dict) and parsed_payload.get("kind") == "condition":
-                parsed_condition = parse_condition_node(parsed_payload.get("condition") or {})
+            if (
+                isinstance(parsed_payload, dict)
+                and parsed_payload.get("kind") == "condition"
+            ):
+                parsed_condition = parse_condition_node(
+                    parsed_payload.get("condition") or {}
+                )
             return parsed_wait_spec, parsed_condition
 
         if isinstance(raw_logic, dict):
             if "kind" in raw_logic:
                 parsed_wait_spec = parse_wait_spec(raw_logic)
                 parsed_condition = None
-                if str(raw_logic.get("kind")) == "condition" and isinstance(raw_logic.get("condition"), dict):
-                    parsed_condition = parse_condition_node(raw_logic.get("condition") or {})
+                if str(raw_logic.get("kind")) == "condition" and isinstance(
+                    raw_logic.get("condition"), dict
+                ):
+                    parsed_condition = parse_condition_node(
+                        raw_logic.get("condition") or {}
+                    )
                 return parsed_wait_spec, parsed_condition
 
             parsed_condition = parse_condition_node(raw_logic)
@@ -177,7 +208,9 @@ class ConditionParameter(ParameterBase):
         if raw_logic in (None, ""):
             raise ValueError("condition requires non-empty logic")
 
-        raise ValueError("condition requires 'condition' to be an object or a DSL string")
+        raise ValueError(
+            "condition requires 'condition' to be an object or a DSL string"
+        )
 
     def _compile_condition(self) -> None:
         raw_logic = self._raw_logic()
@@ -197,12 +230,16 @@ class ConditionParameter(ParameterBase):
             parsed_wait_spec, parsed_condition = self._normalize_wait_payload(raw_logic)
         except Exception as exc:
             self._cached_error = f"invalid condition logic: {exc}"
-            self._cached_sources = list(dict.fromkeys(_fallback_collect_sources(raw_logic)))
+            self._cached_sources = list(
+                dict.fromkeys(_fallback_collect_sources(raw_logic))
+            )
             return
 
         self._cached_wait_spec = parsed_wait_spec
         self._cached_condition = parsed_condition
-        self._cached_sources = list(dict.fromkeys(_collect_wait_sources(parsed_wait_spec)))
+        self._cached_sources = list(
+            dict.fromkeys(_collect_wait_sources(parsed_wait_spec))
+        )
 
     def dependencies(self) -> list[str]:
         self._compile_condition()
@@ -211,7 +248,9 @@ class ConditionParameter(ParameterBase):
         if enable_param:
             deps.append(str(enable_param))
         deps.extend(self._cached_sources)
-        return [name for name in list(dict.fromkeys(deps)) if name and name != self.name]
+        return [
+            name for name in list(dict.fromkeys(deps)) if name and name != self.name
+        ]
 
     def scan(self, ctx) -> None:
         store = ctx.store
@@ -277,7 +316,9 @@ class ConditionParameter(ParameterBase):
         self.state["matched"] = bool(result.matched)
         self.state["message"] = result.message
         self.state["observed_values"] = dict(result.observed_values)
-        self.state["elapsed_s"] = max(0.0, now_monotonic - self._logic_started_monotonic)
+        self.state["elapsed_s"] = max(
+            0.0, now_monotonic - self._logic_started_monotonic
+        )
 
         required_for_s = 0.0
         if isinstance(self._cached_condition, (AtomicCondition, CompositeCondition)):
@@ -296,14 +337,15 @@ class ConditionParameter(ParameterBase):
             self.state.pop("params", None)
 
         missing_sources = sorted(
-            source for source in self._cached_sources
-            if values.get(source) is None
+            source for source in self._cached_sources if values.get(source) is None
         )
         if missing_sources:
             if result.message.startswith("Missing value for "):
                 self.state["last_error"] = result.message
             else:
-                self.state["last_error"] = "Missing value for " + ", ".join(missing_sources)
+                self.state["last_error"] = "Missing value for " + ", ".join(
+                    missing_sources
+                )
         else:
             self.value = bool(result.matched)
             self._write_output_targets(store, self.value)
@@ -316,7 +358,9 @@ class ConditionPlugin(PluginSpec):
     display_name = "Condition"
     description = "Boolean condition evaluator"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
         return ConditionParameter(name, config=config, value=value, metadata=metadata)
 
     def default_config(self) -> dict[str, Any]:

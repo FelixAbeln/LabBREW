@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from test_parameterdb_server_handlers import FakeAudit
 
 from Services.parameterDB.parameterdb_service.engine import ScanEngine
 from Services.parameterDB.parameterdb_service.event_broker import EventBroker
@@ -8,10 +9,11 @@ from Services.parameterDB.parameterdb_service.loader import PluginRegistry
 from Services.parameterDB.parameterdb_service.server import SignalTCPServer
 from Services.parameterDB.parameterdb_service.store import ParameterStore
 from Services.parameterDB.plugins.derivative.implementation import DerivativePlugin
-from Services.parameterDB.plugins.derivative.ui import get_ui_spec as get_derivative_ui_spec
+from Services.parameterDB.plugins.derivative.ui import (
+    get_ui_spec as get_derivative_ui_spec,
+)
 from Services.parameterDB.plugins.static.implementation import StaticPlugin
 from Services.parameterDB.plugins.static.ui import get_ui_spec as get_static_ui_spec
-from test_parameterdb_server_handlers import FakeAudit
 
 
 def _build_server() -> SignalTCPServer:

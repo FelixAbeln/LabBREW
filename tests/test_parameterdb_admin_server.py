@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-from io import BytesIO
 import socketserver
+from io import BytesIO
 
 import pytest
 
 import Services.parameterDB.parameterdb_sources.admin_server as admin_server_module
-from Services.parameterDB.parameterdb_core.protocol import decode_message_bytes, encode_message, make_request
-from Services.parameterDB.parameterdb_sources.admin_server import SourceAdminTCPServer, SourceRequestHandler
+from Services.parameterDB.parameterdb_core.protocol import (
+    decode_message_bytes,
+    encode_message,
+    make_request,
+)
+from Services.parameterDB.parameterdb_sources.admin_server import (
+    SourceAdminTCPServer,
+    SourceRequestHandler,
+)
 
 
 def _decode_framed(stream: BytesIO) -> list[dict]:
@@ -146,7 +153,7 @@ def test_source_request_handler_protocol_error_has_no_req_id() -> None:
 def test_source_admin_server_constructor_sets_runner(monkeypatch) -> None:
     init_args: dict[str, object] = {}
 
-    def _fake_init(self, server_address, request_handler):
+    def _fake_init(_self, server_address, request_handler):
         init_args["server_address"] = server_address
         init_args["request_handler"] = request_handler
 

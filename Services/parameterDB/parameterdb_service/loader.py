@@ -5,8 +5,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .plugin_api import PluginSpec
 from ..parameterdb_core.plugin_ui import normalize_ui_spec
+from .plugin_api import PluginSpec
 
 
 class PluginRegistry:
@@ -15,7 +15,13 @@ class PluginRegistry:
         self._ui_specs: dict[str, dict[str, Any]] = {}
         self._plugin_paths: dict[str, str] = {}
 
-    def register(self, spec: PluginSpec, *, ui_spec: dict[str, Any] | None = None, path: str | None = None) -> None:
+    def register(
+        self,
+        spec: PluginSpec,
+        *,
+        ui_spec: dict[str, Any] | None = None,
+        path: str | None = None,
+    ) -> None:
         self._specs[spec.parameter_type] = spec
         self._ui_specs[spec.parameter_type] = normalize_ui_spec(
             spec.parameter_type,
@@ -35,12 +41,12 @@ class PluginRegistry:
     def list_types(self) -> dict[str, dict[str, Any]]:
         return {
             name: {
-                'display_name': spec.display_name,
-                'description': spec.description,
-                'default_config': spec.default_config(),
-                'schema': spec.schema(),
-                'has_ui': name in self._ui_specs,
-                'plugin_path': self._plugin_paths.get(name),
+                "display_name": spec.display_name,
+                "description": spec.description,
+                "default_config": spec.default_config(),
+                "schema": spec.schema(),
+                "has_ui": name in self._ui_specs,
+                "plugin_path": self._plugin_paths.get(name),
             }
             for name, spec in sorted(self._specs.items())
         }
@@ -62,7 +68,6 @@ class PluginRegistry:
             raise ValueError(f"Unknown parameter type '{parameter_type}'") from exc
 
 
-
 def _load_py_module(pyfile: Path):
     module_name = f"plugin_{pyfile.stem}_{uuid.uuid4().hex[:8]}"
     spec = importlib.util.spec_from_file_location(module_name, pyfile)
@@ -71,7 +76,6 @@ def _load_py_module(pyfile: Path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
 
 
 def _extract_ui_spec(ui_module: Any | None) -> dict[str, Any] | None:
@@ -88,14 +92,14 @@ def _extract_ui_spec(ui_module: Any | None) -> dict[str, Any] | None:
     return spec
 
 
-
 def _folder_to_module_base(path: Path) -> str:
     parts = list(path.parts)
     try:
         start = parts.index("Services")
-    except ValueError:
-        raise ValueError(f"Cannot derive module path from '{path}'")
+    except ValueError as exc:
+        raise ValueError(f"Cannot derive module path from '{path}'") from exc
     return ".".join(parts[start:])
+
 
 def load_parameter_type_folder(folder: str | Path, registry: PluginRegistry) -> str:
     plugin_dir = Path(folder).resolve()
@@ -107,7 +111,7 @@ def load_parameter_type_folder(folder: str | Path, registry: PluginRegistry) -> 
 
     impl = importlib.import_module(f"{module_base}.implementation")
 
-    spec = getattr(impl, "PLUGIN")
+    spec = impl.PLUGIN
     if not isinstance(spec, PluginSpec):
         raise TypeError(f"{impl_file} must expose PLUGIN = PluginSpec instance")
 
@@ -120,12 +124,13 @@ def load_parameter_type_folder(folder: str | Path, registry: PluginRegistry) -> 
     registry.register(spec, ui_spec=ui_spec, path=str(plugin_dir))
     return spec.parameter_type
 
+
 def autodiscover_plugins(root: str | Path, registry: PluginRegistry) -> list[str]:
     root_path = Path(root).resolve()
     if not root_path.exists():
         return []
     loaded: list[str] = []
     for child in sorted(root_path.iterdir()):
-        if child.is_dir() and (child / 'implementation.py').exists():
+        if child.is_dir() and (child / "implementation.py").exists():
             loaded.append(load_parameter_type_folder(child, registry))
     return loaded

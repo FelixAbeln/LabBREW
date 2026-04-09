@@ -40,7 +40,6 @@ from fastapi.testclient import TestClient
 from BrewSupervisor.api.routes import build_router
 from Supervisor.infrastructure import agent_api
 
-
 # ---------------------------------------------------------------------------
 # Minimal stubs
 # ---------------------------------------------------------------------------
@@ -60,7 +59,7 @@ class _MockRequestsResponse:
     def json(self) -> Any:
         return self._payload
 
-    def iter_content(self, chunk_size: int = 65536):
+    def iter_content(self, _chunk_size: int = 65536):
         yield json.dumps(self._payload).encode()
 
     def close(self) -> None:
@@ -80,7 +79,7 @@ class _StubServiceSession:
         self.calls: list[dict] = []
         self._routes = routes
 
-    def mount(self, *_: Any, **__: Any) -> None:  # noqa: D105
+    def mount(self, *_: Any, **__: Any) -> None:
         pass
 
     def request(self, **kwargs: Any) -> _MockRequestsResponse:
@@ -106,7 +105,7 @@ class _RawProxyResponse:
         self.headers = dict(resp.headers)
         self._content = resp.content
 
-    def iter_content(self, chunk_size: int = 65536):
+    def iter_content(self, _chunk_size: int = 65536):
         yield self._content
 
     def close(self) -> None:
@@ -179,6 +178,7 @@ class _MultiAgentProxy:
         headers: dict | None = None,
         stream: bool = False,
     ) -> _RawProxyResponse:
+        _ = stream
         content = data_body
         if json_body is not None and content is None:
             content = json.dumps(json_body).encode()
@@ -197,7 +197,7 @@ def _make_agent_client(
     service_sessions: dict[str, Any] | None = None,
 ) -> tuple[TestClient, _StubServiceSession]:
     """Build an Agent app TestClient with stubbed service sessions."""
-    monkeypatch.setattr(agent_api, "SignalClient", lambda *a, **kw: None)
+    monkeypatch.setattr(agent_api, "SignalClient", lambda *_a, **_kw: None)
     stub_session = _StubServiceSession(service_sessions or {})
     app = agent_api.build_agent_app(
         node_id="node-sim",
@@ -368,7 +368,7 @@ def test_agent_bridge_control_route_calls_control_service(monkeypatch: Any) -> N
     """/control/{path} proxies to control_service preserving the full path."""
     paths_seen: list[str] = []
 
-    def _handler(method: str, path: str, _kw: dict) -> dict:
+    def _handler(_method: str, path: str, _kw: dict) -> dict:
         paths_seen.append(path)
         return {"ok": True, "echoed_path": path}
 
@@ -392,7 +392,7 @@ def test_agent_bridge_schedule_route_calls_schedule_service(monkeypatch: Any) ->
     client, _ = _make_agent_client(
         monkeypatch,
         service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda m, p, _: paths_seen.append(p) or {"ok": True}},
+        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: paths_seen.append(p) or {"ok": True}},
     )
 
     resp = client.get("/schedule/status")
@@ -422,7 +422,7 @@ def test_agent_bridge_rules_route_uses_control_service(monkeypatch: Any) -> None
     client, _ = _make_agent_client(
         monkeypatch,
         service_map={"control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"}},
-        service_sessions={"http://127.0.0.1:8767": lambda m, p, _: paths_seen.append(p) or {"ok": True, "rules": []}},
+        service_sessions={"http://127.0.0.1:8767": lambda _m, p, _: paths_seen.append(p) or {"ok": True, "rules": []}},
     )
 
     resp = client.get("/rules/list")
@@ -438,7 +438,7 @@ def test_agent_bridge_system_route_uses_control_service(monkeypatch: Any) -> Non
     client, _ = _make_agent_client(
         monkeypatch,
         service_map={"control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"}},
-        service_sessions={"http://127.0.0.1:8767": lambda m, p, _: paths_seen.append(p) or {"ok": True}},
+        service_sessions={"http://127.0.0.1:8767": lambda _m, p, _: paths_seen.append(p) or {"ok": True}},
     )
 
     resp = client.get("/system/health")
@@ -451,7 +451,7 @@ def test_agent_bridge_post_body_forwarded_to_service(monkeypatch: Any) -> None:
     """POST body is forwarded byte-for-byte through the agent bridge."""
     bodies_received: list[bytes] = []
 
-    def _handler(method: str, path: str, kwargs: dict) -> dict:
+    def _handler(_method: str, _path: str, kwargs: dict) -> dict:
         bodies_received.append(kwargs.get("data") or b"")
         return {"ok": True}
 
@@ -478,7 +478,7 @@ def test_agent_bridge_query_params_forwarded_to_service(monkeypatch: Any) -> Non
     """Query-string parameters pass through the bridge unchanged."""
     params_seen: list[Any] = []
 
-    def _handler(method: str, path: str, kwargs: dict) -> dict:
+    def _handler(_method: str, _path: str, kwargs: dict) -> dict:
         # The agent calls requests.Session.request(params=...) separately from the URL.
         params_seen.append(kwargs.get("params"))
         return {"ok": True}
@@ -553,12 +553,12 @@ def test_supervisor_routes_control_to_device_a_not_device_b(monkeypatch: Any) ->
     agent_a, _ = _make_agent_client(
         monkeypatch,
         service_map={"control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"}},
-        service_sessions={"http://127.0.0.1:8767": lambda m, p, _: a_calls.append(p) or {"ok": True, "device": "A"}},
+        service_sessions={"http://127.0.0.1:8767": lambda _m, p, _: a_calls.append(p) or {"ok": True, "device": "A"}},
     )
     agent_b, _ = _make_agent_client(
         monkeypatch,
         service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
+        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
     )
 
     node = _make_node(
@@ -587,12 +587,12 @@ def test_supervisor_routes_schedule_to_device_b_not_device_a(monkeypatch: Any) -
     agent_a, _ = _make_agent_client(
         monkeypatch,
         service_map={"control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"}},
-        service_sessions={"http://127.0.0.1:8767": lambda m, p, _: a_calls.append(p) or {"device": "A"}},
+        service_sessions={"http://127.0.0.1:8767": lambda _m, p, _: a_calls.append(p) or {"device": "A"}},
     )
     agent_b, _ = _make_agent_client(
         monkeypatch,
         service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
+        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
     )
 
     node = _make_node(
@@ -621,7 +621,7 @@ def test_supervisor_three_services_three_devices_no_cross_routing(monkeypatch: A
     hits: dict[str, int] = {"A": 0, "B": 0, "C": 0}
 
     def _device_handler(label: str):
-        def _h(m: str, p: str, _: dict) -> dict:
+        def _h(_m: str, _p: str, _: dict) -> dict:
             hits[label] += 1
             return {"ok": True, "device": label}
         return _h
@@ -798,12 +798,12 @@ def test_full_supervisor_plus_gateway_to_gateway_bridge(monkeypatch: Any) -> Non
     agent_a, _ = _make_agent_client(
         monkeypatch,
         service_map={"control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"}},
-        service_sessions={"http://127.0.0.1:8767": lambda m, p, _: a_calls.append(p) or {"ok": True, "layer": "control", "device": "A"}},
+        service_sessions={"http://127.0.0.1:8767": lambda _m, p, _: a_calls.append(p) or {"ok": True, "layer": "control", "device": "A"}},
     )
     agent_b, _ = _make_agent_client(
         monkeypatch,
         service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda m, p, _: b_calls.append(p) or {"ok": True, "layer": "schedule", "device": "B"}},
+        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: b_calls.append(p) or {"ok": True, "layer": "schedule", "device": "B"}},
     )
 
     node = _make_node(
@@ -844,7 +844,7 @@ def test_full_chain_post_request_body_survives_all_layers(monkeypatch: Any) -> N
     """
     bodies_at_service: list[dict] = []
 
-    def _handler(method: str, path: str, kwargs: dict) -> dict:
+    def _handler(_method: str, _path: str, kwargs: dict) -> dict:
         raw = kwargs.get("data") or b"{}"
         bodies_at_service.append(json.loads(raw))
         return {"ok": True}
@@ -883,6 +883,7 @@ def test_topology_agent_port_used_in_url_flag_validation() -> None:
     """
     import pathlib
     import tempfile
+
     from Supervisor.infrastructure.config_loader import YamlTopologyLoader
 
     yaml_text = """
@@ -925,6 +926,7 @@ services:
 
 
 def test_multi_node_same_id_service_routing_is_deterministic(monkeypatch: Any) -> None:
+    _ = monkeypatch
     """
     When two mDNS advertisements carry the same node_id, snapshot() merges
     them and get_node_for_service() returns the correct per-service agent.
@@ -955,7 +957,7 @@ def test_multi_node_same_id_service_routing_is_deterministic(monkeypatch: Any) -
 
     fake_session = type("S", (), {
         "calls": [],
-        "mount": lambda s, *a, **kw: None,
+        "mount": lambda _s, *_a, **_kw: None,
         "closed": False,
         "close": lambda s: setattr(s, "closed", True),
     })()
@@ -974,7 +976,7 @@ def test_multi_node_same_id_service_routing_is_deterministic(monkeypatch: Any) -
         ),
         SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"schedule_available": True}),
     ]
-    fake_session.get = lambda url, timeout: responses.pop(0)
+    fake_session.get = lambda _url, _timeout: responses.pop(0)
     registry._session = fake_session
 
     snap = registry.snapshot()

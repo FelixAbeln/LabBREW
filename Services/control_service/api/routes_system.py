@@ -8,6 +8,7 @@ router = APIRouter(prefix="/system")
 
 def _require_runtime():
     from .routes_control import _runtime as control_runtime
+
     if control_runtime is None:
         raise HTTPException(status_code=503, detail="Control runtime not initialized")
     return control_runtime
@@ -18,7 +19,6 @@ def _normalize_targets(raw: str | None) -> list[str] | None:
         return None
     targets = [part.strip() for part in raw.split(",") if part.strip()]
     return targets or None
-
 
 
 @router.get("/health")
@@ -58,10 +58,8 @@ def schema():
         "rule_fields": ["id", "enabled", "condition", "actions", "release_when_clear"],
         "snapshot": {
             "path": "/system/snapshot",
-            "query": {
-                "targets": "optional comma-separated target names"
-            },
-            "fields": ["ownership", "ramps", "active_rules", "held_rules", "values"]
+            "query": {"targets": "optional comma-separated target names"},
+            "fields": ["ownership", "ramps", "active_rules", "held_rules", "values"],
         },
         "control_contract": {
             "path": "/system/control-contract",
@@ -74,7 +72,10 @@ def schema():
         "control_ui_spec": {
             "path": "/system/control-ui-spec",
             "query": {
-                "include_empty_cards": "optional bool, include datasource cards that have zero writable controls",
+                "include_empty_cards": (
+                    "optional bool, include datasource cards "
+                    "that have zero writable controls"
+                ),
             },
             "fields": ["cards", "write_path", "release_path", "manual_owner"],
         },
@@ -90,8 +91,8 @@ def schema():
             "path": "/ws/live",
             "query": {
                 "targets": "optional comma-separated target names",
-                "interval": "optional seconds between snapshots, minimum 0.1"
-            }
+                "interval": "optional seconds between snapshots, minimum 0.1",
+            },
         },
     }
 

@@ -63,6 +63,20 @@ export function createBrewApi(apiClient) {
       })
     },
 
+    getDataArchiveView(id, name, options = {}) {
+      const params = new URLSearchParams()
+      if (options.outputDir) params.set('output_dir', options.outputDir)
+      if (Number.isFinite(options.maxPoints)) params.set('max_points', String(options.maxPoints))
+      const query = params.toString()
+      return requestLayer.get(
+        `/fermenters/${id}/data/archives/view/${encodeURIComponent(name)}${query ? `?${query}` : ''}`,
+        {
+          ttlMs: 1000,
+          bypassCache: Boolean(options.force),
+        },
+      )
+    },
+
     getAgentRepoStatus(id, options = {}) {
       const force = options.force ? '?force=1' : ''
       return requestLayer.get(`/fermenters/${id}/agent/repo/status${force}`, {

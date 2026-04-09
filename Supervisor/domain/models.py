@@ -17,7 +17,13 @@ class Endpoint:
     @property
     def url(self) -> str:
         if self.proto == "http":
-            path = self.path if self.path.startswith("/") else f"/{self.path}" if self.path else ""
+            path = (
+                self.path
+                if self.path.startswith("/")
+                else f"/{self.path}"
+                if self.path
+                else ""
+            )
             return f"http://{self.host}:{self.port}{path}"
         return f"{self.proto}://{self.host}:{self.port}"
 
@@ -32,7 +38,9 @@ class CapabilityBinding:
 
     @property
     def endpoint(self) -> Endpoint:
-        """Backward-compatible alias for call sites that still expect a single endpoint."""
+        """Backward-compatible alias for call sites that still expect
+        a single endpoint.
+        """
         return self.connect_endpoint
 
 
@@ -48,7 +56,9 @@ class ProvidedCapability:
 
     @property
     def bind_endpoint(self) -> Endpoint:
-        return Endpoint(host=self.bind_host, port=self.port, proto=self.proto, path=self.path)
+        return Endpoint(
+            host=self.bind_host, port=self.port, proto=self.proto, path=self.path
+        )
 
 
 @dataclass(frozen=True, slots=True)

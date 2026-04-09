@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
-import threading
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
 from ..loader import PluginRegistry
 from ..store import ParameterStore
-
 
 SNAPSHOT_FORMAT_VERSION = 1
 
@@ -43,7 +43,9 @@ class SnapshotManager:
             if self._thread is not None:
                 return
             self._stop_event.clear()
-            self._thread = threading.Thread(target=self._run_loop, name="ParameterSnapshotManager", daemon=True)
+            self._thread = threading.Thread(
+                target=self._run_loop, name="ParameterSnapshotManager", daemon=True
+            )
             self._thread.start()
 
     def stop(self, *, save_final: bool = True) -> None:
@@ -86,11 +88,8 @@ class SnapshotManager:
 
     def _run_loop(self) -> None:
         while not self._stop_event.wait(self.interval_s):
-            try:
+            with contextlib.suppress(Exception):
                 self.save_now()
-            except Exception:
-                # Keep snapshot persistence non-fatal for the service.
-                pass
 
 
 def build_snapshot_payload(store: ParameterStore) -> dict[str, Any]:
@@ -117,7 +116,7 @@ def write_snapshot_file(path: str | Path, payload: dict[str, Any]) -> None:
             fh.flush()
             os.fsync(fh.fileno())
 
-        os.replace(tmp_name, snapshot_path)
+        Path(tmp_name).replace(snapshot_path)
 
         # Best-effort durability of directory entry updates.
         try:
@@ -130,8 +129,9 @@ def write_snapshot_file(path: str | Path, payload: dict[str, Any]) -> None:
             pass
     except Exception:
         try:
-            if os.path.exists(tmp_name):
-                os.unlink(tmp_name)
+            tmp_path = Path(tmp_name)
+            if tmp_path.exists():
+                tmp_path.unlink()
         except OSError:
             pass
         raise

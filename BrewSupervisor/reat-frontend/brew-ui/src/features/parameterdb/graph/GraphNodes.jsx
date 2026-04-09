@@ -4,7 +4,7 @@ import { sourceColor, typeColor } from './graphModel.js';
 const NODE_W = 220;
 const NODE_H = 72;
 
-function ParameterNode({ data, selected }) {
+export function ParameterNode({ data, selected }) {
   const { name, paramType, value, scanIndex, hasWarning, invalidConfig } = data;
   const color = typeColor(paramType);
   const accent = invalidConfig ? '#ef4444' : color;
@@ -60,7 +60,7 @@ function ParameterNode({ data, selected }) {
   );
 }
 
-function SourceNode({ data, selected }) {
+export function SourceNode({ data, selected }) {
   const color = sourceColor(data.sourceType);
   const title = data.name.length > 26 ? '…' + data.name.slice(-24) : data.name;
   const isActive = selected || data.isSelected;
@@ -111,4 +111,3 @@ function SourceNode({ data, selected }) {
   );
 }
 
-export const nodeTypes = { parameter: ParameterNode, source: SourceNode };

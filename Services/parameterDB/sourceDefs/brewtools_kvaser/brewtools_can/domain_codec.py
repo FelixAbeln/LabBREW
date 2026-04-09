@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-from .frame import CanFrame
 from .domain_factory import DomainFactory
+from .frame import CanFrame
 
 
 @runtime_checkable
@@ -12,7 +12,7 @@ class DomainMessage(Protocol):
     def to_frame(self) -> CanFrame: ...
 
 
-def frame_to_object(frame: CanFrame) -> Optional[object]:
+def frame_to_object(frame: CanFrame) -> object | None:
     """CAN frame -> domain object (Level 3 build)."""
     return DomainFactory.build(frame)
 
@@ -27,7 +27,7 @@ def object_to_frame(obj: object) -> CanFrame:
 class DomainCodec:
     """Convenience wrapper for both directions."""
     @staticmethod
-    def decode(arbitration_id: int, data: bytes) -> Optional[object]:
+    def decode(arbitration_id: int, data: bytes) -> object | None:
         frame = CanFrame.from_can(arbitration_id, data)
         return frame_to_object(frame)
 

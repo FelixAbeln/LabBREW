@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import OperatorMetadata
 from .shared import CallableOperator, as_float, loosely_equal
 
-
 PLUGINS = [
     CallableOperator(
         metadata=OperatorMetadata(

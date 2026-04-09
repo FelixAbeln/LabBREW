@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 from ..bodies import RawBody
-from ..frame import CanFrame
 from ..can_id import BrewtoolsCanId
-from ..enums import MsgType, Priority, NodeType
+from ..enums import MsgType, NodeType, Priority
+from ..frame import CanFrame
 from .base import DomainMessage, node_id_from_frame
 
 
@@ -37,11 +37,11 @@ class StartMeasurementCmdReceived:
     subindex: int
     raw: bytes
 
-def decode_start_measurement_cmd(frame: CanFrame) -> Optional[StartMeasurementCmdReceived]:
+def decode_start_measurement_cmd(frame: CanFrame) -> StartMeasurementCmdReceived | None:
     # likely RawBody unless you later define a real body
     if not hasattr(frame.body, "subindex"):
         return None
-    sub = int(getattr(frame.body, "subindex"))
+    sub = int(frame.body.subindex)
     raw = getattr(frame.body, "raw", b"")
     if isinstance(raw, bytes):
         return StartMeasurementCmdReceived(node_id_from_frame(frame), sub, raw)

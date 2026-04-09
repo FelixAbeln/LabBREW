@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import argparse
 import collections
+import contextlib
 import math
-import os
 import random
 import socket
 import struct
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import tkinter as tk_types
 
 try:
     import tkinter as tk
@@ -22,6 +25,7 @@ except Exception:  # pragma: no cover
     ttk = None
 try:
     import matplotlib
+
     matplotlib.use("TkAgg")
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     from matplotlib.figure import Figure
@@ -34,6 +38,7 @@ except Exception:  # pragma: no cover
 CAN_AVAILABLE = False
 try:
     import can  # type: ignore
+
     CAN_AVAILABLE = True
 except Exception:
     can = None
@@ -44,12 +49,22 @@ try:
     BT_DIR = THIS_DIR / "Sims_unz" / "Sims"
     if BT_DIR.exists() and str(BT_DIR) not in sys.path:
         sys.path.insert(0, str(BT_DIR))
-    from brewtools_can import CanFrame, BrewtoolsCanId, Priority, NodeType, MsgType
+    from brewtools_can import (
+        BrewtoolsCanId,
+        CanFrame,
+        MsgType,
+        NodeType,
+        Priority,
+        register_default_bodies,
+        register_default_domain_handlers,
+    )
     from brewtools_can.bodies import FloatBody, RawBody
-    from brewtools_can import register_default_bodies, register_default_domain_handlers
+
     BREWTOOLS_AVAILABLE = True
 except Exception:
-    CanFrame = BrewtoolsCanId = Priority = NodeType = MsgType = FloatBody = RawBody = None
+    CanFrame = BrewtoolsCanId = Priority = NodeType = MsgType = FloatBody = RawBody = (
+        None
+    )
     register_default_bodies = register_default_domain_handlers = None
 
 
@@ -109,7 +124,7 @@ class FermentationPlant:
         self.agitator_target_rpm = 140.0
         self.agitator_max_rpm = 350.0
         self.temp_ambient_c = 19.0
-        self.heater_power = 3.2      # exaggerated for fast response
+        self.heater_power = 3.2  # exaggerated for fast response
         self.cooler_power = 5.0
         self.temp_loss = 0.12
         self.pressure_leak = 0.015
@@ -122,8 +137,10 @@ class FermentationPlant:
         self.noise_temp = 0.015
         self.noise_pressure = 0.0025
         self.noise_gravity = 0.00003
-        self.history: Deque[Tuple[float, float, float, float]] = collections.deque()
-        self.status_listeners: List = []
+        self.history: collections.deque[tuple[float, float, float, float]] = (
+            collections.deque()
+        )
+        self.status_listeners: list = []
 
     def set_relay(self, name: str, value: bool) -> None:
         with self.lock:
@@ -163,7 +180,7 @@ class FermentationPlant:
 
     def _activity(self, x: float) -> float:
         # Bell curve with tail so pressure/temperature keep moving.
-        peak = math.exp(-((x - 0.33) / 0.18) ** 2)
+        peak = math.exp(-(((x - 0.33) / 0.18) ** 2))
         tail = 0.20 + 0.20 * math.sin(2.0 * math.pi * x + 0.3)
         return clamp(0.10 + 0.95 * peak + tail, 0.0, 1.35)
 
@@ -177,12 +194,20 @@ class FermentationPlant:
             activity = self._activity(x)
 
             # Gravity target over the one-hour cycle, intentionally fast and smooth.
-            gravity_target = self.og - (self.og - self.fg) * (1.0 / (1.0 + math.exp(-8.0 * (x - 0.42))))
-            gravity_rate = clamp((gravity_target - st.gravity_sg) * 1.8, -0.0006, 0.0006)
+            gravity_target = self.og - (self.og - self.fg) * (
+                1.0 / (1.0 + math.exp(-8.0 * (x - 0.42)))
+            )
+            gravity_rate = clamp(
+                (gravity_target - st.gravity_sg) * 1.8, -0.0006, 0.0006
+            )
             st.gravity_sg = clamp(st.gravity_sg + gravity_rate * dt, self.fg, self.og)
 
             # Ambient disturbance so controllers always have something to regulate.
-            amb = self.temp_ambient_c + 0.7 * math.sin(2 * math.pi * x * 1.7) + 0.3 * math.sin(2 * math.pi * x * 5.0)
+            amb = (
+                self.temp_ambient_c
+                + 0.7 * math.sin(2 * math.pi * x * 1.7)
+                + 0.3 * math.sin(2 * math.pi * x * 5.0)
+            )
             ferm_heat = self.base_ferm_heat * activity
             heat_term = self.heater_power if st.heat_relay else 0.0
             cool_term = self.cooler_power if st.cool_relay else 0.0
@@ -198,19 +223,33 @@ class FermentationPlant:
             st.temp_c = clamp(st.temp_c + dtemp * dt / 60.0, 14.0, 32.0)
 
             # Pressure dynamics: generated CO2, natural leak, vent, gas add.
-            ferm_pressure = self.base_ferm_pressure * activity * (1.0 + max(0.0, (21.0 - st.temp_c)) * 0.04)
+            ferm_pressure = (
+                self.base_ferm_pressure
+                * activity
+                * (1.0 + max(0.0, (21.0 - st.temp_c)) * 0.04)
+            )
             self.gas_inventory += ferm_pressure * dt / 15.0
             self.gas_inventory += (self.gas_power * dt / 10.0) if st.gas_relay else 0.0
-            self.gas_inventory -= (self.vent_power * dt / 10.0) if st.vent_relay else 0.0
-            self.gas_inventory -= self.pressure_leak * max(0.0, self.gas_inventory) * dt / 10.0
+            self.gas_inventory -= (
+                (self.vent_power * dt / 10.0) if st.vent_relay else 0.0
+            )
+            self.gas_inventory -= (
+                self.pressure_leak * max(0.0, self.gas_inventory) * dt / 10.0
+            )
             self.gas_inventory += 0.0025 * math.sin(2 * math.pi * x * 2.5) * dt / 5.0
             self.gas_inventory = max(0.0, self.gas_inventory)
             st.pressure_bar_g = clamp(0.018 + self.gas_inventory, 0.0, 1.2)
             st.co2_prod_rate = ferm_pressure
 
             # Foam tracks activity and venting.
-            foam_target = self.foam_base + self.foam_gain * activity - (0.04 if st.vent_relay else 0.0)
-            st.foam_level_m += (foam_target - st.foam_level_m) * clamp(dt / 20.0, 0.0, 0.7)
+            foam_target = (
+                self.foam_base
+                + self.foam_gain * activity
+                - (0.04 if st.vent_relay else 0.0)
+            )
+            st.foam_level_m += (foam_target - st.foam_level_m) * clamp(
+                dt / 20.0, 0.0, 0.7
+            )
 
             # Agitator ramp.
             ramp_per_s = 220.0
@@ -222,16 +261,23 @@ class FermentationPlant:
             st.temp_request = 20.5 + 0.8 * math.sin(2 * math.pi * x)
             st.pressure_request = 0.09 + 0.04 * math.sin(2 * math.pi * x * 0.7)
 
-            self.history.append((st.t_real_s, st.temp_c, st.pressure_bar_g, st.gravity_sg))
-            while self.history and (st.t_real_s - self.history[0][0]) > self.history_seconds:
+            self.history.append(
+                (st.t_real_s, st.temp_c, st.pressure_bar_g, st.gravity_sg)
+            )
+            while (
+                self.history
+                and (st.t_real_s - self.history[0][0]) > self.history_seconds
+            ):
                 self.history.popleft()
 
-    def get_measured_values(self) -> Dict[str, float]:
+    def get_measured_values(self) -> dict[str, float]:
         with self.lock:
             return {
                 "temp_c": self.state.temp_c + random.gauss(0.0, self.noise_temp),
-                "pressure_bar_g": self.state.pressure_bar_g + random.gauss(0.0, self.noise_pressure),
-                "gravity_sg": self.state.gravity_sg + random.gauss(0.0, self.noise_gravity),
+                "pressure_bar_g": self.state.pressure_bar_g
+                + random.gauss(0.0, self.noise_pressure),
+                "gravity_sg": self.state.gravity_sg
+                + random.gauss(0.0, self.noise_gravity),
                 "agitator_rpm": self.state.agitator_rpm,
                 "foam_level_m": self.state.foam_level_m,
             }
@@ -247,17 +293,24 @@ class RelaySimulator:
       3 vent
     """
 
-    def __init__(self, plant: FermentationPlant, host: str = "127.0.0.1", port: int = 4196, unit_id: int = 1, channel_count: int = 8):
+    def __init__(
+        self,
+        plant: FermentationPlant,
+        host: str = "127.0.0.1",
+        port: int = 4196,
+        unit_id: int = 1,
+        channel_count: int = 8,
+    ):
         self.plant = plant
         self.host = host
         self.port = int(port)
         self.unit_id = int(unit_id)
         self.channel_count = int(channel_count)
-        self._states: List[bool] = [False] * self.channel_count
+        self._states: list[bool] = [False] * self.channel_count
         self._lock = threading.RLock()
-        self._server_socket: Optional[socket.socket] = None
+        self._server_socket: socket.socket | None = None
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self.serve_forever, daemon=True)
@@ -266,12 +319,10 @@ class RelaySimulator:
     def stop(self) -> None:
         self._stop_event.set()
         if self._server_socket is not None:
-            try:
+            with contextlib.suppress(OSError):
                 self._server_socket.close()
-            except OSError:
-                pass
 
-    def get_states(self) -> List[bool]:
+    def get_states(self) -> list[bool]:
         with self._lock:
             return list(self._states)
 
@@ -282,15 +333,20 @@ class RelaySimulator:
             server.listen(20)
             server.settimeout(0.5)
             self._server_socket = server
-            print(f"Relay simulator listening on {self.host}:{self.port} (unit_id={self.unit_id})")
+            print(
+                f"Relay simulator listening on {self.host}:{self.port} "
+                f"(unit_id={self.unit_id})"
+            )
             while not self._stop_event.is_set():
                 try:
                     conn, addr = server.accept()
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 except OSError:
                     break
-                threading.Thread(target=self._handle_client, args=(conn, addr), daemon=True).start()
+                threading.Thread(
+                    target=self._handle_client, args=(conn, addr), daemon=True
+                ).start()
 
     def _set_coil(self, address: int, value: bool) -> None:
         with self._lock:
@@ -305,7 +361,7 @@ class RelaySimulator:
             self.plant.set_relay("vent", value)
         print(f"Relay {address + 1} -> {'ON' if value else 'off'}")
 
-    def _handle_client(self, conn: socket.socket, addr: Tuple[str, int]) -> None:
+    def _handle_client(self, conn: socket.socket, addr: tuple[str, int]) -> None:
         print(f"Modbus client connected: {addr[0]}:{addr[1]}")
         with conn:
             conn.settimeout(2.0)
@@ -331,7 +387,10 @@ class RelaySimulator:
                     response_pdu = bytes([function_code | 0x80, 0x0B])
                 else:
                     response_pdu = self._process_request(function_code, payload)
-                response = struct.pack(">HHHB", tx_id, 0, len(response_pdu) + 1, unit_id) + response_pdu
+                response = (
+                    struct.pack(">HHHB", tx_id, 0, len(response_pdu) + 1, unit_id)
+                    + response_pdu
+                )
                 try:
                     conn.sendall(response)
                 except OSError:
@@ -369,7 +428,7 @@ class RelaySimulator:
         with self._lock:
             if start_address + count > self.channel_count:
                 raise ValueError("Address out of range")
-            values = self._states[start_address:start_address + count]
+            values = self._states[start_address : start_address + count]
         byte_count = (count + 7) // 8
         packed = bytearray(byte_count)
         for i, state in enumerate(values):
@@ -402,7 +461,16 @@ class RelaySimulator:
 
 
 class BrewtoolsCANSimulator:
-    def __init__(self, plant: FermentationPlant, interface: str = "virtual", channel: str = "fcs-sim", bitrate: int = 1_000_000, plc_node_id: int = 0, agitator_node_id: int = 0, period_s: float = 0.20):
+    def __init__(
+        self,
+        plant: FermentationPlant,
+        interface: str = "virtual",
+        channel: str = "fcs-sim",
+        bitrate: int = 1_000_000,
+        plc_node_id: int = 0,
+        agitator_node_id: int = 0,
+        period_s: float = 0.20,
+    ):
         self.plant = plant
         self.interface = interface
         self.channel = channel
@@ -411,7 +479,7 @@ class BrewtoolsCANSimulator:
         self.agitator_node_id = agitator_node_id
         self.period_s = period_s
         self.stop_event = threading.Event()
-        self.thread: Optional[threading.Thread] = None
+        self.thread: threading.Thread | None = None
         self.bus = None
         self.enabled = CAN_AVAILABLE and BREWTOOLS_AVAILABLE
 
@@ -425,25 +493,35 @@ class BrewtoolsCANSimulator:
     def stop(self) -> None:
         self.stop_event.set()
         if self.bus is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.bus.shutdown()
-            except Exception:
-                pass
 
     def _make_float_frame(self, sender_node_type, msg_type, value: float):
         return CanFrame(
-            BrewtoolsCanId(Priority.MEDIUM, sender_node_type, NodeType.NODE_TYPE_PLC, self.plc_node_id, msg_type),
+            BrewtoolsCanId(
+                Priority.MEDIUM,
+                sender_node_type,
+                NodeType.NODE_TYPE_PLC,
+                self.plc_node_id,
+                msg_type,
+            ),
             FloatBody(0, float(value)),
         )
 
     def _make_rpm_frame(self, rpm: float):
         return CanFrame(
-            BrewtoolsCanId(Priority.MEDIUM, NodeType.NODE_TYPE_AGITATOR_ACTUATOR, NodeType.NODE_TYPE_PLC, self.agitator_node_id, MsgType.MSG_TYPE_RPM),
+            BrewtoolsCanId(
+                Priority.MEDIUM,
+                NodeType.NODE_TYPE_AGITATOR_ACTUATOR,
+                NodeType.NODE_TYPE_PLC,
+                self.agitator_node_id,
+                MsgType.MSG_TYPE_RPM,
+            ),
             FloatBody(0, float(rpm)),
         )
 
     @staticmethod
-    def _decode_pwm_percent(raw: bytes) -> Optional[float]:
+    def _decode_pwm_percent(raw: bytes) -> float | None:
         if len(raw) >= 4:
             return float(int.from_bytes(raw[:4], byteorder="big", signed=False))
         if len(raw) >= 1:
@@ -461,7 +539,10 @@ class BrewtoolsCANSimulator:
         except Exception as exc:
             print(f"Failed to open CAN bus: {exc}")
             return
-        print(f"CAN simulator running on interface={self.interface}, channel={self.channel}")
+        print(
+            f"CAN simulator running on interface={self.interface}, "
+            f"channel={self.channel}"
+        )
         next_tx = time.monotonic()
         while not self.stop_event.is_set():
             now = time.monotonic()
@@ -476,7 +557,8 @@ class BrewtoolsCANSimulator:
                     can_id = frame.can_id
                     if (
                         int(can_id.sender_node_type) == int(NodeType.NODE_TYPE_PLC)
-                        and int(can_id.receiver_node_type) == int(NodeType.NODE_TYPE_AGITATOR_ACTUATOR)
+                        and int(can_id.receiver_node_type)
+                        == int(NodeType.NODE_TYPE_AGITATOR_ACTUATOR)
                         and int(can_id.msg_type) == int(MsgType.MSG_TYPE_PWM)
                         and int(can_id.secondary_node_id) == int(self.agitator_node_id)
                         and isinstance(frame.body, RawBody)
@@ -495,15 +577,29 @@ class BrewtoolsCANSimulator:
             if now >= next_tx:
                 meas = self.plant.get_measured_values()
                 frames = [
-                    self._make_float_frame(NodeType.NODE_TYPE_DENSITY_SENSOR, MsgType.MSG_TYPE_TEMPERATURE, meas["temp_c"]),
-                    self._make_float_frame(NodeType.NODE_TYPE_PRESSURE_SENSOR, MsgType.MSG_TYPE_PRESSURE, meas["pressure_bar_g"]),
-                    self._make_float_frame(NodeType.NODE_TYPE_DENSITY_SENSOR, MsgType.MSG_TYPE_DENSITY, meas["gravity_sg"]),
+                    self._make_float_frame(
+                        NodeType.NODE_TYPE_DENSITY_SENSOR,
+                        MsgType.MSG_TYPE_TEMPERATURE,
+                        meas["temp_c"],
+                    ),
+                    self._make_float_frame(
+                        NodeType.NODE_TYPE_PRESSURE_SENSOR,
+                        MsgType.MSG_TYPE_PRESSURE,
+                        meas["pressure_bar_g"],
+                    ),
+                    self._make_float_frame(
+                        NodeType.NODE_TYPE_DENSITY_SENSOR,
+                        MsgType.MSG_TYPE_DENSITY,
+                        meas["gravity_sg"],
+                    ),
                     self._make_rpm_frame(meas["agitator_rpm"]),
                 ]
                 for frame in frames:
                     try:
                         arb_id, data = frame.to_can()
-                        msg = can.Message(arbitration_id=int(arb_id), data=data, is_extended_id=True)
+                        msg = can.Message(
+                            arbitration_id=int(arb_id), data=data, is_extended_id=True
+                        )
                         self.bus.send(msg)
                     except Exception as exc:
                         print(f"CAN TX error: {exc}")
@@ -515,8 +611,17 @@ class BrewtoolsCANSimulator:
 class SimulatorApp:
     def __init__(self, args: argparse.Namespace):
         self.args = args
-        self.plant = FermentationPlant(cycle_seconds=args.cycle_seconds, history_seconds=max(args.cycle_seconds, 900.0))
-        self.relay = RelaySimulator(self.plant, host=args.modbus_host, port=args.modbus_port, unit_id=args.modbus_unit, channel_count=max(8, args.modbus_channels))
+        self.plant = FermentationPlant(
+            cycle_seconds=args.cycle_seconds,
+            history_seconds=max(args.cycle_seconds, 900.0),
+        )
+        self.relay = RelaySimulator(
+            self.plant,
+            host=args.modbus_host,
+            port=args.modbus_port,
+            unit_id=args.modbus_unit,
+            channel_count=max(8, args.modbus_channels),
+        )
         self.can_sim = BrewtoolsCANSimulator(
             self.plant,
             interface=args.can_interface,
@@ -534,8 +639,8 @@ class SimulatorApp:
         self.ax_temp = None
         self.ax_pressure = None
         self.ax_gravity = None
-        self.status_labels: Dict[str, tk.StringVar] = {}
-        self.relay_vars: Dict[str, tk.StringVar] = {}
+        self.status_labels: dict[str, tk_types.StringVar] = {}
+        self.relay_vars: dict[str, tk_types.StringVar] = {}
         self.info_var = None
 
     def start(self) -> None:
@@ -561,9 +666,12 @@ class SimulatorApp:
             while True:
                 st = self.plant.snapshot()
                 print(
-                    f"t={st.t_real_s:6.1f}s temp={st.temp_c:5.2f}C pressure={st.pressure_bar_g:5.3f}barg "
+                    f"t={st.t_real_s:6.1f}s temp={st.temp_c:5.2f}C "
+                    f"pressure={st.pressure_bar_g:5.3f}barg "
                     f"gravity={st.gravity_sg:.4f} rpm={st.agitator_rpm:5.1f} "
-                    f"relays H={int(st.heat_relay)} C={int(st.cool_relay)} G={int(st.gas_relay)} V={int(st.vent_relay)}"
+                    "relays "
+                    f"H={int(st.heat_relay)} C={int(st.cool_relay)} "
+                    f"G={int(st.gas_relay)} V={int(st.vent_relay)}"
                 )
                 time.sleep(1.0)
         except KeyboardInterrupt:
@@ -616,11 +724,29 @@ class SimulatorApp:
         manual_frame = ttk.LabelFrame(right, text="Manual override", padding=10)
         manual_frame.pack(fill=tk.X, pady=5)
         for key, title in mapping:
-            ttk.Button(manual_frame, text=f"Toggle {title}", command=lambda k=key: self._toggle_relay(k)).pack(fill=tk.X, pady=2)
-        ttk.Button(manual_frame, text="Reset simulation", command=self.plant.reset).pack(fill=tk.X, pady=8)
-        ttk.Button(manual_frame, text="Agitator 0%", command=lambda: self.plant.set_agitator_pwm(0)).pack(fill=tk.X, pady=2)
-        ttk.Button(manual_frame, text="Agitator 40%", command=lambda: self.plant.set_agitator_pwm(40)).pack(fill=tk.X, pady=2)
-        ttk.Button(manual_frame, text="Agitator 75%", command=lambda: self.plant.set_agitator_pwm(75)).pack(fill=tk.X, pady=2)
+            ttk.Button(
+                manual_frame,
+                text=f"Toggle {title}",
+                command=lambda k=key: self._toggle_relay(k),
+            ).pack(fill=tk.X, pady=2)
+        ttk.Button(
+            manual_frame, text="Reset simulation", command=self.plant.reset
+        ).pack(fill=tk.X, pady=8)
+        ttk.Button(
+            manual_frame,
+            text="Agitator 0%",
+            command=lambda: self.plant.set_agitator_pwm(0),
+        ).pack(fill=tk.X, pady=2)
+        ttk.Button(
+            manual_frame,
+            text="Agitator 40%",
+            command=lambda: self.plant.set_agitator_pwm(40),
+        ).pack(fill=tk.X, pady=2)
+        ttk.Button(
+            manual_frame,
+            text="Agitator 75%",
+            command=lambda: self.plant.set_agitator_pwm(75),
+        ).pack(fill=tk.X, pady=2)
 
         comms_frame = ttk.LabelFrame(right, text="Interfaces", padding=10)
         comms_frame.pack(fill=tk.X, pady=5)
@@ -629,11 +755,14 @@ class SimulatorApp:
             value=(
                 f"Modbus TCP: {self.args.modbus_host}:{self.args.modbus_port}\n"
                 f"Unit ID: {self.args.modbus_unit}\n"
-                f"CAN: {can_status} ({self.args.can_interface}:{self.args.can_channel})\n"
+                f"CAN: {can_status} "
+                f"({self.args.can_interface}:{self.args.can_channel})\n"
                 f"Cycle length: {int(self.args.cycle_seconds)} s"
             )
         )
-        ttk.Label(comms_frame, textvariable=self.info_var, justify=tk.LEFT).pack(fill=tk.X)
+        ttk.Label(comms_frame, textvariable=self.info_var, justify=tk.LEFT).pack(
+            fill=tk.X
+        )
 
         self._refresh_gui()
         self.root.mainloop()
@@ -659,10 +788,18 @@ class SimulatorApp:
         self.status_labels["gravity"].set(f"Gravity: {st.gravity_sg:0.4f} SG")
         self.status_labels["agitator"].set(f"Agitator: {st.agitator_rpm:0.1f} RPM")
         self.status_labels["cycle"].set(f"Cycle position: {100.0 * st.cycle_pos:0.1f}%")
-        self.relay_vars["heat"].set(f"Relay 1: Heater: {'ON' if st.heat_relay else 'off'}")
-        self.relay_vars["cool"].set(f"Relay 2: Cooling: {'ON' if st.cool_relay else 'off'}")
-        self.relay_vars["gas"].set(f"Relay 3: Gas add: {'ON' if st.gas_relay else 'off'}")
-        self.relay_vars["vent"].set(f"Relay 4: Vent: {'ON' if st.vent_relay else 'off'}")
+        self.relay_vars["heat"].set(
+            f"Relay 1: Heater: {'ON' if st.heat_relay else 'off'}"
+        )
+        self.relay_vars["cool"].set(
+            f"Relay 2: Cooling: {'ON' if st.cool_relay else 'off'}"
+        )
+        self.relay_vars["gas"].set(
+            f"Relay 3: Gas add: {'ON' if st.gas_relay else 'off'}"
+        )
+        self.relay_vars["vent"].set(
+            f"Relay 4: Vent: {'ON' if st.vent_relay else 'off'}"
+        )
 
         hist = list(self.plant.history)
         if hist:
@@ -694,26 +831,72 @@ class SimulatorApp:
         self.can_sim.stop()
         self.relay.stop()
         if self.root is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.root.destroy()
-            except Exception:
-                pass
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Fast fermentation simulator with Modbus relays, optional Brewtools CAN, and live plots.")
-    parser.add_argument("--cycle-seconds", type=float, default=3600.0, help="Length of one simulated fermentation cycle in real seconds. Default: 3600")
-    parser.add_argument("--no-gui", action="store_true", help="Run headless and print live values to the console")
-    parser.add_argument("--modbus-host", default="127.0.0.1", help="Modbus TCP listen host")
-    parser.add_argument("--modbus-port", type=int, default=4196, help="Modbus TCP listen port. Matches Z_relay_simulator.py default")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Fast fermentation simulator with Modbus relays, "
+            "optional Brewtools CAN, and live plots."
+        )
+    )
+    parser.add_argument(
+        "--cycle-seconds",
+        type=float,
+        default=3600.0,
+        help=(
+            "Length of one simulated fermentation cycle in real "
+            "seconds. Default: 3600"
+        ),
+    )
+    parser.add_argument(
+        "--no-gui",
+        action="store_true",
+        help="Run headless and print live values to the console",
+    )
+    parser.add_argument(
+        "--modbus-host", default="127.0.0.1", help="Modbus TCP listen host"
+    )
+    parser.add_argument(
+        "--modbus-port",
+        type=int,
+        default=4196,
+        help="Modbus TCP listen port. Matches Z_relay_simulator.py default",
+    )
     parser.add_argument("--modbus-unit", type=int, default=1, help="Modbus unit id")
-    parser.add_argument("--modbus-channels", type=int, default=8, help="Number of Modbus relay channels")
-    parser.add_argument("--can-interface", default="kvaser", help="python-can interface. Matches Z_Brewtools_Simulator.py default")
-    parser.add_argument("--can-channel", default="2", help="CAN channel name or number. Matches Z_Brewtools_Simulator.py default")
-    parser.add_argument("--can-bitrate", type=int, default=1_000_000, help="CAN bitrate")
-    parser.add_argument("--can-period", type=float, default=0.20, help="Sensor transmit period in seconds")
-    parser.add_argument("--plc-node-id", type=int, default=0, help="PLC node id in Brewtools CAN frames")
-    parser.add_argument("--agitator-node-id", type=int, default=0, help="Agitator node id in Brewtools CAN frames")
+    parser.add_argument(
+        "--modbus-channels", type=int, default=8, help="Number of Modbus relay channels"
+    )
+    parser.add_argument(
+        "--can-interface",
+        default="kvaser",
+        help="python-can interface. Matches Z_Brewtools_Simulator.py default",
+    )
+    parser.add_argument(
+        "--can-channel",
+        default="0",
+        help="CAN channel name or number. Matches Z_Brewtools_Simulator.py default",
+    )
+    parser.add_argument(
+        "--can-bitrate", type=int, default=1_000_000, help="CAN bitrate"
+    )
+    parser.add_argument(
+        "--can-period",
+        type=float,
+        default=0.20,
+        help="Sensor transmit period in seconds",
+    )
+    parser.add_argument(
+        "--plc-node-id", type=int, default=0, help="PLC node id in Brewtools CAN frames"
+    )
+    parser.add_argument(
+        "--agitator-node-id",
+        type=int,
+        default=0,
+        help="Agitator node id in Brewtools CAN frames",
+    )
     return parser
 
 

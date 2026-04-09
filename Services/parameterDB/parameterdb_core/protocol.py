@@ -8,7 +8,6 @@ import msgpack
 
 from .errors import ProtocolError
 
-
 PROTOCOL_VERSION = 1
 _LENGTH_STRUCT = struct.Struct("!I")
 
@@ -55,7 +54,9 @@ def read_message(stream: BinaryIO) -> dict[str, Any] | None:
     return decode_message_bytes(body)
 
 
-def make_request(cmd: str, payload: dict[str, Any] | None = None, req_id: str | None = None) -> dict[str, Any]:
+def make_request(
+    cmd: str, payload: dict[str, Any] | None = None, req_id: str | None = None
+) -> dict[str, Any]:
     if not isinstance(cmd, str) or not cmd.strip():
         raise ProtocolError("Request cmd must be a non-empty string")
     return {
@@ -76,7 +77,9 @@ def make_response(*, req_id: str | None, result: Any = None) -> dict[str, Any]:
     }
 
 
-def make_error_response(*, req_id: str | None, error_type: str, message: str) -> dict[str, Any]:
+def make_error_response(
+    *, req_id: str | None, error_type: str, message: str
+) -> dict[str, Any]:
     return {
         "v": PROTOCOL_VERSION,
         "req_id": req_id,
@@ -89,7 +92,9 @@ def make_error_response(*, req_id: str | None, error_type: str, message: str) ->
     }
 
 
-def validate_request_envelope(msg: dict[str, Any]) -> tuple[str, str | None, dict[str, Any]]:
+def validate_request_envelope(
+    msg: dict[str, Any],
+) -> tuple[str, str | None, dict[str, Any]]:
     if not isinstance(msg, dict):
         raise ProtocolError("Request must be a dict")
 
@@ -112,7 +117,9 @@ def validate_request_envelope(msg: dict[str, Any]) -> tuple[str, str | None, dic
     return cmd, req_id, payload
 
 
-def validate_response_envelope(msg: dict[str, Any]) -> tuple[bool, str | None, Any, dict[str, Any] | None]:
+def validate_response_envelope(
+    msg: dict[str, Any],
+) -> tuple[bool, str | None, Any, dict[str, Any] | None]:
     if not isinstance(msg, dict):
         raise ProtocolError("Response must be a dict")
 

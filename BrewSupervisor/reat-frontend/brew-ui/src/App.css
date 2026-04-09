@@ -777,6 +777,17 @@ input {
   gap: 12px;
 }
 
+.system-storage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+.system-storage-card {
+  border: 1px solid #223245;
+  background: #121c28;
+}
+
 .system-service-item,
 .event-item {
   background: #121922;

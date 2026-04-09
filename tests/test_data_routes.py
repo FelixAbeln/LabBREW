@@ -31,6 +31,9 @@ class StubRuntime:
     def list_archives(self, **kwargs):
         return {"ok": True, "archives": [], "args": kwargs}
 
+    def view_archive(self, **kwargs):
+        return {"ok": True, "archive": {"name": kwargs.get("archive_name", "")}, "measurement": {}, "loadsteps": {}}
+
     def delete_archive(self, **kwargs):
         return {"ok": True, **kwargs}
 
@@ -152,6 +155,32 @@ def test_delete_archive_requires_runtime_and_returns_404_on_error() -> None:
     failed = _client(runtime).delete("/archives/file.zip")
     assert failed.status_code == 404
     assert "missing archive" in failed.json()["detail"]
+
+
+def test_view_archive_requires_runtime_and_handles_errors() -> None:
+    requires_runtime = _client().get("/archives/view/a.zip")
+    assert requires_runtime.status_code == 500
+
+    runtime = StubRuntime()
+    runtime.view_archive = lambda **_kwargs: {"ok": False, "error": "archive not found"}
+    not_found = _client(runtime).get("/archives/view/a.zip")
+    assert not_found.status_code == 404
+
+    runtime.view_archive = lambda **_kwargs: {"ok": False, "error": "bad archive format"}
+    invalid = _client(runtime).get("/archives/view/a.zip")
+    assert invalid.status_code == 400
+
+
+def test_view_archive_success() -> None:
+    runtime = StubRuntime()
+    response = _client(runtime).get(
+        "/archives/view/session.archive.zip",
+        params={"output_dir": "tmp", "max_points": 777},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["archive"]["name"] == "session.archive.zip"
 
 
 def test_health_reports_unhealthy_without_runtime() -> None:

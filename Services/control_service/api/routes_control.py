@@ -38,7 +38,9 @@ def release(data: dict):
 @router.post("/force-takeover")
 def force_takeover(data: dict):
     runtime = _require_runtime()
-    return runtime.force_takeover( 
+    return runtime.force_takeover(
+        target=data["target"],
+        owner=data["owner"],
         reason=data.get("reason", ""),
     )
 
@@ -87,10 +89,11 @@ def release_manual_controls(data: dict | None = None):
     runtime = _require_runtime()
     payload = data or {}
     targets = payload.get("targets")
-    if isinstance(targets, list):
-        targets = [str(target).strip() for target in targets if str(target).strip()]
-    else:
-        targets = None
+    targets = (
+        [str(target).strip() for target in targets if str(target).strip()]
+        if isinstance(targets, list)
+        else None
+    )
     return runtime.release_manual_controls(targets=targets)
 
 

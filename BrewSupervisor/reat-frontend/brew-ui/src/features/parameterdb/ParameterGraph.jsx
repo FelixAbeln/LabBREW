@@ -10,7 +10,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { buildGraph, decorateGraph } from './graph/graphModel.js';
 import { GraphDetailPanel } from './graph/GraphDetailPanel.jsx';
-import { nodeTypes } from './graph/GraphNodes.jsx';
+import { nodeTypes } from './graph/graphNodeTypes.js';
 
 function buildReverseLinks(linkMap) {
   const reverse = new Map();
@@ -62,24 +62,28 @@ export function ParameterGraph({ params, graph }) {
     return buildGraph(filtered, graph);
   }, [params, graph, filter]);
 
-  const selectedNode = useMemo(
-    () => initialNodes.find((node) => node.id === selectedNodeId)?.data ?? null,
+  const activeSelectedNodeId = useMemo(
+    () => (selectedNodeId && initialNodes.some((node) => node.id === selectedNodeId) ? selectedNodeId : null),
     [initialNodes, selectedNodeId],
   );
-
-  const { nodes: decoratedNodes, edges: decoratedEdges } = useMemo(
-    () => decorateGraph(initialNodes, initialEdges, selectedNodeId),
-    [initialNodes, initialEdges, selectedNodeId],
-  );
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(decoratedNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(decoratedEdges);
 
   useEffect(() => {
     if (selectedNodeId && !initialNodes.some((node) => node.id === selectedNodeId)) {
       setSelectedNodeId(null);
     }
   }, [initialNodes, selectedNodeId]);
+  const selectedNode = useMemo(
+    () => initialNodes.find((node) => node.id === activeSelectedNodeId)?.data ?? null,
+    [activeSelectedNodeId, initialNodes],
+  );
+
+  const { nodes: decoratedNodes, edges: decoratedEdges } = useMemo(
+    () => decorateGraph(initialNodes, initialEdges, activeSelectedNodeId),
+    [activeSelectedNodeId, initialEdges, initialNodes],
+  );
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(decoratedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(decoratedEdges);
 
   useEffect(() => {
     setNodes(decoratedNodes);

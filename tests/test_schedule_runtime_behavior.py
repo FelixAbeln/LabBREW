@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from Services.schedule_service.runtime.core import ScheduleRuntime
 from Services.schedule_service.repository import InMemoryScheduleRepository
+from Services.schedule_service.runtime.core import ScheduleRuntime
 
 
 @dataclass
@@ -134,17 +134,16 @@ class FakeDataClient:
         self.active_loadsteps.clear()
 
 
-def _make_runtime(tmp_path: Path, *, control: FakeControlClient, data: FakeDataClient) -> ScheduleRuntime:
+def _make_runtime(_tmp_path: Path, *, control: FakeControlClient, data: FakeDataClient) -> ScheduleRuntime:
     state_store = FakeStateStore()
     repo = InMemoryScheduleRepository()
-    runtime = ScheduleRuntime(
+    return ScheduleRuntime(
         control_client=control,
         data_client=data,
         repository=repo,
         state_store=state_store,
         poll_interval_s=0.05,
     )
-    return runtime
 
 
 def test_schedule_runtime_executes_simple_plan_and_finishes(tmp_path: Path) -> None:

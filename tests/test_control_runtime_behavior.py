@@ -5,8 +5,6 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 import Services.control_service.runtime as control_runtime_module
 from Services.control_service.control.ownership import OwnershipManager
 from Services.control_service.runtime import ActiveRuleState, ControlRuntime
@@ -51,6 +49,7 @@ class FakeDatasourceAdmin:
         return dict(self._sources)
 
     def get_source_type_ui(self, source_type: str, *, name: str, mode: str):
+        _ = name, mode
         return self._ui_specs.get(source_type, {})
 
 
@@ -60,8 +59,8 @@ def _make_runtime_for_ramps(initial_values: dict[str, float]) -> ControlRuntime:
     runtime.ownership = OwnershipManager()
     runtime._ramps = {}
     runtime._stop_event = threading.Event()
-    runtime._drop_target_from_rule_tracking = lambda target: None
-    runtime.stop_ramp = lambda target: None
+    runtime._drop_target_from_rule_tracking = lambda target: (target, None)[1]
+    runtime.stop_ramp = lambda target: (target, None)[1]
     return runtime
 
 
@@ -626,6 +625,7 @@ def test_control_runtime_init_and_ui_spec_projection(monkeypatch) -> None:
     assert fake_rule_engine.pruned == {"r1"}
 
     runtime.get_datasource_contract_snapshot = lambda include_empty_cards=False: {
+        "_": include_empty_cards,
         "ok": True,
         "ui_cards": [{"card_id": "x"}],
         "datasource_backend": {"reachable": True},
@@ -659,6 +659,7 @@ def test_get_control_ui_spec_passes_include_empty_cards_to_snapshot() -> None:
 
 
 def test_runtime_iter_actions_release_guard_and_run_error_branch(monkeypatch) -> None:
+    _ = monkeypatch
     runtime = _make_runtime({"x": 1.0})
 
     assert runtime._iter_actions({"actions": [{"type": "set"}, "bad"]}) == [{"type": "set"}]

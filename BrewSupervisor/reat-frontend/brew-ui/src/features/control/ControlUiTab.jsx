@@ -252,15 +252,15 @@ export function ControlUiTab({
                                 </button>
                               ) : (widget === 'toggle' || writeKind === 'bool') ? (
                                 <button
-                                  className={`toggle-button ${Boolean(draftValue) ? 'is-resume' : 'is-pause'}`}
+                                  className={`toggle-button ${draftValue ? 'is-resume' : 'is-pause'}`}
                                   disabled={!target || isWriting || controlUiLoading}
                                   onClick={() => {
-                                    const nextValue = !Boolean(draftValue)
+                                    const nextValue = !draftValue
                                     onDraftChange(target, nextValue)
                                     onWrite(control, nextValue)
                                   }}
                                 >
-                                  {isWriting ? 'Writing…' : (Boolean(draftValue) ? 'On' : 'Off')}
+                                  {isWriting ? 'Writing…' : (draftValue ? 'On' : 'Off')}
                                 </button>
                               ) : widget === 'number' || writeKind === 'number' ? (
                                 <>

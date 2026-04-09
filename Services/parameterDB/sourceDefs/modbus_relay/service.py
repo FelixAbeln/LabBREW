@@ -3,7 +3,7 @@ from __future__ import annotations
 import socket
 import struct
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ...parameterdb_core.client import SupportsSignalRequests
@@ -15,7 +15,9 @@ class RelayError(Exception):
 
 
 class _ModbusTcpClient:
-    def __init__(self, host: str, port: int = 502, unit_id: int = 1, timeout: float = 1.5) -> None:
+    def __init__(
+        self, host: str, port: int = 502, unit_id: int = 1, timeout: float = 1.5
+    ) -> None:
         self.host = host.strip()
         self.port = int(port)
         self.unit_id = int(unit_id)
@@ -67,7 +69,9 @@ class _ModbusTcpClient:
             try:
                 self._sock.sendall(packet)
                 response_header = self._recv_exact(7)
-                rx_tx_id, protocol_id, length, rx_unit_id = struct.unpack(">HHHB", response_header)
+                rx_tx_id, protocol_id, length, rx_unit_id = struct.unpack(
+                    ">HHHB", response_header
+                )
                 if rx_tx_id != self._tx_id:
                     raise RelayError("Mismatched Modbus transaction ID.")
                 if protocol_id != 0:
@@ -77,7 +81,9 @@ class _ModbusTcpClient:
                 response_pdu = self._recv_exact(length - 1)
             except (OSError, TimeoutError) as exc:
                 self.close()
-                raise RelayError(f"Network error talking to relay board: {exc}") from exc
+                raise RelayError(
+                    f"Network error talking to relay board: {exc}"
+                ) from exc
 
             if not response_pdu:
                 raise RelayError("Empty response from relay board.")
@@ -96,7 +102,7 @@ class _ModbusTcpClient:
         if not response:
             raise RelayError("Missing read-coils payload.")
         byte_count = response[0]
-        coil_bytes = response[1:1 + byte_count]
+        coil_bytes = response[1 : 1 + byte_count]
         if len(coil_bytes) != byte_count:
             raise RelayError("Short read-coils response.")
 
@@ -121,7 +127,14 @@ class _ModbusTcpClient:
 
 
 class RelayBoard:
-    def __init__(self, host: str, port: int = 502, channel_count: int = 8, unit_id: int = 1, timeout: float = 1.5) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int = 502,
+        channel_count: int = 8,
+        unit_id: int = 1,
+        timeout: float = 1.5,
+    ) -> None:
         if not host:
             raise RelayError("Enter a relay IP or host name first.")
         self.host = host.strip()
@@ -129,7 +142,9 @@ class RelayBoard:
         self.channel_count = int(channel_count)
         self.unit_id = int(unit_id)
         self.timeout = float(timeout)
-        self._client = _ModbusTcpClient(self.host, self.port, unit_id=self.unit_id, timeout=self.timeout)
+        self._client = _ModbusTcpClient(
+            self.host, self.port, unit_id=self.unit_id, timeout=self.timeout
+        )
 
     def connect(self) -> None:
         self._client.connect()
@@ -141,7 +156,9 @@ class RelayBoard:
     def all_states(self) -> dict[int, bool]:
         self.connect()
         states = self._client.read_coils(0, self.channel_count)
-        return {channel: states[channel - 1] for channel in range(1, self.channel_count + 1)}
+        return {
+            channel: states[channel - 1] for channel in range(1, self.channel_count + 1)
+        }
 
     def set_channel(self, channel: int, value: bool) -> None:
         if channel < 1 or channel > self.channel_count:
@@ -153,9 +170,18 @@ class RelayBoard:
 class ModbusRelaySource(DataSourceBase):
     source_type = "modbus_relay"
     display_name = "Modbus Relay Board"
-    description = "Mirrors relay channel booleans to a Modbus-TCP relay board and republishes actual relay states."
+    description = (
+        "Mirrors relay channel booleans to a Modbus-TCP relay board "
+        "and republishes actual relay states."
+    )
 
-    def __init__(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(name, client, config=config)
         self._board: RelayBoard | None = None
         self._wakeup = threading.Event()
@@ -195,7 +221,14 @@ class ModbusRelaySource(DataSourceBase):
             return value
         if isinstance(value, (int, float)):
             return bool(value)
-        return str(value).strip().lower() in {"1", "true", "on", "yes", "enabled", "enable"}
+        return str(value).strip().lower() in {
+            "1",
+            "true",
+            "on",
+            "yes",
+            "enabled",
+            "enable",
+        }
 
     def _connect_board(self) -> RelayBoard:
         if self._board is not None:
@@ -230,14 +263,31 @@ class ModbusRelaySource(DataSourceBase):
                 value=False,
                 metadata={**owned, "role": "relay_state", "channel": channel},
             )
-        self.ensure_parameter(self._status_param("connected"), "static", value=False, metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._status_param("last_error"), "static", value="", metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._status_param("last_sync"), "static", value="", metadata={**owned, "role": "status"})
+        self.ensure_parameter(
+            self._status_param("connected"),
+            "static",
+            value=False,
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._status_param("last_error"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._status_param("last_sync"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
 
     def _desired_states(self) -> dict[int, bool]:
         desired: dict[int, bool] = {}
         for channel in range(1, self._channel_count() + 1):
-            desired[channel] = self._coerce_bool(self.client.get_value(self._channel_param(channel), False))
+            desired[channel] = self._coerce_bool(
+                self.client.get_value(self._channel_param(channel), False)
+            )
         return desired
 
     def _publish_states(self, actual: dict[int, bool]) -> None:
@@ -258,27 +308,39 @@ class ModbusRelaySource(DataSourceBase):
 
         # Re-read desired to detect writes that arrived while we were applying changes.
         # Only publish back channels where desired hasn't changed — otherwise we would
-        # overwrite a concurrent write with stale board state, losing that write entirely.
+        # overwrite a concurrent write with stale board state,
+        # losing that write entirely.
         post_desired = self._desired_states()
         for channel, actual_state in refreshed.items():
-            if bool(desired.get(channel, False)) == bool(post_desired.get(channel, False)):
-                # No concurrent write on this channel: safe to publish actual board state.
+            if bool(desired.get(channel, False)) == bool(
+                post_desired.get(channel, False)
+            ):
+                # No concurrent write on this channel:
+                # safe to publish actual board state.
                 self.client.set_value(self._channel_param(channel), bool(actual_state))
             # else: a write arrived mid-cycle; leave paramDB intact so the next
             # cycle picks up the new desired value and applies it to the board.
 
         self._set_status("connected", True)
         self._set_status("last_error", "")
-        self._set_status("last_sync", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+        self._set_status(
+            "last_sync", datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        )
 
     def _watch_for_writes(self) -> None:
-        """Background thread: subscribes to channel params and sets _wakeup on any write."""
-        channel_params = [self._channel_param(ch) for ch in range(1, self._channel_count() + 1)]
+        """Background thread: subscribes to channel params and sets
+        _wakeup on any write.
+        """
+        channel_params = [
+            self._channel_param(ch) for ch in range(1, self._channel_count() + 1)
+        ]
         retry_delay = float(self.config.get("reconnect_delay_s", 2.0))
 
         while not self.should_stop():
             try:
-                with self.client.subscribe(names=channel_params, send_initial=False) as sub:
+                with self.client.subscribe(
+                    names=channel_params, send_initial=False
+                ) as sub:
                     for _msg in sub:
                         if self.should_stop():
                             break
@@ -289,11 +351,14 @@ class ModbusRelaySource(DataSourceBase):
                 # do not permanently disable the fast-path.
                 if self.sleep(retry_delay):
                     break
+
     def run(self) -> None:
         interval = float(self.config.get("update_interval_s", 0.25))
         reconnect_delay = float(self.config.get("reconnect_delay_s", 2.0))
 
-        watcher = threading.Thread(target=self._watch_for_writes, daemon=True, name=f"{self.name}-watcher")
+        watcher = threading.Thread(
+            target=self._watch_for_writes, daemon=True, name=f"{self.name}-watcher"
+        )
         watcher.start()
 
         while not self.should_stop():
@@ -302,7 +367,8 @@ class ModbusRelaySource(DataSourceBase):
                 self._sync_once(board)
                 if self.should_stop():
                     break
-                # Wait for either a push notification (fast path) or the polling interval.
+                # Wait for either a push notification (fast path)
+                # or the polling interval.
                 self._wakeup.clear()
                 self._wakeup.wait(timeout=interval)
             except Exception as exc:
@@ -319,7 +385,13 @@ class ModbusRelaySourceSpec(DataSourceSpec):
     display_name = "Modbus Relay Board"
     description = "Modbus-TCP relay datasource"
 
-    def create(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> DataSourceBase:
+    def create(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> DataSourceBase:
         return ModbusRelaySource(name, client, config=config)
 
     def default_config(self) -> dict[str, Any]:

@@ -4,8 +4,16 @@ from pathlib import Path
 
 import pytest
 
-from Services.schedule_service.models import ScheduleAction, ScheduleDefinition, ScheduleStep
-from tests.test_schedule_runtime_behavior import FakeControlClient, FakeDataClient, _make_runtime
+from Services.schedule_service.models import (
+    ScheduleAction,
+    ScheduleDefinition,
+    ScheduleStep,
+)
+from tests.test_schedule_runtime_behavior import (
+    FakeControlClient,
+    FakeDataClient,
+    _make_runtime,
+)
 
 
 class SetupFailDataClient(FakeDataClient):

@@ -1,14 +1,16 @@
 import threading
 
-from fastapi import FastAPI
 import uvicorn
+from fastapi import FastAPI
 
 from .._shared.cli import parse_args
-from .runtime import ControlRuntime
+from .api.routes_control import router as control_router
+from .api.routes_control import set_runtime as set_control_runtime
 from .api.routes_rules import router as rules_router
 from .api.routes_system import router as system_router
-from .api.routes_control import router as control_router, set_runtime as set_control_runtime
-from .api.routes_ws import router as ws_router, set_runtime as set_ws_runtime
+from .api.routes_ws import router as ws_router
+from .api.routes_ws import set_runtime as set_ws_runtime
+from .runtime import ControlRuntime
 
 
 def main():

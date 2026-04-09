@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
+
 from ..bodies import FloatBody
 from ..frame import CanFrame
 from .base import node_id_from_frame
+
 
 @dataclass(frozen=True)
 class TemperatureMeasurement:
@@ -11,10 +13,14 @@ class TemperatureMeasurement:
     value_c: float
     subindex: int
 
-def decode_temperature(frame: CanFrame) -> Optional[TemperatureMeasurement]:
+
+def decode_temperature(frame: CanFrame) -> TemperatureMeasurement | None:
     if not isinstance(frame.body, FloatBody):
         return None
-    return TemperatureMeasurement(node_id_from_frame(frame), frame.body.value, frame.body.subindex)
+    return TemperatureMeasurement(
+        node_id_from_frame(frame), frame.body.value, frame.body.subindex
+    )
+
 
 # Repeat pattern for Pressure/Density/Level/RPM/Min/Max
 @dataclass(frozen=True)
@@ -23,10 +29,14 @@ class PressureMeasurement:
     value_bar: float
     subindex: int
 
-def decode_pressure(frame: CanFrame) -> Optional[PressureMeasurement]:
+
+def decode_pressure(frame: CanFrame) -> PressureMeasurement | None:
     if not isinstance(frame.body, FloatBody):
         return None
-    return PressureMeasurement(node_id_from_frame(frame), frame.body.value, frame.body.subindex)
+    return PressureMeasurement(
+        node_id_from_frame(frame), frame.body.value, frame.body.subindex
+    )
+
 
 @dataclass(frozen=True)
 class DensityMeasurement:
@@ -34,10 +44,14 @@ class DensityMeasurement:
     value: float
     subindex: int
 
-def decode_density(frame: CanFrame) -> Optional[DensityMeasurement]:
+
+def decode_density(frame: CanFrame) -> DensityMeasurement | None:
     if not isinstance(frame.body, FloatBody):
         return None
-    return DensityMeasurement(node_id_from_frame(frame), frame.body.value, frame.body.subindex)
+    return DensityMeasurement(
+        node_id_from_frame(frame), frame.body.value, frame.body.subindex
+    )
+
 
 @dataclass(frozen=True)
 class LevelMeasurement:
@@ -45,10 +59,14 @@ class LevelMeasurement:
     value: float
     subindex: int
 
-def decode_level(frame: CanFrame) -> Optional[LevelMeasurement]:
+
+def decode_level(frame: CanFrame) -> LevelMeasurement | None:
     if not isinstance(frame.body, FloatBody):
         return None
-    return LevelMeasurement(node_id_from_frame(frame), frame.body.value, frame.body.subindex)
+    return LevelMeasurement(
+        node_id_from_frame(frame), frame.body.value, frame.body.subindex
+    )
+
 
 @dataclass(frozen=True)
 class RpmMeasurement:
@@ -56,10 +74,14 @@ class RpmMeasurement:
     value_rpm: float
     subindex: int
 
-def decode_rpm(frame: CanFrame) -> Optional[RpmMeasurement]:
+
+def decode_rpm(frame: CanFrame) -> RpmMeasurement | None:
     if not isinstance(frame.body, FloatBody):
         return None
-    return RpmMeasurement(node_id_from_frame(frame), frame.body.value, frame.body.subindex)
+    return RpmMeasurement(
+        node_id_from_frame(frame), frame.body.value, frame.body.subindex
+    )
+
 
 @dataclass(frozen=True)
 class MinValue:
@@ -67,10 +89,12 @@ class MinValue:
     value: float
     subindex: int
 
-def decode_min(frame: CanFrame) -> Optional[MinValue]:
+
+def decode_min(frame: CanFrame) -> MinValue | None:
     if not isinstance(frame.body, FloatBody):
         return None
     return MinValue(node_id_from_frame(frame), frame.body.value, frame.body.subindex)
+
 
 @dataclass(frozen=True)
 class MaxValue:
@@ -78,7 +102,8 @@ class MaxValue:
     value: float
     subindex: int
 
-def decode_max(frame: CanFrame) -> Optional[MaxValue]:
+
+def decode_max(frame: CanFrame) -> MaxValue | None:
     if not isinstance(frame.body, FloatBody):
         return None
     return MaxValue(node_id_from_frame(frame), frame.body.value, frame.body.subindex)

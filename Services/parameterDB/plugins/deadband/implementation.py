@@ -8,7 +8,10 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 class DeadbandParameter(ParameterBase):
     parameter_type = "deadband"
     display_name = "Deadband"
-    description = "Boolean hysteresis controller using other DB parameters as PV/SP. Output can also be mirrored to other parameters."
+    description = (
+        "Boolean hysteresis controller using other DB parameters as PV/SP. "
+        "Output can also be mirrored to other parameters."
+    )
 
     def _output_targets(self) -> list[str]:
         raw = self.config.get("output_params") or []
@@ -122,7 +125,9 @@ class DeadbandPlugin(PluginSpec):
     display_name = "Deadband"
     description = "Boolean hysteresis controller"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
         return DeadbandParameter(name, config=config, value=value, metadata=metadata)
 
     def default_config(self) -> dict[str, Any]:

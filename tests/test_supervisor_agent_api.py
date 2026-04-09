@@ -48,16 +48,16 @@ class StubSignalClient:
     def get_parameter_type_ui(self, parameter_type):
         return {"parameter_type": parameter_type}
 
-    def set_value(self, name, value):
+    def set_value(self, _name, _value):
         return True
 
-    def update_config(self, name, **config):
+    def update_config(self, _name, **_config):
         return True
 
-    def update_metadata(self, name, **metadata):
+    def update_metadata(self, _name, **_metadata):
         return True
 
-    def delete_parameter(self, name):
+    def delete_parameter(self, _name):
         return True
 
     def list_source_types_ui(self):
@@ -69,13 +69,13 @@ class StubSignalClient:
     def list_sources(self):
         return {"relay": {"source_type": "modbus_relay", "running": True, "config": {"parameter_prefix": "relay"}}}
 
-    def create_source(self, name, source_type, config=None):
+    def create_source(self, _name, _source_type, _config=None):
         return True
 
-    def update_source(self, name, config=None):
+    def update_source(self, _name, _config=None):
         return True
 
-    def delete_source(self, name):
+    def delete_source(self, _name):
         return True
 
 
@@ -108,7 +108,8 @@ class _FakeProxySession:
 def _build_client(monkeypatch, *, update_status_provider=None, apply_update_action=None, service_map=None, proxy_session=None) -> TestClient:
     monkeypatch.setattr(agent_api, "SignalClient", StubSignalClient)
     if service_map is None:
-        service_map = lambda: {}
+        def service_map():
+            return {}
     if proxy_session is None:
         proxy_session = _FakeProxySession()
     app = agent_api.build_agent_app(
@@ -302,3 +303,174 @@ def test_agent_proxy_rejects_websocket_upgrade(monkeypatch) -> None:
 
     assert response.status_code == 501
     assert "WebSocket upgrade" in response.json().get("detail", "")
+
+
+def test_parameterdb_fmu_file_endpoints_round_trip(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(agent_api, "storage_subdir", lambda name: tmp_path / name)
+    client = _build_client(monkeypatch)
+
+    upload = client.post(
+        "/parameterdb/fmu-files",
+        files={"file": ("controller.fmu", b"FMU_BYTES", "application/octet-stream")},
+    )
+    assert upload.status_code == 200
+    uploaded = upload.json()["file"]
+    assert uploaded["name"] == "controller.fmu"
+    assert uploaded["local_path"].lower().endswith("controller.fmu")
+
+    listed = client.get("/parameterdb/fmu-files")
+    assert listed.status_code == 200
+    assert any(item["name"] == "controller.fmu" for item in listed.json().get("files", []))
+
+    downloaded = client.get("/parameterdb/fmu-files/controller.fmu/download")
+    assert downloaded.status_code == 200
+    assert downloaded.content == b"FMU_BYTES"
+
+    deleted = client.delete("/parameterdb/fmu-files/controller.fmu")
+    assert deleted.status_code == 200
+    assert deleted.json()["ok"] is True
+
+
+def test_parameterdb_fmu_file_endpoint_rejects_non_fmu(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(agent_api, "storage_subdir", lambda name: tmp_path / name)
+    client = _build_client(monkeypatch)
+
+    response = client.post(
+        "/parameterdb/fmu-files",
+        files={"file": ("not_allowed.txt", b"nope", "text/plain")},
+    )
+    assert response.status_code == 400
+    assert "Only .fmu files are allowed" in response.json().get("detail", "")
+
+
+def test_agent_storage_endpoints_manage_files(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(agent_api, "storage_subdir", lambda name: tmp_path / name)
+    client = _build_client(monkeypatch)
+
+    roots = client.get("/agent/storage/roots")
+    assert roots.status_code == 200
+    root_keys = {item["key"] for item in roots.json().get("roots", [])}
+    assert root_keys == {"data"}
+
+    create = client.post(
+        "/agent/storage/mkdir",
+        json={"root": "data", "path": "", "name": "models"},
+    )
+    assert create.status_code == 200
+
+    listing = client.post(
+        "/agent/storage/list",
+        json={"root": "data", "path": ""},
+    )
+    assert listing.status_code == 200
+    assert any(item["name"] == "models" and item["kind"] == "directory" for item in listing.json().get("entries", []))
+
+    src_file = tmp_path / "models" / "demo.fmu"
+    src_file.parent.mkdir(parents=True, exist_ok=True)
+    src_file.write_bytes(b"abc")
+
+    moved = client.post(
+        "/agent/storage/move",
+        json={
+            "root": "data",
+            "src_path": "models/demo.fmu",
+            "dst_path": "models/demo-renamed.fmu",
+        },
+    )
+    assert moved.status_code == 200
+
+    deleted = client.post(
+        "/agent/storage/delete",
+        json={"root": "data", "path": "models", "recursive": True},
+    )
+    assert deleted.status_code == 200
+
+    listing_after = client.post(
+        "/agent/storage/list",
+        json={"root": "data", "path": ""},
+    )
+    assert listing_after.status_code == 200
+    assert not any(item["name"] == "models" for item in listing_after.json().get("entries", []))
+
+
+def test_agent_storage_network_drive_endpoint(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(agent_api, "storage_subdir", lambda name: tmp_path / name)
+    seen: list[tuple[str, str]] = []
+
+    def _fake_add(name: str, path: str):
+      seen.append((name, path))
+      return {"name": name, "path": path}
+
+    monkeypatch.setattr(agent_api, "add_network_drive_to_topology", _fake_add)
+    monkeypatch.setattr(agent_api, "configured_network_drives", lambda: [{"name": "shared", "path": str(tmp_path / "shared") }])
+    client = _build_client(monkeypatch)
+
+    response = client.post(
+        "/agent/storage/network-drive",
+        json={"name": "shared", "path": r"\\server\brewshare"},
+    )
+
+    assert response.status_code == 200
+    assert seen == [("shared", r"\\server\brewshare")]
+
+    roots = client.get("/agent/storage/roots")
+    assert roots.status_code == 200
+    assert any(item["key"] == "drive:shared" for item in roots.json().get("roots", []))
+
+
+def test_agent_storage_file_read_write_and_download(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(agent_api, "storage_subdir", lambda name: tmp_path / name)
+    sample = tmp_path / "config.json"
+    sample.write_text('{"enabled":true}\n', encoding="utf-8")
+    client = _build_client(monkeypatch)
+
+    read_response = client.post(
+        "/agent/storage/read-file",
+        json={"root": "data", "path": "config.json"},
+    )
+    assert read_response.status_code == 200
+    assert '"enabled":true' in read_response.json()["content"]
+
+    write_response = client.post(
+        "/agent/storage/write-file",
+        json={"root": "data", "path": "config.json", "content": '{"enabled": false}\n'},
+    )
+    assert write_response.status_code == 200
+    assert sample.read_text(encoding="utf-8") == '{"enabled": false}\n'
+
+    download_response = client.get(
+        "/agent/storage/download",
+        params={"root": "data", "path": "config.json"},
+    )
+    assert download_response.status_code == 200
+    assert download_response.content == b'{"enabled": false}\n'
+
+
+def test_agent_storage_yaml_write_validates_and_formats(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(agent_api, "storage_subdir", lambda name: tmp_path / name)
+    sample = tmp_path / "system_topology.yaml"
+    sample.write_text("services: {}\n", encoding="utf-8")
+    client = _build_client(monkeypatch)
+
+    formatted = client.post(
+        "/agent/storage/write-file",
+        json={
+            "root": "data",
+            "path": "system_topology.yaml",
+            "content": "services:\n  alpha:\n    module: demo\n",
+        },
+    )
+    assert formatted.status_code == 200
+    assert formatted.json()["content"].endswith("\n")
+    assert "alpha:" in formatted.json()["content"]
+
+    invalid = client.post(
+        "/agent/storage/write-file",
+        json={
+            "root": "data",
+            "path": "system_topology.yaml",
+            "content": "services: [unterminated\n",
+        },
+    )
+    assert invalid.status_code == 400
+    assert "Invalid YAML" in invalid.json().get("detail", "")

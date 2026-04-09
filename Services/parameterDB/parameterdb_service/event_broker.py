@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import contextlib
 import queue
 import threading
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -73,10 +74,8 @@ class EventBroker:
         except queue.Full:
             sub.dropped_events += 1
 
-        try:
+        with contextlib.suppress(queue.Empty):
             sub.queue.get_nowait()  # drop oldest
-        except queue.Empty:
-            pass
 
         overflow_notice = {
             "event": "subscription_overflow",

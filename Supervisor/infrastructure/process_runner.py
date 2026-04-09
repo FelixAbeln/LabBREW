@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ..domain.models import ManagedProcessState, ServiceSpec
+from ..domain.models import ManagedProcessState
 
 
 class ProcessRunner:
@@ -14,7 +14,9 @@ class ProcessRunner:
         self.log_dir = Path(log_dir).resolve()
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    def start(self, state: ManagedProcessState, args: list[str]) -> subprocess.Popen[str]:
+    def start(
+        self, state: ManagedProcessState, args: list[str]
+    ) -> subprocess.Popen[str]:
         command = [sys.executable, "-m", state.service.module, *args]
         log_path = self.log_dir / f"{state.service.name}.log"
         handle = log_path.open("a", encoding="utf-8")

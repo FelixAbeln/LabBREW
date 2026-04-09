@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 
-from .models import AtomicCondition, CompositeCondition, ConditionNode, EvaluationResult, EvaluationState
+from .models import (
+    AtomicCondition,
+    CompositeCondition,
+    ConditionNode,
+    EvaluationResult,
+    EvaluationState,
+)
 from .registry import OperatorRegistry
 
 
@@ -20,19 +25,25 @@ class ConditionEngine:
         previous_state: EvaluationState | None = None,
     ) -> EvaluationResult:
         state = previous_state or EvaluationState()
-        return self._evaluate_node(condition, values=values, now_monotonic=now_monotonic, state=state, path='root')
+        return self._evaluate_node(
+            condition,
+            values=values,
+            now_monotonic=now_monotonic,
+            state=state,
+            path="root",
+        )
 
     def available_operators(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         for metadata in self._registry.list_metadata():
             items.append(
                 {
-                    'name': metadata.name,
-                    'label': metadata.label,
-                    'description': metadata.description,
-                    'value_type': metadata.value_type,
-                    'supports_for_s': metadata.supports_for_s,
-                    'param_schema': metadata.param_schema,
+                    "name": metadata.name,
+                    "label": metadata.label,
+                    "description": metadata.description,
+                    "value_type": metadata.value_type,
+                    "supports_for_s": metadata.supports_for_s,
+                    "param_schema": metadata.param_schema,
                 }
             )
         return items
@@ -47,8 +58,12 @@ class ConditionEngine:
         path: str,
     ) -> EvaluationResult:
         if isinstance(node, AtomicCondition):
-            return self._evaluate_atomic(node, values=values, now_monotonic=now_monotonic, state=state, path=path)
-        return self._evaluate_composite(node, values=values, now_monotonic=now_monotonic, state=state, path=path)
+            return self._evaluate_atomic(
+                node, values=values, now_monotonic=now_monotonic, state=state, path=path
+            )
+        return self._evaluate_composite(
+            node, values=values, now_monotonic=now_monotonic, state=state, path=path
+        )
 
     def _evaluate_atomic(
         self,
@@ -69,7 +84,7 @@ class ConditionEngine:
                 raw_matched=False,
                 true_for_s=0.0,
                 node_id=node_id,
-                message=f'Missing value for {node.source}',
+                message=f"Missing value for {node.source}",
                 observed_values=observed,
                 next_state=state,
             )
@@ -82,7 +97,7 @@ class ConditionEngine:
             now_monotonic=now_monotonic,
             state=state,
             observed_values=observed,
-            message=f'{node.source} {node.operator} {node.params}',
+            message=f"{node.source} {node.operator} {node.params}",
             children=[],
         )
 
@@ -103,20 +118,20 @@ class ConditionEngine:
                 values=values,
                 now_monotonic=now_monotonic,
                 state=state,
-                path=f'{node_id}.{index}',
+                path=f"{node_id}.{index}",
             )
             children.append(child_result)
 
-        if node.kind == 'all':
+        if node.kind == "all":
             raw = all(child.matched for child in children)
-        elif node.kind == 'any':
+        elif node.kind == "any":
             raw = any(child.matched for child in children)
-        elif node.kind == 'not':
+        elif node.kind == "not":
             if len(children) != 1:
-                raise ValueError('not condition expects exactly one child')
+                raise ValueError("not condition expects exactly one child")
             raw = not children[0].matched
         else:
-            raise ValueError(f'Unsupported composite kind: {node.kind}')
+            raise ValueError(f"Unsupported composite kind: {node.kind}")
 
         observed: dict[str, Any] = {}
         for child in children:
@@ -129,7 +144,7 @@ class ConditionEngine:
             now_monotonic=now_monotonic,
             state=state,
             observed_values=observed,
-            message=f'{node.kind} condition',
+            message=f"{node.kind} condition",
             children=children,
         )
 
@@ -157,13 +172,15 @@ class ConditionEngine:
         node_state.last_raw_matched = raw_matched
         required = max(0.0, float(for_s or 0.0))
         matched = raw_matched and true_for_s >= required
-        hold_text = f' true for {true_for_s:.2f}/{required:.2f}s' if required > 0 else ''
+        hold_text = (
+            f" true for {true_for_s:.2f}/{required:.2f}s" if required > 0 else ""
+        )
         return EvaluationResult(
             matched=matched,
             raw_matched=raw_matched,
             true_for_s=true_for_s,
             node_id=node_id,
-            message=f'{message}{hold_text}',
+            message=f"{message}{hold_text}",
             observed_values=observed_values,
             children=children,
             next_state=state,

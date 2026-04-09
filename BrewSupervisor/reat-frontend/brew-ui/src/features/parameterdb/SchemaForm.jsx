@@ -1,5 +1,11 @@
 import { getByPath, isFieldVisible } from './schemaUtils.js';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  datasourceFmuDownloadUrl,
+  deleteDatasourceFmuFile,
+  listDatasourceFmuFiles,
+  uploadDatasourceFmuFile,
+} from './loaders.js';
 
 function valueToText(value, field) {
   if (field.type === 'json') {
@@ -85,7 +91,174 @@ function ParameterPickerModal({ options, selected, multi, onClose, onApply }) {
   );
 }
 
+function FmuFilePickerField({ fermenterId, field, value, disabled, onFieldChange }) {
+  const [files, setFiles] = useState([]);
+  const [selectedName, setSelectedName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [removingName, setRemovingName] = useState('');
+  const [error, setError] = useState('');
+
+  const refreshFiles = useCallback(async () => {
+    if (!fermenterId) return;
+    setLoading(true);
+    setError('');
+    try {
+      const response = await listDatasourceFmuFiles(fermenterId);
+      const nextFiles = Array.isArray(response?.files) ? response.files : [];
+      setFiles(nextFiles);
+      setSelectedName((current) => {
+        if (current && nextFiles.some((item) => item.name === current)) {
+          return current;
+        }
+        return '';
+      });
+    } catch (err) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [fermenterId]);
+
+  useEffect(() => {
+    refreshFiles();
+  }, [refreshFiles]);
+
+  async function handleUpload(event) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file || !fermenterId) return;
+    setUploading(true);
+    setError('');
+    try {
+      const response = await uploadDatasourceFmuFile(fermenterId, file);
+      const localPath = String(response?.file?.local_path || '').trim();
+      const name = String(response?.file?.name || '').trim();
+      if (localPath) {
+        onFieldChange(field, localPath);
+      }
+      if (name) {
+        setSelectedName(name);
+      }
+      await refreshFiles();
+    } catch (err) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(filename) {
+    if (!fermenterId || !filename) return;
+    setRemovingName(filename);
+    setError('');
+    try {
+      await deleteDatasourceFmuFile(fermenterId, filename);
+      if (selectedName === filename) {
+        setSelectedName('');
+      }
+      if (String(value || '').toLowerCase().endsWith(`\\${filename.toLowerCase()}`) || String(value || '').toLowerCase().endsWith(`/${filename.toLowerCase()}`)) {
+        onFieldChange(field, '');
+      }
+      await refreshFiles();
+    } catch (err) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setRemovingName('');
+    }
+  }
+
+  const currentPath = String(value || '');
+
+  return (
+    <div className="pdb-field-stack">
+      <div className="pdb-picker-input-row">
+        <input
+          className="pdb-input"
+          value={currentPath}
+          onChange={(event) => onFieldChange(field, event.target.value)}
+          disabled={disabled}
+          placeholder="No FMU selected"
+        />
+        {!disabled && (
+          <>
+            <button type="button" className="pdb-btn-ghost pdb-btn-sm" onClick={refreshFiles} disabled={loading || uploading}>
+              {loading ? '…' : 'Refresh'}
+            </button>
+            <label className="pdb-btn-ghost pdb-btn-sm" style={{ cursor: uploading ? 'wait' : 'pointer' }}>
+              {uploading ? 'Uploading…' : 'Upload .fmu'}
+              <input
+                type="file"
+                accept=".fmu,application/octet-stream"
+                className="hidden-file-input"
+                onChange={handleUpload}
+                disabled={uploading}
+              />
+            </label>
+          </>
+        )}
+      </div>
+      <div className="pdb-picker-input-row">
+        <select
+          className="pdb-input"
+          value={selectedName}
+          onChange={(event) => setSelectedName(event.target.value)}
+          disabled={disabled || files.length === 0}
+        >
+          <option value="">Choose uploaded FMU…</option>
+          {files.map((item) => (
+            <option key={item.name} value={item.name}>{item.name}</option>
+          ))}
+        </select>
+        {!disabled && (
+          <button
+            type="button"
+            className="pdb-btn-ghost pdb-btn-sm"
+            disabled={!selectedName}
+            onClick={() => {
+              const selected = files.find((item) => item.name === selectedName);
+              if (selected?.local_path) {
+                onFieldChange(field, selected.local_path);
+              }
+            }}
+          >
+            Use
+          </button>
+        )}
+      </div>
+      {files.length > 0 && (
+        <div className="pdb-picker-list">
+          {files.map((item) => (
+            <div key={item.name} className="pdb-picker-item pdb-picker-row">
+              <span>{item.name}</span>
+              <div className="pdb-picker-actions">
+                {fermenterId && (
+                  <a className="pdb-btn-ghost pdb-btn-sm" href={datasourceFmuDownloadUrl(fermenterId, item.name)} target="_blank" rel="noreferrer">
+                    Download
+                  </a>
+                )}
+                {!disabled && (
+                  <button
+                    type="button"
+                    className="pdb-btn-danger pdb-btn-sm"
+                    disabled={removingName === item.name}
+                    onClick={() => handleDelete(item.name)}
+                  >
+                    {removingName === item.name ? '…' : 'Delete'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && <div className="pdb-field-error">{error}</div>}
+    </div>
+  );
+}
+
 export function SchemaForm({
+  fermenterId,
   sections,
   data,
   errors,
@@ -191,6 +364,16 @@ export function SchemaForm({
                   </button>
                 )}
               </div>
+            );
+          } else if (field.type === 'fmu_file') {
+            input = (
+              <FmuFilePickerField
+                fermenterId={fermenterId}
+                field={field}
+                value={value}
+                disabled={commonProps.disabled}
+                onFieldChange={onFieldChange}
+              />
             );
           } else {
             input = (

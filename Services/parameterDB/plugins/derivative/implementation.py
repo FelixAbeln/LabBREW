@@ -8,7 +8,10 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 class DerivativeParameter(ParameterBase):
     parameter_type = "derivative"
     display_name = "Derivative"
-    description = "Computes rate-of-change from a source parameter. Output can also be mirrored to other parameters."
+    description = (
+        "Computes rate-of-change from a source parameter. "
+        "Output can also be mirrored to other parameters."
+    )
 
     def __init__(
         self,
@@ -64,7 +67,9 @@ class DerivativeParameter(ParameterBase):
         return [str(dep) for dep in deps if dep]
 
     def _mode(self) -> str:
-        mode = str(self.config.get("mode", "continuous") or "continuous").strip().lower()
+        mode = (
+            str(self.config.get("mode", "continuous") or "continuous").strip().lower()
+        )
         if mode not in {"continuous", "window"}:
             return "continuous"
         return mode
@@ -170,7 +175,11 @@ class DerivativeParameter(ParameterBase):
                 self._elapsed_since_change_s += step_dt
 
                 if abs(delta) > 0.0:
-                    effective_dt = self._elapsed_since_change_s if self._elapsed_since_change_s > min_dt else min_dt
+                    effective_dt = (
+                        self._elapsed_since_change_s
+                        if self._elapsed_since_change_s > min_dt
+                        else min_dt
+                    )
                     derivative = delta / effective_dt
                     output = derivative * scale
                     self._previous_input = current_input
@@ -210,7 +219,9 @@ class DerivativePlugin(PluginSpec):
     display_name = "Derivative"
     description = "Rate-of-change evaluator"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
         return DerivativeParameter(name, config=config, value=value, metadata=metadata)
 
     def default_config(self) -> dict[str, Any]:

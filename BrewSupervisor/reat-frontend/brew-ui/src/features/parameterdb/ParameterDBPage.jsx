@@ -243,7 +243,7 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
         ) : view === 'graph' ? (
           <ParameterGraph params={params} graph={graph} />
         ) : (
-          <SourcesPanel fermenterId={fermenterId} parameterNames={Object.keys(params)} params={params} />
+          <SourcesPanel fermenterId={fermenterId} parameterNames={Object.keys(params)} params={params} graph={graph} />
         )}
       </div>
     </div>

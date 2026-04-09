@@ -1,4 +1,4 @@
-def _get_control_spec(record: dict | None = None) -> dict:
+def _get_control_spec(_record: dict | None = None) -> dict:
     return {
         "spec_version": 1,
         "source_type": "system_time",
@@ -8,9 +8,9 @@ def _get_control_spec(record: dict | None = None) -> dict:
     }
 
 
-def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
+def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
-        return _get_control_spec(record)
+        return _get_control_spec()
     return {
         "source_type": "system_time",
         "display_name": "System Time",
@@ -28,15 +28,36 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_name", "label": "Parameter Name", "type": "string", "required": True},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_name",
+                            "label": "Parameter Name",
+                            "type": "string",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Publishing",
                     "fields": [
-                        {"key": "config.update_interval_s", "label": "Update Interval (s)", "type": "float", "required": True},
-                        {"key": "config.mode", "label": "Format", "type": "enum", "required": True, "choices": ["iso", "unix", "unix_ms"]},
+                        {
+                            "key": "config.update_interval_s",
+                            "label": "Update Interval (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.mode",
+                            "label": "Format",
+                            "type": "enum",
+                            "required": True,
+                            "choices": ["iso", "unix", "unix_ms"],
+                        },
                     ],
                 },
             ],
@@ -46,15 +67,37 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_name", "label": "Parameter Name", "type": "string", "required": True},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_name",
+                            "label": "Parameter Name",
+                            "type": "string",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Publishing",
                     "fields": [
-                        {"key": "config.update_interval_s", "label": "Update Interval (s)", "type": "float", "required": True, "default": 1.0},
-                        {"key": "config.mode", "label": "Format", "type": "enum", "required": True, "choices": ["iso", "unix", "unix_ms"]},
+                        {
+                            "key": "config.update_interval_s",
+                            "label": "Update Interval (s)",
+                            "type": "float",
+                            "required": True,
+                            "default": 1.0,
+                        },
+                        {
+                            "key": "config.mode",
+                            "label": "Format",
+                            "type": "enum",
+                            "required": True,
+                            "choices": ["iso", "unix", "unix_ms"],
+                        },
                     ],
                 },
             ]

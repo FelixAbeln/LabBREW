@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -73,6 +72,7 @@ def test_delete_rule_returns_false_for_missing_rule(tmp_path, monkeypatch) -> No
 
 
 def test_cleanup_stale_rule_tmp_files_ignores_unlink_oserror(tmp_path) -> None:
+    _ = tmp_path
     class FakeTmpPath:
         def is_file(self) -> bool:
             return True
@@ -99,7 +99,7 @@ def test_save_rule_runs_directory_fsync_when_supported(tmp_path, monkeypatch) ->
         fsync_calls.append(fd)
 
     def fake_open(path, flags, mode=0o777):
-        if str(path) == str((tmp_path / "Rules")):
+        if str(path) == str(tmp_path / "Rules"):
             return 999
         return original_open(path, flags, mode)
 
