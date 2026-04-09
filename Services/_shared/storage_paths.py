@@ -73,7 +73,10 @@ def load_topology_document() -> dict:
     path = topology_path()
     if not path.exists():
         return {}
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return {}
     return data if isinstance(data, dict) else {}
 
 
