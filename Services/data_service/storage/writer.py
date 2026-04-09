@@ -274,7 +274,9 @@ class JSONLWriter(FileWriter):
             fd = os.open(
                 self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644
             )
-        try:
+            fd = os.open(
+                self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644
+            )
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
             self.file_handle = os.fdopen(fd, "w", encoding="utf-8")
         except Exception as e:
