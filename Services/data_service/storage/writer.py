@@ -213,8 +213,7 @@ class CSVWriter(FileWriter):
         return str(Path(self.output_dir) / f"{self.session_name}.csv")
 
     def _write_header(self) -> None:
-        """Write CSV header."""
-        try:
+            self.file_handle = open(self.filepath, "w", encoding="utf-8", newline="")
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
             self.file_handle = os.fdopen(fd, "w", encoding="utf-8", newline="")
             header = "timestamp,datetime," + ",".join(self.parameters) + "\n"
