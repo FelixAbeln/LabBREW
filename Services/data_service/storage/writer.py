@@ -133,7 +133,15 @@ class ParquetWriter(FileWriter):
         try:
             existing_path = Path(self.filepath)
             if existing_path.exists():
-                existing_path.unlink()
+                partial_path = existing_path.with_suffix(
+                    f"{existing_path.suffix}.partial"
+                )
+                if partial_path.exists():
+                    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+                    partial_path = existing_path.with_suffix(
+                        f"{existing_path.suffix}.{timestamp}.partial"
+                    )
+                existing_path.replace(partial_path)
         except OSError:
             pass
 
