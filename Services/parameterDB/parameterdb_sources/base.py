@@ -62,17 +62,17 @@ class DataSourceBase(ABC):
                 metadata=metadata_payload,
             )
         except Exception:
-                # Existing parameters still need datasource ownership/config
-                # metadata repaired so UI features can discover published params
-                # and source-generated controls.
+            # Existing parameters still need datasource ownership/config
+            # metadata repaired so UI features can discover published params
+            # and source-generated controls.
             try:
                 if config_payload:
                     self.client.update_config(name, **config_payload)
                 if metadata_payload:
                     self.client.update_metadata(name, **metadata_payload)
             except Exception:
-                    # Parameter already exists or service unavailable;
-                    # keep startup tolerant.
+                # Parameter already exists or service unavailable;
+                # keep startup tolerant.
                 pass
 
     @abstractmethod
