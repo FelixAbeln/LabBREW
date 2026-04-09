@@ -164,7 +164,11 @@ async def view_archive(
     )
     if not result.get("ok"):
         error_text = str(result.get("error", "Unknown error"))
-        status_code = 404 if "not found" in error_text.lower() else 400
+        error_code = result.get("error_code")
+        status_code = result.get("status_code")
+
+        if not isinstance(status_code, int):
+            status_code = 404 if error_code == "not_found" else 400
         raise HTTPException(status_code=status_code, detail=error_text)
     return result
 
