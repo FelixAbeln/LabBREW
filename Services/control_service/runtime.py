@@ -6,21 +6,20 @@ import re
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any
-from copy import deepcopy
-from pathlib import Path
 from collections import defaultdict
+from copy import deepcopy
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
-from ..parameterDB.parameterdb_core.client import SignalSession
 from .._shared.parameterDB.paremeterDB import SignalStoreBackend
 from .._shared.storage_paths import storage_path
-from .rules.storage import load_rules
-from .rules.engine import RuleEngine
+from ..parameterDB.parameterdb_core.client import SignalSession
 from .control.executor import execute_action, read_value, set_value_checked
 from .control.ownership import OwnershipManager
 from .control.utils import get_targets
-
+from .rules.engine import RuleEngine
+from .rules.storage import load_rules
 
 CONTROL_VARIABLE_MAP_FILE = storage_path("control_variable_map.json")
 SAFETY_OWNER = "safety"
@@ -65,7 +64,9 @@ def collect_sources(condition: dict) -> set[str]:
 class ControlRuntime:
     def __init__(self, host: str, port: int):
         self.backend = SignalStoreBackend(host=host, port=port)
-        self.datasource_admin = SignalSession(host=host, port=DATASOURCE_ADMIN_PORT, timeout=2.0)
+        self.datasource_admin = SignalSession(
+            host=host, port=DATASOURCE_ADMIN_PORT, timeout=2.0
+        )
         self.rule_engine = RuleEngine()
         self.rules: list[dict] = []
         self.ownership = OwnershipManager()
@@ -90,13 +91,21 @@ class ControlRuntime:
         }
         self.rule_engine.prune_rules(active_rule_ids)
 
-    def _drop_target_from_rule_tracking(self, target: str, *, rule_id: str | None = None) -> None:
-        states = [self._rule_states.get(rule_id)] if rule_id is not None else self._rule_states.values()
+    def _drop_target_from_rule_tracking(
+        self, target: str, *, rule_id: str | None = None
+    ) -> None:
+        states = (
+            [self._rule_states.get(rule_id)]
+            if rule_id is not None
+            else self._rule_states.values()
+        )
         for state in states:
             if state is not None:
                 state.owned_targets.discard(target)
 
-    def _group_held_rules_from_ownership(self, ownership: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    def _group_held_rules_from_ownership(
+        self, ownership: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         held_rules: dict[str, dict[str, Any]] = {}
         for target, meta in ownership.items():
             rule_id = meta.get("rule_id")
@@ -189,8 +198,16 @@ class ControlRuntime:
         result["backend_value"] = self.backend.get_value(target)
         return result
 
-    def manual_set_parameter(self, target: str, value: Any, owner: str = MANUAL_OWNER, reason: str = "manual override") -> dict:
-        """Manual write path: manual owner can take over any non-safety owner before writing."""
+    def manual_set_parameter(
+        self,
+        target: str,
+        value: Any,
+        owner: str = MANUAL_OWNER,
+        reason: str = "manual override",
+    ) -> dict:
+        """Manual write path: manual owner can take over any
+        non-safety owner before writing.
+        """
         # Ignore caller-provided owner for manual path to prevent safety lock bypass.
         owner = MANUAL_OWNER
         current_owner = self.ownership.get_owner(target)
@@ -209,7 +226,9 @@ class ControlRuntime:
         takeover = False
         if current_owner not in (None, owner):
             self._drop_target_from_rule_tracking(target)
-            self.ownership.force_takeover(target, owner, reason=reason, owner_source="manual")
+            self.ownership.force_takeover(
+                target, owner, reason=reason, owner_source="manual"
+            )
             self.stop_ramp(target)
             takeover = True
         elif current_owner is None:
@@ -305,7 +324,7 @@ class ControlRuntime:
                 f.write("\n")
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(tmp_name, CONTROL_VARIABLE_MAP_FILE)
+            Path(tmp_name).replace(CONTROL_VARIABLE_MAP_FILE)
             try:
                 dir_fd = os.open(str(CONTROL_VARIABLE_MAP_FILE.parent), os.O_RDONLY)
                 try:
@@ -316,8 +335,9 @@ class ControlRuntime:
                 pass
         except Exception:
             try:
-                if os.path.exists(tmp_name):
-                    os.unlink(tmp_name)
+                tmp_path = Path(tmp_name)
+                if tmp_path.exists():
+                    tmp_path.unlink()
             except OSError:
                 pass
             raise
@@ -359,28 +379,55 @@ class ControlRuntime:
             ]
 
             existing_index = next(
-                (index for index, item in enumerate(controls) if _normalize_target(item.get("target")) == target_name),
+                (
+                    index
+                    for index, item in enumerate(controls)
+                    if _normalize_target(item.get("target")) == target_name
+                ),
                 None,
             )
 
-            existing_control = controls[existing_index] if existing_index is not None else {}
+            existing_control = (
+                controls[existing_index] if existing_index is not None else {}
+            )
             current_value = self.backend.get_value(target_name, None)
             normalized_group = str(group).strip() if group is not None else ""
             normalized_scope = str(pin_scope).strip().lower() or "manual"
 
             control: dict[str, Any] = dict(existing_control)
-            control["id"] = str(control.get("id") or self._normalize_control_id(target_name))
+            control["id"] = str(
+                control.get("id") or self._normalize_control_id(target_name)
+            )
             control["target"] = target_name
-            control["label"] = str(label).strip() if label is not None else str(control.get("label") or self._label_from_target(target_name))
-            control["group"] = normalized_group or str(control.get("group") or "general")
-            control["widget"] = str(widget).strip() if widget is not None else str(control.get("widget") or self._infer_widget_from_value(current_value))
+            control["label"] = (
+                str(label).strip()
+                if label is not None
+                else str(control.get("label") or self._label_from_target(target_name))
+            )
+            control["group"] = normalized_group or str(
+                control.get("group") or "general"
+            )
+            control["widget"] = (
+                str(widget).strip()
+                if widget is not None
+                else str(
+                    control.get("widget")
+                    or self._infer_widget_from_value(current_value)
+                )
+            )
             control["pin_scope"] = normalized_scope
 
             if unit is not None:
                 control["unit"] = str(unit).strip() or None
             elif "unit" not in control:
-                described = self.backend.describe().get(target_name, {}) if hasattr(self.backend, "describe") else {}
-                metadata = described.get("metadata") if isinstance(described, dict) else {}
+                described = (
+                    self.backend.describe().get(target_name, {})
+                    if hasattr(self.backend, "describe")
+                    else {}
+                )
+                metadata = (
+                    described.get("metadata") if isinstance(described, dict) else {}
+                )
                 if isinstance(metadata, dict) and metadata.get("unit"):
                     control["unit"] = metadata.get("unit")
 
@@ -397,8 +444,12 @@ class ControlRuntime:
                 controls[existing_index] = control
 
             group_id = str(control.get("group") or "").strip()
-            if group_id and not any(str(item.get("id", "")).strip() == group_id for item in groups):
-                groups.append({"id": group_id, "label": self._label_from_target(group_id)})
+            if group_id and not any(
+                str(item.get("id", "")).strip() == group_id for item in groups
+            ):
+                groups.append(
+                    {"id": group_id, "label": self._label_from_target(group_id)}
+                )
 
             contract["controls"] = controls
             contract["groups"] = groups
@@ -468,7 +519,9 @@ class ControlRuntime:
         if not CONTROL_VARIABLE_MAP_FILE.exists():
             return default_contract
         try:
-            payload = json.loads(CONTROL_VARIABLE_MAP_FILE.read_text(encoding="utf-8-sig"))
+            payload = json.loads(
+                CONTROL_VARIABLE_MAP_FILE.read_text(encoding="utf-8-sig")
+            )
         except Exception as exc:
             return {
                 **default_contract,
@@ -516,7 +569,9 @@ class ControlRuntime:
             item["manual_owner"] = MANUAL_OWNER
             item["target_exists"] = bool(target) and (target in values)
             item["current_value"] = values.get(target) if target else None
-            item["current_owner"] = owner_meta.get("owner") if isinstance(owner_meta, dict) else None
+            item["current_owner"] = (
+                owner_meta.get("owner") if isinstance(owner_meta, dict) else None
+            )
             item["safety_locked"] = item["current_owner"] == SAFETY_OWNER
             resolved_controls.append(item)
 
@@ -528,7 +583,9 @@ class ControlRuntime:
             "available_targets": sorted(values.keys()),
         }
 
-    def get_datasource_contract_snapshot(self, include_empty_cards: bool = False) -> dict[str, Any]:
+    def get_datasource_contract_snapshot(
+        self, include_empty_cards: bool = False
+    ) -> dict[str, Any]:
         control_contract_snapshot = self.get_control_contract_snapshot()
         resolved_controls = control_contract_snapshot.get("resolved_controls", [])
         controls_by_target: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -547,7 +604,9 @@ class ControlRuntime:
                 "target": target,
                 "pin_scope": control.get("pin_scope"),
                 "widget": control.get("widget"),
-                "write": deepcopy(control.get("write")) if isinstance(control.get("write"), dict) else control.get("write"),
+                "write": deepcopy(control.get("write"))
+                if isinstance(control.get("write"), dict)
+                else control.get("write"),
                 "kind": control.get("kind"),
                 "unit": control.get("unit"),
                 "step": control.get("step"),
@@ -614,7 +673,10 @@ class ControlRuntime:
                 if not isinstance(source, dict):
                     continue
                 active_source_names.add(source_name)
-                parameters = sorted(source_parameters.get(source_name, []), key=lambda item: item["name"])
+                parameters = sorted(
+                    source_parameters.get(source_name, []),
+                    key=lambda item: item["name"],
+                )
                 parameters_by_name = {item["name"]: item for item in parameters}
 
                 source_type = str(source.get("source_type") or "").strip()
@@ -622,7 +684,9 @@ class ControlRuntime:
                 source_control_spec_error: str | None = None
                 if source_type:
                     try:
-                        source_control_spec = self.datasource_admin.get_source_type_ui(source_type, name=source_name, mode="control")
+                        source_control_spec = self.datasource_admin.get_source_type_ui(
+                            source_type, name=source_name, mode="control"
+                        )
                         if not isinstance(source_control_spec, dict):
                             source_control_spec = {}
                     except Exception as exc:
@@ -632,7 +696,11 @@ class ControlRuntime:
                 control_items: list[dict[str, Any]] = []
                 seen_targets: set[str] = set()
 
-                for control in source_control_spec.get("controls", []) if isinstance(source_control_spec.get("controls"), list) else []:
+                for control in (
+                    source_control_spec.get("controls", [])
+                    if isinstance(source_control_spec.get("controls"), list)
+                    else []
+                ):
                     if not isinstance(control, dict):
                         continue
                     target = _normalize_target(control.get("target"))
@@ -643,29 +711,54 @@ class ControlRuntime:
                     map_hint = controls_by_target.get(target, [])
                     map_item = map_hint[0] if map_hint else {}
                     value_target = _normalize_target(control.get("value_target"))
-                    vt_param = parameters_by_name.get(value_target) if value_target else None
+                    vt_param = (
+                        parameters_by_name.get(value_target) if value_target else None
+                    )
                     item: dict[str, Any] = {
                         "id": control.get("id") or map_item.get("id") or target,
-                        "label": map_item.get("label") or control.get("label") or target,
+                        "label": map_item.get("label")
+                        or control.get("label")
+                        or target,
                         "target": target,
-                        "widget": map_item.get("widget") or control.get("widget") or "text",
-                        "unit": map_item.get("unit") or control.get("unit") or (param.get("unit") if isinstance(param, dict) else None),
-                        "write": control.get("write") if isinstance(control.get("write"), dict) else {},
-                        "role": control.get("role") or (param.get("role") if isinstance(param, dict) else None),
-                        "current_value": param.get("value") if isinstance(param, dict) else None,
+                        "widget": map_item.get("widget")
+                        or control.get("widget")
+                        or "text",
+                        "unit": map_item.get("unit")
+                        or control.get("unit")
+                        or (param.get("unit") if isinstance(param, dict) else None),
+                        "write": control.get("write")
+                        if isinstance(control.get("write"), dict)
+                        else {},
+                        "role": control.get("role")
+                        or (param.get("role") if isinstance(param, dict) else None),
+                        "current_value": param.get("value")
+                        if isinstance(param, dict)
+                        else None,
                         "source": "sourcedef",
                         "mapped": bool(map_item),
                     }
                     if value_target:
                         item["value_target"] = value_target
-                        item["value_write"] = control.get("value_write") if isinstance(control.get("value_write"), dict) else None
-                        item["value_target_current_value"] = vt_param.get("value") if isinstance(vt_param, dict) else None
+                        item["value_write"] = (
+                            control.get("value_write")
+                            if isinstance(control.get("value_write"), dict)
+                            else None
+                        )
+                        item["value_target_current_value"] = (
+                            vt_param.get("value")
+                            if isinstance(vt_param, dict)
+                            else None
+                        )
                     control_items.append(item)
 
                 for parameter in parameters:
                     role = str(parameter.get("role") or "").strip().lower()
                     target = _normalize_target(parameter.get("name"))
-                    if not target or role not in {"command", "control"} or target in seen_targets:
+                    if (
+                        not target
+                        or role not in {"command", "control"}
+                        or target in seen_targets
+                    ):
                         continue
                     seen_targets.add(target)
                     value = parameter.get("value")
@@ -685,7 +778,9 @@ class ControlRuntime:
                                 "max": meta.get("value_write_max"),
                                 "step": meta.get("value_write_step"),
                             },
-                            "value_target_current_value": vt_param.get("value") if isinstance(vt_param, dict) else None,
+                            "value_target_current_value": vt_param.get("value")
+                            if isinstance(vt_param, dict)
+                            else None,
                         }
                         seen_targets.add(meta_value_target)
                     elif meta_widget_hint == "button":
@@ -730,22 +825,35 @@ class ControlRuntime:
                             "label": map_item.get("label") or target,
                             "target": target,
                             "widget": map_item.get("widget") or "text",
-                            "unit": map_item.get("unit") or (param.get("unit") if isinstance(param, dict) else None),
+                            "unit": map_item.get("unit")
+                            or (param.get("unit") if isinstance(param, dict) else None),
                             "write": {},
-                            "role": param.get("role") if isinstance(param, dict) else None,
-                            "current_value": param.get("value") if isinstance(param, dict) else None,
+                            "role": param.get("role")
+                            if isinstance(param, dict)
+                            else None,
+                            "current_value": param.get("value")
+                            if isinstance(param, dict)
+                            else None,
                             "source": "manual_map",
                             "mapped": True,
                         }
                     )
 
-                controls = sorted(control_items, key=lambda item: (str(item.get("label") or "").lower(), str(item.get("target") or "")))
+                controls = sorted(
+                    control_items,
+                    key=lambda item: (
+                        str(item.get("label") or "").lower(),
+                        str(item.get("target") or ""),
+                    ),
+                )
                 datasources.append(
                     {
                         "name": source_name,
                         "source_type": source_type or source.get("source_type"),
                         "running": bool(source.get("running")),
-                        "config": source.get("config") if isinstance(source.get("config"), dict) else {},
+                        "config": source.get("config")
+                        if isinstance(source.get("config"), dict)
+                        else {},
                         "parameter_count": len(parameters),
                         "control_count": len(controls),
                         "parameters": parameters,
@@ -780,7 +888,9 @@ class ControlRuntime:
         for source_name in sorted(source_parameters):
             if source_name in active_source_names:
                 continue
-            parameters = sorted(source_parameters[source_name], key=lambda item: item["name"])
+            parameters = sorted(
+                source_parameters[source_name], key=lambda item: item["name"]
+            )
             controls = sorted(
                 {
                     control.get("id"): control
@@ -798,7 +908,9 @@ class ControlRuntime:
             orphan_sources.append(
                 {
                     "name": source_name,
-                    "source_type": sorted(source_type_candidates)[0] if source_type_candidates else None,
+                    "source_type": sorted(source_type_candidates)[0]
+                    if source_type_candidates
+                    else None,
                     "running": False,
                     "missing_from_datasource_service": True,
                     "parameter_count": len(parameters),
@@ -859,7 +971,9 @@ class ControlRuntime:
                     "target_exists": bool(map_item.get("target_exists")),
                 }
             )
-        manual_controls = sorted(manual_controls, key=lambda item: str(item.get("label") or "").lower())
+        manual_controls = sorted(
+            manual_controls, key=lambda item: str(item.get("label") or "").lower()
+        )
 
         if manual_controls:
             ui_cards.append(
@@ -889,13 +1003,17 @@ class ControlRuntime:
             },
             "datasources": datasources,
             "orphan_sources": orphan_sources,
-            "orphan_parameters": sorted(orphan_parameters, key=lambda item: item["name"]),
+            "orphan_parameters": sorted(
+                orphan_parameters, key=lambda item: item["name"]
+            ),
             "manual_controls": manual_controls,
             "ui_cards": ui_cards,
         }
 
     def get_control_ui_spec(self, include_empty_cards: bool = False) -> dict[str, Any]:
-        snapshot = self.get_datasource_contract_snapshot(include_empty_cards=include_empty_cards)
+        snapshot = self.get_datasource_contract_snapshot(
+            include_empty_cards=include_empty_cards
+        )
         return {
             "ok": bool(snapshot.get("ok", False)),
             "manual_owner": MANUAL_OWNER,
@@ -928,7 +1046,11 @@ class ControlRuntime:
         try:
             end_value = float(action["value"])
         except Exception:
-            return {"ok": False, "error": "invalid value; must be numeric", "targets": targets}
+            return {
+                "ok": False,
+                "error": "invalid value; must be numeric",
+                "targets": targets,
+            }
 
         owner = action.get("owner", "rules")
         started = {}
@@ -983,7 +1105,9 @@ class ControlRuntime:
             return [rule["action"]]
         return []
 
-    def _release_rule_targets_if_needed(self, rule: dict, state: ActiveRuleState) -> None:
+    def _release_rule_targets_if_needed(
+        self, rule: dict, state: ActiveRuleState
+    ) -> None:
         if not rule.get("release_when_clear", False):
             return
 
@@ -1035,10 +1159,18 @@ class ControlRuntime:
                                 )
                                 state.owned_targets.add(target)
                             if "value" in action:
-                                set_action = {"type": "set", "targets": get_targets(action), "value": action["value"]}
+                                set_action = {
+                                    "type": "set",
+                                    "targets": get_targets(action),
+                                    "value": action["value"],
+                                }
                                 action_result = execute_action(self.backend, set_action)
                             else:
-                                action_result = {"ok": True, "targets": get_targets(action), "owner": SAFETY_OWNER}
+                                action_result = {
+                                    "ok": True,
+                                    "targets": get_targets(action),
+                                    "owner": SAFETY_OWNER,
+                                }
                         elif action_type == "ramp":
                             ramp_action = dict(action)
                             ramp_action["owner"] = SAFETY_OWNER
@@ -1059,7 +1191,6 @@ class ControlRuntime:
                 state.active = False
 
         self._tick_ramps()
-
 
     def get_live_snapshot(self, targets: list[str] | None = None) -> dict[str, Any]:
         ownership = self.ownership.snapshot()
@@ -1087,7 +1218,9 @@ class ControlRuntime:
             sample_targets.update(targets)
 
         if targets:
-            values = self.backend.snapshot(sorted(sample_targets)) if sample_targets else {}
+            values = (
+                self.backend.snapshot(sorted(sample_targets)) if sample_targets else {}
+            )
         else:
             values = self.backend.full_snapshot()
 

@@ -9,7 +9,6 @@ from Services.parameterDB.parameterdb_core.plugin_ui.paths import (
 from Services.parameterDB.parameterdb_core.plugin_ui.spec import normalize_ui_spec
 
 
-
 def test_normalize_ui_spec_applies_defaults_and_field_normalization() -> None:
     spec = {
         "display_name": "PID",

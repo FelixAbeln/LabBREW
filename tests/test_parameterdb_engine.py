@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import threading
 from typing import Any
 
 from Services.parameterDB.parameterdb_service.engine import ScanEngine
@@ -41,7 +40,7 @@ class FakeParameter(ParameterBase):
     def write_targets(self) -> list[str]:
         return list(self._targets)
 
-    def scan(self, ctx) -> None:
+    def scan(self, _ctx) -> None:
         if self._raise_error:
             raise RuntimeError("scan failed")
         if self._scan_value is not None:
@@ -221,8 +220,6 @@ def test_scan_engine_run_loop_start_stop_and_stats(monkeypatch) -> None:
     assert engine._overrun_count == 1
     assert sleep_calls == [0.0]
 
-    started_threads: list[threading.Thread] = []
-
     class FakeThread:
         def __init__(self, target=None, name: str = "", daemon: bool = False) -> None:
             self.target = target
@@ -235,6 +232,7 @@ def test_scan_engine_run_loop_start_stop_and_stats(monkeypatch) -> None:
             self.started = True
 
         def join(self, timeout: float | None = None) -> None:
+            _ = timeout
             self.joined = True
 
     monkeypatch.setattr("Services.parameterDB.parameterdb_service.engine.threading.Thread", FakeThread)

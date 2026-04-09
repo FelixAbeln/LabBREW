@@ -5,7 +5,7 @@ import runpy
 import warnings
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -46,6 +46,7 @@ class FakeThread:
         self._alive = True
 
     def join(self, timeout: float | None = None) -> None:
+        _ = timeout
         self._alive = False
 
     def is_alive(self) -> bool:
@@ -153,7 +154,7 @@ def test_source_runner_write_record_cleans_tmp_on_failure(tmp_path: Path, monkey
         config_path=runner._config_path_for_name("alpha"),
     )
 
-    def boom_replace(src: str, dst: Path) -> None:
+    def boom_replace(_src: str, _dst: Path) -> None:
         raise RuntimeError("replace failed")
 
     monkeypatch.setattr(serviceDS.os, "replace", boom_replace)
@@ -215,11 +216,11 @@ def test_registry_ui_provider_typeerror_fallback() -> None:
 def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path) -> None:
     class UiWithFunction:
         @staticmethod
-        def get_ui_spec(*, record=None, mode=None):
+        def get_ui_spec(*, _record=None, _mode=None):
             return {"display_name": "fn", "description": "x"}
 
     class UiWithConst:
-        UI_SPEC = {"display_name": "const", "description": "y"}
+        UI_SPEC: ClassVar[dict[str, str]] = {"display_name": "const", "description": "y"}
 
     assert callable(loader._extract_ui_spec(UiWithFunction))
     assert loader._extract_ui_spec(UiWithConst) == {"display_name": "const", "description": "y"}
@@ -230,7 +231,7 @@ def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path) -> None:
     (root / "bad").mkdir(parents=True)
     (root / "_hidden").mkdir(parents=True)
 
-    def fake_load_source_folder(folder: str | Path, registry: loader.DataSourceRegistry):
+    def fake_load_source_folder(folder: str | Path, _registry: loader.DataSourceRegistry):
         folder_name = Path(folder).name
         if folder_name == "bad":
             raise RuntimeError("bad source")
@@ -255,7 +256,7 @@ def test_load_source_folder_imports_service_and_ui(monkeypatch, tmp_path: Path) 
 
     class UiModule:
         @staticmethod
-        def get_ui_spec(*, record=None, mode=None):
+        def get_ui_spec(*, _record=None, _mode=None):
             return {"display_name": "Demo", "description": "Demo source"}
 
     def fake_import(name: str):
@@ -394,7 +395,7 @@ def test_service_ds_main_wires_runner_admin_and_shutdown(monkeypatch, tmp_path: 
     monkeypatch.setattr(serviceDS, "parse_args", lambda _desc: args)
     monkeypatch.setattr(serviceDS, "SignalClient", lambda host, port, timeout: (host, port, timeout))
     monkeypatch.setattr(serviceDS, "DataSourceRegistry", lambda: "registry")
-    monkeypatch.setattr(serviceDS, "autodiscover_sources", lambda root, registry: ["system_time"])
+    monkeypatch.setattr(serviceDS, "autodiscover_sources", lambda _root, _registry: ["system_time"])
     monkeypatch.setattr(serviceDS, "SourceRunner", FakeRunner)
     monkeypatch.setattr(serviceDS, "SourceAdminTCPServer", FakeAdminServer)
     monkeypatch.setattr(serviceDS.threading, "Thread", MainThread)
@@ -522,7 +523,9 @@ def test_source_runner_update_source_unknown_name_raises(tmp_path: Path, monkeyp
 def test_service_ds_module_main_guard_executes_main(monkeypatch, tmp_path: Path) -> None:
     from Services._shared import cli as cli_module
     from Services.parameterDB.parameterdb_core import client as client_module
-    from Services.parameterDB.parameterdb_sources import admin_server as admin_server_module
+    from Services.parameterDB.parameterdb_sources import (
+        admin_server as admin_server_module,
+    )
     from Services.parameterDB.parameterdb_sources import loader as loader_module
 
     args = SimpleNamespace(

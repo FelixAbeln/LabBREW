@@ -1,9 +1,9 @@
-
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Optional
+import contextlib
 import socket
+from dataclasses import dataclass, field
+from typing import Any
 
 try:
     from zeroconf import ServiceBrowser, ServiceInfo, Zeroconf
@@ -44,16 +44,16 @@ def _decode_property(value: Any) -> str:
 
 
 class _DiscoveryListener:
-    def __init__(self, owner: "MdnsDiscoveryBrowser") -> None:
+    def __init__(self, owner: MdnsDiscoveryBrowser) -> None:
         self.owner = owner
 
-    def add_service(self, zeroconf: Any, service_type: str, name: str) -> None:
+    def add_service(self, _zeroconf: Any, _service_type: str, name: str) -> None:
         self.owner._refresh_service(name)
 
-    def update_service(self, zeroconf: Any, service_type: str, name: str) -> None:
+    def update_service(self, _zeroconf: Any, _service_type: str, name: str) -> None:
         self.owner._refresh_service(name)
 
-    def remove_service(self, zeroconf: Any, service_type: str, name: str) -> None:
+    def remove_service(self, _zeroconf: Any, _service_type: str, name: str) -> None:
         self.owner._remove_service(name)
 
 
@@ -64,8 +64,8 @@ class MdnsAdvertiser:
     port: int
     api_path: str = "/agent/info"
     services: tuple[str, ...] = ()
-    zeroconf: Optional[Any] = field(init=False, default=None)
-    info: Optional[Any] = field(init=False, default=None)
+    zeroconf: Any | None = field(init=False, default=None)
+    info: Any | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self.zeroconf = Zeroconf() if Zeroconf is not None else None
@@ -120,19 +120,17 @@ class MdnsAdvertiser:
         if self.zeroconf is None:
             return
         if self.info is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.zeroconf.unregister_service(self.info)
-            except Exception:
-                pass
         self.zeroconf.close()
 
 
 @dataclass(slots=True)
 class MdnsDiscoveryBrowser:
     service_type: str = SERVICE_TYPE
-    zeroconf: Optional[Any] = field(init=False, default=None)
-    browser: Optional[Any] = field(init=False, default=None)
-    listener: Optional[Any] = field(init=False, default=None)
+    zeroconf: Any | None = field(init=False, default=None)
+    browser: Any | None = field(init=False, default=None)
+    listener: Any | None = field(init=False, default=None)
     _services: dict[str, dict[str, Any]] = field(init=False, default_factory=dict)
 
     def start(self) -> bool:
@@ -158,7 +156,10 @@ class MdnsDiscoveryBrowser:
             addresses = info.parsed_addresses()
         except Exception:
             addresses = []
-        props = { _decode_property(k): _decode_property(v) for k, v in (info.properties or {}).items() }
+        props = {
+            _decode_property(k): _decode_property(v)
+            for k, v in (info.properties or {}).items()
+        }
         self._services[name] = {
             "name": name,
             "address": addresses[0] if addresses else "",

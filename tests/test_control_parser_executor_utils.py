@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from Services.control_service.control.executor import execute_action, read_value, set_value_checked
+from Services.control_service.control.executor import (
+    execute_action,
+    read_value,
+    set_value_checked,
+)
 from Services.control_service.control.utils import get_targets
 from Services.control_service.rules.parser import parse_condition
 

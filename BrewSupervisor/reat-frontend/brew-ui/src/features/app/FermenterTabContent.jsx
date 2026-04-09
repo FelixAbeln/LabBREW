@@ -1,4 +1,6 @@
 import { ParameterDBPage } from '../parameterdb/ParameterDBPage';
+import { StorageManagerPage } from '../storage/StorageManagerPage';
+import { ArchiveViewerPage } from '../archive/ArchiveViewerPage';
 import { RuleEditorModal } from '../rules/RuleEditorModal';
 import { ArchiveTabContainer } from './containers/ArchiveTabContainer';
 import { ControlUiTabContainer } from './containers/ControlUiTabContainer';
@@ -20,6 +22,10 @@ export function FermenterTabContent({
   globalView,
   setGlobalView,
   ruleEditorProps,
+  archiveViewPayload,
+  selectedArchiveName,
+  archiveViewLoading,
+  archiveViewError,
 }) {
   if (!selected) {
     return (
@@ -62,6 +68,47 @@ export function FermenterTabContent({
           <ParameterDBPage
             fermenterId={selected?.id || null}
             fermenterName={selected?.name || null}
+            onClose={() => setGlobalView(null)}
+          />
+        </div>
+      )}
+
+      {globalView === 'storage-manager' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            background: '#11161c',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <StorageManagerPage
+            fermenterId={selected?.id || null}
+            fermenterName={selected?.name || null}
+            onClose={() => setGlobalView(null)}
+          />
+        </div>
+      )}
+
+      {globalView === 'archive-viewer' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            background: '#11161c',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <ArchiveViewerPage
+            key={`${selectedArchiveName}:${archiveViewPayload?.measurement?.member ?? ''}`}
+            archiveName={selectedArchiveName}
+            archiveViewPayload={archiveViewPayload}
+            archiveViewLoading={archiveViewLoading}
+            archiveViewError={archiveViewError}
             onClose={() => setGlobalView(null)}
           />
         </div>

@@ -1,6 +1,9 @@
 from __future__ import annotations
-from typing import Optional, Protocol, runtime_checkable
+
+from typing import Protocol, runtime_checkable
+
 from ..frame import CanFrame
+
 
 @runtime_checkable
 class DomainMessage(Protocol):

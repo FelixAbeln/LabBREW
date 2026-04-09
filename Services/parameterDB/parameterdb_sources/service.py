@@ -35,7 +35,13 @@ class SourceInstance:
 
 
 class SourceRunner:
-    def __init__(self, base_client: SignalClient, registry: DataSourceRegistry, *, config_dir: str) -> None:
+    def __init__(
+        self,
+        base_client: SignalClient,
+        registry: DataSourceRegistry,
+        *,
+        config_dir: str,
+    ) -> None:
         self.base_client = base_client
         self.registry = registry
         self.config_dir = Path(config_dir)
@@ -44,21 +50,31 @@ class SourceRunner:
         self.records: dict[str, SourceRecord] = {}
         self.instances: dict[str, SourceInstance] = {}
 
-    def _record_from_payload(self, payload: dict[str, Any], *, config_path: Path) -> SourceRecord:
+    def _record_from_payload(
+        self, payload: dict[str, Any], *, config_path: Path
+    ) -> SourceRecord:
         name = str(payload["name"]).strip()
         source_type = str(payload["source_type"]).strip()
         config = dict(payload.get("config") or {})
         if not name or not source_type:
-            raise ValueError("Source config must include non-empty name and source_type")
+            raise ValueError(
+                "Source config must include non-empty name and source_type"
+            )
         self.registry.get(source_type)
-        return SourceRecord(name=name, source_type=source_type, config=config, config_path=config_path)
+        return SourceRecord(
+            name=name, source_type=source_type, config=config, config_path=config_path
+        )
 
     def _config_path_for_name(self, name: str) -> Path:
-        safe = "".join(c if c.isalnum() or c in ('-', '_', '.') else '_' for c in name)
+        safe = "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in name)
         return self.config_dir / f"{safe}.json"
 
     def _write_record(self, record: SourceRecord) -> None:
-        payload = {"name": record.name, "source_type": record.source_type, "config": record.config}
+        payload = {
+            "name": record.name,
+            "source_type": record.source_type,
+            "config": record.config,
+        }
         data = json.dumps(payload, indent=2, sort_keys=True)
 
         fd, tmp_name = tempfile.mkstemp(
@@ -72,7 +88,7 @@ class SourceRunner:
                 handle.flush()
                 os.fsync(handle.fileno())
 
-            os.replace(tmp_name, record.config_path)
+            Path(tmp_name).replace(record.config_path)
 
             try:
                 dir_fd = os.open(str(record.config_path.parent), os.O_RDONLY)
@@ -84,8 +100,9 @@ class SourceRunner:
                 pass
         except Exception:
             try:
-                if os.path.exists(tmp_name):
-                    os.unlink(tmp_name)
+                tmp_path = Path(tmp_name)
+                if tmp_path.exists():
+                    tmp_path.unlink()
             except OSError:
                 pass
             raise
@@ -103,8 +120,12 @@ class SourceRunner:
         session = self.base_client.session()
         session.connect()
         source = spec.create(record.name, session, config=record.config)
-        thread = threading.Thread(target=source.run, name=f"source:{record.name}", daemon=True)
-        return SourceInstance(record=record, source=source, session=session, thread=thread)
+        thread = threading.Thread(
+            target=source.run, name=f"source:{record.name}", daemon=True
+        )
+        return SourceInstance(
+            record=record, source=source, session=session, thread=thread
+        )
 
     def _start_instance_locked(self, record: SourceRecord) -> None:
         if record.name in self.instances:
@@ -125,8 +146,8 @@ class SourceRunner:
     def load_config_dir(self) -> list[SourceRecord]:
         self._cleanup_stale_config_tmp_files()
         loaded: list[SourceRecord] = []
-        for cfg_path in sorted(self.config_dir.glob('*.json')):
-            payload = json.loads(cfg_path.read_text(encoding='utf-8'))
+        for cfg_path in sorted(self.config_dir.glob("*.json")):
+            payload = json.loads(cfg_path.read_text(encoding="utf-8"))
             record = self._record_from_payload(payload, config_path=cfg_path)
             loaded.append(record)
         with self._lock:
@@ -154,11 +175,11 @@ class SourceRunner:
                     "name": record.name,
                     "source_type": record.source_type,
                     "config": dict(record.config),
-                    "running": name in self.instances and self.instances[name].thread.is_alive(),
+                    "running": name in self.instances
+                    and self.instances[name].thread.is_alive(),
                     "config_path": str(record.config_path),
                 }
             return result
-
 
     def get_source_record(self, name: str) -> dict[str, Any]:
         with self._lock:
@@ -170,11 +191,19 @@ class SourceRunner:
                 "source_type": record.source_type,
                 "config": dict(record.config),
                 "config_path": str(record.config_path),
-                "running": name in self.instances and self.instances[name].thread.is_alive(),
+                "running": name in self.instances
+                and self.instances[name].thread.is_alive(),
             }
 
-    def create_source(self, name: str, source_type: str, *, config: dict[str, Any]) -> None:
-        record = SourceRecord(name=name, source_type=source_type, config=dict(config), config_path=self._config_path_for_name(name))
+    def create_source(
+        self, name: str, source_type: str, *, config: dict[str, Any]
+    ) -> None:
+        record = SourceRecord(
+            name=name,
+            source_type=source_type,
+            config=dict(config),
+            config_path=self._config_path_for_name(name),
+        )
         self.registry.get(source_type)
         with self._lock:
             if name in self.records:
@@ -188,7 +217,12 @@ class SourceRunner:
             existing = self.records.get(name)
             if existing is None:
                 raise KeyError(f"Unknown source '{name}'")
-            updated = SourceRecord(name=existing.name, source_type=existing.source_type, config=dict(config), config_path=existing.config_path)
+            updated = SourceRecord(
+                name=existing.name,
+                source_type=existing.source_type,
+                config=dict(config),
+                config_path=existing.config_path,
+            )
             self._stop_instance_locked(name)
             self._write_record(updated)
             self.records[name] = updated
@@ -212,17 +246,25 @@ def _builtin_source_root() -> str:
 
 
 def _default_config_dir() -> str:
-    return './sources'
+    return "./sources"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='ParameterDB Data-Source Service')
-    parser.add_argument('--host', default='127.0.0.1')
-    parser.add_argument('--port', type=int, default=8765)
-    parser.add_argument('--admin-host', default='127.0.0.1')
-    parser.add_argument('--admin-port', type=int, default=8766)
-    parser.add_argument('--source-root', default=None, help='Optional extra folder containing custom source type folders.')
-    parser.add_argument('--config-dir', default=_default_config_dir(), help='Load all *.json source configs from this folder.')
+    parser = argparse.ArgumentParser(description="ParameterDB Data-Source Service")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--admin-host", default="127.0.0.1")
+    parser.add_argument("--admin-port", type=int, default=8766)
+    parser.add_argument(
+        "--source-root",
+        default=None,
+        help="Optional extra folder containing custom source type folders.",
+    )
+    parser.add_argument(
+        "--config-dir",
+        default=_default_config_dir(),
+        help="Load all *.json source configs from this folder.",
+    )
     args = parser.parse_args()
 
     base_client = SignalClient(args.host, args.port, timeout=5.0)
@@ -237,28 +279,28 @@ def main() -> None:
     runner = SourceRunner(base_client, registry, config_dir=args.config_dir)
     records = runner.load_config_dir()
 
-    print(f'[INFO] Built-in source root: {builtin_root}')
-    print(f'[INFO] Loaded built-in source types: {loaded_builtin}')
+    print(f"[INFO] Built-in source root: {builtin_root}")
+    print(f"[INFO] Loaded built-in source types: {loaded_builtin}")
     if args.source_root:
-        print(f'[INFO] Extra source root: {args.source_root}')
-        print(f'[INFO] Loaded extra source types: {loaded_custom}')
-    print(f'[INFO] Loaded source instances: {[r.name for r in records]}')
+        print(f"[INFO] Extra source root: {args.source_root}")
+        print(f"[INFO] Loaded extra source types: {loaded_custom}")
+    print(f"[INFO] Loaded source instances: {[r.name for r in records]}")
 
     runner.start_all()
     admin_server = SourceAdminTCPServer(args.admin_host, args.admin_port, runner)
     admin_thread = threading.Thread(target=admin_server.serve_forever, daemon=True)
     admin_thread.start()
-    print(f'[INFO] Source admin running on {args.admin_host}:{args.admin_port}')
+    print(f"[INFO] Source admin running on {args.admin_host}:{args.admin_port}")
 
     def shutdown(*_args: Any) -> None:
-        print('[INFO] Stopping data sources...')
+        print("[INFO] Stopping data sources...")
         admin_server.shutdown()
         admin_server.server_close()
         runner.stop_all()
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, shutdown)
-    if hasattr(signal, 'SIGTERM'):
+    if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, shutdown)
 
     try:

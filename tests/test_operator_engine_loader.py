@@ -12,7 +12,7 @@ from Services._shared.operator_engine.registry import OperatorRegistry
 class _Plugin:
     metadata = OperatorMetadata(name="test", label="Test", description="desc")
 
-    def evaluate(self, value, params):
+    def evaluate(self, _value, _params):
         return True
 
 

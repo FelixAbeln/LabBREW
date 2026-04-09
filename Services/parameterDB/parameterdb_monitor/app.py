@@ -1,20 +1,30 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import queue
 import threading
+import time
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import messagebox, ttk
-from typing import Any, Callable
+from typing import Any
 
 from ..parameterdb_core.client import SignalClient
 from ..parameterdb_core.plugin_ui import deep_copy_payload, get_by_path, set_by_path
-import time
 
 
 class PluginTypeDialog(tk.Toplevel):
-    def __init__(self, master: tk.Misc, plugin_map: dict[str, dict[str, Any]], *, title: str, prompt: str, kind_key: str) -> None:
+    def __init__(
+        self,
+        master: tk.Misc,
+        plugin_map: dict[str, dict[str, Any]],
+        *,
+        title: str,
+        prompt: str,
+        kind_key: str,
+    ) -> None:
         super().__init__(master)
         self.title(title)
         self.geometry("560x420")
@@ -32,14 +42,14 @@ class PluginTypeDialog(tk.Toplevel):
         self.filter_var = tk.StringVar()
         ent = ttk.Entry(root, textvariable=self.filter_var)
         ent.pack(fill=tk.X, pady=(6, 8))
-        ent.bind("<KeyRelease>", lambda e: self.refresh())
+        ent.bind("<KeyRelease>", lambda _event: self.refresh())
 
         body = ttk.Frame(root)
         body.pack(fill=tk.BOTH, expand=True)
         self.listbox = tk.Listbox(body)
         self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.listbox.bind("<Double-1>", lambda e: self.accept())
-        self.listbox.bind("<<ListboxSelect>>", lambda e: self.update_details())
+        self.listbox.bind("<Double-1>", lambda _event: self.accept())
+        self.listbox.bind("<<ListboxSelect>>", lambda _event: self.update_details())
         sb = ttk.Scrollbar(body, orient="vertical", command=self.listbox.yview)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.listbox.configure(yscrollcommand=sb.set)
@@ -63,7 +73,10 @@ class PluginTypeDialog(tk.Toplevel):
         self._visible = []
         for kind in sorted(self.plugin_map):
             spec = self.plugin_map[kind]
-            hay = f"{kind} {spec.get('display_name', '')} {spec.get('description', '')}".lower()
+            hay = (
+                f"{kind} {spec.get('display_name', '')} "
+                f"{spec.get('description', '')}"
+            ).lower()
             if needle and needle not in hay:
                 continue
             label = f"{kind} — {spec.get('display_name', kind)}"
@@ -123,11 +136,16 @@ class SchemaEditor(tk.Toplevel):
         self.save_callback = save_callback
         self.list_parameter_refs = list_parameter_refs
         try:
-            self.parameter_names = self.client.list_parameters() if list_parameter_refs else []
+            self.parameter_names = (
+                self.client.list_parameters() if list_parameter_refs else []
+            )
         except Exception:
             self.parameter_names = []
 
-        title = f"{mode.title()} {schema_ui.get('display_name', schema_ui.get(type_key, entity_kind.title()))}"
+        display = schema_ui.get(
+            "display_name", schema_ui.get(type_key, entity_kind.title())
+        )
+        title = f"{mode.title()} {display}"
         self.title(title)
         self.geometry("860x760")
         self.minsize(700, 520)
@@ -141,10 +159,18 @@ class SchemaEditor(tk.Toplevel):
 
         header = ttk.Frame(root)
         header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        ttk.Label(header, text=schema_ui.get("display_name", schema_ui.get(type_key, entity_kind.title())), font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        ttk.Label(
+            header,
+            text=schema_ui.get(
+                "display_name", schema_ui.get(type_key, entity_kind.title())
+            ),
+            font=("TkDefaultFont", 11, "bold"),
+        ).pack(anchor="w")
         desc = schema_ui.get("description", "")
         if desc:
-            ttk.Label(header, text=desc, wraplength=780, justify="left").pack(anchor="w", pady=(4, 0))
+            ttk.Label(header, text=desc, wraplength=780, justify="left").pack(
+                anchor="w", pady=(4, 0)
+            )
 
         body = ttk.Panedwindow(root, orient=tk.HORIZONTAL)
         body.grid(row=1, column=0, sticky="nsew")
@@ -164,7 +190,9 @@ class SchemaEditor(tk.Toplevel):
         bar = ttk.Frame(root)
         bar.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         self.error_var = tk.StringVar(value="")
-        ttk.Label(bar, textvariable=self.error_var, foreground="#b00020").pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Label(bar, textvariable=self.error_var, foreground="#b00020").pack(
+            side=tk.LEFT, fill=tk.X, expand=True
+        )
         ttk.Button(bar, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
         ttk.Button(bar, text="Save", command=self.on_save).pack(side=tk.RIGHT, padx=6)
 
@@ -173,7 +201,9 @@ class SchemaEditor(tk.Toplevel):
 
     def _base_data(self) -> dict[str, Any]:
         if self.mode == "create":
-            defaults = deep_copy_payload(self.schema_ui.get("create", {}).get("defaults", {}))
+            defaults = deep_copy_payload(
+                self.schema_ui.get("create", {}).get("defaults", {})
+            )
             return {
                 "name": defaults.get("name", ""),
                 self.type_key: self.schema_ui[self.type_key],
@@ -183,7 +213,9 @@ class SchemaEditor(tk.Toplevel):
                 "state": defaults.get("state", {}),
             }
         data = deep_copy_payload(self.record)
-        edit_defaults = deep_copy_payload(self.schema_ui.get("edit", {}).get("defaults", {}))
+        edit_defaults = deep_copy_payload(
+            self.schema_ui.get("edit", {}).get("defaults", {})
+        )
         for key, value in edit_defaults.items():
             if key == "config" and isinstance(value, dict):
                 merged = deep_copy_payload(value)
@@ -192,7 +224,9 @@ class SchemaEditor(tk.Toplevel):
             elif key not in data:
                 data[key] = value
         data.setdefault("name", "")
-        data.setdefault(self.type_key, self.record.get(self.type_key, self.schema_ui[self.type_key]))
+        data.setdefault(
+            self.type_key, self.record.get(self.type_key, self.schema_ui[self.type_key])
+        )
         data.setdefault("config", {})
         data.setdefault("metadata", {})
         data.setdefault("value", None)
@@ -201,26 +235,66 @@ class SchemaEditor(tk.Toplevel):
 
     def _iter_sections(self) -> list[dict[str, Any]]:
         if self.mode == "create":
-            sections = deep_copy_payload(self.schema_ui.get("create", {}).get("sections", []))
+            sections = deep_copy_payload(
+                self.schema_ui.get("create", {}).get("sections", [])
+            )
             if not sections:
-                sections = deep_copy_payload(self.schema_ui.get("edit", {}).get("sections", []))
+                sections = deep_copy_payload(
+                    self.schema_ui.get("edit", {}).get("sections", [])
+                )
                 for section in sections:
-                    section["fields"] = [f for f in section.get("fields", []) if not str(f.get("key", "")).startswith("state.")]
+                    section["fields"] = [
+                        f
+                        for f in section.get("fields", [])
+                        if not str(f.get("key", "")).startswith("state.")
+                    ]
                 sections = [s for s in sections if s.get("fields")]
         else:
-            sections = deep_copy_payload(self.schema_ui.get("edit", {}).get("sections", []))
+            sections = deep_copy_payload(
+                self.schema_ui.get("edit", {}).get("sections", [])
+            )
         if not sections:
             sections = [
-                {"title": "General", "fields": [{"key": "name", "label": "Name", "type": "string", "required": True}]},
-                {"title": "Config", "fields": [{"key": "config", "label": "Config", "type": "json"}]},
+                {
+                    "title": "General",
+                    "fields": [
+                        {
+                            "key": "name",
+                            "label": "Name",
+                            "type": "string",
+                            "required": True,
+                        }
+                    ],
+                },
+                {
+                    "title": "Config",
+                    "fields": [{"key": "config", "label": "Config", "type": "json"}],
+                },
             ]
         return sections
 
     def _build_form(self) -> None:
         data = self._base_data()
         sections = self._iter_sections()
-        if self.mode == "create" and not any(field.get("key") == "name" for section in sections for field in section.get("fields", [])):
-            sections = [{"title": "Identity", "fields": [{"key": "name", "label": "Name", "type": "string", "required": True}]}] + sections
+        if self.mode == "create" and not any(
+            field.get("key") == "name"
+            for section in sections
+            for field in section.get("fields", [])
+        ):
+            sections = [
+                {
+                    "title": "Identity",
+                    "fields": [
+                        {
+                            "key": "name",
+                            "label": "Name",
+                            "type": "string",
+                            "required": True,
+                        }
+                    ],
+                },
+                *sections,
+            ]
 
         for section in sections:
             frame = ttk.Frame(self.notebook, padding=10)
@@ -232,7 +306,9 @@ class SchemaEditor(tk.Toplevel):
                 label = field.get("label", key)
                 if field.get("required"):
                     label += " *"
-                ttk.Label(frame, text=label).grid(row=row, column=0, sticky="nw", padx=(0, 8), pady=4)
+                ttk.Label(frame, text=label).grid(
+                    row=row, column=0, sticky="nw", padx=(0, 8), pady=4
+                )
                 holder_frame = ttk.Frame(frame)
                 holder_frame.grid(row=row, column=1, sticky="nsew", pady=4)
                 holder_frame.columnconfigure(0, weight=1)
@@ -242,7 +318,13 @@ class SchemaEditor(tk.Toplevel):
                 self.field_vars[key] = (holder, field)
                 help_text = field.get("help")
                 if help_text:
-                    ttk.Label(frame, text=help_text, foreground="#555", wraplength=520, justify="left").grid(row=row + 1, column=1, sticky="w", pady=(0, 4))
+                    ttk.Label(
+                        frame,
+                        text=help_text,
+                        foreground="#555",
+                        wraplength=520,
+                        justify="left",
+                    ).grid(row=row + 1, column=1, sticky="w", pady=(0, 4))
                     row += 1
                 row += 1
 
@@ -250,7 +332,7 @@ class SchemaEditor(tk.Toplevel):
         if isinstance(holder, tk.Variable):
             holder.trace_add("write", lambda *_: self.refresh_preview())
         elif isinstance(widget, tk.Text):
-            widget.bind("<<Modified>>", lambda e: self._handle_modified(widget))
+            widget.bind("<<Modified>>", lambda _event: self._handle_modified(widget))
 
     def _handle_modified(self, widget: tk.Widget) -> None:
         if isinstance(widget, tk.Text) and widget.edit_modified():
@@ -263,7 +345,9 @@ class SchemaEditor(tk.Toplevel):
 
         if field_type in {"text", "code", "json"}:
             wrap = "none" if field_type == "code" else "word"
-            text = tk.Text(parent, height=8 if field_type in {"text", "code"} else 6, wrap=wrap)
+            text = tk.Text(
+                parent, height=8 if field_type in {"text", "code"} else 6, wrap=wrap
+            )
             initial = ""
             if value is not None:
                 if field_type == "json" and not isinstance(value, str):
@@ -287,21 +371,36 @@ class SchemaEditor(tk.Toplevel):
         if field_type == "enum":
             choices = field.get("choices") or field.get("options") or []
             var = tk.StringVar(value="" if value is None else str(value))
-            combo = ttk.Combobox(parent, textvariable=var, values=list(choices), state="readonly" if not readonly else "disabled")
+            combo = ttk.Combobox(
+                parent,
+                textvariable=var,
+                values=list(choices),
+                state="readonly" if not readonly else "disabled",
+            )
             self._bind_change(combo, var)
             return combo, var
 
         if field_type == "parameter_ref":
             options = field.get("options") or self.parameter_names
             if value not in (None, "") and value not in options:
-                options = list(options) + [value]
+                options = [*list(options), value]
             outer = ttk.Frame(parent)
             outer.columnconfigure(0, weight=1)
             var = tk.StringVar(value="" if value is None else str(value))
-            combo = ttk.Combobox(outer, textvariable=var, values=list(options), state="readonly" if not readonly else "disabled")
+            combo = ttk.Combobox(
+                outer,
+                textvariable=var,
+                values=list(options),
+                state="readonly" if not readonly else "disabled",
+            )
             combo.grid(row=0, column=0, sticky="ew")
             if not readonly:
-                ttk.Button(outer, text="…", width=3, command=lambda v=var: self._choose_parameter(v)).grid(row=0, column=1, padx=(6, 0))
+                ttk.Button(
+                    outer,
+                    text="…",
+                    width=3,
+                    command=lambda v=var: self._choose_parameter(v),
+                ).grid(row=0, column=1, padx=(6, 0))
             self._bind_change(combo, var)
             return outer, var
 
@@ -314,11 +413,19 @@ class SchemaEditor(tk.Toplevel):
             if readonly:
                 entry.state(["disabled"])
             else:
-                ttk.Button(outer, text="Pick…", command=lambda v=var: self._choose_parameter_list(v)).grid(row=0, column=1, padx=(6, 0))
+                ttk.Button(
+                    outer,
+                    text="Pick…",
+                    command=lambda v=var: self._choose_parameter_list(v),
+                ).grid(row=0, column=1, padx=(6, 0))
             self._bind_change(entry, var)
             return outer, var
 
-        shown = "" if value is None else (json.dumps(value) if isinstance(value, (dict, list)) else str(value))
+        shown = (
+            ""
+            if value is None
+            else (json.dumps(value) if isinstance(value, (dict, list)) else str(value))
+        )
         var = tk.StringVar(value=shown)
         widget = ttk.Entry(parent, textvariable=var)
         if readonly:
@@ -327,7 +434,16 @@ class SchemaEditor(tk.Toplevel):
         return widget, var
 
     def _choose_parameter(self, var: tk.StringVar) -> None:
-        dlg = PluginTypeDialog(self, {name: {"display_name": name, "description": ""} for name in self.parameter_names}, title="Choose Parameter", prompt="Choose a parameter:", kind_key="name")
+        dlg = PluginTypeDialog(
+            self,
+            {
+                name: {"display_name": name, "description": ""}
+                for name in self.parameter_names
+            },
+            title="Choose Parameter",
+            prompt="Choose a parameter:",
+            kind_key="name",
+        )
         self.wait_window(dlg)
         if dlg.result:
             var.set(dlg.result)
@@ -346,19 +462,27 @@ class SchemaEditor(tk.Toplevel):
             bv = tk.BooleanVar(value=name in current)
             vals[name] = bv
             ttk.Checkbutton(body, text=name, variable=bv).pack(anchor="w")
+
         def apply() -> None:
             picked = [name for name, bv in vals.items() if bv.get()]
             var.set(", ".join(picked))
             win.destroy()
+
         bar = ttk.Frame(body)
         bar.pack(fill=tk.X, pady=(8, 0))
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side=tk.RIGHT)
         ttk.Button(bar, text="Apply", command=apply).pack(side=tk.RIGHT, padx=6)
         self.wait_window(win)
 
-    def _read_field_value(self, spec: dict[str, Any], holder: tk.Variable | tk.Text) -> Any:
+    def _read_field_value(
+        self, spec: dict[str, Any], holder: tk.Variable | tk.Text
+    ) -> Any:
         field_type = spec.get("type", "string")
-        raw = holder.get("1.0", "end").strip() if isinstance(holder, tk.Text) else holder.get()
+        raw = (
+            holder.get("1.0", "end").strip()
+            if isinstance(holder, tk.Text)
+            else holder.get()
+        )
         if field_type == "readonly":
             return raw
         if field_type in {"text", "code", "string", "parameter_ref", "enum"}:
@@ -419,7 +543,12 @@ class SchemaEditor(tk.Toplevel):
 
 
 class SourceManager(tk.Toplevel):
-    def __init__(self, master: tk.Misc, source_client: SignalClient, parameter_client: SignalClient) -> None:
+    def __init__(
+        self,
+        master: tk.Misc,
+        source_client: SignalClient,
+        parameter_client: SignalClient,
+    ) -> None:
         super().__init__(master)
         self.source_client = source_client
         self.parameter_client = parameter_client
@@ -433,15 +562,23 @@ class SourceManager(tk.Toplevel):
 
         toolbar = ttk.Frame(self, padding=8)
         toolbar.pack(fill=tk.X)
-        ttk.Button(toolbar, text="Create", command=self.create_source).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Edit", command=self.edit_selected).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Delete", command=self.delete_selected).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Refresh", command=self.reload).pack(side=tk.LEFT, padx=10)
+        ttk.Button(toolbar, text="Create", command=self.create_source).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="Edit", command=self.edit_selected).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="Delete", command=self.delete_selected).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="Refresh", command=self.reload).pack(
+            side=tk.LEFT, padx=10
+        )
 
         cols = ("name", "source_type", "running", "config")
         self.tree = ttk.Treeview(self, columns=cols, show="headings", height=14)
         self.tree.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-        self.tree.bind("<Double-1>", lambda e: self.edit_selected())
+        self.tree.bind("<Double-1>", lambda _event: self.edit_selected())
         widths = {"name": 180, "source_type": 140, "running": 80, "config": 620}
         for col in cols:
             self.tree.heading(col, text=col)
@@ -451,7 +588,7 @@ class SourceManager(tk.Toplevel):
         detail.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
         self.detail_text = tk.Text(detail, height=12, wrap="word")
         self.detail_text.pack(fill=tk.BOTH, expand=True)
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self.update_details())
+        self.tree.bind("<<TreeviewSelect>>", lambda _event: self.update_details())
 
         self.reload()
 
@@ -461,7 +598,17 @@ class SourceManager(tk.Toplevel):
         for iid in self.tree.get_children():
             self.tree.delete(iid)
         for name, row in sorted(self.rows.items()):
-            self.tree.insert("", "end", iid=name, values=(name, row.get("source_type", ""), str(bool(row.get("running"))), json.dumps(row.get("config", {}), sort_keys=True)))
+            self.tree.insert(
+                "",
+                "end",
+                iid=name,
+                values=(
+                    name,
+                    row.get("source_type", ""),
+                    str(bool(row.get("running"))),
+                    json.dumps(row.get("config", {}), sort_keys=True),
+                ),
+            )
         self.update_details()
 
     def selected_name(self) -> str | None:
@@ -472,41 +619,78 @@ class SourceManager(tk.Toplevel):
         name = self.selected_name()
         return self.rows.get(name) if name else None
 
-    def get_source_type_ui(self, source_type: str, *, name: str | None = None, mode: str | None = None) -> dict[str, Any]:
+    def get_source_type_ui(
+        self, source_type: str, *, name: str | None = None, mode: str | None = None
+    ) -> dict[str, Any]:
         cache_key = f"{source_type}::{name or ''}::{mode or ''}"
         if cache_key not in self.ui_cache:
-            self.ui_cache[cache_key] = self.source_client.get_source_type_ui(source_type, name=name, mode=mode)
+            self.ui_cache[cache_key] = self.source_client.get_source_type_ui(
+                source_type, name=name, mode=mode
+            )
         return self.ui_cache[cache_key]
 
     def _save_source(self, data: dict[str, Any], mode: str) -> None:
         if mode == "create":
-            self.source_client.create_source(data["name"], data["source_type"], config=data.get("config", {}))
+            self.source_client.create_source(
+                data["name"], data["source_type"], config=data.get("config", {})
+            )
         else:
-            self.source_client.update_source(data["name"], config=data.get("config", {}))
+            self.source_client.update_source(
+                data["name"], config=data.get("config", {})
+            )
         self.reload()
 
     def create_source(self) -> None:
-        dlg = PluginTypeDialog(self, self.ui_summaries, title="Choose Data Source Type", prompt="Choose a data source type to create:", kind_key="source_type")
+        dlg = PluginTypeDialog(
+            self,
+            self.ui_summaries,
+            title="Choose Data Source Type",
+            prompt="Choose a data source type to create:",
+            kind_key="source_type",
+        )
         self.wait_window(dlg)
         if not dlg.result:
             return
         ui = self.get_source_type_ui(dlg.result, mode="create")
-        editor = SchemaEditor(self, self.parameter_client, ui, "create", entity_kind="source", type_key="source_type", save_callback=self._save_source, list_parameter_refs=True)
+        editor = SchemaEditor(
+            self,
+            self.parameter_client,
+            ui,
+            "create",
+            entity_kind="source",
+            type_key="source_type",
+            save_callback=self._save_source,
+            list_parameter_refs=True,
+        )
         self.wait_window(editor)
 
     def edit_selected(self) -> None:
         record = self.selected_record()
         if not record:
             return
-        ui = self.get_source_type_ui(record["source_type"], name=record.get("name"), mode="edit")
-        editor = SchemaEditor(self, self.parameter_client, ui, "edit", entity_kind="source", type_key="source_type", record=record, save_callback=self._save_source, list_parameter_refs=True)
+        ui = self.get_source_type_ui(
+            record["source_type"], name=record.get("name"), mode="edit"
+        )
+        editor = SchemaEditor(
+            self,
+            self.parameter_client,
+            ui,
+            "edit",
+            entity_kind="source",
+            type_key="source_type",
+            record=record,
+            save_callback=self._save_source,
+            list_parameter_refs=True,
+        )
         self.wait_window(editor)
 
     def delete_selected(self) -> None:
         name = self.selected_name()
         if not name:
             return
-        if messagebox.askyesno("Delete source", f"Delete source '{name}'?", parent=self):
+        if messagebox.askyesno(
+            "Delete source", f"Delete source '{name}'?", parent=self
+        ):
             self.source_client.delete_source(name)
             self.reload()
 
@@ -518,8 +702,17 @@ class SourceManager(tk.Toplevel):
 
 
 class RelationsDialog(tk.Toplevel):
-    """Focused view of parameter dependencies, dependents, write targets, and warnings."""
-    def __init__(self, master: tk.Misc, name: str, graph: dict[str, Any], app_ref: MonitorApp | None = None) -> None:
+    """Focused view of parameter dependencies, dependents, write targets,
+    and warnings.
+    """
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        name: str,
+        graph: dict[str, Any],
+        app_ref: MonitorApp | None = None,
+    ) -> None:
         super().__init__(master)
         self.title(f"Relations: {name}")
         self.geometry("640x500")
@@ -532,7 +725,9 @@ class RelationsDialog(tk.Toplevel):
         root = ttk.Frame(self, padding=10)
         root.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(root, text=f"Parameter: {name}", font=("TkDefaultFont", 11, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(
+            root, text=f"Parameter: {name}", font=("TkDefaultFont", 11, "bold")
+        ).pack(anchor="w", pady=(0, 8))
 
         # Dependencies section
         deps_frame = ttk.LabelFrame(root, text="Dependencies (↑ requires)", padding=8)
@@ -546,9 +741,13 @@ class RelationsDialog(tk.Toplevel):
         # Dependents section
         deps = self.graph.get("dependencies") or {}
         dependents = sorted([param for param, values in deps.items() if name in values])
-        dependents_frame = ttk.LabelFrame(root, text="Dependents (↓ depends on this)", padding=8)
+        dependents_frame = ttk.LabelFrame(
+            root, text="Dependents (↓ depends on this)", padding=8
+        )
         dependents_frame.pack(fill=tk.BOTH, expand=False, pady=4)
-        self.dependents_listbox = tk.Listbox(dependents_frame, height=4, selectmode=tk.SINGLE)
+        self.dependents_listbox = tk.Listbox(
+            dependents_frame, height=4, selectmode=tk.SINGLE
+        )
         self.dependents_listbox.pack(fill=tk.BOTH, expand=True)
         self.dependents_listbox.bind("<Double-1>", self._navigate_dependents)
         for dep in dependents:
@@ -556,7 +755,9 @@ class RelationsDialog(tk.Toplevel):
 
         # Write targets section
         write_targets = (self.graph.get("write_targets") or {}).get(name, [])
-        writes_frame = ttk.LabelFrame(root, text="Write Targets (→ writes to)", padding=8)
+        writes_frame = ttk.LabelFrame(
+            root, text="Write Targets (→ writes to)", padding=8
+        )
         writes_frame.pack(fill=tk.BOTH, expand=False, pady=4)
         self.writes_listbox = tk.Listbox(writes_frame, height=4, selectmode=tk.SINGLE)
         self.writes_listbox.pack(fill=tk.BOTH, expand=True)
@@ -569,7 +770,9 @@ class RelationsDialog(tk.Toplevel):
         param_warnings = [item for item in warnings if name in str(item)]
         warnings_frame = ttk.LabelFrame(root, text="Graph Warnings", padding=8)
         warnings_frame.pack(fill=tk.BOTH, expand=True, pady=4)
-        self.warnings_text = tk.Text(warnings_frame, height=6, wrap="word", state="disabled")
+        self.warnings_text = tk.Text(
+            warnings_frame, height=6, wrap="word", state="disabled"
+        )
         self.warnings_text.pack(fill=tk.BOTH, expand=True)
         if param_warnings:
             self.warnings_text.configure(state="normal")
@@ -586,19 +789,19 @@ class RelationsDialog(tk.Toplevel):
         bar.pack(fill=tk.X, pady=(8, 0))
         ttk.Button(bar, text="Close", command=self.destroy).pack(side=tk.RIGHT)
 
-    def _navigate_deps(self, event: Any = None) -> None:
+    def _navigate_deps(self, _event: Any = None) -> None:
         sel = self.deps_listbox.curselection()
         if sel and self.app_ref:
             param_name = self.deps_listbox.get(sel[0])
             self.app_ref.select_parameter(param_name)
 
-    def _navigate_dependents(self, event: Any = None) -> None:
+    def _navigate_dependents(self, _event: Any = None) -> None:
         sel = self.dependents_listbox.curselection()
         if sel and self.app_ref:
             param_name = self.dependents_listbox.get(sel[0])
             self.app_ref.select_parameter(param_name)
 
-    def _navigate_writes(self, event: Any = None) -> None:
+    def _navigate_writes(self, _event: Any = None) -> None:
         sel = self.writes_listbox.curselection()
         if sel and self.app_ref:
             param_name = self.writes_listbox.get(sel[0])
@@ -606,7 +809,12 @@ class RelationsDialog(tk.Toplevel):
 
 
 class MonitorApp:
-    def __init__(self, root: tk.Tk, client: SignalClient, source_client: SignalClient | None = None) -> None:
+    def __init__(
+        self,
+        root: tk.Tk,
+        client: SignalClient,
+        source_client: SignalClient | None = None,
+    ) -> None:
         self.root = root
         self.client = client
         self.source_client = source_client
@@ -621,32 +829,68 @@ class MonitorApp:
 
         toolbar = ttk.Frame(root, padding=8)
         toolbar.pack(fill=tk.X)
-        ttk.Button(toolbar, text="Create", command=self.create_parameter).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Edit", command=self.edit_selected).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Delete", command=self.delete_selected).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Relations", command=self.show_relations).pack(side=tk.LEFT, padx=(12, 2))
+        ttk.Button(toolbar, text="Create", command=self.create_parameter).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="Edit", command=self.edit_selected).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="Delete", command=self.delete_selected).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="Relations", command=self.show_relations).pack(
+            side=tk.LEFT, padx=(12, 2)
+        )
         if self.source_client is not None:
-            ttk.Button(toolbar, text="Sources", command=self.manage_sources).pack(side=tk.LEFT, padx=(12, 2))
-        ttk.Button(toolbar, text="Refresh Graph", command=self.refresh_graph).pack(side=tk.LEFT, padx=10)
-        ttk.Button(toolbar, text="Snapshot", command=self.show_snapshot).pack(side=tk.LEFT, padx=2)
+            ttk.Button(toolbar, text="Sources", command=self.manage_sources).pack(
+                side=tk.LEFT, padx=(12, 2)
+            )
+        ttk.Button(toolbar, text="Refresh Graph", command=self.refresh_graph).pack(
+            side=tk.LEFT, padx=10
+        )
+        ttk.Button(toolbar, text="Snapshot", command=self.show_snapshot).pack(
+            side=tk.LEFT, padx=2
+        )
         ttk.Label(toolbar, text="Filter").pack(side=tk.LEFT, padx=(20, 4))
         self.filter_var = tk.StringVar()
         filter_entry = ttk.Entry(toolbar, textvariable=self.filter_var, width=30)
         filter_entry.pack(side=tk.LEFT)
-        filter_entry.bind("<KeyRelease>", lambda e: self.refresh_tree())
+        filter_entry.bind("<KeyRelease>", lambda _event: self.refresh_tree())
 
         self.status_var = tk.StringVar(value="Connecting...")
         ttk.Label(toolbar, textvariable=self.status_var).pack(side=tk.RIGHT)
 
-        cols = ("name", "parameter_type", "scan", "value", "deps", "dependents", "writes", "config", "state", "metadata")
+        cols = (
+            "name",
+            "parameter_type",
+            "scan",
+            "value",
+            "deps",
+            "dependents",
+            "writes",
+            "config",
+            "state",
+            "metadata",
+        )
         self.tree = ttk.Treeview(root, columns=cols, show="headings", height=20)
-        widths = {"name": 180, "parameter_type": 100, "scan": 55, "value": 140, "deps": 170, "dependents": 170, "writes": 170, "config": 260, "state": 260, "metadata": 180}
+        widths = {
+            "name": 180,
+            "parameter_type": 100,
+            "scan": 55,
+            "value": 140,
+            "deps": 170,
+            "dependents": 170,
+            "writes": 170,
+            "config": 260,
+            "state": 260,
+            "metadata": 180,
+        }
         for col in cols:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=widths[col], anchor="w")
         self.tree.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self.update_details())
-        self.tree.bind("<Double-1>", lambda e: self.edit_selected())
+        self.tree.bind("<<TreeviewSelect>>", lambda _event: self.update_details())
+        self.tree.bind("<Double-1>", lambda _event: self.edit_selected())
 
         detail = ttk.LabelFrame(root, text="Selected", padding=8)
         detail.pack(fill=tk.BOTH, padx=8, pady=(0, 8))
@@ -722,17 +966,19 @@ class MonitorApp:
         existing = set(self.tree.get_children())
         wanted = set()
         for name, desc in sorted(self.rows.items()):
-            hay = " ".join([
-                name,
-                str(desc.get("parameter_type", "")),
-                json.dumps(desc.get("config", {}), sort_keys=True),
-                json.dumps(desc.get("metadata", {}), sort_keys=True),
-                json.dumps(desc.get("state", {}), sort_keys=True),
-                " ".join(self.deps_for(name)),
-                " ".join(self.dependents_for(name)),
-                " ".join(self.write_targets_for(name)),
-                " ".join(self.graph_warnings_for(name)),
-            ]).lower()
+            hay = " ".join(
+                [
+                    name,
+                    str(desc.get("parameter_type", "")),
+                    json.dumps(desc.get("config", {}), sort_keys=True),
+                    json.dumps(desc.get("metadata", {}), sort_keys=True),
+                    json.dumps(desc.get("state", {}), sort_keys=True),
+                    " ".join(self.deps_for(name)),
+                    " ".join(self.dependents_for(name)),
+                    " ".join(self.write_targets_for(name)),
+                    " ".join(self.graph_warnings_for(name)),
+                ]
+            ).lower()
             if needle and needle not in hay:
                 continue
             wanted.add(name)
@@ -755,12 +1001,20 @@ class MonitorApp:
 
     def get_parameter_type_ui(self, parameter_type: str) -> dict[str, Any]:
         if parameter_type not in self.plugin_ui_cache:
-            self.plugin_ui_cache[parameter_type] = self.client.get_parameter_type_ui(parameter_type)
+            self.plugin_ui_cache[parameter_type] = self.client.get_parameter_type_ui(
+                parameter_type
+            )
         return self.plugin_ui_cache[parameter_type]
 
     def _save_parameter(self, data: dict[str, Any], mode: str) -> None:
         if mode == "create":
-            self.client.create_parameter(data["name"], data["parameter_type"], value=data.get("value"), config=data.get("config", {}), metadata=data.get("metadata", {}))
+            self.client.create_parameter(
+                data["name"],
+                data["parameter_type"],
+                value=data.get("value"),
+                config=data.get("config", {}),
+                metadata=data.get("metadata", {}),
+            )
         else:
             name = data["name"]
             self.client.set_value(name, data.get("value"))
@@ -768,19 +1022,33 @@ class MonitorApp:
             self.client.update_metadata(name, **data.get("metadata", {}))
 
     def create_parameter(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.plugin_ui_summaries = self.client.list_parameter_type_ui()
-        except Exception:
-            pass
         plugin_map = self.plugin_ui_summaries
         if not plugin_map:
-            messagebox.showwarning("No plugins", "No plugin UIs are available.", parent=self.root)
+            messagebox.showwarning(
+                "No plugins", "No plugin UIs are available.", parent=self.root
+            )
             return
-        dlg = PluginTypeDialog(self.root, plugin_map, title="Choose Parameter Type", prompt="Choose a parameter type to create:", kind_key="parameter_type")
+        dlg = PluginTypeDialog(
+            self.root,
+            plugin_map,
+            title="Choose Parameter Type",
+            prompt="Choose a parameter type to create:",
+            kind_key="parameter_type",
+        )
         self.root.wait_window(dlg)
         if not dlg.result:
             return
-        editor = SchemaEditor(self.root, self.client, self.get_parameter_type_ui(dlg.result), "create", entity_kind="parameter", type_key="parameter_type", save_callback=self._save_parameter)
+        editor = SchemaEditor(
+            self.root,
+            self.client,
+            self.get_parameter_type_ui(dlg.result),
+            "create",
+            entity_kind="parameter",
+            type_key="parameter_type",
+            save_callback=self._save_parameter,
+        )
         self.root.wait_window(editor)
 
     def edit_selected(self) -> None:
@@ -788,7 +1056,16 @@ class MonitorApp:
         if not record:
             return
         ui = self.get_parameter_type_ui(record["parameter_type"])
-        dlg = SchemaEditor(self.root, self.client, ui, "edit", entity_kind="parameter", type_key="parameter_type", record=record, save_callback=self._save_parameter)
+        dlg = SchemaEditor(
+            self.root,
+            self.client,
+            ui,
+            "edit",
+            entity_kind="parameter",
+            type_key="parameter_type",
+            record=record,
+            save_callback=self._save_parameter,
+        )
         self.root.wait_window(dlg)
 
     def manage_sources(self) -> None:
@@ -801,7 +1078,9 @@ class MonitorApp:
         name = self.selected_name()
         if not name:
             return
-        if messagebox.askyesno("Delete parameter", f"Delete '{name}'?", parent=self.root):
+        if messagebox.askyesno(
+            "Delete parameter", f"Delete '{name}'?", parent=self.root
+        ):
             try:
                 self.client.delete_parameter(name)
             except Exception as exc:
@@ -820,10 +1099,14 @@ class MonitorApp:
         txt.insert("1.0", json.dumps(data, indent=2, sort_keys=True))
 
     def show_relations(self) -> None:
-        """Show relations (dependencies, dependents, writes, warnings) for selected parameter."""
+        """Show relations (dependencies, dependents, writes, warnings)
+        for selected parameter.
+        """
         name = self.selected_name()
         if not name:
-            messagebox.showwarning("No selection", "Please select a parameter first.", parent=self.root)
+            messagebox.showwarning(
+                "No selection", "Please select a parameter first.", parent=self.root
+            )
             return
         dlg = RelationsDialog(self.root, name, self.graph, app_ref=self)
         self.root.wait_window(dlg)
@@ -859,16 +1142,21 @@ class MonitorApp:
     def update_status(self) -> None:
         try:
             stats = self.client.stats()
-            last_scan = float(stats.get('last_scan_duration_s') or 0.0)
-            avg_scan = float(stats.get('avg_scan_duration_s') or last_scan)
-            estimated_hz = stats.get('estimated_cycle_rate_hz')
-            utilization = stats.get('estimated_utilization')
-            overrun_count = int(stats.get('overrun_count') or 0)
-            mode = str(stats.get('mode') or 'fixed')
+            last_scan = float(stats.get("last_scan_duration_s") or 0.0)
+            avg_scan = float(stats.get("avg_scan_duration_s") or last_scan)
+            estimated_hz = stats.get("estimated_cycle_rate_hz")
+            utilization = stats.get("estimated_utilization")
+            overrun_count = int(stats.get("overrun_count") or 0)
+            mode = str(stats.get("mode") or "fixed")
             hz_text = f"{float(estimated_hz):.1f}Hz" if estimated_hz else "-"
-            util_text = f"{float(utilization) * 100:.0f}%" if utilization is not None else "-"
+            util_text = (
+                f"{float(utilization) * 100:.0f}%" if utilization is not None else "-"
+            )
             self.status_var.set(
-                f"Connected | params={len(self.rows)} | mode={mode} | rate={hz_text} | last={last_scan:.4f}s | avg={avg_scan:.4f}s | util={util_text} | overruns={overrun_count} | warnings={len(self.graph.get('warnings', []))}"
+                f"Connected | params={len(self.rows)} | mode={mode} | rate={hz_text} "
+                f"| last={last_scan:.4f}s | avg={avg_scan:.4f}s | util={util_text} "
+                f"| overruns={overrun_count} | "
+                f"warnings={len(self.graph.get('warnings', []))}"
             )
         except Exception as exc:
             self.status_var.set(f"Disconnected: {exc}")
@@ -878,18 +1166,28 @@ class MonitorApp:
             while not self.stop_flag.is_set():
                 try:
                     with self.client.subscribe(send_initial=True) as sub:
-                        self.events.put({"event": "monitor_status", "status": "subscribed"})
+                        self.events.put(
+                            {"event": "monitor_status", "status": "subscribed"}
+                        )
                         for event in sub:
                             if self.stop_flag.is_set():
                                 break
                             self.events.put(event)
                     if not self.stop_flag.is_set():
-                        self.events.put({"event": "monitor_error", "error": "Subscription ended; reconnecting..."})
+                        self.events.put(
+                            {
+                                "event": "monitor_error",
+                                "error": "Subscription ended; reconnecting...",
+                            }
+                        )
                 except Exception as exc:
                     if self.stop_flag.is_set():
                         break
-                    self.events.put({"event": "monitor_error", "error": f"{exc} | reconnecting..."})
+                    self.events.put(
+                        {"event": "monitor_error", "error": f"{exc} | reconnecting..."}
+                    )
                 time.sleep(1.0)
+
         threading.Thread(target=worker, daemon=True).start()
 
     def process_events(self) -> None:
@@ -900,7 +1198,14 @@ class MonitorApp:
                 et = event.get("event")
                 name = event.get("name")
                 if et in {"parameter_added", "parameter_snapshot"} and name:
-                    record = {"name": name, "parameter_type": event.get("parameter_type"), "value": event.get("value"), "config": event.get("config", {}), "state": event.get("state", {}), "metadata": event.get("metadata", {})}
+                    record = {
+                        "name": name,
+                        "parameter_type": event.get("parameter_type"),
+                        "value": event.get("value"),
+                        "config": event.get("config", {}),
+                        "state": event.get("state", {}),
+                        "metadata": event.get("metadata", {}),
+                    }
                     self.rows[name] = record
                     graph_dirty = True
                 elif et == "parameter_removed" and name:
@@ -923,10 +1228,8 @@ class MonitorApp:
             pass
 
         if graph_dirty:
-            try:
+            with contextlib.suppress(Exception):
                 self.graph = self.client.graph_info()
-            except Exception:
-                pass
         self.refresh_tree()
         self.update_details()
         self.root.after(150, self.process_events)
@@ -951,7 +1254,9 @@ def main() -> None:
     source_client = None
     if not args.no_source_admin:
         try:
-            source_client = SignalClient(args.source_host, args.source_port, timeout=5.0).session()
+            source_client = SignalClient(
+                args.source_host, args.source_port, timeout=5.0
+            ).session()
             source_client.connect()
             source_client.ping()
         except Exception:

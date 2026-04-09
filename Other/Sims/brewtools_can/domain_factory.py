@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, TypeVar, Any
+from collections.abc import Callable
+from typing import ClassVar, TypeVar
 
-from .enums import MsgType
 from .frame import CanFrame
 
 T = TypeVar("T")
 
 
 # A handler converts a CanFrame into a domain object (or returns None if it can't)
-DomainHandler = Callable[[CanFrame], Optional[object]]
+DomainHandler = Callable[[CanFrame], object | None]
 
 
 class DomainFactory:
@@ -18,7 +18,7 @@ class DomainFactory:
 
     Keeps protocol parsing (BodyFactory) separate from semantic interpretation.
     """
-    _handlers: Dict[int, DomainHandler] = {}
+    _handlers: ClassVar[dict[int, DomainHandler]] = {}
 
     @classmethod
     def clear(cls) -> None:
@@ -29,7 +29,7 @@ class DomainFactory:
         cls._handlers[int(msg_type)] = handler
 
     @classmethod
-    def build(cls, frame: CanFrame) -> Optional[object]:
+    def build(cls, frame: CanFrame) -> object | None:
         handler = cls._handlers.get(int(frame.can_id.msg_type))
         if handler is None:
             return None

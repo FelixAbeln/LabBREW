@@ -6,7 +6,12 @@ from typing import Any
 import pytest
 
 from Services._shared.operator_engine.evaluator import ConditionEngine
-from Services._shared.operator_engine.models import AtomicCondition, CompositeCondition, EvaluationState, OperatorMetadata
+from Services._shared.operator_engine.models import (
+    AtomicCondition,
+    CompositeCondition,
+    EvaluationState,
+    OperatorMetadata,
+)
 from Services._shared.operator_engine.registry import OperatorRegistry
 
 

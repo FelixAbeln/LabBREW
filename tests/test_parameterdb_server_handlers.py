@@ -3,8 +3,6 @@ from __future__ import annotations
 from io import BytesIO
 from typing import Any
 
-import pytest
-
 import Services.parameterDB.parameterdb_service.server as server_module
 from Services.parameterDB.parameterdb_core.errors import ProtocolError
 from Services.parameterDB.parameterdb_core.protocol import (
@@ -14,8 +12,14 @@ from Services.parameterDB.parameterdb_core.protocol import (
 )
 from Services.parameterDB.parameterdb_service.engine import ScanEngine
 from Services.parameterDB.parameterdb_service.event_broker import EventBroker
-from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase, PluginSpec
-from Services.parameterDB.parameterdb_service.server import RequestHandler, SignalTCPServer
+from Services.parameterDB.parameterdb_service.plugin_api import (
+    ParameterBase,
+    PluginSpec,
+)
+from Services.parameterDB.parameterdb_service.server import (
+    RequestHandler,
+    SignalTCPServer,
+)
 from Services.parameterDB.parameterdb_service.store import ParameterStore
 
 
@@ -36,13 +40,13 @@ class FakeParam(ParameterBase):
         self.added = False
         self.removed = False
 
-    def on_added(self, store: ParameterStore) -> None:
+    def on_added(self, _store: ParameterStore) -> None:
         self.added = True
 
-    def on_removed(self, store: ParameterStore) -> None:
+    def on_removed(self, _store: ParameterStore) -> None:
         self.removed = True
 
-    def scan(self, ctx) -> None:
+    def scan(self, _ctx) -> None:
         return None
 
 
@@ -185,7 +189,7 @@ def test_api_stats_and_plugin_listing_handlers() -> None:
 def test_api_load_parameter_type_folder_logs_change(monkeypatch, tmp_path) -> None:
     server = _build_server()
 
-    def _fake_load(folder, registry):
+    def _fake_load(_folder, registry):
         assert registry is server.registry
         return "loaded.type"
 
@@ -206,7 +210,7 @@ def test_api_subscribe_sends_initial_and_event_then_unsubscribes() -> None:
 
     broker = server.event_broker
 
-    def _subscribe(names, max_queue=1000):
+    def _subscribe(_names, max_queue=1000):
         return "token-1", FakeQueue([{"event": "value_changed", "name": "a", "value": 2}]), max_queue
 
     broker.subscribe = _subscribe  # type: ignore[assignment]
@@ -241,7 +245,7 @@ def test_request_handler_returns_error_envelope_on_dispatch_exception() -> None:
             self.audit_log = FakeAudit()
             self.dispatcher = FakeDispatcher()
 
-        def dispatch(self, cmd, payload):
+        def dispatch(self, _cmd, _payload):
             raise RuntimeError("boom")
 
     handler = RequestHandler.__new__(RequestHandler)
@@ -269,7 +273,7 @@ def test_request_handler_handles_bad_envelope_as_protocol_error() -> None:
             self.audit_log = FakeAudit()
             self.dispatcher = FakeDispatcher()
 
-        def dispatch(self, cmd, payload):
+        def dispatch(self, _cmd, _payload):
             raise AssertionError("dispatch should not be called")
 
     handler = RequestHandler.__new__(RequestHandler)
@@ -323,7 +327,7 @@ def test_request_handler_success_response_and_streaming_handler_path() -> None:
             self.audit_log = FakeAudit()
             self.dispatcher = FakeDispatcher(streaming_handler=streaming_handler)
 
-        def dispatch(self, cmd, payload):
+        def dispatch(self, _cmd, _payload):
             raise AssertionError("dispatch should not be called for streaming handler")
 
     streaming = RequestHandler.__new__(RequestHandler)
@@ -342,7 +346,7 @@ def test_signal_tcp_server_constructor_wires_dispatcher_and_audit(monkeypatch) -
     init_args: dict[str, Any] = {}
     registered: list[SignalTCPServer] = []
 
-    def fake_tcp_init(self, addr, handler_cls):
+    def fake_tcp_init(_self, addr, handler_cls):
         init_args["addr"] = addr
         init_args["handler_cls"] = handler_cls
 
@@ -383,7 +387,7 @@ def test_signal_tcp_server_dispatch_and_general_read_handlers() -> None:
     server = _build_server()
     server.engine.store.add(FakeParam("alpha", value=3, metadata={"m": 1}))
 
-    server.dispatcher = type("Dispatch", (), {"dispatch": lambda self, cmd, payload: {"cmd": cmd, "payload": payload}})()
+    server.dispatcher = type("Dispatch", (), {"dispatch": lambda _self, cmd, payload: {"cmd": cmd, "payload": payload}})()
 
     assert server.dispatch("hello", {"x": 1}) == {"cmd": "hello", "payload": {"x": 1}}
     assert server.api_snapshot({}) == {"alpha": 3}
@@ -396,6 +400,7 @@ def test_signal_tcp_server_dispatch_and_general_read_handlers() -> None:
 
 
 def test_signal_tcp_server_mutation_handlers_and_audit_logging(monkeypatch) -> None:
+    _ = monkeypatch
     server = _build_server()
     server.engine.store.add(FakeParam("alpha", value=1, config={"unit": "C"}, metadata={"owner": "x"}))
 
@@ -507,7 +512,7 @@ def test_api_subscribe_filters_initial_and_stream_events() -> None:
     server.engine.store.add(FakeParam("a", value=1))
     server.engine.store.add(FakeParam("b", value=2))
 
-    def _subscribe(names, max_queue=1000):
+    def _subscribe(_names, max_queue=1000):
         return "token-2", FakeQueue([
             {"event": "value_changed", "name": "b", "value": 99},
             {"event": "subscription_overflow", "dropped": 3},

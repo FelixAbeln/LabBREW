@@ -40,56 +40,71 @@ def _get_control_spec(record: dict | None = None) -> dict:
                 pressure_nodes.append(node_id)
     pressure_nodes = sorted(set(pressure_nodes))
 
-    controls = [
-        {
-            "id": f"agitator_pwm_{node_id}",
-            "label": f"Agitator PWM Node {node_id}",
-            "target": f"{prefix}.agitator.{node_id}.set_pwm",
-            "widget": "number",
-            "unit": "%",
-            "write": {"kind": "number", "min": 0.0, "max": 100.0, "step": 1.0},
-            "role": "command",
-            "node_id": node_id,
-        }
-        for node_id in nodes
-    ] + [
-        {
-            "id": f"density_calibrate_{node_id}",
-            "label": f"Calibrate Density Node {node_id}",
-            "target": f"{prefix}.density.{node_id}.calibrate",
-            "value_target": f"{prefix}.density.{node_id}.calibrate_sg",
-            "widget": "number_button",
-            "unit": "SG",
-            "write": {"kind": "pulse", "value": True},
-            "value_write": {"kind": "number", "min": 0.900, "max": 1.200, "step": 0.001},
-            "role": "command",
-            "node_id": node_id,
-        }
-        for node_id in density_nodes
-    ] + [
-        {
-            "id": f"pressure_calibrate_{node_id}",
-            "label": f"Zero Pressure Sensor (Node {node_id})",
-            "target": f"{prefix}.pressure.{node_id}.calibrate",
-            "widget": "button",
-            "write": {"kind": "pulse", "value": True},
-            "role": "command",
-            "node_id": node_id,
-            "hint": "Ensure sensor is at atmospheric pressure before zeroing.",
-        }
-        for node_id in pressure_nodes
-    ]
+    controls = (
+        [
+            {
+                "id": f"agitator_pwm_{node_id}",
+                "label": f"Agitator PWM Node {node_id}",
+                "target": f"{prefix}.agitator.{node_id}.set_pwm",
+                "widget": "number",
+                "unit": "%",
+                "write": {"kind": "number", "min": 0.0, "max": 100.0, "step": 1.0},
+                "role": "command",
+                "node_id": node_id,
+            }
+            for node_id in nodes
+        ]
+        + [
+            {
+                "id": f"density_calibrate_{node_id}",
+                "label": f"Calibrate Density Node {node_id}",
+                "target": f"{prefix}.density.{node_id}.calibrate",
+                "value_target": f"{prefix}.density.{node_id}.calibrate_sg",
+                "widget": "number_button",
+                "unit": "SG",
+                "write": {"kind": "pulse", "value": True},
+                "value_write": {
+                    "kind": "number",
+                    "min": 0.900,
+                    "max": 1.200,
+                    "step": 0.001,
+                },
+                "role": "command",
+                "node_id": node_id,
+            }
+            for node_id in density_nodes
+        ]
+        + [
+            {
+                "id": f"pressure_calibrate_{node_id}",
+                "label": f"Zero Pressure Sensor (Node {node_id})",
+                "target": f"{prefix}.pressure.{node_id}.calibrate",
+                "widget": "button",
+                "write": {"kind": "pulse", "value": True},
+                "role": "command",
+                "node_id": node_id,
+                "hint": "Ensure sensor is at atmospheric pressure before zeroing.",
+            }
+            for node_id in pressure_nodes
+        ]
+    )
 
     return {
         "spec_version": 1,
         "source_type": "brewtools_kvaser",
         "display_name": "Brewtools CAN (Kvaser)",
-        "description": "Writable agitator PWM controls, density calibration triggers, and pressure sensor zeroing controls.",
+        "description": (
+            "Writable agitator PWM controls, density calibration triggers, "
+            "and pressure sensor zeroing controls."
+        ),
         "controls": controls,
         "discovery": {
             "fallback_roles": ["command"],
             "metadata_filters": {"node_type": "agitator"},
-            "hint": "If no agitator_nodes are configured, controls can still be discovered from live datasource metadata.",
+            "hint": (
+                "If no agitator_nodes are configured, controls can still be "
+                "discovered from live datasource metadata."
+            ),
         },
     }
 
@@ -113,7 +128,11 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     return {
         "source_type": "brewtools_kvaser",
         "display_name": "Brewtools CAN (Kvaser)",
-        "description": "Receives Brewtools CAN measurements over Kvaser and mirrors them into parameters, with optional agitator PWM commands and density polling.",
+        "description": (
+            "Receives Brewtools CAN measurements over Kvaser and mirrors "
+            "them into parameters, with optional agitator PWM commands and "
+            "density polling."
+        ),
         "graph": _get_graph_spec(record),
         "create": {
             "required": ["name", "config.channel", "config.bitrate"],
@@ -136,25 +155,71 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_prefix", "label": "Parameter Prefix", "type": "string", "required": True},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
+                            "type": "string",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "CAN Bus",
                     "fields": [
-                        {"key": "config.interface", "label": "Interface", "type": "enum", "required": True, "options": ["kvaser"]},
-                        {"key": "config.channel", "label": "Channel", "type": "int", "required": True},
-                        {"key": "config.bitrate", "label": "Bitrate", "type": "int", "required": True},
-                        {"key": "config.recv_timeout_s", "label": "Receive Timeout (s)", "type": "float", "required": True},
-                        {"key": "config.reconnect_delay_s", "label": "Reconnect Delay (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.interface",
+                            "label": "Interface",
+                            "type": "enum",
+                            "required": True,
+                            "options": ["kvaser"],
+                        },
+                        {
+                            "key": "config.channel",
+                            "label": "Channel",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.bitrate",
+                            "label": "Bitrate",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.recv_timeout_s",
+                            "label": "Receive Timeout (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.reconnect_delay_s",
+                            "label": "Reconnect Delay (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Optional Outputs",
                     "fields": [
-                        {"key": "config.initial_pwm", "label": "Initial PWM", "type": "float", "required": False},
-                        {"key": "config.density_request_interval_s", "label": "Density Request Interval (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.initial_pwm",
+                            "label": "Initial PWM",
+                            "type": "float",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.density_request_interval_s",
+                            "label": "Density Request Interval (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
@@ -165,21 +230,30 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                             "label": "Agitator Node IDs (optional allowlist)",
                             "type": "json",
                             "required": False,
-                            "hint": "Use [0, 1] to limit nodes, or [] to allow/discover all.",
+                            "hint": (
+                                "Use [0, 1] to limit nodes, or [] to "
+                                "allow/discover all."
+                            ),
                         },
                         {
                             "key": "config.density_nodes",
                             "label": "Density Sensor Node IDs (optional allowlist)",
                             "type": "json",
                             "required": False,
-                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                            "hint": (
+                                "Use [0] to limit nodes, or [] to "
+                                "allow/discover all."
+                            ),
                         },
                         {
                             "key": "config.pressure_nodes",
                             "label": "Pressure Sensor Node IDs (optional allowlist)",
                             "type": "json",
                             "required": False,
-                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                            "hint": (
+                                "Use [0] to limit nodes, or [] to "
+                                "allow/discover all."
+                            ),
                         },
                     ],
                 },
@@ -190,25 +264,71 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_prefix", "label": "Parameter Prefix", "type": "string", "required": True},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
+                            "type": "string",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "CAN Bus",
                     "fields": [
-                        {"key": "config.interface", "label": "Interface", "type": "enum", "required": True, "options": ["kvaser"]},
-                        {"key": "config.channel", "label": "Channel", "type": "int", "required": True},
-                        {"key": "config.bitrate", "label": "Bitrate", "type": "int", "required": True},
-                        {"key": "config.recv_timeout_s", "label": "Receive Timeout (s)", "type": "float", "required": True},
-                        {"key": "config.reconnect_delay_s", "label": "Reconnect Delay (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.interface",
+                            "label": "Interface",
+                            "type": "enum",
+                            "required": True,
+                            "options": ["kvaser"],
+                        },
+                        {
+                            "key": "config.channel",
+                            "label": "Channel",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.bitrate",
+                            "label": "Bitrate",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.recv_timeout_s",
+                            "label": "Receive Timeout (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.reconnect_delay_s",
+                            "label": "Reconnect Delay (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Optional Outputs",
                     "fields": [
-                        {"key": "config.initial_pwm", "label": "Initial PWM", "type": "float", "required": False},
-                        {"key": "config.density_request_interval_s", "label": "Density Request Interval (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.initial_pwm",
+                            "label": "Initial PWM",
+                            "type": "float",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.density_request_interval_s",
+                            "label": "Density Request Interval (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
@@ -219,34 +339,78 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                             "label": "Agitator Node IDs (optional allowlist)",
                             "type": "json",
                             "required": False,
-                            "hint": "Use [0, 1] to limit nodes, or [] to allow/discover all.",
+                            "hint": (
+                                "Use [0, 1] to limit nodes, or [] to "
+                                "allow/discover all."
+                            ),
                         },
                         {
                             "key": "config.density_nodes",
                             "label": "Density Sensor Node IDs (optional allowlist)",
                             "type": "json",
                             "required": False,
-                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                            "hint": (
+                                "Use [0] to limit nodes, or [] to "
+                                "allow/discover all."
+                            ),
                         },
                         {
                             "key": "config.pressure_nodes",
                             "label": "Pressure Sensor Node IDs (optional allowlist)",
                             "type": "json",
                             "required": False,
-                            "hint": "Use [0] to limit nodes, or [] to allow/discover all.",
+                            "hint": (
+                                "Use [0] to limit nodes, or [] to "
+                                "allow/discover all."
+                            ),
                         },
                     ],
                 },
                 {
                     "title": "Overrides",
                     "fields": [
-                        {"key": "config.measurement_params", "label": "Measurement Param Overrides", "type": "json", "required": False},
-                        {"key": "config.connected_param", "label": "Connected Param", "type": "string", "required": False},
-                        {"key": "config.last_error_param", "label": "Last Error Param", "type": "string", "required": False},
-                        {"key": "config.last_frame_utc_param", "label": "Last Frame UTC Param", "type": "string", "required": False},
-                        {"key": "config.last_can_id_param", "label": "Last CAN ID Param", "type": "string", "required": False},
-                        {"key": "config.last_msg_type_param", "label": "Last Msg Type Param", "type": "string", "required": False},
-                        {"key": "config.last_node_id_param", "label": "Last Node ID Param", "type": "string", "required": False},
+                        {
+                            "key": "config.measurement_params",
+                            "label": "Measurement Param Overrides",
+                            "type": "json",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.connected_param",
+                            "label": "Connected Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_error_param",
+                            "label": "Last Error Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_frame_utc_param",
+                            "label": "Last Frame UTC Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_can_id_param",
+                            "label": "Last CAN ID Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_msg_type_param",
+                            "label": "Last Msg Type Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_node_id_param",
+                            "label": "Last Node ID Param",
+                            "type": "string",
+                            "required": False,
+                        },
                     ],
                 },
             ],

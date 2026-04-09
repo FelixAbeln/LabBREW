@@ -19,7 +19,7 @@ export function AppShell({
   children,
 }) {
   const sidebarDockRef = useRef(null);
-  const [errorDismissed, setErrorDismissed] = useState(false);
+  const [dismissedError, setDismissedError] = useState('');
 
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
@@ -57,9 +57,7 @@ export function AppShell({
     };
   }, [sidebarHidden]);
 
-  useEffect(() => {
-    setErrorDismissed(false);
-  }, [error]);
+  const visibleError = error && error !== dismissedError ? error : '';
 
   return (
     <div className="app-shell">
@@ -77,14 +75,14 @@ export function AppShell({
         </div>
       </header>
 
-      {error && !errorDismissed && (
+      {visibleError && (
         <div className="error-banner">
-          <span className="error-banner-message">{error}</span>
+          <span className="error-banner-message">{visibleError}</span>
           <button
             type="button"
             className="error-banner-close"
             aria-label="Dismiss error"
-            onClick={() => setErrorDismissed(true)}
+            onClick={() => setDismissedError(visibleError)}
           >
             ×
           </button>

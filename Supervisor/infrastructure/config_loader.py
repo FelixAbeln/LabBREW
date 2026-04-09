@@ -13,7 +13,6 @@ from ..domain.models import (
     Topology,
 )
 
-
 _LEGACY_SERVICE_KEYS = {"provides", "requires", "capability_args"}
 _ALLOWED_SERVICE_KEYS = {
     "module",
@@ -80,14 +79,18 @@ class YamlTopologyLoader:
                 for capability_name, mapping in backends_raw.items():
                     if not isinstance(mapping, dict):
                         raise ValueError(
-                            f"Service '{name}'.backends['{capability_name}'] must be a mapping"
+                            "Service "
+                            f"'{name}'.backends['{capability_name}'] must "
+                            "be a mapping"
                         )
                     url_flag = str(mapping.get("url_flag") or "").strip()
                     host_flag = str(mapping.get("host_flag") or "").strip()
                     port_flag = str(mapping.get("port_flag") or "").strip()
                     if url_flag and (host_flag or port_flag):
                         raise ValueError(
-                            f"Service '{name}'.backends['{capability_name}'] must use either url_flag or host_flag+port_flag"
+                            "Service "
+                            f"'{name}'.backends['{capability_name}'] must use "
+                            "either url_flag or host_flag+port_flag"
                         )
                     if url_flag:
                         backend_mappings.append(
@@ -100,7 +103,9 @@ class YamlTopologyLoader:
                         continue
                     if not host_flag or not port_flag:
                         raise ValueError(
-                            f"Service '{name}'.backends['{capability_name}'] requires url_flag or host_flag and port_flag"
+                            "Service "
+                            f"'{name}'.backends['{capability_name}'] requires "
+                            "url_flag or host_flag and port_flag"
                         )
                     backend_mappings.append(
                         {
@@ -139,9 +144,13 @@ class YamlTopologyLoader:
                 endpoint = external_endpoint_by_name.get(capability)
                 if endpoint is None:
                     continue
-                if str(endpoint.proto).lower() == "http" and int(endpoint.port) != agent_port:
+                if (
+                    str(endpoint.proto).lower() == "http"
+                    and int(endpoint.port) != agent_port
+                ):
                     raise ValueError(
-                        f"Service '{name}'.backends['{capability}'] uses url_flag with external HTTP capability "
+                        f"Service '{name}'.backends['{capability}'] uses "
+                        "url_flag with external HTTP capability "
                         f"that does not target Supervisor Agent port {agent_port}"
                     )
 
@@ -177,7 +186,9 @@ class YamlTopologyLoader:
         return Topology(
             services=tuple(services),
             external_capabilities=tuple(external_capabilities),
-            advertise_service_type=data.get("advertise_service_type", "_fcs._tcp.local."),
+            advertise_service_type=data.get(
+                "advertise_service_type", "_fcs._tcp.local."
+            ),
         )
 
     def _validate_service_shape(self, service_name: str, raw: object) -> None:
@@ -189,17 +200,22 @@ class YamlTopologyLoader:
             joined = ", ".join(legacy)
             raise ValueError(
                 f"Service '{service_name}' uses legacy config key(s): {joined}. "
-                "Use only the new schema: module, docs, listen, backend, backends, static_args, advertise_as, env, "
+                "Use only the new schema: module, docs, listen, backend, "
+                "backends, static_args, advertise_as, env, "
                 "startup_timeout_s, restart_backoff_s, enabled"
             )
 
         unknown = sorted(set(raw.keys()) - _ALLOWED_SERVICE_KEYS)
         if unknown:
             joined = ", ".join(unknown)
-            raise ValueError(f"Service '{service_name}' has unsupported key(s): {joined}")
+            raise ValueError(
+                f"Service '{service_name}' has unsupported key(s): {joined}"
+            )
 
         if not raw.get("module"):
-            raise ValueError(f"Service '{service_name}' is missing required key 'module'")
+            raise ValueError(
+                f"Service '{service_name}' is missing required key 'module'"
+            )
 
         listen = raw.get("listen")
         if listen is not None:
@@ -208,9 +224,13 @@ class YamlTopologyLoader:
             unknown_listen = sorted(set(listen.keys()) - _ALLOWED_LISTEN_KEYS)
             if unknown_listen:
                 joined = ", ".join(unknown_listen)
-                raise ValueError(f"Service '{service_name}'.listen has unsupported key(s): {joined}")
+                raise ValueError(
+                    f"Service '{service_name}'.listen has unsupported key(s): {joined}"
+                )
             if "port" not in listen:
-                raise ValueError(f"Service '{service_name}'.listen is missing required key 'port'")
+                raise ValueError(
+                    f"Service '{service_name}'.listen is missing required key 'port'"
+                )
 
         advertise_as = raw.get("advertise_as") or []
         if not isinstance(advertise_as, list):
@@ -218,16 +238,21 @@ class YamlTopologyLoader:
 
         docs = raw.get("docs")
         if docs is not None and not isinstance(docs, str):
-            raise ValueError(f"Service '{service_name}'.docs must be a string if provided")
+            raise ValueError(
+                f"Service '{service_name}'.docs must be a string if provided"
+            )
 
         backend = raw.get("backend")
         if backend is not None and not isinstance(backend, str):
-            raise ValueError(f"Service '{service_name}'.backend must be a string or null")
+            raise ValueError(
+                f"Service '{service_name}'.backend must be a string or null"
+            )
 
         backends = raw.get("backends")
         if backend is not None and backends is not None:
             raise ValueError(
-                f"Service '{service_name}' specifies both 'backend' and 'backends'; use one or the other"
+                f"Service '{service_name}' specifies both 'backend' and "
+                "'backends'; use one or the other"
             )
 
         if backends is not None:
@@ -236,17 +261,27 @@ class YamlTopologyLoader:
             for capability_name, mapping in backends.items():
                 if not isinstance(mapping, dict):
                     raise ValueError(
-                        f"Service '{service_name}'.backends['{capability_name}'] must be a mapping"
+                        "Service "
+                        f"'{service_name}'.backends['{capability_name}'] must "
+                        "be a mapping"
                     )
                 host_flag = mapping.get("host_flag")
                 port_flag = mapping.get("port_flag")
                 url_flag = mapping.get("url_flag")
                 has_url_flag = isinstance(url_flag, str) and bool(url_flag.strip())
-                has_host_port = isinstance(host_flag, str) and bool(host_flag.strip()) and isinstance(port_flag, str) and bool(port_flag.strip())
+                has_host_port = (
+                    isinstance(host_flag, str)
+                    and bool(host_flag.strip())
+                    and isinstance(port_flag, str)
+                    and bool(port_flag.strip())
+                )
 
                 if has_url_flag and has_host_port:
                     raise ValueError(
-                        f"Service '{service_name}'.backends['{capability_name}'] cannot define url_flag together with host_flag/port_flag"
+                        "Service "
+                        f"'{service_name}'.backends['{capability_name}'] "
+                        "cannot define url_flag together with "
+                        "host_flag/port_flag"
                     )
 
                 if has_url_flag:
@@ -254,9 +289,13 @@ class YamlTopologyLoader:
 
                 if not isinstance(host_flag, str) or not host_flag.strip():
                     raise ValueError(
-                        f"Service '{service_name}'.backends['{capability_name}'] must define url_flag or a non-empty host_flag"
+                        "Service "
+                        f"'{service_name}'.backends['{capability_name}'] must "
+                        "define url_flag or a non-empty host_flag"
                     )
                 if not isinstance(port_flag, str) or not port_flag.strip():
                     raise ValueError(
-                        f"Service '{service_name}'.backends['{capability_name}'].port_flag must be a non-empty string"
+                        "Service "
+                        f"'{service_name}'.backends['{capability_name}']."
+                        "port_flag must be a non-empty string"
                     )

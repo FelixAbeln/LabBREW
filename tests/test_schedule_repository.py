@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from Services.schedule_service.repository import JsonScheduleStateStore
 from Services.schedule_service.models import ScheduleDefinition
-from Services.schedule_service.repository import InMemoryScheduleRepository
+from Services.schedule_service.repository import (
+    InMemoryScheduleRepository,
+    JsonScheduleStateStore,
+)
 
 
 def test_json_schedule_state_store_roundtrip_and_clear(tmp_path) -> None:
@@ -77,7 +79,7 @@ def test_cleanup_stale_tmp_files_deletes_old_and_ignores_unlink_error(monkeypatc
     store = JsonScheduleStateStore(tmp_path / "schedule_state.json")
     stale = tmp_path / "schedule_state.json.a.tmp"
     stale.write_text("x", encoding="utf-8")
-    now = int(os.path.getmtime(stale))
+    now = int(stale.stat().st_mtime)
     os.utime(stale, (now - 3600, now - 3600))
 
     real_unlink = Path.unlink
@@ -195,7 +197,6 @@ def test_save_runs_directory_fsync_close_and_cleanup_error_path(tmp_path, monkey
     assert close_calls == [777]
 
     tmp_seen: list[str] = []
-    original_mkstemp = os.mkstemp if hasattr(os, "mkstemp") else None
     original_repo_mkstemp = __import__("tempfile").mkstemp
 
     def tracking_mkstemp(*args, **kwargs):

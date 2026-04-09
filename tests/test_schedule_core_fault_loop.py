@@ -4,8 +4,11 @@ from types import SimpleNamespace
 
 import Services.schedule_service.runtime.core as core_module
 from Services.schedule_service.models import ScheduleAction, ScheduleStep
-from tests.test_schedule_runtime_behavior import FakeControlClient, FakeDataClient, _make_runtime
-
+from tests.test_schedule_runtime_behavior import (
+    FakeControlClient,
+    FakeDataClient,
+    _make_runtime,
+)
 
 
 def test_start_run_guard_paths(tmp_path) -> None:
@@ -272,6 +275,7 @@ def test_loop_fault_branch_and_thread_lifecycle_paths(monkeypatch, tmp_path) -> 
             return self._alive
 
         def join(self, timeout=None):
+            _ = timeout
             self.joined = True
 
     monkeypatch.setattr(core_module.threading, "Thread", DummyThread)
@@ -345,7 +349,7 @@ def test_reclaim_step_ownership_request_control_and_fail_fast(tmp_path) -> None:
     )
 
     # Force write failure so reclaim exits early before ramp action.
-    def fail_write(target, value, owner):
+    def fail_write(target, _value, owner):
         return {"ok": False, "target": target, "owner": owner, "reason": "simulated write failure"}
 
     control.write = fail_write  # type: ignore[assignment]

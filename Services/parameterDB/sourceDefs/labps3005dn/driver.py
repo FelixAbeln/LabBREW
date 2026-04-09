@@ -1,10 +1,11 @@
-import serial
 import time
-from typing import Optional
+
+import serial
 
 
 class PSUError(Exception):
     """Raised when the PSU returns an invalid response or communication fails."""
+
     pass
 
 
@@ -29,7 +30,7 @@ class LABPS3005DN:
         self.baudrate = baudrate
         self.timeout = timeout
         self.settle_time = settle_time
-        self.ser: Optional[serial.Serial] = None
+        self.ser: serial.Serial | None = None
 
         if auto_connect:
             self.connect()
@@ -57,7 +58,7 @@ class LABPS3005DN:
 
     def _write(self, cmd: str) -> None:
         self._ensure_open()
-        full = cmd + "\\n"   # literal backslash+n for this PSU
+        full = cmd + "\\n"  # literal backslash+n for this PSU
         self.ser.reset_input_buffer()
         self.ser.write(full.encode("ascii"))
         self.ser.flush()
@@ -65,8 +66,7 @@ class LABPS3005DN:
 
     def _read(self) -> str:
         self._ensure_open()
-        response = self.ser.read_all().decode("ascii", errors="ignore").strip()
-        return response
+        return self.ser.read_all().decode("ascii", errors="ignore").strip()
 
     def _query(self, cmd: str) -> str:
         self._write(cmd)
@@ -116,7 +116,12 @@ class LABPS3005DN:
     def get_status(self) -> dict:
         raw = self.get_status_raw()
         if len(raw) != 3 or any(c not in "01" for c in raw):
-            return {"raw": raw, "mode": "unknown", "output": "unknown", "protection": "unknown"}
+            return {
+                "raw": raw,
+                "mode": "unknown",
+                "output": "unknown",
+                "protection": "unknown",
+            }
 
         return {
             "raw": raw,

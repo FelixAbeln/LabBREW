@@ -1,15 +1,17 @@
-from brewtools_can import CanFrame, BrewtoolsCanId, Priority, NodeType, MsgType
-from brewtools_can.bodies import FloatBody, RawBody
+import argparse
+import time
 
+import can
 from brewtools_can import (
+    BrewtoolsCanId,
+    CanFrame,
+    MsgType,
+    NodeType,
+    Priority,
     register_default_bodies,
     register_default_domain_handlers,
 )
-
-import argparse
-import can
-import time
-
+from brewtools_can.bodies import FloatBody, RawBody
 
 AGITATOR_NODE_TYPE = NodeType.NODE_TYPE_AGITATOR_ACTUATOR
 
@@ -18,33 +20,61 @@ def make_examples(agitator_nodes: list[int], default_rpm: float) -> list[CanFram
     frames = []
 
     # Temperatures
-    frames.append(CanFrame(
-        BrewtoolsCanId(Priority.MEDIUM, NodeType.NODE_TYPE_DENSITY_SENSOR,
-                       NodeType.NODE_TYPE_PLC, 0, MsgType.MSG_TYPE_TEMPERATURE),
-        FloatBody(0, 20.5)
-    ))
+    frames.append(
+        CanFrame(
+            BrewtoolsCanId(
+                Priority.MEDIUM,
+                NodeType.NODE_TYPE_DENSITY_SENSOR,
+                NodeType.NODE_TYPE_PLC,
+                0,
+                MsgType.MSG_TYPE_TEMPERATURE,
+            ),
+            FloatBody(0, 20.5),
+        )
+    )
 
     # Pressure
-    frames.append(CanFrame(
-        BrewtoolsCanId(Priority.MEDIUM, NodeType.NODE_TYPE_PRESSURE_SENSOR,
-                       NodeType.NODE_TYPE_PLC, 0, MsgType.MSG_TYPE_PRESSURE),
-        FloatBody(0, 1.25)
-    ))
+    frames.append(
+        CanFrame(
+            BrewtoolsCanId(
+                Priority.MEDIUM,
+                NodeType.NODE_TYPE_PRESSURE_SENSOR,
+                NodeType.NODE_TYPE_PLC,
+                0,
+                MsgType.MSG_TYPE_PRESSURE,
+            ),
+            FloatBody(0, 1.25),
+        )
+    )
 
     # Density
-    frames.append(CanFrame(
-        BrewtoolsCanId(Priority.MEDIUM, NodeType.NODE_TYPE_DENSITY_SENSOR,
-                       NodeType.NODE_TYPE_PLC, 0, MsgType.MSG_TYPE_DENSITY),
-        FloatBody(0, 1.0442)
-    ))
+    frames.append(
+        CanFrame(
+            BrewtoolsCanId(
+                Priority.MEDIUM,
+                NodeType.NODE_TYPE_DENSITY_SENSOR,
+                NodeType.NODE_TYPE_PLC,
+                0,
+                MsgType.MSG_TYPE_DENSITY,
+            ),
+            FloatBody(0, 1.0442),
+        )
+    )
 
     # Agitator RPM example(s)
     for node_id in agitator_nodes:
-        frames.append(CanFrame(
-            BrewtoolsCanId(Priority.MEDIUM, AGITATOR_NODE_TYPE,
-                           NodeType.NODE_TYPE_PLC, node_id, MsgType.MSG_TYPE_RPM),
-            FloatBody(0, default_rpm)
-        ))
+        frames.append(
+            CanFrame(
+                BrewtoolsCanId(
+                    Priority.MEDIUM,
+                    AGITATOR_NODE_TYPE,
+                    NodeType.NODE_TYPE_PLC,
+                    node_id,
+                    MsgType.MSG_TYPE_RPM,
+                ),
+                FloatBody(0, default_rpm),
+            )
+        )
 
     return frames
 
@@ -68,20 +98,39 @@ def decode_pwm_percent(raw: bytes) -> float | None:
 
 def make_rpm_frame(node_id: int, rpm: float) -> CanFrame:
     return CanFrame(
-        BrewtoolsCanId(Priority.MEDIUM, AGITATOR_NODE_TYPE,
-                       NodeType.NODE_TYPE_PLC, node_id, MsgType.MSG_TYPE_RPM),
-        FloatBody(0, rpm)
+        BrewtoolsCanId(
+            Priority.MEDIUM,
+            AGITATOR_NODE_TYPE,
+            NodeType.NODE_TYPE_PLC,
+            node_id,
+            MsgType.MSG_TYPE_RPM,
+        ),
+        FloatBody(0, rpm),
     )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Cycle Brewtools example CAN frames (Kvaser via python-can), with optional agitator simulation."
+            description=(
+                "Cycle Brewtools example CAN frames (Kvaser via "
+                "python-can), with optional agitator simulation."
+            )
     )
-    parser.add_argument("--channel", type=int, default=2, help="Kvaser channel number (default: 2)")
-    parser.add_argument("--bitrate", type=int, default=1000000, help="CAN bitrate (default: 1000000)")
-    parser.add_argument("--period-ms", type=int, default=100, help="Delay between frames (default: 100ms)")
-    parser.add_argument("--once", action="store_true", help="Send the example frames once and exit")
+    parser.add_argument(
+        "--channel", type=int, default=2, help="Kvaser channel number (default: 2)"
+    )
+    parser.add_argument(
+        "--bitrate", type=int, default=1000000, help="CAN bitrate (default: 1000000)"
+    )
+    parser.add_argument(
+        "--period-ms",
+        type=int,
+        default=100,
+        help="Delay between frames (default: 100ms)",
+    )
+    parser.add_argument(
+        "--once", action="store_true", help="Send the example frames once and exit"
+    )
     parser.add_argument(
         "--agitator-nodes",
         default="0",
@@ -91,7 +140,10 @@ def main():
         "--agitator-default-rpm",
         type=float,
         default=120.0,
-        help="Initial RPM for agitator example frames before any PWM is received (default: 120.0)",
+            help=(
+                "Initial RPM for agitator example frames before any PWM "
+                "is received (default: 120.0)"
+            ),
     )
     parser.add_argument(
         "--agitator-max-rpm",
@@ -110,7 +162,11 @@ def main():
     register_default_bodies()
     register_default_domain_handlers()
 
-    agitator_nodes = [int(part.strip()) for part in args.agitator_nodes.split(",") if part.strip() != ""]
+    agitator_nodes = [
+        int(part.strip())
+        for part in args.agitator_nodes.split(",")
+        if part.strip() != ""
+    ]
     if not agitator_nodes:
         agitator_nodes = [0]
 
@@ -118,18 +174,26 @@ def main():
 
     agitator_state = {
         node_id: {
-            "pwm": clamp((args.agitator_default_rpm / args.agitator_max_rpm) * 100.0 if args.agitator_max_rpm > 0 else 0.0, 0.0, 100.0),
+            "pwm": clamp(
+                (args.agitator_default_rpm / args.agitator_max_rpm) * 100.0
+                if args.agitator_max_rpm > 0
+                else 0.0,
+                0.0,
+                100.0,
+            ),
             "rpm": float(args.agitator_default_rpm),
             "target_rpm": float(args.agitator_default_rpm),
         }
         for node_id in agitator_nodes
     }
 
-    bus = can.Bus(interface="kvaser",
-                  channel=args.channel,
-                  bitrate=args.bitrate,
-                  receive_own_messages=False,
-                  seperate_handle=True)
+    bus = can.Bus(
+        interface="kvaser",
+        channel=args.channel,
+        bitrate=args.bitrate,
+        receive_own_messages=False,
+        seperate_handle=True,
+    )
 
     last_step = time.monotonic()
     last_agitator_tx = 0.0
@@ -137,7 +201,8 @@ def main():
     try:
         idx = 0
         print(
-            f"TX: {len(frames)} base frames on kvaser:{args.channel} @ {args.bitrate}bps, "
+            f"TX: {len(frames)} base frames on "
+            f"kvaser:{args.channel} @ {args.bitrate}bps, "
             f"period={args.period_ms}ms; agitator nodes={agitator_nodes}"
         )
         while True:
@@ -165,7 +230,8 @@ def main():
                             state["pwm"] = pwm
                             state["target_rpm"] = args.agitator_max_rpm * (pwm / 100.0)
                             print(
-                                f"RX PWM: agitator node {can_id.secondary_node_id} <- {pwm:.1f}% "
+                                    f"RX PWM: agitator node "
+                                    f"{can_id.secondary_node_id} <- {pwm:.1f}% "
                                 f"target={state['target_rpm']:.1f} RPM"
                             )
                 except Exception as exc:
@@ -186,7 +252,9 @@ def main():
             # Send the original example frames the way the script already does
             frame = frames[idx]
             arb_id, data = frame.to_can()
-            msg = can.Message(arbitration_id=int(arb_id), data=data, is_extended_id=True)
+            msg = can.Message(
+                arbitration_id=int(arb_id), data=data, is_extended_id=True
+            )
             bus.send(msg)
             print(msg)
 
@@ -201,7 +269,9 @@ def main():
                 for node_id, state in agitator_state.items():
                     rpm_frame = make_rpm_frame(node_id, state["rpm"])
                     arb_id, data = rpm_frame.to_can()
-                    rpm_msg = can.Message(arbitration_id=int(arb_id), data=data, is_extended_id=True)
+                    rpm_msg = can.Message(
+                        arbitration_id=int(arb_id), data=data, is_extended_id=True
+                    )
                     bus.send(rpm_msg)
                     print(f"AGITATOR RPM node {node_id}: {state['rpm']:.1f}")
                 last_agitator_tx = now

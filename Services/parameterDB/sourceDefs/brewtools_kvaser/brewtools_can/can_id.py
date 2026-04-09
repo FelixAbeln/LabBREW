@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -28,7 +29,7 @@ class BrewtoolsCanId:
         )
 
     @staticmethod
-    def from_arbitration_id(arbitration_id: int) -> "BrewtoolsCanId":
+    def from_arbitration_id(arbitration_id: int) -> BrewtoolsCanId:
         priority = (arbitration_id >> 27) & 0x03
         sender = (arbitration_id >> 19) & 0xFF
         receiver = (arbitration_id >> 11) & 0xFF

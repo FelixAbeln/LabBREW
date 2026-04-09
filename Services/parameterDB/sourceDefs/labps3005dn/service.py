@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import time
-from typing import Any, Optional
+from typing import Any
 
 from ...parameterdb_core.client import SupportsSignalRequests
 from ...parameterdb_sources.base import DataSourceBase, DataSourceSpec
@@ -26,7 +27,7 @@ class LABPS3005DN:
         self.baudrate = baudrate
         self.timeout = timeout
         self.settle_time = settle_time
-        self.ser: Optional[Any] = None
+        self.ser: Any | None = None
         if auto_connect:
             self.connect()
 
@@ -36,7 +37,9 @@ class LABPS3005DN:
         try:
             import serial
         except ModuleNotFoundError as exc:
-            raise RuntimeError("pyserial is required for the labps3005dn datasource") from exc
+            raise RuntimeError(
+                "pyserial is required for the labps3005dn datasource"
+            ) from exc
         self.ser = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
         time.sleep(0.5)
 
@@ -102,7 +105,12 @@ class LABPS3005DN:
     def get_status(self) -> dict[str, Any]:
         raw = self.get_status_raw()
         if len(raw) != 3 or any(c not in "01" for c in raw):
-            return {"raw": raw, "mode": "unknown", "output": "unknown", "protection": "unknown"}
+            return {
+                "raw": raw,
+                "mode": "unknown",
+                "output": "unknown",
+                "protection": "unknown",
+            }
         return {
             "raw": raw,
             "mode": "CV" if raw[0] == "1" else "CC",
@@ -114,9 +122,18 @@ class LABPS3005DN:
 class LabPsuSource(DataSourceBase):
     source_type = "labps3005dn"
     display_name = "LABPS3005DN PSU"
-    description = "Mirrors static setpoint parameters to a serial bench PSU and publishes measured readbacks."
+    description = (
+        "Mirrors static setpoint parameters to a serial bench PSU "
+        "and publishes measured readbacks."
+    )
 
-    def __init__(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(name, client, config=config)
         self._driver: LABPS3005DN | None = None
         self._last_applied_voltage: float | None = None
@@ -164,10 +181,8 @@ class LabPsuSource(DataSourceBase):
         )
         self._set_readback("connected", True)
         self._set_readback("last_error", "")
-        try:
+        with contextlib.suppress(Exception):
             self._set_readback("idn", self._driver.identify())
-        except Exception:
-            pass
         return self._driver
 
     def _disconnect_driver(self) -> None:
@@ -185,7 +200,14 @@ class LabPsuSource(DataSourceBase):
             return value
         if isinstance(value, (int, float)):
             return bool(value)
-        return str(value).strip().lower() in {"1", "true", "on", "yes", "enable", "enabled"}
+        return str(value).strip().lower() in {
+            "1",
+            "true",
+            "on",
+            "yes",
+            "enable",
+            "enabled",
+        }
 
     @staticmethod
     def _coerce_float(value: Any, default: float = 0.0) -> float:
@@ -198,27 +220,100 @@ class LabPsuSource(DataSourceBase):
 
     def ensure_parameters(self) -> None:
         owned = self.build_owned_metadata(device="bench_psu")
-        self.ensure_parameter(self._param_name("set_enable"), "static", value=False, metadata={**owned, "role": "command"})
-        self.ensure_parameter(self._param_name("set_voltage"), "static", value=float(self.config.get("initial_voltage", 0.0)), metadata={**owned, "role": "command", "unit": "V"})
-        self.ensure_parameter(self._param_name("set_current"), "static", value=float(self.config.get("initial_current", 0.0)), metadata={**owned, "role": "command", "unit": "A"})
-        self.ensure_parameter(self._param_name("voltage_meas"), "static", value=0.0, metadata={**owned, "role": "measurement", "unit": "V"})
-        self.ensure_parameter(self._param_name("current_meas"), "static", value=0.0, metadata={**owned, "role": "measurement", "unit": "A"})
-        self.ensure_parameter(self._param_name("output_state"), "static", value=False, metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._param_name("mode"), "static", value="unknown", metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._param_name("protection"), "static", value=False, metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._param_name("status_raw"), "static", value="", metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._param_name("connected"), "static", value=False, metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._param_name("last_error"), "static", value="", metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._param_name("last_sync"), "static", value="", metadata={**owned, "role": "status"})
-        self.ensure_parameter(self._param_name("idn"), "static", value="", metadata={**owned, "role": "status"})
+        self.ensure_parameter(
+            self._param_name("set_enable"),
+            "static",
+            value=False,
+            metadata={**owned, "role": "command"},
+        )
+        self.ensure_parameter(
+            self._param_name("set_voltage"),
+            "static",
+            value=float(self.config.get("initial_voltage", 0.0)),
+            metadata={**owned, "role": "command", "unit": "V"},
+        )
+        self.ensure_parameter(
+            self._param_name("set_current"),
+            "static",
+            value=float(self.config.get("initial_current", 0.0)),
+            metadata={**owned, "role": "command", "unit": "A"},
+        )
+        self.ensure_parameter(
+            self._param_name("voltage_meas"),
+            "static",
+            value=0.0,
+            metadata={**owned, "role": "measurement", "unit": "V"},
+        )
+        self.ensure_parameter(
+            self._param_name("current_meas"),
+            "static",
+            value=0.0,
+            metadata={**owned, "role": "measurement", "unit": "A"},
+        )
+        self.ensure_parameter(
+            self._param_name("output_state"),
+            "static",
+            value=False,
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._param_name("mode"),
+            "static",
+            value="unknown",
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._param_name("protection"),
+            "static",
+            value=False,
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._param_name("status_raw"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._param_name("connected"),
+            "static",
+            value=False,
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._param_name("last_error"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._param_name("last_sync"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
+        self.ensure_parameter(
+            self._param_name("idn"),
+            "static",
+            value="",
+            metadata={**owned, "role": "status"},
+        )
 
     def _read_commands(self) -> tuple[bool, float, float]:
-        enable = self._coerce_bool(self.client.get_value(self._param_name("set_enable"), False))
-        voltage = self._coerce_float(self.client.get_value(self._param_name("set_voltage"), 0.0), 0.0)
-        current = self._coerce_float(self.client.get_value(self._param_name("set_current"), 0.0), 0.0)
+        enable = self._coerce_bool(
+            self.client.get_value(self._param_name("set_enable"), False)
+        )
+        voltage = self._coerce_float(
+            self.client.get_value(self._param_name("set_voltage"), 0.0), 0.0
+        )
+        current = self._coerce_float(
+            self.client.get_value(self._param_name("set_current"), 0.0), 0.0
+        )
         return enable, voltage, current
 
-    def _apply_commands(self, drv: LABPS3005DN, enable: bool, voltage: float, current: float) -> None:
+    def _apply_commands(
+        self, drv: LABPS3005DN, enable: bool, voltage: float, current: float
+    ) -> None:
         if self._last_applied_enable is None:
             try:
                 status = drv.get_status()
@@ -226,9 +321,17 @@ class LabPsuSource(DataSourceBase):
             except Exception:
                 self._last_applied_enable = None
 
-        enable_changed = self._last_applied_enable is None or enable != self._last_applied_enable
-        current_changed = self._last_applied_current is None or abs(current - self._last_applied_current) > 1e-9
-        voltage_changed = self._last_applied_voltage is None or abs(voltage - self._last_applied_voltage) > 1e-9
+        enable_changed = (
+            self._last_applied_enable is None or enable != self._last_applied_enable
+        )
+        current_changed = (
+            self._last_applied_current is None
+            or abs(current - self._last_applied_current) > 1e-9
+        )
+        voltage_changed = (
+            self._last_applied_voltage is None
+            or abs(voltage - self._last_applied_voltage) > 1e-9
+        )
 
         if not (enable_changed or current_changed or voltage_changed):
             return
@@ -250,7 +353,9 @@ class LabPsuSource(DataSourceBase):
         status = drv.get_status()
         self._set_readback("connected", True)
         self._set_readback("last_error", "")
-        self._set_readback("last_sync", __import__("datetime").datetime.utcnow().isoformat() + "Z")
+        self._set_readback(
+            "last_sync", __import__("datetime").datetime.utcnow().isoformat() + "Z"
+        )
         self._set_readback("voltage_meas", drv.measure_voltage())
         self._set_readback("current_meas", drv.measure_current())
         self._set_readback("output_state", bool(status.get("output")))
@@ -285,7 +390,13 @@ class LabPsuSourceSpec(DataSourceSpec):
     display_name = "LABPS3005DN PSU"
     description = "Bench PSU serial datasource"
 
-    def create(self, name: str, client: SupportsSignalRequests, *, config: dict[str, Any] | None = None) -> DataSourceBase:
+    def create(
+        self,
+        name: str,
+        client: SupportsSignalRequests,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> DataSourceBase:
         return LabPsuSource(name, client, config=config)
 
     def default_config(self) -> dict[str, Any]:

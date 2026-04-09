@@ -1,1 +1,3 @@
-from .service import SOURCE
+from .service import SOURCE as SOURCE
+
+__all__ = ["SOURCE"]

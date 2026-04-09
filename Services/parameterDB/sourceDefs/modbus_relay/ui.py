@@ -41,13 +41,18 @@ def _get_graph_spec(record: dict | None = None) -> dict:
             seen.add(target)
 
     return {"depends_on": depends_on}
+
+
 def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec(record)
     return {
         "source_type": "modbus_relay",
         "display_name": "Modbus Relay Board",
-        "description": "Mirrors relay channel booleans to a Modbus-TCP relay board and republishes actual relay states.",
+        "description": (
+            "Mirrors relay channel booleans to a Modbus-TCP relay board "
+            "and republishes actual relay states."
+        ),
         "graph": _get_graph_spec(record),
         "create": {
             "required": ["name", "config.host"],
@@ -67,25 +72,74 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_prefix", "label": "Parameter Prefix", "type": "string", "required": True, "help": "Creates relay state params like relay.ch1, relay.ch2, ..."},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
+                            "type": "string",
+                            "required": True,
+                            "help": (
+                                "Creates relay state params like "
+                                "relay.ch1, relay.ch2, ..."
+                            ),
+                        },
                     ],
                 },
                 {
                     "title": "Connection",
                     "fields": [
-                        {"key": "config.host", "label": "Host", "type": "string", "required": True},
-                        {"key": "config.port", "label": "TCP Port", "type": "int", "required": True},
-                        {"key": "config.unit_id", "label": "Unit ID", "type": "int", "required": True},
-                        {"key": "config.timeout", "label": "Timeout (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.host",
+                            "label": "Host",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.port",
+                            "label": "TCP Port",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.unit_id",
+                            "label": "Unit ID",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.timeout",
+                            "label": "Timeout (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Channels",
                     "fields": [
-                        {"key": "config.channel_count", "label": "Channel Count", "type": "int", "required": True},
-                        {"key": "config.update_interval_s", "label": "Poll Interval (s)", "type": "float", "required": True},
-                        {"key": "config.reconnect_delay_s", "label": "Reconnect Delay (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.channel_count",
+                            "label": "Channel Count",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.update_interval_s",
+                            "label": "Poll Interval (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.reconnect_delay_s",
+                            "label": "Reconnect Delay (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
             ],
@@ -95,33 +149,93 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_prefix", "label": "Parameter Prefix", "type": "string", "required": True},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
+                            "type": "string",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Connection",
                     "fields": [
-                        {"key": "config.host", "label": "Host", "type": "string", "required": True},
-                        {"key": "config.port", "label": "TCP Port", "type": "int", "required": True},
-                        {"key": "config.unit_id", "label": "Unit ID", "type": "int", "required": True},
-                        {"key": "config.timeout", "label": "Timeout (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.host",
+                            "label": "Host",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.port",
+                            "label": "TCP Port",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.unit_id",
+                            "label": "Unit ID",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.timeout",
+                            "label": "Timeout (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Channels",
                     "fields": [
-                        {"key": "config.channel_count", "label": "Channel Count", "type": "int", "required": True},
-                        {"key": "config.update_interval_s", "label": "Poll Interval (s)", "type": "float", "required": True},
-                        {"key": "config.reconnect_delay_s", "label": "Reconnect Delay (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.channel_count",
+                            "label": "Channel Count",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.update_interval_s",
+                            "label": "Poll Interval (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.reconnect_delay_s",
+                            "label": "Reconnect Delay (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Parameters",
                     "fields": [
-                        {"key": "config.connected_param", "label": "Connected Param", "type": "string", "required": False},
-                        {"key": "config.last_error_param", "label": "Last Error Param", "type": "string", "required": False},
-                        {"key": "config.last_sync_param", "label": "Last Sync Param", "type": "string", "required": False},
+                        {
+                            "key": "config.connected_param",
+                            "label": "Connected Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_error_param",
+                            "label": "Last Error Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_sync_param",
+                            "label": "Last Sync Param",
+                            "type": "string",
+                            "required": False,
+                        },
                     ],
                 },
             ]

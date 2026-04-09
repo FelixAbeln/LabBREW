@@ -1,27 +1,7 @@
 from __future__ import annotations
 
-from typing import Union
-
-from .measurements import (
-    TemperatureMeasurement,
-    PressureMeasurement,
-    DensityMeasurement,
-    LevelMeasurement,
-    RpmMeasurement,
-    MinValue,
-    MaxValue,
-    decode_temperature,
-    decode_pressure,
-    decode_density,
-    decode_level,
-    decode_rpm,
-    decode_min,
-    decode_max,
-)
-from .node_management import (
-    NodeIdUpdate,
-    decode_node_id_update,
-)
+from ..domain_factory import DomainFactory
+from ..enums import MsgType
 from .calibration import (
     CalibrationAck,
     CalibrationCmd,
@@ -33,33 +13,49 @@ from .control import (
     ControlMessage,
     decode_control_raw,
 )
-
+from .measurements import (
+    DensityMeasurement,
+    LevelMeasurement,
+    MaxValue,
+    MinValue,
+    PressureMeasurement,
+    RpmMeasurement,
+    TemperatureMeasurement,
+    decode_density,
+    decode_level,
+    decode_max,
+    decode_min,
+    decode_pressure,
+    decode_rpm,
+    decode_temperature,
+)
+from .node_management import (
+    NodeIdUpdate,
+    decode_node_id_update,
+)
 from .start_measurement import (
     StartMeasurementCmd,
     StartMeasurementCmdReceived,
     decode_start_measurement_cmd,
 )
 
-from ..domain_factory import DomainFactory
-from ..enums import MsgType
-
-
 # This is what your top-level package wants to import:
-DomainObject = Union[
-    TemperatureMeasurement,
-    PressureMeasurement,
-    DensityMeasurement,
-    LevelMeasurement,
-    RpmMeasurement,
-    MinValue,
-    MaxValue,
-    NodeIdUpdate,
-    CalibrationAck,
-    CalibrationCmdReceived,
-    ControlMessage,
-    StartMeasurementCmd,
-    StartMeasurementCmdReceived
-]
+DomainObject = (
+    TemperatureMeasurement
+    | PressureMeasurement
+    | DensityMeasurement
+    | LevelMeasurement
+    | RpmMeasurement
+    | MinValue
+    | MaxValue
+    | NodeIdUpdate
+    | CalibrationAck
+    | CalibrationCmd
+    | CalibrationCmdReceived
+    | ControlMessage
+    | StartMeasurementCmd
+    | StartMeasurementCmdReceived
+)
 
 
 def register_default_domain_handlers() -> None:
@@ -72,7 +68,9 @@ def register_default_domain_handlers() -> None:
     DomainFactory.register(MsgType.MSG_TYPE_MIN, decode_min)
     DomainFactory.register(MsgType.MSG_TYPE_MAX, decode_max)
 
-    DomainFactory.register(int(MsgType.MSG_TYPE_START_MEASUREMENT_CMD), decode_start_measurement_cmd)
+    DomainFactory.register(
+        int(MsgType.MSG_TYPE_START_MEASUREMENT_CMD), decode_start_measurement_cmd
+    )
 
     # node mgmt
     DomainFactory.register(MsgType.MSG_TYPE_NODE_ID, decode_node_id_update)

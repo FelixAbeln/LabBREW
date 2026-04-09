@@ -30,17 +30,16 @@ class StaticPlugin(PluginSpec):
     display_name = "Static"
     description = "Retained parameter value"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
         return StaticParameter(name, config=config, value=value, metadata=metadata)
 
     def default_config(self) -> dict[str, Any]:
         return {}
 
     def schema(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {}
-        }
+        return {"type": "object", "properties": {}}
 
 
 PLUGIN = StaticPlugin()

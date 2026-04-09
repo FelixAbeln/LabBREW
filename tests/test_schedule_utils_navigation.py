@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import builtins
 from pathlib import Path
 from types import SimpleNamespace
 
-import Services.schedule_service.runtime.utils as utils_module
-from tests.test_schedule_runtime_behavior import FakeControlClient, FakeDataClient, _make_runtime
-
+from tests.test_schedule_runtime_behavior import (
+    FakeControlClient,
+    FakeDataClient,
+    _make_runtime,
+)
 
 
 def test_utils_slugify_default_name_and_action_timing(tmp_path: Path) -> None:
@@ -66,14 +67,14 @@ def test_utils_append_event_writes_log_and_reports_write_error_once(monkeypatch,
     text = run_log.read_text(encoding="utf-8")
     assert "first" in text
 
-    real_open = builtins.open
+    real_open = Path.open
 
-    def _raising_open(path, *args, **kwargs):
-        if str(path) == str(run_log):
+    def _raising_open(path_obj, *args, **kwargs):
+        if str(path_obj) == str(run_log):
             raise OSError("disk full")
-        return real_open(path, *args, **kwargs)
+        return real_open(path_obj, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, "open", _raising_open)
+    monkeypatch.setattr(Path, "open", _raising_open)
 
     runtime._append_event("second")
     runtime._append_event("third")

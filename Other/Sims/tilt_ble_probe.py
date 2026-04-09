@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import time
 from typing import Any
 
@@ -19,7 +20,9 @@ _TILT_COLOR_UUIDS = {
 _APPLE_COMPANY_ID = 0x004C
 
 
-def _decode_tilt(manufacturer_data: dict[int, bytes], wanted_uuid: str) -> tuple[float, float] | None:
+def _decode_tilt(
+    manufacturer_data: dict[int, bytes], wanted_uuid: str
+) -> tuple[float, float] | None:
     blob = manufacturer_data.get(_APPLE_COMPANY_ID)
     # bleak manufacturer_data bytes do not include the 2-byte company ID.
     # Standard iBeacon payload here is 23 bytes.
@@ -35,11 +38,17 @@ def _decode_tilt(manufacturer_data: dict[int, bytes], wanted_uuid: str) -> tuple
     # Classic Tilt: temp is integer F, gravity thousandths.
     # Tilt Pro: temp tenths-F, gravity ten-thousandths.
     temp_f = temp_raw / 10.0 if temp_raw > 250.0 else temp_raw
-    gravity_sg = gravity_raw / 10000.0 if gravity_raw >= 5000.0 else (gravity_raw / 1000.0 if gravity_raw > 5.0 else gravity_raw)
+    gravity_sg = (
+        gravity_raw / 10000.0
+        if gravity_raw >= 5000.0
+        else (gravity_raw / 1000.0 if gravity_raw > 5.0 else gravity_raw)
+    )
     return temp_f, gravity_sg
 
 
-async def run_probe(color: str, timeout_s: float, address: str, cycles: int, idle_s: float) -> int:
+async def run_probe(
+    color: str, timeout_s: float, address: str, cycles: int, idle_s: float
+) -> int:
     try:
         from bleak import BleakScanner
     except ModuleNotFoundError:
@@ -56,48 +65,63 @@ async def run_probe(color: str, timeout_s: float, address: str, cycles: int, idl
         found_event = asyncio.Event()
         selected: dict[str, Any] = {}
 
-        def on_detection(device: Any, adv_data: Any) -> None:
+        def on_detection(
+            device: Any,
+            adv_data: Any,
+            *,
+            selected_ref: dict[str, Any] = selected,
+            found_event_ref: asyncio.Event = found_event,
+        ) -> None:
             nonlocal total_seen, matched_seen
             total_seen += 1
-            if selected:
+            if selected_ref:
                 return
-            if wanted_address and str(getattr(device, "address", "")).strip().lower() != wanted_address:
+            if (
+                wanted_address
+                and str(getattr(device, "address", "")).strip().lower()
+                != wanted_address
+            ):
                 return
-            decoded = _decode_tilt(getattr(adv_data, "manufacturer_data", {}) or {}, wanted_uuid)
+            decoded = _decode_tilt(
+                getattr(adv_data, "manufacturer_data", {}) or {}, wanted_uuid
+            )
             if decoded is None:
                 return
             temp_f, gravity_sg = decoded
-            selected.update(
+            selected_ref.update(
                 {
                     "address": str(getattr(device, "address", "")),
-                    "rssi": float(getattr(adv_data, "rssi", getattr(device, "rssi", 0.0))),
+                    "rssi": float(
+                        getattr(adv_data, "rssi", getattr(device, "rssi", 0.0))
+                    ),
                     "temp_f": temp_f,
                     "gravity_sg": gravity_sg,
                 }
             )
             matched_seen += 1
-            found_event.set()
+            found_event_ref.set()
 
         scanner = BleakScanner(detection_callback=on_detection)
         t0 = time.monotonic()
         await scanner.start()
         try:
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(found_event.wait(), timeout=timeout_s)
-            except TimeoutError:
-                pass
         finally:
             await scanner.stop()
         elapsed = time.monotonic() - t0
 
         if selected:
             print(
-                f"cycle={cycle} match=yes color={color.title()} addr={selected['address']} "
+                f"cycle={cycle} match=yes color={color.title()} "
+                f"addr={selected['address']} "
                 f"gravity={selected['gravity_sg']:.4f} temp_f={selected['temp_f']:.1f} "
                 f"rssi={selected['rssi']:.0f} elapsed_s={elapsed:.2f}"
             )
         else:
-            print(f"cycle={cycle} match=no color={color.title()} elapsed_s={elapsed:.2f}")
+            print(
+                f"cycle={cycle} match=no color={color.title()} elapsed_s={elapsed:.2f}"
+            )
 
         if idle_s > 0:
             await asyncio.sleep(idle_s)
@@ -107,16 +131,30 @@ async def run_probe(color: str, timeout_s: float, address: str, cycles: int, idl
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Probe direct Tilt BLE advertisements.")
-    parser.add_argument("--color", default="green", choices=sorted(_TILT_COLOR_UUIDS.keys()), help="Tilt color to search for")
-    parser.add_argument("--timeout-s", type=float, default=8.0, help="BLE scan window per cycle")
-    parser.add_argument("--address", default="", help="Optional BLE device address filter")
+    parser = argparse.ArgumentParser(
+        description="Probe direct Tilt BLE advertisements."
+    )
+    parser.add_argument(
+        "--color",
+        default="green",
+        choices=sorted(_TILT_COLOR_UUIDS.keys()),
+        help="Tilt color to search for",
+    )
+    parser.add_argument(
+        "--timeout-s", type=float, default=8.0, help="BLE scan window per cycle"
+    )
+    parser.add_argument(
+        "--address", default="", help="Optional BLE device address filter"
+    )
     parser.add_argument("--cycles", type=int, default=5, help="Number of scan cycles")
-    parser.add_argument("--idle-s", type=float, default=0.0, help="Idle delay between cycles")
+    parser.add_argument(
+        "--idle-s", type=float, default=0.0, help="Idle delay between cycles"
+    )
     args = parser.parse_args()
 
     print(
-        f"Starting Tilt BLE probe color={args.color.title()} timeout_s={args.timeout_s} "
+        f"Starting Tilt BLE probe color={args.color.title()} "
+        f"timeout_s={args.timeout_s} "
         f"cycles={args.cycles} idle_s={args.idle_s}"
     )
     return asyncio.run(

@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-from typing import Dict, Type
+from typing import ClassVar
 
-from .bodies import Body, FloatBody, NodeIdBody, CalibrationAckBody, RawBody
+from .bodies import Body, CalibrationAckBody, FloatBody, NodeIdBody, RawBody
 from .enums import MsgType
 
 
 class BodyFactory:
     """Maps msg_type -> Body class. Unknowns become RawBody."""
-    _by_msg_type: Dict[int, Type[Body]] = {}
+
+    _by_msg_type: ClassVar[dict[int, type[Body]]] = {}
 
     @classmethod
     def clear(cls) -> None:
         cls._by_msg_type.clear()
 
     @classmethod
-    def register(cls, msg_type: int, body_cls: Type[Body]) -> None:
+    def register(cls, msg_type: int, body_cls: type[Body]) -> None:
         cls._by_msg_type[int(msg_type)] = body_cls
 
     @classmethod
@@ -27,7 +28,9 @@ class BodyFactory:
 
 
 def register_default_bodies() -> None:
-    """Register decoders for the msg types defined in the docs that we know payloads for."""
+    """Register decoders for msg types in the docs
+    where payloads are known.
+    """
     float_types = [
         MsgType.MSG_TYPE_TEMPERATURE,
         MsgType.MSG_TYPE_PRESSURE,

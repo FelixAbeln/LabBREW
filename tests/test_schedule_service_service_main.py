@@ -55,7 +55,7 @@ def test_schedule_service_prefers_url_backends(monkeypatch) -> None:
     monkeypatch.setattr(service, "DataClient", lambda *, base_url: created.setdefault("data_client", _DummyClient(base_url)))
     monkeypatch.setattr(service, "ScheduleRuntime", lambda *, control_client, data_client: created.setdefault("runtime", _DummyRuntime(control_client=control_client, data_client=data_client)))
     monkeypatch.setattr(service, "set_runtime", lambda runtime: created.setdefault("set_runtime", runtime))
-    monkeypatch.setattr(service.uvicorn, "run", lambda app, host, port: created.setdefault("uvicorn", {"host": host, "port": port}))
+    monkeypatch.setattr(service.uvicorn, "run", lambda _app, host, port: created.setdefault("uvicorn", {"host": host, "port": port}))
 
     service.main()
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 import time
-from datetime import datetime, timezone
-from typing import Any, Callable, Iterator
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
+from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 import requests
@@ -38,7 +39,7 @@ class IntegrationApi:
 
 
 def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    return datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
 
 def skip_if_unreachable(url: str, path: str) -> None:
@@ -74,10 +75,8 @@ def managed_test_parameters(
             config = dict(parameter.get("config") or {})
             metadata = dict(parameter.get("metadata") or {})
 
-            try:
+            with suppress(Exception):
                 session.delete_parameter(name)
-            except Exception:
-                pass
 
             session.create_parameter(
                 name,
@@ -92,10 +91,8 @@ def managed_test_parameters(
             yield created
         finally:
             for name in reversed(created):
-                try:
+                with suppress(Exception):
                     session.delete_parameter(name)
-                except Exception:
-                    pass
 
 
 def wait_until(

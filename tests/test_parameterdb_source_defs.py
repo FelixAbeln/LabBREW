@@ -8,8 +8,8 @@ import pytest
 
 from Services.parameterDB.parameterdb_core.client import SignalClient
 from Services.parameterDB.parameterdb_sources.loader import DataSourceRegistry
-from Services.parameterDB.sourceDefs.system_time.service import SystemTimeSourceSpec
 from Services.parameterDB.serviceDS import SourceRunner, _builtin_source_root
+from Services.parameterDB.sourceDefs.system_time.service import SystemTimeSourceSpec
 from tests.integration_helpers import skip_if_parameterdb_unreachable, wait_until
 
 
@@ -88,14 +88,16 @@ def test_system_time_source_writes_to_live_parameterdb_when_available(tmp_path: 
 
 
 def test_system_time_source_modes_error_path_and_defaults(monkeypatch) -> None:
-    from Services.parameterDB.sourceDefs.system_time import service as system_time_module
+    from Services.parameterDB.sourceDefs.system_time import (
+        service as system_time_module,
+    )
 
     class FakeClient:
         def __init__(self):
             self.calls: list[tuple[str, object]] = []
             self.fail = False
 
-        def create_parameter(self, *args, **kwargs):
+        def create_parameter(self, *_args, **_kwargs):
             return None
 
         def set_value(self, name: str, value):
@@ -180,10 +182,18 @@ def test_tilt_hydrometer_source_ui_has_color_dropdown() -> None:
 
 
 def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
-    from Services.parameterDB.sourceDefs.brewtools_kvaser.ui import get_ui_spec as get_kvaser_ui_spec
-    from Services.parameterDB.sourceDefs.digital_twin.ui import get_ui_spec as get_twin_ui_spec
-    from Services.parameterDB.sourceDefs.labps3005dn.ui import get_ui_spec as get_psu_ui_spec
-    from Services.parameterDB.sourceDefs.modbus_relay.ui import get_ui_spec as get_relay_ui_spec
+    from Services.parameterDB.sourceDefs.brewtools_kvaser.ui import (
+        get_ui_spec as get_kvaser_ui_spec,
+    )
+    from Services.parameterDB.sourceDefs.digital_twin.ui import (
+        get_ui_spec as get_twin_ui_spec,
+    )
+    from Services.parameterDB.sourceDefs.labps3005dn.ui import (
+        get_ui_spec as get_psu_ui_spec,
+    )
+    from Services.parameterDB.sourceDefs.modbus_relay.ui import (
+        get_ui_spec as get_relay_ui_spec,
+    )
 
     relay_ui = get_relay_ui_spec(record={"name": "relay", "config": {"parameter_prefix": "relay", "channel_count": 3}}, mode="edit")
     assert relay_ui["graph"]["depends_on"] == ["relay.ch1", "relay.ch2", "relay.ch3"]
@@ -222,13 +232,15 @@ def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
 
 
 def test_tilt_hydrometer_source_publishes_selected_color_and_connected_state(monkeypatch) -> None:
-    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
+        TiltHydrometerSourceSpec,
+    )
 
     class FakeClient:
         def __init__(self):
             self.calls: list[tuple[str, object]] = []
 
-        def create_parameter(self, *args, **kwargs):
+        def create_parameter(self, *_args, **_kwargs):
             return None
 
         def set_value(self, name: str, value):
@@ -252,6 +264,7 @@ def test_tilt_hydrometer_source_publishes_selected_color_and_connected_state(mon
     state = {"count": 0}
 
     def fake_urlopen(_req, timeout=0):
+        _ = timeout
         state["count"] += 1
         if state["count"] == 1:
             return FakeResponse(payload)
@@ -303,13 +316,16 @@ def test_tilt_hydrometer_source_publishes_selected_color_and_connected_state(mon
 
 
 def test_tilt_hydrometer_source_ble_transport_connected_and_missing(monkeypatch) -> None:
-    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+    _ = monkeypatch
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
+        TiltHydrometerSourceSpec,
+    )
 
     class FakeClient:
         def __init__(self):
             self.calls: list[tuple[str, object]] = []
 
-        def create_parameter(self, *args, **kwargs):
+        def create_parameter(self, *_args, **_kwargs):
             return None
 
         def set_value(self, name: str, value):
@@ -359,7 +375,9 @@ def test_tilt_hydrometer_source_ble_transport_connected_and_missing(monkeypatch)
 
 
 def test_tilt_ble_decode_accepts_standard_ibeacon_payload_length() -> None:
-    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSource
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
+        TiltHydrometerSource,
+    )
 
     uuid_bytes = bytes.fromhex("a495bb20c5b14b44b5121370f02d74de")
     major_temp_f = (68).to_bytes(2, byteorder="big", signed=False)
@@ -374,7 +392,9 @@ def test_tilt_ble_decode_accepts_standard_ibeacon_payload_length() -> None:
 
 
 def test_tilt_hydrometer_normalizes_tilt_pro_ranges() -> None:
-    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSource
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
+        TiltHydrometerSource,
+    )
 
     # Tilt Pro style encoding represented as integer fields.
     item = {"Temp": 543, "SG": 10722}
@@ -383,13 +403,15 @@ def test_tilt_hydrometer_normalizes_tilt_pro_ranges() -> None:
 
 
 def test_tilt_invalid_color_reports_clear_error() -> None:
-    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
+        TiltHydrometerSourceSpec,
+    )
 
     class FakeClient:
-        def create_parameter(self, *args, **kwargs):
+        def create_parameter(self, *_args, **_kwargs):
             return None
 
-        def set_value(self, name: str, value):
+        def set_value(self, _name: str, _value):
             return None
 
     source = TiltHydrometerSourceSpec().create(
@@ -403,13 +425,15 @@ def test_tilt_invalid_color_reports_clear_error() -> None:
 
 
 def test_tilt_ble_missing_packet_within_stale_window_keeps_connected_true() -> None:
-    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
+        TiltHydrometerSourceSpec,
+    )
 
     class FakeClient:
         def __init__(self):
             self.calls: list[tuple[str, object]] = []
 
-        def create_parameter(self, *args, **kwargs):
+        def create_parameter(self, *_args, **_kwargs):
             return None
 
         def set_value(self, name: str, value):
@@ -457,13 +481,15 @@ def test_tilt_ble_missing_packet_within_stale_window_keeps_connected_true() -> N
 
 
 def test_tilt_battery_weeks_persists_last_known_value_when_missing() -> None:
-    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import TiltHydrometerSourceSpec
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
+        TiltHydrometerSourceSpec,
+    )
 
     class FakeClient:
         def __init__(self):
             self.calls: list[tuple[str, object]] = []
 
-        def create_parameter(self, *args, **kwargs):
+        def create_parameter(self, *_args, **_kwargs):
             return None
 
         def set_value(self, name: str, value):

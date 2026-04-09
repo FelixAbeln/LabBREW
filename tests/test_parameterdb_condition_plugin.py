@@ -3,9 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import Services.parameterDB.plugins.condition.implementation as condition_module
+from Services.parameterDB.parameterdb_service.store import ParameterStore
 from Services.parameterDB.plugins.condition.implementation import ConditionPlugin
 from Services.parameterDB.plugins.static.implementation import StaticParameter
-from Services.parameterDB.parameterdb_service.store import ParameterStore
 
 
 def _ctx(store: ParameterStore):

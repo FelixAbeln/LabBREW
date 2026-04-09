@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import queue
 
-from Services.parameterDB.parameterdb_service.event_broker import EventBroker, _Subscription
-
+from Services.parameterDB.parameterdb_service.event_broker import (
+    EventBroker,
+    _Subscription,
+)
 
 
 def test_event_broker_subscribe_publish_filter_and_unsubscribe() -> None:
@@ -98,7 +100,7 @@ def test_event_broker_enqueue_overflow_notice_then_event_success() -> None:
             self.put_calls += 1
             if self.put_calls == 1:
                 raise queue.Full
-            return None
+            return
 
         def get_nowait(self):
             return {"event": "dropped"}

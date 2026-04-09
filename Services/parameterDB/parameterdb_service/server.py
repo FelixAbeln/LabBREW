@@ -11,16 +11,15 @@ from ..parameterdb_core.protocol import (
     read_message,
     validate_request_envelope,
 )
-
 from .api import CommandDispatcher, register_all_handlers
 from .api.validation import (
-    validate_export_snapshot,
     validate_create_parameter,
     validate_delete_parameter,
     validate_empty_ok,
+    validate_export_snapshot,
     validate_get_parameter_type_ui,
-    validate_import_snapshot,
     validate_get_value,
+    validate_import_snapshot,
     validate_load_parameter_type_folder,
     validate_set_value,
     validate_subscribe,
@@ -29,7 +28,11 @@ from .api.validation import (
 from .engine import ScanEngine
 from .event_broker import EventBroker
 from .loader import PluginRegistry, load_parameter_type_folder
-from .persistence import AuditLogger, build_snapshot_payload, load_snapshot_payload_into_store
+from .persistence import (
+    AuditLogger,
+    build_snapshot_payload,
+    load_snapshot_payload_into_store,
+)
 
 
 class RequestHandler(socketserver.StreamRequestHandler):
@@ -78,12 +81,23 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def __init__(self, host: str, port: int, engine: ScanEngine, registry: PluginRegistry, event_broker: EventBroker, *, audit_logger: AuditLogger | None = None):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        engine: ScanEngine,
+        registry: PluginRegistry,
+        event_broker: EventBroker,
+        *,
+        audit_logger: AuditLogger | None = None,
+    ):
         super().__init__((host, port), RequestHandler)
         self.engine = engine
         self.registry = registry
         self.event_broker = event_broker
-        self.audit_log = audit_logger or AuditLogger("./data/parameterdb_audit.jsonl", enabled=False)
+        self.audit_log = audit_logger or AuditLogger(
+            "./data/parameterdb_audit.jsonl", enabled=False
+        )
         self.snapshot_manager = None
         self.dispatcher = CommandDispatcher()
         register_all_handlers(self)
@@ -105,7 +119,9 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
     def api_export_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_export_snapshot(payload)
         snapshot_payload = build_snapshot_payload(self.engine.store)
-        snapshot_stats = self.snapshot_manager.stats() if self.snapshot_manager is not None else None
+        snapshot_stats = (
+            self.snapshot_manager.stats() if self.snapshot_manager is not None else None
+        )
         return {
             "snapshot": snapshot_payload,
             "snapshot_stats": snapshot_stats,
@@ -141,13 +157,17 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
                         snapshot_param_names = set(params.keys())
                 overlapping = existing_names & snapshot_param_names
                 if overlapping:
-                    # Fail early with a clear error message and without touching the store.
+                    # Fail early with a clear error message
+                    # and without touching the store.
                     raise ValueError(
-                        f"Snapshot import aborted: parameters already exist in store and "
-                        f'replace_existing is False: {", ".join(sorted(overlapping))}'
+                        "Snapshot import aborted: parameters "
+                        "already exist in store and "
+                        f"replace_existing is False: {', '.join(sorted(overlapping))}"
                     )
 
-            restored_count = load_snapshot_payload_into_store(store, self.registry, clean["snapshot"])
+            restored_count = load_snapshot_payload_into_store(
+                store, self.registry, clean["snapshot"]
+            )
 
             if clean["save_to_disk"] and self.snapshot_manager is not None:
                 self.snapshot_manager.save_now(force=True)
@@ -167,7 +187,9 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
             "ok": True,
             "removed_count": removed_count,
             "restored_count": restored_count,
-            "snapshot_stats": self.snapshot_manager.stats() if self.snapshot_manager is not None else None,
+            "snapshot_stats": self.snapshot_manager.stats()
+            if self.snapshot_manager is not None
+            else None,
         }
 
     def api_describe(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -199,7 +221,12 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
     def api_load_parameter_type_folder(self, payload: dict[str, Any]) -> str:
         clean = validate_load_parameter_type_folder(payload)
         result = load_parameter_type_folder(Path(clean["folder"]), self.registry)
-        self.audit_log.log(category="change", action="parameter_type_folder_loaded", folder=clean["folder"], parameter_type=result)
+        self.audit_log.log(
+            category="change",
+            action="parameter_type_folder_loaded",
+            folder=clean["folder"],
+            parameter_type=result,
+        )
         return result
 
     # parameters
@@ -230,7 +257,9 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
         param = store._remove_runtime_param(clean["name"])
         if param is not None:
             param.on_removed(store)
-            self.audit_log.log(category="change", action="parameter_deleted", name=clean["name"])
+            self.audit_log.log(
+                category="change", action="parameter_deleted", name=clean["name"]
+            )
         return True
 
     def api_get_value(self, payload: dict[str, Any]) -> Any:
@@ -241,36 +270,72 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
         clean = validate_set_value(payload)
         self.engine.store.set_value(clean["name"], clean["value"])
         if self.audit_log.audit_external_writes:
-            self.audit_log.log(category="change", action="value_written", name=clean["name"], value=clean["value"])
+            self.audit_log.log(
+                category="change",
+                action="value_written",
+                name=clean["name"],
+                value=clean["value"],
+            )
         return True
 
     def api_update_config(self, payload: dict[str, Any]) -> bool:
         clean = validate_update_changes(payload)
         self.engine.store.update_config(clean["name"], **clean["changes"])
-        self.audit_log.log(category="change", action="config_updated", name=clean["name"], changed_keys=sorted(clean["changes"].keys()))
+        self.audit_log.log(
+            category="change",
+            action="config_updated",
+            name=clean["name"],
+            changed_keys=sorted(clean["changes"].keys()),
+        )
         return True
 
     def api_update_metadata(self, payload: dict[str, Any]) -> bool:
         clean = validate_update_changes(payload)
         self.engine.store.update_metadata(clean["name"], **clean["changes"])
-        self.audit_log.log(category="change", action="metadata_updated", name=clean["name"], changed_keys=sorted(clean["changes"].keys()))
+        self.audit_log.log(
+            category="change",
+            action="metadata_updated",
+            name=clean["name"],
+            changed_keys=sorted(clean["changes"].keys()),
+        )
         return True
 
     # streaming
-    def api_subscribe(self, request_handler: RequestHandler, *, req_id: str | None, payload: dict[str, Any]) -> None:
+    def api_subscribe(
+        self,
+        request_handler: RequestHandler,
+        *,
+        req_id: str | None,
+        payload: dict[str, Any],
+    ) -> None:
         clean = validate_subscribe(payload)
         store = self.engine.store
         names = set(clean["names"])
         send_initial = clean["send_initial"]
-        token, q, queue_size = self.event_broker.subscribe(clean["names"], max_queue=clean["max_queue"])
-        self.audit_log.log(category="connection", action="subscribed", subscription_id=token, names=clean["names"], max_queue=queue_size)
+        token, q, queue_size = self.event_broker.subscribe(
+            clean["names"], max_queue=clean["max_queue"]
+        )
+        self.audit_log.log(
+            category="connection",
+            action="subscribed",
+            subscription_id=token,
+            names=clean["names"],
+            max_queue=queue_size,
+        )
 
         try:
-            request_handler.wfile.write(encode_message(make_response(req_id=req_id, result={
-                "status": "subscribed",
-                "subscription_id": token,
-                "max_queue": queue_size,
-            })))
+            request_handler.wfile.write(
+                encode_message(
+                    make_response(
+                        req_id=req_id,
+                        result={
+                            "status": "subscribed",
+                            "subscription_id": token,
+                            "max_queue": queue_size,
+                        },
+                    )
+                )
+            )
             request_handler.wfile.flush()
 
             if send_initial:
@@ -278,17 +343,26 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
                 for name, desc in current.items():
                     if names and name not in names:
                         continue
-                    request_handler.wfile.write(encode_message({
-                        "event": "parameter_snapshot",
-                        "name": name,
-                        **desc,
-                    }))
+                    request_handler.wfile.write(
+                        encode_message(
+                            {
+                                "event": "parameter_snapshot",
+                                "name": name,
+                                **desc,
+                            }
+                        )
+                    )
                 request_handler.wfile.flush()
 
             while True:
                 event = q.get()
                 event_name = event.get("name")
-                if names and event_name and event_name not in names and event.get("event") != "subscription_overflow":
+                if (
+                    names
+                    and event_name
+                    and event_name not in names
+                    and event.get("event") != "subscription_overflow"
+                ):
                     continue
                 request_handler.wfile.write(encode_message(event))
                 request_handler.wfile.flush()
@@ -297,4 +371,6 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
             pass
         finally:
             self.event_broker.unsubscribe(token)
-            self.audit_log.log(category="connection", action="unsubscribed", subscription_id=token)
+            self.audit_log.log(
+                category="connection", action="unsubscribed", subscription_id=token
+            )

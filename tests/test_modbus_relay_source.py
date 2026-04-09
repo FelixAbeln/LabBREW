@@ -4,14 +4,9 @@ import queue
 import threading
 import time
 
-import pytest
-
 from Services.parameterDB.sourceDefs.modbus_relay.service import (
     ModbusRelaySource,
-    RelayBoard,
-    RelayError,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -33,7 +28,7 @@ class _FakeClient:
         self._store[name] = value
         self.written.append((name, value))
 
-    def ensure_parameter(self, name, param_type, *, value=None, metadata=None) -> None:
+    def ensure_parameter(self, name, _param_type, *, value=None, _metadata=None) -> None:
         if name not in self._store:
             self._store[name] = value
 
@@ -112,7 +107,7 @@ class _FakeBoard:
 
 
 def _make_source(client: _FakeClient, channel_count: int = 2) -> ModbusRelaySource:
-    src = ModbusRelaySource(
+    return ModbusRelaySource(
         "relay",
         client,
         config={
@@ -121,7 +116,6 @@ def _make_source(client: _FakeClient, channel_count: int = 2) -> ModbusRelaySour
             "channel_count": channel_count,
         },
     )
-    return src
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +177,6 @@ def test_sync_does_not_overwrite_concurrent_write():
     # (ch1 = False) and the SECOND call (post_desired re-read) returns the
     # value that the user wrote mid-cycle (ch1 = True).
     call_count = 0
-    original_desired = src._desired_states
 
     def patched_desired():
         nonlocal call_count

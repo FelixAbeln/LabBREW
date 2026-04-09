@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import threading
+import types
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-import threading
-import builtins
-import types
 
 import pytest
 
 import Services.data_service.runtime as runtime_module
-from Services.data_service.runtime import DataRecordingRuntime, LoadstepConfig, MeasurementConfig
+from Services.data_service.runtime import (
+    DataRecordingRuntime,
+    LoadstepConfig,
+    MeasurementConfig,
+)
 
 
 class _Backend:
@@ -184,10 +187,10 @@ def test_build_session_archive_helpers_and_delete_error_paths(tmp_path: Path, mo
     assert runtime._build_session_archive(measurement_file="missing", loadsteps_file="missing2", extra_files=["missing"])["archive_path"] is None
 
     m = tmp_path / "m.jsonl"
-    l = tmp_path / "l.jsonl"
+    loadsteps_file = tmp_path / "l.jsonl"
     x = tmp_path / "x.txt"
     m.write_text("m", encoding="utf-8")
-    l.write_text("l", encoding="utf-8")
+    loadsteps_file.write_text("l", encoding="utf-8")
     x.write_text("x", encoding="utf-8")
 
     removed = []
@@ -200,7 +203,7 @@ def test_build_session_archive_helpers_and_delete_error_paths(tmp_path: Path, mo
         return _real_remove(path)
 
     monkeypatch.setattr("Services.data_service.runtime.os.remove", _remove_with_one_error)
-    archive = runtime._build_session_archive(measurement_file=str(m), loadsteps_file=str(l), extra_files=[str(x), str(m)])
+    archive = runtime._build_session_archive(measurement_file=str(m), loadsteps_file=str(loadsteps_file), extra_files=[str(x), str(m)])
     assert archive["archive_path"]
     assert "m.jsonl" in archive["members"]
 
@@ -254,7 +257,7 @@ def test_build_session_archive_raises_and_cleans_temp_on_zip_error(tmp_path: Pat
     m.write_text("m", encoding="utf-8")
 
     class _BrokenZip:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **_kwargs):
             self.path = args[0]
 
         def __enter__(self):
@@ -371,7 +374,6 @@ def test_archive_remaining_not_found_nonfile_and_tmp_cleanup_oserror(tmp_path: P
     # _build_session_archive exception cleanup where tmp exists and remove also errors.
     m = tmp_path / "m.jsonl"
     m.write_text("m", encoding="utf-8")
-    tmp_archive = tmp_path / "sess.archive.zip.tmp"
 
     class _BrokenZip:
         def __init__(self, *args, **kwargs):

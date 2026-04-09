@@ -54,13 +54,18 @@ def _get_graph_spec(record: dict | None = None) -> dict:
             depends_on.append(target)
 
     return {"depends_on": depends_on}
+
+
 def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec(record)
     return {
         "source_type": "labps3005dn",
         "display_name": "LABPS3005DN PSU",
-        "description": "Mirrors static setpoint parameters to a serial bench PSU and publishes measured readbacks.",
+        "description": (
+            "Mirrors static setpoint parameters to a serial bench PSU "
+            "and publishes measured readbacks."
+        ),
         "graph": _get_graph_spec(record),
         "create": {
             "required": ["name", "config.port"],
@@ -81,26 +86,77 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_prefix", "label": "Parameter Prefix", "type": "string", "required": True, "help": "Base name for setpoint and readback parameters."},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
+                            "type": "string",
+                            "required": True,
+                            "help": "Base name for setpoint and readback parameters.",
+                        },
                     ],
                 },
                 {
                     "title": "Connection",
                     "fields": [
-                        {"key": "config.port", "label": "Serial Port", "type": "string", "required": True},
-                        {"key": "config.baudrate", "label": "Baudrate", "type": "int", "required": True},
-                        {"key": "config.timeout", "label": "Serial Timeout (s)", "type": "float", "required": True},
-                        {"key": "config.settle_time", "label": "Command Settle Time (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.port",
+                            "label": "Serial Port",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.baudrate",
+                            "label": "Baudrate",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.timeout",
+                            "label": "Serial Timeout (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.settle_time",
+                            "label": "Command Settle Time (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Polling",
                     "fields": [
-                        {"key": "config.update_interval_s", "label": "Poll Interval (s)", "type": "float", "required": True},
-                        {"key": "config.reconnect_delay_s", "label": "Reconnect Delay (s)", "type": "float", "required": True},
-                        {"key": "config.initial_voltage", "label": "Initial Voltage Setpoint", "type": "float", "required": False},
-                        {"key": "config.initial_current", "label": "Initial Current Setpoint", "type": "float", "required": False},
+                        {
+                            "key": "config.update_interval_s",
+                            "label": "Poll Interval (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.reconnect_delay_s",
+                            "label": "Reconnect Delay (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.initial_voltage",
+                            "label": "Initial Voltage Setpoint",
+                            "type": "float",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.initial_current",
+                            "label": "Initial Current Setpoint",
+                            "type": "float",
+                            "required": False,
+                        },
                     ],
                 },
             ],
@@ -110,43 +166,153 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 {
                     "title": "Identity",
                     "fields": [
-                        {"key": "name", "label": "Source Name", "type": "string", "required": True},
-                        {"key": "config.parameter_prefix", "label": "Parameter Prefix", "type": "string", "required": True},
+                        {
+                            "key": "name",
+                            "label": "Source Name",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
+                            "type": "string",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Connection",
                     "fields": [
-                        {"key": "config.port", "label": "Serial Port", "type": "string", "required": True},
-                        {"key": "config.baudrate", "label": "Baudrate", "type": "int", "required": True},
-                        {"key": "config.timeout", "label": "Serial Timeout (s)", "type": "float", "required": True},
-                        {"key": "config.settle_time", "label": "Command Settle Time (s)", "type": "float", "required": True},
+                        {
+                            "key": "config.port",
+                            "label": "Serial Port",
+                            "type": "string",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.baudrate",
+                            "label": "Baudrate",
+                            "type": "int",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.timeout",
+                            "label": "Serial Timeout (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.settle_time",
+                            "label": "Command Settle Time (s)",
+                            "type": "float",
+                            "required": True,
+                        },
                     ],
                 },
                 {
                     "title": "Polling",
                     "fields": [
-                        {"key": "config.update_interval_s", "label": "Poll Interval (s)", "type": "float", "required": True},
-                        {"key": "config.reconnect_delay_s", "label": "Reconnect Delay (s)", "type": "float", "required": True},
-                        {"key": "config.initial_voltage", "label": "Initial Voltage Setpoint", "type": "float", "required": False},
-                        {"key": "config.initial_current", "label": "Initial Current Setpoint", "type": "float", "required": False},
+                        {
+                            "key": "config.update_interval_s",
+                            "label": "Poll Interval (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.reconnect_delay_s",
+                            "label": "Reconnect Delay (s)",
+                            "type": "float",
+                            "required": True,
+                        },
+                        {
+                            "key": "config.initial_voltage",
+                            "label": "Initial Voltage Setpoint",
+                            "type": "float",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.initial_current",
+                            "label": "Initial Current Setpoint",
+                            "type": "float",
+                            "required": False,
+                        },
                     ],
                 },
                 {
                     "title": "Parameters",
                     "fields": [
-                        {"key": "config.set_enable_param", "label": "Set Enable Param", "type": "string", "required": False},
-                        {"key": "config.set_voltage_param", "label": "Set Voltage Param", "type": "string", "required": False},
-                        {"key": "config.set_current_param", "label": "Set Current Param", "type": "string", "required": False},
-                        {"key": "config.voltage_meas_param", "label": "Voltage Measured Param", "type": "string", "required": False},
-                        {"key": "config.current_meas_param", "label": "Current Measured Param", "type": "string", "required": False},
-                        {"key": "config.output_state_param", "label": "Output State Param", "type": "string", "required": False},
-                        {"key": "config.mode_param", "label": "Mode Param", "type": "string", "required": False},
-                        {"key": "config.protection_param", "label": "Protection Param", "type": "string", "required": False},
-                        {"key": "config.status_raw_param", "label": "Raw Status Param", "type": "string", "required": False},
-                        {"key": "config.connected_param", "label": "Connected Param", "type": "string", "required": False},
-                        {"key": "config.last_error_param", "label": "Last Error Param", "type": "string", "required": False},
-                        {"key": "config.idn_param", "label": "IDN Param", "type": "string", "required": False},
+                        {
+                            "key": "config.set_enable_param",
+                            "label": "Set Enable Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.set_voltage_param",
+                            "label": "Set Voltage Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.set_current_param",
+                            "label": "Set Current Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.voltage_meas_param",
+                            "label": "Voltage Measured Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.current_meas_param",
+                            "label": "Current Measured Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.output_state_param",
+                            "label": "Output State Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.mode_param",
+                            "label": "Mode Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.protection_param",
+                            "label": "Protection Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.status_raw_param",
+                            "label": "Raw Status Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.connected_param",
+                            "label": "Connected Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.last_error_param",
+                            "label": "Last Error Param",
+                            "type": "string",
+                            "required": False,
+                        },
+                        {
+                            "key": "config.idn_param",
+                            "label": "IDN Param",
+                            "type": "string",
+                            "required": False,
+                        },
                     ],
                 },
             ]

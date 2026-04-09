@@ -17,7 +17,10 @@ from Services.parameterDB.parameterdb_service.persistence.snapshots import (
     load_snapshot_payload_into_store,
     write_snapshot_file,
 )
-from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase, PluginSpec
+from Services.parameterDB.parameterdb_service.plugin_api import (
+    ParameterBase,
+    PluginSpec,
+)
 from Services.parameterDB.parameterdb_service.store import ParameterStore
 
 
@@ -28,10 +31,10 @@ class FakeParameter(ParameterBase):
         super().__init__(*args, **kwargs)
         self.added = False
 
-    def on_added(self, store: ParameterStore) -> None:
+    def on_added(self, _store: ParameterStore) -> None:
         self.added = True
 
-    def scan(self, ctx) -> None:
+    def scan(self, _ctx) -> None:
         return None
 
 
@@ -234,6 +237,7 @@ def test_snapshot_manager_start_idempotent_and_run_loop_tolerates_save_errors(mo
             self.started = True
 
         def join(self, timeout: float | None = None) -> None:
+            _ = timeout
             self.joined = True
 
     monkeypatch.setattr("Services.parameterDB.parameterdb_service.persistence.snapshots.threading.Thread", FakeThread)
@@ -248,7 +252,7 @@ def test_snapshot_manager_start_idempotent_and_run_loop_tolerates_save_errors(mo
 
     waits = iter([False, True])
     monkeypatch.setattr(manager._stop_event, "wait", lambda _interval: next(waits))
-    monkeypatch.setattr(manager, "save_now", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("save failed")))
+    monkeypatch.setattr(manager, "save_now", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("save failed")))
     manager._run_loop()
 
     manager.stop(save_final=False)
@@ -261,7 +265,6 @@ def test_write_snapshot_file_handles_dir_fsync_and_cleanup_errors(monkeypatch, t
 
     fake_dir_fd = 777
     closed_fds: list[int] = []
-    original_open = pathlib.Path
     original_os_open = __import__("Services.parameterDB.parameterdb_service.persistence.snapshots", fromlist=["os"]).os.open
     original_os_fsync = __import__("Services.parameterDB.parameterdb_service.persistence.snapshots", fromlist=["os"]).os.fsync
 

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import signal
@@ -9,21 +8,20 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .cli_renderer import CliRenderer
-from .planner import StartupPlanner
-from .resolver import CapabilityResolver
 from ..domain.models import ManagedProcessState, ServiceSpec
 from ..domain.validation import validate_topology
 from ..infrastructure.agent_api import AgentApiServer
 from ..infrastructure.discovery_adapter import DiscoveryPublisher
 from ..infrastructure.health import tcp_probe
 from ..infrastructure.process_runner import ProcessRunner
-
+from .cli_renderer import CliRenderer
+from .planner import StartupPlanner
+from .resolver import CapabilityResolver
 
 OPTIONAL_RUNTIME_PACKAGES: tuple[str, ...] = (
-    'bleak',
-    'fmpy',
-    'pyarrow',
+    "bleak",
+    "fmpy",
+    "pyarrow",
 )
 
 
@@ -37,7 +35,7 @@ class TopologySupervisor:
         advertise_host: str,
         node_id: str,
         node_name: str,
-        agent_host: str = '0.0.0.0',
+        agent_host: str = "0.0.0.0",
         agent_port: int = 8780,
         check_interval_s: float = 2.0,
     ) -> None:
@@ -55,7 +53,9 @@ class TopologySupervisor:
         self.resolver = CapabilityResolver()
         self.planner = StartupPlanner()
         self.runner = ProcessRunner(self.root_dir, self.log_dir)
-        self.discovery = DiscoveryPublisher(node_id=node_id, node_name=node_name, port=agent_port)
+        self.discovery = DiscoveryPublisher(
+            node_id=node_id, node_name=node_name, port=agent_port
+        )
         self.agent_api = AgentApiServer(
             host=agent_host,
             port=agent_port,
@@ -83,7 +83,9 @@ class TopologySupervisor:
             },
         }
 
-        self.resolved = self.resolver.resolve(self.topology, default_advertise_host=advertise_host)
+        self.resolved = self.resolver.resolve(
+            self.topology, default_advertise_host=advertise_host
+        )
         self.start_order = self.planner.order(self.resolved.service_dependencies)
         self.services: dict[str, ManagedProcessState] = {
             service.name: ManagedProcessState(service=service)
@@ -95,7 +97,7 @@ class TopologySupervisor:
         line = f"[SUPERVISOR] {message}"
         print(f"[{service_name}] {line}")
         log_path = self.log_dir / f"{service_name}.log"
-        with log_path.open('a', encoding='utf-8') as handle:
+        with log_path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
             handle.flush()
 
@@ -114,9 +116,11 @@ class TopologySupervisor:
             raise RuntimeError(detail)
         return (proc.stdout or "").strip()
 
-    def _run_pip_checked(self, args: list[str], *, label: str, timeout_s: float = 180.0) -> None:
+    def _run_pip_checked(
+        self, args: list[str], *, label: str, timeout_s: float = 180.0
+    ) -> None:
         proc = subprocess.run(
-            [sys.executable, '-m', 'pip', *args],
+            [sys.executable, "-m", "pip", *args],
             cwd=str(self.root_dir),
             capture_output=True,
             text=True,
@@ -124,15 +128,15 @@ class TopologySupervisor:
             check=False,
         )
         if proc.returncode != 0:
-            stderr = (proc.stderr or '').strip()
-            stdout = (proc.stdout or '').strip()
-            detail = stderr or stdout or f'pip exited with code {proc.returncode}'
-            raise RuntimeError(f'{label} failed: {detail}')
+            stderr = (proc.stderr or "").strip()
+            stdout = (proc.stdout or "").strip()
+            detail = stderr or stdout or f"pip exited with code {proc.returncode}"
+            raise RuntimeError(f"{label} failed: {detail}")
 
     def _install_optional_runtime_packages(self, details: list[str]) -> None:
         for package_name in OPTIONAL_RUNTIME_PACKAGES:
             proc = subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', package_name],
+                [sys.executable, "-m", "pip", "install", package_name],
                 cwd=str(self.root_dir),
                 capture_output=True,
                 text=True,
@@ -140,18 +144,18 @@ class TopologySupervisor:
                 check=False,
             )
             if proc.returncode == 0:
-                details.append(f'optional package {package_name} install succeeded')
+                details.append(f"optional package {package_name} install succeeded")
                 continue
-            stderr = (proc.stderr or '').strip()
-            stdout = (proc.stdout or '').strip()
-            detail = stderr or stdout or f'pip exited with code {proc.returncode}'
-            details.append(
-                f'optional package {package_name} install skipped: {detail}'
-            )
+            stderr = (proc.stderr or "").strip()
+            stdout = (proc.stdout or "").strip()
+            detail = stderr or stdout or f"pip exited with code {proc.returncode}"
+            details.append(f"optional package {package_name} install skipped: {detail}")
 
     def _refresh_python_runtime(self, details: list[str]) -> None:
-        self._run_pip_checked(['install', str(self.root_dir)], label='pip project install')
-        details.append('pip project install succeeded')
+        self._run_pip_checked(
+            ["install", str(self.root_dir)], label="pip project install"
+        )
+        details.append("pip project install succeeded")
         self._install_optional_runtime_packages(details)
 
     def repo_update_status(self, force: bool = False) -> dict[str, Any]:
@@ -185,13 +189,21 @@ class TopologySupervisor:
                 status["dirty"] = bool(self._run_git(["status", "--porcelain"]))
 
                 branch = str(status.get("branch") or "")
-                remote_ref = f"refs/heads/{branch}" if branch and branch != "HEAD" else "HEAD"
-                remote_line = self._run_git(["ls-remote", repo_url, remote_ref], timeout_s=25.0)
-                status["remote_revision"] = remote_line.split()[0] if remote_line else None
+                remote_ref = (
+                    f"refs/heads/{branch}" if branch and branch != "HEAD" else "HEAD"
+                )
+                remote_line = self._run_git(
+                    ["ls-remote", repo_url, remote_ref], timeout_s=25.0
+                )
+                status["remote_revision"] = (
+                    remote_line.split()[0] if remote_line else None
+                )
 
                 local_rev = str(status.get("local_revision") or "")
                 remote_rev = str(status.get("remote_revision") or "")
-                status["outdated"] = bool(local_rev and remote_rev and local_rev != remote_rev)
+                status["outdated"] = bool(
+                    local_rev and remote_rev and local_rev != remote_rev
+                )
             except Exception as exc:
                 status["error"] = str(exc)
 
@@ -246,14 +258,20 @@ class TopologySupervisor:
                 }
 
             current_branch = (branch_proc.stdout or "").strip()
-            if branch_proc.returncode != 0 or not current_branch or current_branch == "HEAD":
+            if (
+                branch_proc.returncode != 0
+                or not current_branch
+                or current_branch == "HEAD"
+            ):
                 # Detached HEAD or unable to determine a valid branch; refuse to
                 # perform an automatic update in this state.
                 return {
                     "ok": False,
                     "updated": False,
                     "reason": "unsupported_git_state_for_update",
-                    "details": [branch_proc.stderr.strip()] if branch_proc.stderr else [],
+                    "details": [branch_proc.stderr.strip()]
+                    if branch_proc.stderr
+                    else [],
                     "before": before,
                     "after": before,
                 }
@@ -261,14 +279,18 @@ class TopologySupervisor:
             updated = False
             restart_requested = False
             details: list[str] = []
-            repo_url = str(before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git")
+            repo_url = str(
+                before.get("repo_url") or "https://github.com/FelixAbeln/LabBREW.git"
+            )
 
             try:
                 self._run_git(["fetch", repo_url, current_branch], timeout_s=35.0)
                 details.append(f"fetched latest {current_branch} from GitHub")
                 refreshed = self.repo_update_status(force=True)
                 if refreshed.get("outdated"):
-                    self._run_git(["pull", "--ff-only", repo_url, current_branch], timeout_s=45.0)
+                    self._run_git(
+                        ["pull", "--ff-only", repo_url, current_branch], timeout_s=45.0
+                    )
                     details.append("fast-forward pull applied")
                     self._refresh_python_runtime(details)
                     updated = True
@@ -303,35 +325,58 @@ class TopologySupervisor:
             self._stopping = True
 
         signal.signal(signal.SIGINT, _handler)
-        if hasattr(signal, 'SIGTERM'):
+        if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, _handler)
 
     def dependencies_healthy(self, service: ServiceSpec) -> bool:
-        for dep_service_name in self.resolved.service_dependencies.get(service.name, set()):
+        for dep_service_name in self.resolved.service_dependencies.get(
+            service.name, set()
+        ):
             dep_state = self.services[dep_service_name]
             if dep_state.process is None:
-                self._log(service.name, f'dependency {dep_service_name} not started yet')
+                self._log(
+                    service.name, f"dependency {dep_service_name} not started yet"
+                )
                 return False
             if dep_state.process.poll() is not None:
-                self._log(service.name, f'dependency {dep_service_name} exited with code {dep_state.process.poll()}')
+                self._log(
+                    service.name,
+                    "dependency "
+                    f"{dep_service_name} exited with code {dep_state.process.poll()}",
+                )
                 return False
             dep_ok, dep_reason = self._service_health_details(dep_state.service)
             if not dep_ok:
-                self._log(service.name, f'dependency {dep_service_name} unhealthy: {dep_reason}')
+                self._log(
+                    service.name,
+                    f"dependency {dep_service_name} unhealthy: {dep_reason}",
+                )
                 return False
         return True
 
     def _service_health_details(self, service: ServiceSpec) -> tuple[bool, str]:
         if not service.provides:
-            return True, 'no provided capabilities to health-check'
+            return True, "no provided capabilities to health-check"
         failures: list[str] = []
         for provided in service.provides:
-            if provided.healthcheck_type == 'tcp':
-                ok, detail = tcp_probe(provided.bind_endpoint.host, provided.bind_endpoint.port, timeout=1.0)
+            if provided.healthcheck_type == "tcp":
+                ok, detail = tcp_probe(
+                    provided.bind_endpoint.host,
+                    provided.bind_endpoint.port,
+                    timeout=1.0,
+                )
                 if ok:
-                    return True, f'tcp probe ok for {provided.name} at {provided.bind_endpoint.host}:{provided.bind_endpoint.port}'
-                failures.append(f'tcp probe failed for {provided.name} at {provided.bind_endpoint.host}:{provided.bind_endpoint.port}: {detail}')
-        return False, '; '.join(failures) if failures else 'no supported health checks'
+                    return (
+                        True,
+                        f"tcp probe ok for {provided.name} at "
+                        f"{provided.bind_endpoint.host}:{provided.bind_endpoint.port}",
+                    )
+                failures.append(
+                    f"tcp probe failed for {provided.name} at "
+                    f"{provided.bind_endpoint.host}:{provided.bind_endpoint.port}: "
+                    f"{detail}"
+                )
+        return False, "; ".join(failures) if failures else "no supported health checks"
 
     def is_service_healthy(self, service: ServiceSpec) -> bool:
         ok, _ = self._service_health_details(service)
@@ -352,33 +397,37 @@ class TopologySupervisor:
                 continue
             binding = self.resolved.bindings[service_name]
             mapped[service_name] = {
-                'healthy': ok,
-                'reason': reason,
-                'base_url': f"http://{binding.endpoint.host}:{binding.endpoint.port}",
-                'docs': state.service.docs,
-                'provides': [provided.name for provided in state.service.provides],
-                'update': dict(update_info),
+                "healthy": ok,
+                "reason": reason,
+                "base_url": f"http://{binding.endpoint.host}:{binding.endpoint.port}",
+                "docs": state.service.docs,
+                "provides": [provided.name for provided in state.service.provides],
+                "update": dict(update_info),
             }
         return mapped
 
     def summary(self) -> dict[str, Any]:
         repo_status = self.repo_update_status(force=False)
         services = self.service_map()
-        schedule = services.get('schedule_service')
-        control = services.get('control_service')
-        data = services.get('data_service')
+        schedule = services.get("schedule_service")
+        control = services.get("control_service")
+        data = services.get("data_service")
         return {
-            'node_id': self.node_id,
-            'node_name': self.node_name,
-            'services': services,
-            'repo_update': repo_status,
-            'schedule_available': bool(schedule and schedule['healthy']),
-            'control_available': bool(control and control['healthy']),
-            'data_available': bool(data and data['healthy']),
+            "node_id": self.node_id,
+            "node_name": self.node_name,
+            "services": services,
+            "repo_update": repo_status,
+            "schedule_available": bool(schedule and schedule["healthy"]),
+            "control_available": bool(control and control["healthy"]),
+            "data_available": bool(data and data["healthy"]),
         }
 
     def _publish_node(self) -> None:
-        healthy_services = tuple(sorted(name for name, info in self.service_map().items() if info.get('healthy')))
+        healthy_services = tuple(
+            sorted(
+                name for name, info in self.service_map().items() if info.get("healthy")
+            )
+        )
         self.discovery.publish_node(healthy_services)
 
     def start_service(self, state: ManagedProcessState) -> None:
@@ -389,30 +438,35 @@ class TopologySupervisor:
             return
         args = self.renderer.render_args(service, self.resolved.bindings)
         state.last_start_attempt = time.time()
-        self._log(service.name, f'starting service with args: {args}')
+        self._log(service.name, f"starting service with args: {args}")
         self.runner.start(state, args)
         state.started_at = time.time()
 
         deadline = time.time() + service.startup_timeout_s
         while time.time() < deadline:
             if state.process is None:
-                self._log(service.name, 'process handle disappeared during startup')
+                self._log(service.name, "process handle disappeared during startup")
                 break
             exit_code = state.process.poll()
             if exit_code is not None:
-                self._log(service.name, f'process exited during startup with code {exit_code}')
+                self._log(
+                    service.name, f"process exited during startup with code {exit_code}"
+                )
                 break
             ok, reason = self._service_health_details(service)
             if ok:
                 state.healthy_once = True
-                self._log(service.name, f'startup health check passed: {reason}')
+                self._log(service.name, f"startup health check passed: {reason}")
                 self._publish_node()
                 return
-            self._log(service.name, f'waiting for healthy startup: {reason}')
+            self._log(service.name, f"waiting for healthy startup: {reason}")
             time.sleep(0.5)
 
         ok, reason = self._service_health_details(service)
-        self._log(service.name, f'startup failed; stopping service. Last health status: {reason}')
+        self._log(
+            service.name,
+            f"startup failed; stopping service. Last health status: {reason}",
+        )
         self.runner.stop(state, force=True)
         self._publish_node()
 
@@ -426,31 +480,42 @@ class TopologySupervisor:
             process = state.process
             if process is None:
                 now = time.time()
-                if state.last_start_attempt is None or now - state.last_start_attempt >= state.service.restart_backoff_s:
-                    self._log(name, 'service is not running; attempting start')
+                if (
+                    state.last_start_attempt is None
+                    or now - state.last_start_attempt >= state.service.restart_backoff_s
+                ):
+                    self._log(name, "service is not running; attempting start")
                     self.start_service(state)
                 continue
             exit_code = process.poll()
             if exit_code is not None:
                 state.restart_count += 1
-                self._log(name, f'process exited with code {exit_code}; scheduling restart #{state.restart_count}')
+                self._log(
+                    name,
+                    f"process exited with code {exit_code}; "
+                    f"scheduling restart #{state.restart_count}",
+                )
                 state.process = None
                 self._publish_node()
                 continue
             ok, reason = self._service_health_details(state.service)
             if not ok:
                 state.restart_count += 1
-                self._log(name, f'service became unhealthy: {reason}; terminating for restart #{state.restart_count}')
+                self._log(
+                    name,
+                    f"service became unhealthy: {reason}; "
+                    f"terminating for restart #{state.restart_count}",
+                )
                 self.runner.stop(state, force=False)
                 self._publish_node()
             else:
-                self._log(name, f'service healthy: {reason}')
+                self._log(name, f"service healthy: {reason}")
         self._publish_node()
 
     def stop_all(self) -> None:
         for name in reversed(self.start_order):
             state = self.services[name]
-            self._log(name, 'stopping service')
+            self._log(name, "stopping service")
             self.runner.stop(state, force=False)
         self.discovery.close()
         self.agent_api.stop()

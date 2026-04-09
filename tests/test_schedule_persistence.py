@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from Services.schedule_service.repository import InMemoryScheduleRepository
 from Services.schedule_service.runtime.core import ScheduleRuntime
@@ -197,7 +197,7 @@ def test_restore_started_monotonic_parses_iso_timestamp() -> None:
         state_store=FakeStateStore(),
     )
 
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     started_iso = now_utc.isoformat().replace("+00:00", "Z")
     restored = runtime._restore_started_monotonic(started_iso)
 

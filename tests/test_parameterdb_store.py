@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from Services.parameterDB.parameterdb_service.store import ParameterStore
 from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase
+from Services.parameterDB.parameterdb_service.store import ParameterStore
 
 
 class FakeBroker:
@@ -19,7 +19,7 @@ class FakeBroker:
 class FakeParameter(ParameterBase):
     parameter_type = "fake"
 
-    def scan(self, ctx) -> None:
+    def scan(self, _ctx) -> None:
         return None
 
 

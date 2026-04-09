@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .engine import ScanContext
+    from .store import ParameterStore
 
 
 @dataclass(slots=True)
@@ -16,22 +20,29 @@ class ParameterRecord:
 
 
 class ParameterBase(ABC):
-    parameter_type = 'base'
-    display_name = 'Base Parameter'
-    description = 'Base parameter'
+    parameter_type = "base"
+    display_name = "Base Parameter"
+    description = "Base parameter"
 
-    def __init__(self, name: str, *, config: dict[str, Any] | None = None, value: Any = None, metadata: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        *,
+        config: dict[str, Any] | None = None,
+        value: Any = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         self.name = name
         self.config = dict(config or {})
         self.value = value
         self.state: dict[str, Any] = {}
         self.metadata = dict(metadata or {})
 
-    def on_added(self, store: 'ParameterStore') -> None:
-        pass
+    def on_added(self, _store: ParameterStore) -> None:
+        return None
 
-    def on_removed(self, store: 'ParameterStore') -> None:
-        pass
+    def on_removed(self, _store: ParameterStore) -> None:
+        return None
 
     def set_value(self, value: Any) -> None:
         self.value = value
@@ -48,7 +59,7 @@ class ParameterBase(ABC):
         return []
 
     @abstractmethod
-    def scan(self, ctx: 'ScanContext') -> None:
+    def scan(self, ctx: ScanContext) -> None:
         raise NotImplementedError
 
     def update_config(self, **changes: Any) -> None:
@@ -66,12 +77,19 @@ class ParameterBase(ABC):
 
 
 class PluginSpec(ABC):
-    parameter_type = 'base'
-    display_name = 'Base Parameter'
-    description = 'Base plugin'
+    parameter_type = "base"
+    display_name = "Base Parameter"
+    description = "Base plugin"
 
     @abstractmethod
-    def create(self, name: str, *, config: dict[str, Any] | None = None, value: Any = None, metadata: dict[str, Any] | None = None) -> ParameterBase:
+    def create(
+        self,
+        name: str,
+        *,
+        config: dict[str, Any] | None = None,
+        value: Any = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ParameterBase:
         raise NotImplementedError
 
     def default_config(self) -> dict[str, Any]:

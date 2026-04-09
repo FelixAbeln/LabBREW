@@ -7,8 +7,8 @@ import pytest
 
 from Services.parameterDB.parameterdb_core.errors import ProtocolError
 from Services.parameterDB.parameterdb_core.protocol import (
-    PROTOCOL_VERSION,
     _LENGTH_STRUCT,
+    PROTOCOL_VERSION,
     _read_exact,
     decode_message_bytes,
     encode_message,

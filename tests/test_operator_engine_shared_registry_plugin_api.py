@@ -8,7 +8,10 @@ import pytest
 from Services._shared.operator_engine.models import OperatorMetadata
 from Services._shared.operator_engine.plugins.shared import as_float, loosely_equal
 from Services._shared.operator_engine.registry import OperatorRegistry
-from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase, PluginSpec
+from Services.parameterDB.parameterdb_service.plugin_api import (
+    ParameterBase,
+    PluginSpec,
+)
 
 
 @dataclass

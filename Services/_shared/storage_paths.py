@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import yaml
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_STORAGE_ROOT = _PROJECT_ROOT / "data"
 _STORAGE_ROOT_ENV = "LABBREW_STORAGE_ROOT"
@@ -65,3 +67,67 @@ def default_sources_dir() -> str:
 
 def default_measurements_dir() -> str:
     return storage_path_text("data/measurements")
+
+
+def load_topology_document() -> dict:
+    path = topology_path()
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_topology_document(document: dict) -> None:
+    path = topology_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(document, sort_keys=False, allow_unicode=False), encoding="utf-8"
+    )
+
+
+def configured_network_drives() -> list[dict[str, str]]:
+    document = load_topology_document()
+    storage = document.get("storage") or {}
+    drives = storage.get("network_drives") or []
+    results: list[dict[str, str]] = []
+    for item in drives:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        path = str(item.get("path") or "").strip()
+        if not name or not path:
+            continue
+        results.append({"name": name, "path": path})
+    return results
+
+
+def add_network_drive_to_topology(name: str, path_text: str) -> dict[str, str]:
+    name = str(name or "").strip()
+    path_text = str(path_text or "").strip()
+    if not name:
+        raise ValueError("Network drive name is required")
+    if not path_text:
+        raise ValueError("Network drive path is required")
+
+    document = load_topology_document()
+    storage = document.setdefault("storage", {})
+    if not isinstance(storage, dict):
+        raise ValueError("Topology key 'storage' must be a mapping")
+    drives = storage.setdefault("network_drives", [])
+    if not isinstance(drives, list):
+        raise ValueError("Topology key 'storage.network_drives' must be a list")
+
+    normalized = {"name": name, "path": path_text}
+    replaced = False
+    for idx, item in enumerate(drives):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("name") or "").strip() == name:
+            drives[idx] = normalized
+            replaced = True
+            break
+    if not replaced:
+        drives.append(normalized)
+
+    save_topology_document(document)
+    return normalized

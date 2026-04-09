@@ -1,17 +1,26 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
 from Services.parameterDB.parameterdb_core.errors import CommandError, ValidationError
 from Services.parameterDB.parameterdb_service.api import register_all_handlers
 from Services.parameterDB.parameterdb_service.api.dispatcher import CommandDispatcher
-from Services.parameterDB.parameterdb_service.api.handlers_general import _cmd_ping, register_general_handlers
-from Services.parameterDB.parameterdb_service.api.handlers_graph import register_graph_handlers
-from Services.parameterDB.parameterdb_service.api.handlers_parameters import register_parameter_handlers
-from Services.parameterDB.parameterdb_service.api.handlers_plugins import register_plugin_handlers
-from Services.parameterDB.parameterdb_service.api.handlers_streaming import register_streaming_handlers
+from Services.parameterDB.parameterdb_service.api.handlers_general import (
+    _cmd_ping,
+    register_general_handlers,
+)
+from Services.parameterDB.parameterdb_service.api.handlers_graph import (
+    register_graph_handlers,
+)
+from Services.parameterDB.parameterdb_service.api.handlers_parameters import (
+    register_parameter_handlers,
+)
+from Services.parameterDB.parameterdb_service.api.handlers_plugins import (
+    register_plugin_handlers,
+)
+from Services.parameterDB.parameterdb_service.api.handlers_streaming import (
+    register_streaming_handlers,
+)
 
 
 class StubServer:
@@ -69,7 +78,7 @@ class StubServer:
     def api_load_parameter_type_folder(self, payload):
         return {"handler": "load_parameter_type_folder", "payload": payload}
 
-    def api_subscribe(self, request_handler, *, req_id, payload):
+    def api_subscribe(self, _request_handler, *, req_id, payload):
         return {"handler": "subscribe", "req_id": req_id, "payload": payload}
 
 

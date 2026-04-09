@@ -4,7 +4,6 @@ from typing import Any
 
 from .utils import get_targets
 
-
 SAFE_RULE_OWNER = "safety"
 
 
@@ -52,7 +51,12 @@ def execute_action(backend, action: dict) -> dict:
 
     if action_type == "set":
         if "value" not in action:
-            return {"ok": False, "written": False, "reason": "missing value", "targets": targets}
+            return {
+                "ok": False,
+                "written": False,
+                "reason": "missing value",
+                "targets": targets,
+            }
 
         written = {}
         for target in targets:
@@ -66,4 +70,9 @@ def execute_action(backend, action: dict) -> dict:
             "value": action["value"],
         }
 
-    return {"ok": False, "written": False, "reason": f"unsupported action type: {action_type}", "targets": targets}
+    return {
+        "ok": False,
+        "written": False,
+        "reason": f"unsupported action type: {action_type}",
+        "targets": targets,
+    }

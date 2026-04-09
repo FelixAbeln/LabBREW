@@ -1,11 +1,12 @@
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
 import uvicorn
+from fastapi import FastAPI
 
 from .._shared.cli import parse_args
-from .api.routes_schedule import router as schedule_router, set_runtime
+from .api.routes_schedule import router as schedule_router
+from .api.routes_schedule import set_runtime
 from .control_client import ControlClient
 from .data_client import DataClient
 from .runtime import ScheduleRuntime

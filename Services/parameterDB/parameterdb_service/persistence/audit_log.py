@@ -14,7 +14,13 @@ class AuditLogger:
     Intended for connection/access/change logging, not high-volume scan data.
     """
 
-    def __init__(self, path: str | Path, *, enabled: bool = True, audit_external_writes: bool = False) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        enabled: bool = True,
+        audit_external_writes: bool = False,
+    ) -> None:
         self.path = Path(path)
         self.enabled = enabled
         self.audit_external_writes = audit_external_writes
@@ -32,8 +38,7 @@ class AuditLogger:
             **data,
         }
         line = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
-        with self._lock:
-            with self.path.open("a", encoding="utf-8") as f:
-                f.write(line + "\n")
-                f.flush()
-                os.fsync(f.fileno())
+        with self._lock, self.path.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+            f.flush()
+            os.fsync(f.fileno())

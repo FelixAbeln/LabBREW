@@ -1,4 +1,5 @@
 import sys
+
 from Services.schedule_service.service import main
 
 if __name__ == "__main__":

@@ -10,6 +10,6 @@ PLUGINS = [
             value_type="any",
             param_schema={},
         ),
-        fn=lambda value, params: True,
+        fn=lambda _value, _params: True,
     ),
 ]

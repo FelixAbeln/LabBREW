@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import zipfile
+from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -243,10 +244,96 @@ def test_recovery_sweep_archives_session_without_measurement_file(tmp_path: Path
     assert not loadsteps_file.exists()
     assert not run_log_file.exists()
     assert not schedule_file.exists()
+    assert list(tmp_path.glob("no-main.loadsteps.parquet.corrupt.*"))
 
     with zipfile.ZipFile(archive_path) as zf:
         assert sorted(zf.namelist()) == [
-            "no-main.loadsteps.parquet",
             "no-main.run.log",
             "no-main.schedule.json",
         ]
+
+
+def test_view_archive_parses_measurement_and_loadsteps_jsonl(tmp_path: Path) -> None:
+    runtime = _runtime(FakeBackend())
+    runtime.config = type("Config", (), {"output_dir": str(tmp_path)})()
+    archive_path = tmp_path / "session-a.archive.zip"
+
+    measurement_rows = "\n".join([
+        '{"timestamp": 1000.0, "datetime": "2026-04-09T12:00:00", "data": {"temp": 20.1, "ph": 5.2}}',
+        '{"timestamp": 1001.0, "datetime": "2026-04-09T12:00:01", "data": {"temp": 20.4, "ph": 5.3}}',
+        "",
+    ])
+    loadstep_rows = "\n".join([
+        '{"name": "ls1", "duration_seconds": 30, "timestamp": "2026-04-09T12:00:30", "average": {"temp": 20.25}}',
+        "",
+    ])
+
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("session-a.jsonl", measurement_rows)
+        zf.writestr("session-a.loadsteps.jsonl", loadstep_rows)
+
+    viewed = runtime.view_archive(archive_name="session-a.archive.zip", output_dir=str(tmp_path), max_points=2)
+
+    assert viewed["ok"] is True
+    assert viewed["archive"]["name"] == "session-a.archive.zip"
+    assert viewed["measurement"]["format"] == "jsonl"
+    assert viewed["measurement"]["sample_count"] == 2
+    assert viewed["measurement"]["parameters"] == ["ph", "temp"]
+    assert len(viewed["measurement"]["samples"]) == 2
+    assert viewed["loadsteps"]["count"] == 1
+    assert viewed["loadsteps"]["items"][0]["name"] == "ls1"
+
+
+def test_measure_stop_recovers_corrupt_parquet_to_jsonl_archive(tmp_path: Path) -> None:
+    class _BrokenParquetWriter:
+        sample_count = 1
+
+        def __init__(self, path: Path) -> None:
+            self.path = path
+
+        def finalize(self) -> str:
+            # Looks like parquet at the head but missing footer marker.
+            self.path.write_bytes(b"PAR1BROKEN")
+            return str(self.path)
+
+    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}, values={"temp": 21.5}))
+    setup = runtime.setup_measurement(
+        parameters=["temp"],
+        hz=2.0,
+        output_dir=str(tmp_path),
+        output_format="jsonl",
+        session_name="repair-session",
+    )
+    assert setup["ok"] is True
+    assert runtime.measure_start()["ok"] is True
+
+    runtime._record_sample()
+    runtime.config.output_format = "parquet"
+    runtime._measurement_data = deque(runtime._measurement_data, maxlen=10000)
+    runtime._file_writer = _BrokenParquetWriter(tmp_path / "repair-session.parquet")
+
+    stopped = runtime.measure_stop()
+    assert stopped["ok"] is True
+    assert stopped["archive_file"]
+
+    archive_path = Path(stopped["archive_file"])
+    with zipfile.ZipFile(archive_path) as zf:
+        names = sorted(zf.namelist())
+
+    assert "repair-session.jsonl" in names
+    assert any("Recovered measurement by writing JSONL fallback" in warning for warning in stopped["warnings"])
+    assert list(tmp_path.glob("repair-session.parquet.corrupt.*"))
+
+
+def test_recovery_sweep_quarantines_unrepairable_corrupt_parquet(tmp_path: Path) -> None:
+    runtime = _runtime(FakeBackend())
+    broken = tmp_path / "broken-session.parquet"
+    broken.write_bytes(b"PAR1BROKEN")
+
+    result = runtime._recover_unarchived_outputs(output_dir=str(tmp_path))
+
+    assert result["ok"] is True
+    assert result["recovered_archives"] == []
+    assert not (tmp_path / "broken-session.archive.zip").exists()
+    assert not broken.exists()
+    assert list(tmp_path.glob("broken-session.parquet.corrupt.*"))

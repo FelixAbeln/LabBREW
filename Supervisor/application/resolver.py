@@ -13,7 +13,9 @@ class ResolvedTopology:
 
 
 class CapabilityResolver:
-    def resolve(self, topology: Topology, default_advertise_host: str) -> ResolvedTopology:
+    def resolve(
+        self, topology: Topology, default_advertise_host: str
+    ) -> ResolvedTopology:
         bindings: dict[str, CapabilityBinding] = {}
         for external in topology.external_capabilities:
             bindings[external.name] = CapabilityBinding(
@@ -52,9 +54,13 @@ class CapabilityResolver:
                 binding = bindings.get(capability)
                 if binding is None:
                     raise ResolutionError(
-                        f"Capability '{capability}' required by '{service.name}' could not be resolved"
+                        f"Capability '{capability}' required by "
+                        f"'{service.name}' could not be resolved"
                     )
-                if binding.provider_service and binding.provider_service != service.name:
+                if (
+                    binding.provider_service
+                    and binding.provider_service != service.name
+                ):
                     deps.add(binding.provider_service)
             dependencies[service.name] = deps
 

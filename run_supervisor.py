@@ -1,6 +1,7 @@
 import sys
-from Supervisor.supervisor import main
+
 from Services._shared.storage_paths import topology_path
+from Supervisor.supervisor import main
 
 if __name__ == "__main__":
     sys.argv += ["--config", str(topology_path())]

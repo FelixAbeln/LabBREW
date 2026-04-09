@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import threading
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 import requests
@@ -29,7 +29,9 @@ class FermenterNode:
 
 
 class FermenterRegistry:
-    def __init__(self, browser: Any, timeout_s: float = 3.0, snapshot_cache_ttl_s: float = 0.5) -> None:
+    def __init__(
+        self, browser: Any, timeout_s: float = 3.0, snapshot_cache_ttl_s: float = 0.5
+    ) -> None:
         self._browser = browser
         self._timeout_s = timeout_s
         self._snapshot_cache_ttl_s = max(0.0, float(snapshot_cache_ttl_s))
@@ -37,8 +39,8 @@ class FermenterRegistry:
         self._snapshot_cache: tuple[float, list[FermenterNode]] | None = None
         self._session = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=32, max_retries=0)
-        self._session.mount('http://', adapter)
-        self._session.mount('https://', adapter)
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
 
     def _fetch_json(self, url: str) -> dict[str, Any]:
         response = self._session.get(url, timeout=self._timeout_s)
@@ -47,6 +49,10 @@ class FermenterRegistry:
         return data if isinstance(data, dict) else {"value": data}
 
     def _build_node(self, agent: DiscoveredAgent) -> FermenterNode:
+        summary_path = str(agent.summary_path or "")
+        if not summary_path.startswith("/"):
+            summary_path = f"/{summary_path}"
+
         node = FermenterNode(
             id=agent.node_id,
             name=agent.node_name,
@@ -54,17 +60,21 @@ class FermenterRegistry:
             host=agent.host,
             agent_base_url=agent.base_url,
             info_url=agent.info_url,
-            summary_url=f"{agent.base_url}{agent.summary_path if agent.summary_path.startswith('/') else '/' + agent.summary_path}",
+            summary_url=f"{agent.base_url}{summary_path}",
             services_hint=list(agent.services_hint),
             service_agents={name: agent.base_url for name in agent.services_hint},
         )
         try:
             info = self._fetch_json(agent.info_url)
-            node.services = info.get('services', {}) if isinstance(info.get('services', {}), dict) else {}
-            for service_name in node.services.keys():
+            node.services = (
+                info.get("services", {})
+                if isinstance(info.get("services", {}), dict)
+                else {}
+            )
+            for service_name in node.services:
                 node.service_agents[str(service_name)] = agent.base_url
-            node.name = info.get('node_name') or node.name
-            node.id = info.get('node_id') or node.id
+            node.name = info.get("node_name") or node.name
+            node.id = info.get("node_id") or node.id
         except Exception as exc:
             node.online = False
             node.last_error = str(exc)
@@ -93,19 +103,19 @@ class FermenterRegistry:
             return sorted(
                 online_nodes,
                 key=lambda node: (
-                    (node.name or '').lower(),
-                    (node.host or '').lower(),
-                    (node.address or '').lower(),
-                    (node.agent_base_url or '').lower(),
+                    (node.name or "").lower(),
+                    (node.host or "").lower(),
+                    (node.address or "").lower(),
+                    (node.agent_base_url or "").lower(),
                 ),
             )[0]
         return sorted(
             nodes,
             key=lambda node: (
-                (node.name or '').lower(),
-                (node.host or '').lower(),
-                (node.address or '').lower(),
-                (node.agent_base_url or '').lower(),
+                (node.name or "").lower(),
+                (node.host or "").lower(),
+                (node.address or "").lower(),
+                (node.agent_base_url or "").lower(),
             ),
         )[0]
 
@@ -135,7 +145,9 @@ class FermenterRegistry:
                     agent_base_url=primary.agent_base_url,
                     info_url=primary.info_url,
                     summary_url=primary.summary_url,
-                    services_hint=sorted({service for node in group for service in node.services_hint}),
+                    services_hint=sorted(
+                        {service for node in group for service in node.services_hint}
+                    ),
                     services={
                         str(service_name): service_info
                         for node in group
@@ -144,7 +156,9 @@ class FermenterRegistry:
                     service_agents={
                         str(service_name): base_url
                         for node in group
-                        for service_name, base_url in (node.service_agents or {}).items()
+                        for service_name, base_url in (
+                            node.service_agents or {}
+                        ).items()
                     },
                     summary={
                         str(key): value
@@ -157,7 +171,9 @@ class FermenterRegistry:
             )
             if not merged[-1].online:
                 errors = [node.last_error for node in group if node.last_error]
-                merged[-1].last_error = '; '.join(dict.fromkeys(errors)) if errors else None
+                merged[-1].last_error = (
+                    "; ".join(dict.fromkeys(errors)) if errors else None
+                )
         with self._snapshot_lock:
             self._snapshot_cache = (time.monotonic(), list(merged))
         return list(merged)
@@ -168,15 +184,18 @@ class FermenterRegistry:
                 return node
         return None
 
-    def get_node_for_service(self, node_id: str, service_name: str) -> FermenterNode | None:
+    def get_node_for_service(
+        self, node_id: str, service_name: str
+    ) -> FermenterNode | None:
         matching = [node for node in self.snapshot() if node.id == node_id]
         if not matching:
             return None
-        service_matching = [node for node in matching if self._supports_service(node, service_name)]
+        service_matching = [
+            node for node in matching if self._supports_service(node, service_name)
+        ]
         if service_matching:
             return self._pick_preferred_node(service_matching)
         return self._pick_preferred_node(matching)
-
 
     def close(self) -> None:
         with self._snapshot_lock:

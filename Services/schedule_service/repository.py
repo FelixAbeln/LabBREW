@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -10,8 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .models import ScheduleDefinition
 from .._shared.storage_paths import storage_path
+from .models import ScheduleDefinition
 
 _STALE_TMP_AGE_SECS: float = 60.0  # Only delete temp files older than this threshold
 
@@ -32,10 +31,7 @@ class InMemoryScheduleRepository:
 
 class JsonScheduleStateStore:
     def __init__(self, path: str | Path | None = None) -> None:
-        if path is None:
-            state_file = storage_path("schedule_state.json")
-        else:
-            state_file = Path(path)
+        state_file = storage_path("schedule_state.json") if path is None else Path(path)
         self.path = Path(state_file)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -46,7 +42,7 @@ class JsonScheduleStateStore:
         delay_s = 0.02
         for attempt in range(attempts):
             try:
-                os.replace(tmp_name, destination)
+                Path(tmp_name).replace(destination)
                 return
             except PermissionError:
                 if attempt >= attempts - 1:
@@ -65,7 +61,10 @@ class JsonScheduleStateStore:
         now = time.time()
         for tmp_path in self.path.parent.glob(pattern):
             try:
-                if tmp_path.is_file() and (now - tmp_path.stat().st_mtime) > _STALE_TMP_AGE_SECS:
+                if (
+                    tmp_path.is_file()
+                    and (now - tmp_path.stat().st_mtime) > _STALE_TMP_AGE_SECS
+                ):
                     tmp_path.unlink()
             except OSError:
                 # Non-fatal: keep startup/load resilient.
@@ -77,7 +76,7 @@ class JsonScheduleStateStore:
             if not self.path.exists():
                 return None
             try:
-                return json.loads(self.path.read_text(encoding='utf-8'))
+                return json.loads(self.path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 return None
 
@@ -96,7 +95,7 @@ class JsonScheduleStateStore:
                 dir=str(self.path.parent),
             )
             try:
-                with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
                     handle.write(data)
                     handle.flush()
                     os.fsync(handle.fileno())
@@ -106,13 +105,14 @@ class JsonScheduleStateStore:
                 except PermissionError:
                     # Fallback for Windows lock contention: overwrite in-place so
                     # schedule execution can continue even if atomic replace is blocked.
-                    with open(self.path, 'w', encoding='utf-8') as handle:
+                    with self.path.open("w", encoding="utf-8") as handle:
                         handle.write(data)
                         handle.flush()
                         os.fsync(handle.fileno())
                     try:
-                        if os.path.exists(tmp_name):
-                            os.unlink(tmp_name)
+                        tmp_path = Path(tmp_name)
+                        if tmp_path.exists():
+                            tmp_path.unlink()
                     except OSError:
                         pass
 
@@ -127,8 +127,9 @@ class JsonScheduleStateStore:
                     pass
             except Exception:
                 try:
-                    if os.path.exists(tmp_name):
-                        os.unlink(tmp_name)
+                    tmp_path = Path(tmp_name)
+                    if tmp_path.exists():
+                        tmp_path.unlink()
                 except OSError:
                     pass
                 raise

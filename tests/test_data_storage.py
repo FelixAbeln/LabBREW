@@ -1,15 +1,20 @@
 from __future__ import annotations
 
-import json
 import builtins
+import json
 import types
-from types import SimpleNamespace
 
 import pytest
 
-from Services.data_service.storage.loadstep import LoadstepAverager
 from Services.data_service.storage import writer as writer_module
-from Services.data_service.storage.writer import CSVWriter, FileWriter, FileWriterFactory, JSONLWriter, ParquetWriter
+from Services.data_service.storage.loadstep import LoadstepAverager
+from Services.data_service.storage.writer import (
+    CSVWriter,
+    FileWriter,
+    FileWriterFactory,
+    JSONLWriter,
+    ParquetWriter,
+)
 
 
 def test_loadstep_averager_ignores_missing_and_non_numeric_values() -> None:
@@ -109,6 +114,7 @@ def test_parquet_writer_handles_importerror_and_finalize(tmp_path) -> None:
 
 
 def test_parquet_writer_write_error_path(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _ = monkeypatch
     writer = ParquetWriter(str(tmp_path), "session", ["temp"])
     writer._sample_buffer = [{"timestamp": 1.0, "datetime": "t", "temp": 1.0}]
 
@@ -262,8 +268,12 @@ def test_parquet_writer_removes_existing_file_before_first_write(tmp_path, monke
     pyarrow_parquet_mod.ParquetWriter = lambda _path, _schema: _Writer()
     pyarrow_mod.parquet = pyarrow_parquet_mod
 
-    monkeypatch.setattr(writer_module.os.path, "exists", lambda _path: True)
-    monkeypatch.setattr(writer_module.os, "remove", lambda _path: removed.__setitem__("called", True))
+    monkeypatch.setattr(writer_module.Path, "exists", lambda _self: True)
+    monkeypatch.setattr(
+        writer_module.Path,
+        "unlink",
+        lambda _self: removed.__setitem__("called", True),
+    )
     monkeypatch.setitem(__import__("sys").modules, "pyarrow", pyarrow_mod)
     monkeypatch.setitem(__import__("sys").modules, "pyarrow.parquet", pyarrow_parquet_mod)
 
@@ -304,4 +314,6 @@ def test_parquet_writer_write_batch_exception_branch(tmp_path, monkeypatch: pyte
     monkeypatch.setitem(__import__("sys").modules, "pyarrow.parquet", pyarrow_parquet_mod)
 
     writer._write_batch()
-    assert writer._sample_buffer
+    assert writer._sample_buffer == []
+    assert writer._fallback_writer is not None
+    assert writer._fallback_writer.sample_count == 1

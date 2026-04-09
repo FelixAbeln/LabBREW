@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from Services.parameterDB.parameterdb_service.store import ParameterStore
 from Services.parameterDB.plugins.median.implementation import MedianPlugin
 from Services.parameterDB.plugins.static.implementation import StaticParameter
-from Services.parameterDB.parameterdb_service.store import ParameterStore
 
 
 def _ctx(store: ParameterStore, *, dt: float = 0.1):

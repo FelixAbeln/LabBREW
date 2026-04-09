@@ -1,4 +1,4 @@
-import { api } from '../../api/client.js';
+import { API_BASE, api } from '../../api/client.js';
 
 function base(fermenterId) {
   return `/fermenters/${encodeURIComponent(fermenterId)}/parameterdb`;
@@ -97,6 +97,29 @@ export async function unpinControlParameter(fermenterId, target) {
     method: 'POST',
     body: JSON.stringify({ target }),
   });
+}
+
+export async function listDatasourceFmuFiles(fermenterId) {
+  return api(`/fermenters/${encodeURIComponent(fermenterId)}/datasource-files/fmu`);
+}
+
+export async function uploadDatasourceFmuFile(fermenterId, file) {
+  const form = new FormData();
+  form.append('file', file);
+  return api(`/fermenters/${encodeURIComponent(fermenterId)}/datasource-files/fmu`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
+export async function deleteDatasourceFmuFile(fermenterId, filename) {
+  return api(`/fermenters/${encodeURIComponent(fermenterId)}/datasource-files/fmu/${encodeURIComponent(filename)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function datasourceFmuDownloadUrl(fermenterId, filename) {
+  return `${API_BASE}/fermenters/${encodeURIComponent(fermenterId)}/datasource-files/fmu/${encodeURIComponent(filename)}/download`;
 }
 
 // Parameter names can contain dots (e.g. twin.connected) – encode each segment

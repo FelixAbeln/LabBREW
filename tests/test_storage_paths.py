@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from Services._shared.storage_paths import (
+    add_network_drive_to_topology,
+    configured_network_drives,
     default_measurements_dir,
     default_parameterdb_audit_path,
     default_parameterdb_snapshot_path,
@@ -11,7 +13,9 @@ from Services._shared.storage_paths import (
     topology_path,
 )
 from Services.parameterDB import serviceDB as parameterdb_service
-from Services.parameterDB.parameterdb_service import service as parameterdb_legacy_service
+from Services.parameterDB.parameterdb_service import (
+    service as parameterdb_legacy_service,
+)
 
 
 def test_storage_defaults_without_override(monkeypatch) -> None:
@@ -44,6 +48,18 @@ def test_topology_path_explicit_override(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("LABBREW_STORAGE_ROOT", raising=False)
 
     assert topology_path() == topology_file.resolve()
+
+
+def test_add_network_drive_updates_topology(monkeypatch, tmp_path: Path) -> None:
+    topology_file = tmp_path / "topology" / "custom.yaml"
+    topology_file.parent.mkdir(parents=True, exist_ok=True)
+    topology_file.write_text("services: {}\n", encoding="utf-8")
+    monkeypatch.setenv("LABBREW_TOPOLOGY_PATH", str(topology_file))
+
+    added = add_network_drive_to_topology("shared", r"\\server\brewshare")
+
+    assert added == {"name": "shared", "path": r"\\server\brewshare"}
+    assert configured_network_drives() == [{"name": "shared", "path": r"\\server\brewshare"}]
 
 
 def test_parameterdb_build_service_signature_uses_call_time_defaults() -> None:

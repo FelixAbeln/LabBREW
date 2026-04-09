@@ -1,5 +1,6 @@
-from Services.data_service.service import main
 import sys
+
+from Services.data_service.service import main
 
 if __name__ == "__main__":
     sys.argv += ["--backend-host", "127.0.0.1"]

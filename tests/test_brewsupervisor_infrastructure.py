@@ -77,6 +77,7 @@ def test_http_service_proxy_json_text_and_raw_paths(monkeypatch) -> None:
 
 
 def test_fermenter_registry_fetch_build_snapshot_get_and_close(monkeypatch) -> None:
+    _ = monkeypatch
     browser = SimpleNamespace(snapshot=lambda: [])
     registry = FermenterRegistry(browser)
     fake_session = _FakeSession()
@@ -145,6 +146,7 @@ def test_fermenter_registry_fetch_build_snapshot_get_and_close(monkeypatch) -> N
 
 
 def test_fermenter_registry_merges_split_service_advertisements(monkeypatch) -> None:
+    _ = monkeypatch
     agent_control = discovery_module.DiscoveredAgent(
         service_name="svc-control",
         node_id="01",
@@ -192,6 +194,7 @@ def test_fermenter_registry_merges_split_service_advertisements(monkeypatch) -> 
 
 
 def test_fermenter_registry_prefers_online_agent_when_merging(monkeypatch) -> None:
+    _ = monkeypatch
     agent_offline = discovery_module.DiscoveredAgent(
         service_name="svc-offline",
         node_id="01",
@@ -234,6 +237,7 @@ def test_fermenter_registry_prefers_online_agent_when_merging(monkeypatch) -> No
 
 
 def test_fermenter_registry_all_offline_merges_errors(monkeypatch) -> None:
+    _ = monkeypatch
     agent_a = discovery_module.DiscoveredAgent(
         service_name="svc-a",
         node_id="01",
@@ -275,6 +279,7 @@ def test_fermenter_registry_all_offline_merges_errors(monkeypatch) -> None:
 
 
 def test_get_node_for_service_falls_back_when_service_unknown(monkeypatch) -> None:
+    _ = monkeypatch
     agent = discovery_module.DiscoveredAgent(
         service_name="svc",
         node_id="01",
@@ -301,6 +306,7 @@ def test_get_node_for_service_falls_back_when_service_unknown(monkeypatch) -> No
 
 
 def test_fermenter_registry_snapshot_cache_avoids_duplicate_fetches(monkeypatch) -> None:
+    _ = monkeypatch
     agent = discovery_module.DiscoveredAgent(
         service_name="svc",
         node_id="01",

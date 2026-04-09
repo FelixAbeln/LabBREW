@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import threading
 from typing import Any
 
-
 try:
-    from ...parameterDB.parameterdb_core.client import SignalSession, SupportsSignalRequests
+    from ...parameterDB.parameterdb_core.client import SignalSession
 except Exception:  # pragma: no cover
     SignalSession = None  # type: ignore
 
@@ -17,12 +17,18 @@ class SignalStoreBackend:
     no hidden controller remapping.
     """
 
-    def __init__(self, *, host: str = "127.0.0.1", port: int = 8765, timeout: float = 2.0) -> None:
+    def __init__(
+        self, *, host: str = "127.0.0.1", port: int = 8765, timeout: float = 2.0
+    ) -> None:
         self.host = host
         self.port = port
         self.timeout = timeout
         self._lock = threading.RLock()
-        self._client = SignalSession(host=host, port=port, timeout=timeout) if SignalSession is not None else None
+        self._client = (
+            SignalSession(host=host, port=port, timeout=timeout)
+            if SignalSession is not None
+            else None
+        )
 
     def connected(self) -> bool:
         try:
@@ -54,7 +60,8 @@ class SignalStoreBackend:
         config: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        try:
+        # Parameter may already exist or backend may be temporarily unavailable.
+        with contextlib.suppress(Exception):
             self._client.create_parameter(
                 name,
                 parameter_type,
@@ -62,9 +69,6 @@ class SignalStoreBackend:
                 config=config or {},
                 metadata=metadata or {},
             )
-        except Exception:
-            # Parameter already exists or service unavailable; keep it tolerant.
-            pass
 
     def get_value(self, name: str, default: Any = None) -> Any:
         if self._client is None:

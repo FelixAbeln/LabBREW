@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import contextlib
 import time
 
 import pytest
 
-from tests.integration_helpers import IntegrationApi, managed_test_parameters, skip_if_parameterdb_unreachable, skip_if_unreachable, utc_stamp, wait_until
-
+from tests.integration_helpers import (
+    IntegrationApi,
+    managed_test_parameters,
+    skip_if_parameterdb_unreachable,
+    skip_if_unreachable,
+    utc_stamp,
+    wait_until,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -14,14 +21,10 @@ CONTROL_BASE = "http://127.0.0.1:8767"
 
 
 def _hard_reset(schedule_api: IntegrationApi) -> None:
-    try:
+    with contextlib.suppress(Exception):
         schedule_api.post("/schedule/stop")
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         schedule_api.delete("/schedule")
-    except Exception:
-        pass
 
 
 @pytest.fixture

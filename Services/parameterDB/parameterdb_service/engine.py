@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timezone
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from .store import ParameterStore
@@ -24,15 +24,15 @@ class ScanEngine:
         period_s: float,
         store: ParameterStore | None = None,
         *,
-        mode: str = 'fixed',
+        mode: str = "fixed",
         target_utilization: float = 0.7,
         min_period_s: float = 0.002,
         max_period_s: float = 0.05,
     ) -> None:
         self.period_s = max(0.0, float(period_s))
-        self.mode = str(mode or 'fixed').strip().lower()
-        if self.mode not in {'fixed', 'adaptive'}:
-            self.mode = 'fixed'
+        self.mode = str(mode or "fixed").strip().lower()
+        if self.mode not in {"fixed", "adaptive"}:
+            self.mode = "fixed"
         self.target_utilization = min(0.95, max(0.05, float(target_utilization)))
         self.min_period_s = max(0.0, float(min_period_s))
         self.max_period_s = max(self.min_period_s, float(max_period_s))
@@ -55,8 +55,12 @@ class ScanEngine:
         self._write_target_map: dict[str, list[str]] = {}
 
     def _desired_period_s(self, elapsed_s: float) -> float:
-        if self.mode == 'adaptive':
-            adaptive_period = elapsed_s / self.target_utilization if self.target_utilization > 0 else elapsed_s
+        if self.mode == "adaptive":
+            adaptive_period = (
+                elapsed_s / self.target_utilization
+                if self.target_utilization > 0
+                else elapsed_s
+            )
             return max(self.min_period_s, min(self.max_period_s, adaptive_period))
         return max(self.min_period_s, self.period_s)
 
@@ -99,7 +103,8 @@ class ScanEngine:
             for target, source_names in sorted(writers.items()):
                 if len(source_names) > 1:
                     warnings.append(
-                        f"multiple writers for '{target}': {', '.join(sorted(source_names))}"
+                        f"multiple writers for '{target}': "
+                        f"{', '.join(sorted(source_names))}"
                     )
 
             q = deque(sorted([name for name, deg in indegree.items() if deg == 0]))
@@ -115,7 +120,8 @@ class ScanEngine:
             if len(ordered) != len(names):
                 cyclic = sorted(name for name, deg in indegree.items() if deg > 0)
                 warnings.append(
-                    "dependency cycle detected; falling back to stable order for: " + ", ".join(cyclic)
+                    "dependency cycle detected; falling back to stable order for: "
+                    + ", ".join(cyclic)
                 )
                 remaining = [p.name for p in params if p.name not in ordered]
                 ordered.extend(remaining)
@@ -138,7 +144,9 @@ class ScanEngine:
                 "store_revision": self._cached_store_revision,
                 "scan_order": list(self._scan_order),
                 "dependencies": {k: list(v) for k, v in self._dependency_map.items()},
-                "write_targets": {k: list(v) for k, v in self._write_target_map.items()},
+                "write_targets": {
+                    k: list(v) for k, v in self._write_target_map.items()
+                },
                 "warnings": list(self._graph_warnings),
             }
 
@@ -173,7 +181,9 @@ class ScanEngine:
             else:
                 param.state["last_error"] = ""
                 param.state["connected"] = True
-                param.state["last_sync"] = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
+                param.state["last_sync"] = datetime.fromtimestamp(
+                    now, tz=UTC
+                ).isoformat()
             self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
             self.store.publish_scan_state(param.name, dict(param.state))
 
@@ -184,7 +194,9 @@ class ScanEngine:
             if self._avg_scan_duration_s <= 0.0:
                 self._avg_scan_duration_s = duration
             else:
-                self._avg_scan_duration_s = (self._avg_scan_duration_s * 0.9) + (duration * 0.1)
+                self._avg_scan_duration_s = (self._avg_scan_duration_s * 0.9) + (
+                    duration * 0.1
+                )
 
     def _run_loop(self) -> None:
         last = time.perf_counter()
@@ -211,7 +223,9 @@ class ScanEngine:
             if self._running:
                 return
             self._running = True
-            self._thread = threading.Thread(target=self._run_loop, name="ParameterScanEngine", daemon=True)
+            self._thread = threading.Thread(
+                target=self._run_loop, name="ParameterScanEngine", daemon=True
+            )
             self._thread.start()
 
     def stop(self) -> None:
@@ -247,8 +261,12 @@ class ScanEngine:
             "avg_scan_duration_s": avg_scan_duration_s,
             "last_sleep_s": last_sleep_s,
             "last_effective_period_s": last_effective_period_s,
-            "estimated_cycle_rate_hz": (1.0 / last_effective_period_s) if last_effective_period_s > 0 else None,
-            "estimated_utilization": (avg_scan_duration_s / last_effective_period_s) if last_effective_period_s > 0 else None,
+            "estimated_cycle_rate_hz": (1.0 / last_effective_period_s)
+            if last_effective_period_s > 0
+            else None,
+            "estimated_utilization": (avg_scan_duration_s / last_effective_period_s)
+            if last_effective_period_s > 0
+            else None,
             "overrun_count": overrun_count,
             "parameter_count": len(self.store.list_names()),
             "store_revision": graph["store_revision"],

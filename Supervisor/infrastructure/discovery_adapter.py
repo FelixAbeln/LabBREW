@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,7 +22,7 @@ class NullAdvertiser:
     def start(self) -> bool:
         return False
 
-    def update_services(self, services: tuple[str, ...]) -> bool:
+    def update_services(self, _services: tuple[str, ...]) -> bool:
         return False
 
     def close(self) -> None:
@@ -31,7 +30,9 @@ class NullAdvertiser:
 
 
 class DiscoveryPublisher:
-    def __init__(self, *, node_id: str, node_name: str, port: int, api_path: str = "/agent/info") -> None:
+    def __init__(
+        self, *, node_id: str, node_name: str, port: int, api_path: str = "/agent/info"
+    ) -> None:
         self.node_id = node_id
         self.node_name = node_name
         self.port = port

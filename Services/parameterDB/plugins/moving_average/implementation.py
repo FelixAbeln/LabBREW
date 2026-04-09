@@ -8,7 +8,10 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 class MovingAverageParameter(ParameterBase):
     parameter_type = "moving_average"
     display_name = "Moving Average"
-    description = "Applies a rolling arithmetic mean to a source parameter. Output can also be mirrored to other parameters."
+    description = (
+        "Applies a rolling arithmetic mean to a source parameter. "
+        "Output can also be mirrored to other parameters."
+    )
 
     def __init__(
         self,
@@ -117,8 +120,12 @@ class MovingAveragePlugin(PluginSpec):
     display_name = "Moving Average"
     description = "Rolling mean filter"
 
-    def create(self, name: str, *, config=None, value=None, metadata=None) -> ParameterBase:
-        return MovingAverageParameter(name, config=config, value=value, metadata=metadata)
+    def create(
+        self, name: str, *, config=None, value=None, metadata=None
+    ) -> ParameterBase:
+        return MovingAverageParameter(
+            name, config=config, value=value, metadata=metadata
+        )
 
     def default_config(self) -> dict[str, Any]:
         return {

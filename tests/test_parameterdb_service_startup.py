@@ -90,18 +90,18 @@ def test_build_service_wires_components_and_restores_when_enabled(monkeypatch) -
 
     seen = {"autodiscover": None, "restore": None}
 
-    def _fake_autodiscover(root, registry):
+    def _fake_autodiscover(root, _registry):
         seen["autodiscover"] = root
         return ["fake_type"]
 
-    def _fake_restore(store, registry, path):
+    def _fake_restore(_store, _registry, path):
         seen["restore"] = path
         return 4
 
     monkeypatch.setattr(service_module, "autodiscover_plugins", _fake_autodiscover)
     monkeypatch.setattr(service_module, "load_snapshot_into_store", _fake_restore)
 
-    engine, server, registry, loaded, snapshots, restored_count, audit_logger = service_module.build_service(
+    engine, server, _registry, loaded, snapshots, restored_count, audit_logger = service_module.build_service(
         host="0.0.0.0",
         port=9876,
         period_s=0.2,
@@ -173,10 +173,10 @@ def test_main_boots_then_shutdowns_on_keyboard_interrupt(monkeypatch) -> None:
     monkeypatch.setattr(
         service_module,
         "build_service",
-        lambda *args, **kwargs: (fake_engine, fake_server, object(), ["pid", "static"], fake_snapshots, 3, fake_audit),
+        lambda *_args, **_kwargs: (fake_engine, fake_server, object(), ["pid", "static"], fake_snapshots, 3, fake_audit),
     )
 
-    def _fake_parse_args(self):
+    def _fake_parse_args(_self):
         return SimpleNamespace(
             host="127.0.0.1",
             port=8765,
@@ -201,7 +201,7 @@ def test_main_boots_then_shutdowns_on_keyboard_interrupt(monkeypatch) -> None:
     import time
 
     monkeypatch.setattr(argparse.ArgumentParser, "parse_args", _fake_parse_args)
-    monkeypatch.setattr(threading, "Thread", lambda *args, **kwargs: FakeThread(target=kwargs["target"], daemon=kwargs.get("daemon", False)))
+    monkeypatch.setattr(threading, "Thread", lambda *_args, **kwargs: FakeThread(target=kwargs["target"], daemon=kwargs.get("daemon", False)))
     monkeypatch.setattr(signal, "signal", lambda *_args, **_kwargs: None)
 
     sleep_calls = {"count": 0}
