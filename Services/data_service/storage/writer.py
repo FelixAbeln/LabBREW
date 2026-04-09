@@ -133,7 +133,15 @@ class ParquetWriter(FileWriter):
         try:
             existing_path = Path(self.filepath)
             if existing_path.exists():
-                existing_path.unlink()
+                partial_path = existing_path.with_suffix(
+                    f"{existing_path.suffix}.partial"
+                )
+                if partial_path.exists():
+                    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+                    partial_path = existing_path.with_suffix(
+                        f"{existing_path.suffix}.{timestamp}.partial"
+                    )
+                existing_path.replace(partial_path)
         except OSError:
             pass
 
@@ -206,7 +214,7 @@ class CSVWriter(FileWriter):
         """Write CSV header."""
         try:
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-            self.file_handle = os.fdopen(fd, "w", newline="")
+            self.file_handle = os.fdopen(fd, "w", encoding="utf-8", newline="")
             header = "timestamp,datetime," + ",".join(self.parameters) + "\n"
             self.file_handle.write(header)
             self.file_handle.flush()
@@ -265,7 +273,7 @@ class JSONLWriter(FileWriter):
         """Open the JSONL file for writing."""
         try:
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-            self.file_handle = os.fdopen(fd, "w")
+            self.file_handle = os.fdopen(fd, "w", encoding="utf-8")
         except Exception as e:
             print(f"Error opening JSONL file: {e}")
 

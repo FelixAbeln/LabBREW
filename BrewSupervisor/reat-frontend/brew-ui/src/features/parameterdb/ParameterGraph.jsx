@@ -72,7 +72,6 @@ export function ParameterGraph({ params, graph }) {
       setSelectedNodeId(null);
     }
   }, [initialNodes, selectedNodeId]);
-
   const selectedNode = useMemo(
     () => initialNodes.find((node) => node.id === activeSelectedNodeId)?.data ?? null,
     [activeSelectedNodeId, initialNodes],
