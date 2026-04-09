@@ -272,7 +272,9 @@ class JSONLWriter(FileWriter):
         return str(Path(self.output_dir) / f"{self.session_name}.jsonl")
 
     def _open_file(self) -> None:
-        """Open the JSONL file for writing."""
+            fd = os.open(
+                self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644
+            )
         try:
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
             self.file_handle = os.fdopen(fd, "w", encoding="utf-8")
