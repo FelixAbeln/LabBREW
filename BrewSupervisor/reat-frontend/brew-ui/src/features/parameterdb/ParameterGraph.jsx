@@ -67,6 +67,12 @@ export function ParameterGraph({ params, graph }) {
     [initialNodes, selectedNodeId],
   );
 
+  useEffect(() => {
+    if (selectedNodeId && !initialNodes.some((node) => node.id === selectedNodeId)) {
+      setSelectedNodeId(null);
+    }
+  }, [initialNodes, selectedNodeId]);
+
   const selectedNode = useMemo(
     () => initialNodes.find((node) => node.id === activeSelectedNodeId)?.data ?? null,
     [activeSelectedNodeId, initialNodes],
