@@ -1,5 +1,4 @@
-import { api } from '../../api/client';
-import { API_BASE } from '../../api/client';
+import { api, API_BASE } from '../../api/client';
 
 function base(fermenterId) {
   return `/fermenters/${encodeURIComponent(fermenterId)}/agents/storage`;
