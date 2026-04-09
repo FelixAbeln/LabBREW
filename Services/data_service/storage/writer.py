@@ -271,13 +271,10 @@ class JSONLWriter(FileWriter):
         return str(Path(self.output_dir) / f"{self.session_name}.jsonl")
 
     def _open_file(self) -> None:
+        try:
             fd = os.open(
                 self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644
             )
-            fd = os.open(
-                self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644
-            )
-            fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
             self.file_handle = os.fdopen(fd, "w", encoding="utf-8")
         except Exception as e:
             print(f"Error opening JSONL file: {e}")
