@@ -36,10 +36,10 @@ class HttpServiceProxy:
         }
         if data_body is not None:
             request_kwargs["data"] = data_body
-            if headers:
-                request_kwargs["headers"] = headers
         else:
             request_kwargs["json"] = json_body
+        if headers:
+            request_kwargs["headers"] = headers
 
         response = self._session.request(**request_kwargs)
         content_type = response.headers.get("content-type", "")
@@ -69,10 +69,10 @@ class HttpServiceProxy:
         }
         if data_body is not None:
             request_kwargs["data"] = data_body
-            if headers:
-                request_kwargs["headers"] = headers
         else:
             request_kwargs["json"] = json_body
+        if headers:
+            request_kwargs["headers"] = headers
 
         return self._session.request(**request_kwargs)
 

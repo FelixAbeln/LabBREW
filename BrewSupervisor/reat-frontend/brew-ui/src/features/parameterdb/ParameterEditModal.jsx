@@ -48,7 +48,7 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
 
     loadSchema();
     return () => { cancelled = true; };
-  }, [fermenterId, paramType, mode, record, recordName, recordType]);
+  }, [fermenterId, paramType, mode, recordName, recordType]);
 
   function handleFieldChange(field, rawValue) {
     setDraft((current) => {
