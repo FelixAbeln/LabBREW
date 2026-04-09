@@ -3,8 +3,32 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    class _MissingYamlModule:
+        class YAMLError(Exception):
+            pass
 
+        @staticmethod
+        def safe_load(_content: str) -> dict:
+            return {}
+
+        @staticmethod
+        def safe_dump(*_args, **_kwargs) -> str:
+            raise RuntimeError(
+                "PyYAML is required to save the topology document. "
+                "Install the 'PyYAML' package or add it to the service dependencies."
+            )
+
+        @staticmethod
+        def dump(*_args, **_kwargs) -> str:
+            raise RuntimeError(
+                "PyYAML is required to save the topology document. "
+                "Install the 'PyYAML' package or add it to the service dependencies."
+            )
+
+    yaml = _MissingYamlModule()
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_STORAGE_ROOT = _PROJECT_ROOT / "data"
 _STORAGE_ROOT_ENV = "LABBREW_STORAGE_ROOT"
