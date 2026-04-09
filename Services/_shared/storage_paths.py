@@ -99,7 +99,7 @@ def load_topology_document() -> dict:
         return {}
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
         return {}
     return data if isinstance(data, dict) else {}
 
