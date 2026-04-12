@@ -47,7 +47,7 @@ def main() -> None:
     print(
         "[INFO] LabBREW paths: "
         f"config_arg={Path(args.config).resolve(strict=False)} "
-        f"effective_topology={topology_path()} "
+        f"topology_path_default={topology_path()} "
         f"storage_root={storage_root()}"
     )
 
