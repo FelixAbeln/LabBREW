@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from Services._shared.storage_paths import storage_root, topology_path
+
 from .application.supervisor import TopologySupervisor
 from .infrastructure.config_loader import YamlTopologyLoader
 
@@ -40,6 +42,14 @@ def main() -> None:
     )
     parser.add_argument("--check-interval", type=float, default=2.0)
     args = parser.parse_args()
+
+    # Startup diagnostic for deployment troubleshooting.
+    print(
+        "[INFO] LabBREW paths: "
+        f"config_arg={Path(args.config).resolve(strict=False)} "
+        f"topology_path_default={topology_path()} "
+        f"storage_root={storage_root()}"
+    )
 
     topology = YamlTopologyLoader().load(args.config, agent_port=args.agent_port)
     supervisor = TopologySupervisor(

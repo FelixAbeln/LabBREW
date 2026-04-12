@@ -545,6 +545,7 @@ LOG_DIR='/var/log/labbrew'
 WRAPPER_DIR="$INSTALL_DIR/bin"
 WRAPPER_PATH="$WRAPPER_DIR/run_${SERVICE_NAME}.sh"
 CONFIG_PATH="$INSTALL_DIR/data/system_topology.yaml"
+STORAGE_ROOT_PATH="$INSTALL_DIR/data"
 OPTIONAL_PYTHON_PACKAGES=(
   bleak
   fmpy
@@ -676,6 +677,8 @@ write_environment_file() {
   mkdir -p "$ENV_DIR"
   {
     printf 'CONFIG_PATH=%q\n' "$CONFIG_PATH"
+    printf 'LABBREW_TOPOLOGY_PATH=%q\n' "$CONFIG_PATH"
+    printf 'LABBREW_STORAGE_ROOT=%q\n' "$STORAGE_ROOT_PATH"
     printf 'ROOT_DIR=%q\n' "$INSTALL_DIR"
     printf 'LOG_DIR=%q\n' "$LOG_DIR"
     printf 'NODE_ID=%q\n' "$NODE_ID"
@@ -696,7 +699,9 @@ write_wrapper_script() {
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$ENV_FILE"
+  set -a
+  source "$ENV_FILE"
+  set +a
 
 exec "$VENV_DIR/bin/labbrew-supervisor" \
   --config "\$CONFIG_PATH" \
