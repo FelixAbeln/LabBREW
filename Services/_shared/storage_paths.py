@@ -133,7 +133,13 @@ def topology_path() -> Path:
         return Path(raw).expanduser().resolve()
     config_raw = str(os.getenv(_CONFIG_PATH_ENV, "")).strip()
     if config_raw:
-        return Path(config_raw).expanduser().resolve(strict=False)
+        resolved_path = Path(config_raw).expanduser().resolve(strict=False)
+        raw_looks_like_dir = (
+            config_raw.endswith((os.sep, os.altsep)) if os.altsep else config_raw.endswith(os.sep)
+        )
+        if resolved_path.is_dir() or raw_looks_like_dir:
+            return resolved_path / "system_topology.yaml"
+        return resolved_path
     return storage_path("system_topology.yaml")
 
 
