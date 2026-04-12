@@ -80,14 +80,14 @@ Receives Brewtools CAN measurements and mirrors them into ParameterDB, with opti
 name: brewcan_01
 source_type: brewtools
 config:
-	parameter_prefix: brewcan
-	transport: pcan_gateway_udp
-	gateway_host: 192.168.0.30
-	gateway_tx_port: 55002
-	gateway_rx_port: 55001
-	gateway_bind_host: 0.0.0.0
-	recv_timeout_s: 0.1
-	reconnect_delay_s: 2.0
+  parameter_prefix: brewcan
+  transport: pcan_gateway_udp
+  gateway_host: 192.168.0.30
+  gateway_tx_port: 55002
+  gateway_rx_port: 55001
+  gateway_bind_host: 0.0.0.0
+  recv_timeout_s: 0.1
+  reconnect_delay_s: 2.0
 ```
 
 ## Tilt Notes

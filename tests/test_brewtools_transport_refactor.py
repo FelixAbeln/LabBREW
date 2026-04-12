@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import struct
+
+import pytest
+
 from Services.parameterDB.sourceDefs.brewtools.ui import get_ui_spec as get_brewtools_ui_spec
 from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsSourceSpec
+from Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway import (
+    TYPE_CLASSIC_CRC,
+    parse_gateway_packet,
+)
 
 
 def test_brewtools_ui_transport_choices_and_graph_dependencies() -> None:
@@ -79,3 +87,24 @@ def test_brewtools_default_config_exposes_both_transport_families() -> None:
     assert config["gateway_host"] == "192.168.0.30"
     assert config["gateway_tx_port"] == 55002
     assert config["gateway_rx_port"] == 55001
+
+
+def test_parse_gateway_packet_rejects_crc_frame_shorter_than_header_plus_crc() -> None:
+    packet = bytearray(31)
+    struct.pack_into(">H", packet, 0, 31)
+    struct.pack_into(">H", packet, 2, TYPE_CLASSIC_CRC)
+
+    with pytest.raises(ValueError, match="CRC gateway frame length"):
+        parse_gateway_packet(bytes(packet))
+
+
+def test_parse_gateway_packet_rejects_crc_frame_with_truncated_payload() -> None:
+    # length=32 includes 28-byte header + 4-byte CRC, so no payload bytes remain.
+    # With dlc=8 this must fail fast instead of slicing an empty/truncated payload.
+    packet = bytearray(32)
+    struct.pack_into(">H", packet, 0, 32)
+    struct.pack_into(">H", packet, 2, TYPE_CLASSIC_CRC)
+    packet[21] = 8
+
+    with pytest.raises(ValueError, match="payload overruns"):
+        parse_gateway_packet(bytes(packet))

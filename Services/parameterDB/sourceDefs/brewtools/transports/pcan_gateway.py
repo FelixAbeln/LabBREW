@@ -123,11 +123,12 @@ def parse_gateway_packet(packet: bytes) -> list[RawCanFrame]:
 
         payload_len = _payload_len_from_dlc(dlc, is_fd)
         payload_start = offset + 28
-        payload_end = payload_start + payload_len
-        if has_crc:
-            payload_end = min(payload_end, offset + length - 4)
+        payload_limit = offset + length - (4 if has_crc else 0)
+        if payload_limit < payload_start:
+            raise ValueError(f"invalid CRC gateway frame length {length} at offset {offset}")
 
-        if payload_end > offset + length:
+        payload_end = payload_start + payload_len
+        if payload_end > payload_limit:
             raise ValueError(f"payload overruns gateway frame at offset {offset}")
 
         frames.append(
