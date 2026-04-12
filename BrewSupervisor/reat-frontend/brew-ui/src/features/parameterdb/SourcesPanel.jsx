@@ -289,7 +289,7 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
             <div className="pdb-modal-body">
               <p>Delete source <code className="pdb-param-name">{deleteTarget}</code>?</p>
               <p style={{ color: '#94a3b8', fontSize: 13 }}>
-                Delete + Clean also removes parameters with metadata owner = {deleteTarget}.
+                Delete + Clean also removes parameters created by this data source (for example, matching owner = {deleteTarget} and created_by = "data_source"; source type may also apply). Manually created parameters are not removed just because the owner matches.
               </p>
               {error && <div className="pdb-save-error">{error}</div>}
             </div>
