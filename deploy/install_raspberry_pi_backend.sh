@@ -700,7 +700,7 @@ write_wrapper_script() {
 set -euo pipefail
 
   set -a
-source "$ENV_FILE"
+  source "$ENV_FILE"
   set +a
 
 exec "$VENV_DIR/bin/labbrew-supervisor" \
