@@ -29,7 +29,7 @@ Publishes the node's system clock into ParameterDB on every scan tick. Useful as
 |---|---|---|---|
 | `parameter_prefix` | yes | `system.time` | Namespace prefix for the generated parameter. The ISO timestamp parameter is named `<prefix>.iso`. |
 | `parameter_name` | no | *(derived)* | Optional override for the full parameter name. If absent, `<parameter_prefix>.iso` is used. |
-| `interval_s` | no | `1.0` | Publish interval in seconds. |
+| `update_interval_s` | no | `1.0` | Publish interval in seconds. |
 
 ### Example
 
@@ -37,8 +37,8 @@ Publishes the node's system clock into ParameterDB on every scan tick. Useful as
 name: system_clock
 source_type: system_time
 config:
-	parameter_prefix: system.time
-	interval_s: 1.0
+  parameter_prefix: system.time
+  update_interval_s: 1.0
 ```
 
 This creates one ParameterDB parameter named `system.time.iso` that updates every second with an ISO-8601 string.

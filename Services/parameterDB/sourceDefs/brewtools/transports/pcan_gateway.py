@@ -69,7 +69,20 @@ def _encode_can_word(frame: RawCanFrame) -> int:
 
 def build_gateway_frame(frame: RawCanFrame) -> bytes:
     msg_type = TYPE_FD if frame.is_fd else TYPE_CLASSIC
-    dlc = FD_LEN_TO_DLC[len(frame.data)] if frame.is_fd else len(frame.data)
+    payload_len = len(frame.data)
+    if frame.is_fd:
+        dlc = FD_LEN_TO_DLC.get(payload_len)
+        if dlc is None:
+            allowed = ", ".join(str(length) for length in sorted(FD_LEN_TO_DLC.keys()))
+            raise ValueError(
+                f"invalid CAN FD payload length {payload_len}; allowed lengths: {allowed}"
+            )
+    else:
+        if not 0 <= payload_len <= 8:
+            raise ValueError(
+                f"invalid classic CAN payload length {payload_len}; allowed range: 0..8"
+            )
+        dlc = payload_len
     flags = _encode_flags(frame)
     can_word = _encode_can_word(frame)
 

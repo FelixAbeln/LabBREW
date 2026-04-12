@@ -231,8 +231,8 @@ class SourceRunner:
     def _delete_owned_parameters(self, record: SourceRecord) -> int:
         removed = 0
         session = self.base_client.session()
-        session.connect()
         try:
+            session.connect()
             described = session.describe()
             if not isinstance(described, dict):
                 return 0
@@ -261,14 +261,14 @@ class SourceRunner:
             if record is None:
                 raise KeyError(f"Unknown source '{name}'")
             self._stop_instance_locked(name)
-            if delete_owned_parameters:
-                self._delete_owned_parameters(record)
             self.records.pop(name, None)
             try:
                 record.config_path.unlink(missing_ok=True)
             except TypeError:
                 if record.config_path.exists():
                     record.config_path.unlink()
+        if delete_owned_parameters:
+            self._delete_owned_parameters(record)
 
 
 def _builtin_source_root() -> str:
