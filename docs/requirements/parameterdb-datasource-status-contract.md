@@ -37,7 +37,7 @@ Each datasource must publish these status fields as `static` parameters under it
 | Source | connected | last_error | last_sync | Disconnect errors surfaced |
 |---|---:|---:|---:|---:|
 | `modbus_relay` | yes | yes | yes | yes |
-| `brewtools_kvaser` | yes | yes | yes | yes |
+| `brewtools` | yes | yes | yes | yes |
 | `labps3005dn` | yes | yes | yes | yes |
 | `digital_twin` | yes | yes | yes | n/a (no external socket close path) |
 | `system_time` | yes | yes | yes | n/a |

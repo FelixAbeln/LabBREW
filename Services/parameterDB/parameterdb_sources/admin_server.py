@@ -94,5 +94,14 @@ class SourceAdminTCPServer(socketserver.ThreadingTCPServer):
 
     def api_delete_source(self, payload: dict[str, Any]) -> bool:
         name = self._require_str(payload, "name")
-        self.runner.delete_source(name)
+        raw_flag = payload.get("delete_owned_parameters", False)
+        if isinstance(raw_flag, bool):
+            delete_owned_parameters = raw_flag
+        elif isinstance(raw_flag, int):
+            delete_owned_parameters = bool(raw_flag)
+        else:
+            raise ValueError("Invalid 'delete_owned_parameters'")
+        self.runner.delete_source(
+            name, delete_owned_parameters=delete_owned_parameters
+        )
         return True

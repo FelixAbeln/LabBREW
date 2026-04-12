@@ -154,6 +154,47 @@ def test_system_time_source_modes_error_path_and_defaults(monkeypatch) -> None:
 
     defaults = SystemTimeSourceSpec().default_config()
     assert defaults["parameter_name"] == "system.time.iso"
+    assert defaults["parameter_prefix"] == "system.time"
+
+
+def test_system_time_source_ui_has_parameter_prefix_field() -> None:
+    from Services.parameterDB.sourceDefs.system_time.ui import get_ui_spec
+
+    ui = get_ui_spec(mode="create")
+    create = ui["create"]
+    assert "config.parameter_prefix" in create["required"]
+    assert create["defaults"]["config"]["parameter_prefix"] == "system.time"
+
+
+def test_system_time_source_uses_prefix_when_parameter_name_missing() -> None:
+    from Services.parameterDB.sourceDefs.system_time.service import SystemTimeSourceSpec
+
+    class FakeClient:
+        def __init__(self):
+            self.created: list[str] = []
+
+        def create_parameter(self, name: str, *_args, **_kwargs):
+            self.created.append(name)
+            return None
+
+        def set_value(self, _name: str, _value):
+            return None
+
+    client = FakeClient()
+    source = SystemTimeSourceSpec().create(
+        "clock",
+        client,
+        config={
+            "parameter_prefix": "clock.main",
+            "parameter_name": "",
+            "update_interval_s": 1.0,
+            "mode": "iso",
+        },
+    )
+
+    source.ensure_parameters()
+
+    assert "clock.main.iso" in client.created
 
 
 def test_tilt_hydrometer_source_ui_has_color_dropdown() -> None:
@@ -182,8 +223,8 @@ def test_tilt_hydrometer_source_ui_has_color_dropdown() -> None:
 
 
 def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
-    from Services.parameterDB.sourceDefs.brewtools_kvaser.ui import (
-        get_ui_spec as get_kvaser_ui_spec,
+    from Services.parameterDB.sourceDefs.brewtools.ui import (
+        get_ui_spec as get_brewtools_ui_spec,
     )
     from Services.parameterDB.sourceDefs.digital_twin.ui import (
         get_ui_spec as get_twin_ui_spec,
@@ -201,13 +242,16 @@ def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
     psu_ui = get_psu_ui_spec(record={"name": "psu", "config": {"parameter_prefix": "psu"}}, mode="edit")
     assert psu_ui["graph"]["depends_on"] == ["psu.set_enable", "psu.set_voltage", "psu.set_current"]
 
-    kvaser_ui = get_kvaser_ui_spec(
+    brewtools_ui = get_brewtools_ui_spec(
         record={"name": "brewcan", "config": {"parameter_prefix": "brewcan", "agitator_nodes": [7, 3, 7]}},
         mode="edit",
     )
-    assert kvaser_ui["graph"]["depends_on"] == [
+    assert brewtools_ui["graph"]["depends_on"] == [
         "brewcan.agitator.3.set_pwm",
         "brewcan.agitator.7.set_pwm",
+        "brewcan.density.0.calibrate",
+        "brewcan.density.0.calibrate_sg",
+        "brewcan.pressure.0.calibrate",
     ]
 
     twin_ui = get_twin_ui_spec(

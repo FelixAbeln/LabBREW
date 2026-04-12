@@ -8,6 +8,8 @@ from Supervisor.infrastructure import agent_api
 
 
 class StubSignalClient:
+    deleted_source_calls: list[tuple[str, bool]] = []
+
     def __init__(self, host: str, port: int, timeout: float = 5.0) -> None:
         self.host = host
         self.port = port
@@ -75,7 +77,8 @@ class StubSignalClient:
     def update_source(self, _name, _config=None):
         return True
 
-    def delete_source(self, _name):
+    def delete_source(self, name, *, delete_owned_parameters=False):
+        StubSignalClient.deleted_source_calls.append((name, bool(delete_owned_parameters)))
         return True
 
 
@@ -255,6 +258,17 @@ def test_agent_bridge_data_route_proxies_to_data_service(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert proxy_session.calls[-1]["url"] == "http://10.0.0.20:8769/archives"
+
+
+def test_parameterdb_delete_source_accepts_cascade_query(monkeypatch) -> None:
+    StubSignalClient.deleted_source_calls = []
+    client = _build_client(monkeypatch)
+
+    response = client.delete("/parameterdb/sources/demo?delete_owned_parameters=true")
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert StubSignalClient.deleted_source_calls[-1] == ("demo", True)
 
 
 def test_agent_bridge_returns_404_when_service_unavailable(monkeypatch) -> None:

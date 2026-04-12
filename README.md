@@ -116,10 +116,12 @@ LabBREW is not just a controller or dashboard.
 ### 🔌 Built-in Data Source Support
 - `system_time` (system clock publishing)
 - `tilt_hydrometer` (Tilt Bridge HTTP and direct BLE, including Tilt Pro scaling)
-- `brewtools_kvaser` (Brewtools CAN via Kvaser)
+- `brewtools` (Brewtools CAN transport framework with two transport modes: direct Kvaser CANlib or PEAK/PCAN Ethernet Gateway via UDP)
 - `modbus_relay` (Modbus TCP relay boards)
 - `labps3005dn` (serial bench PSU integration)
 - `digital_twin` (FMU-based runtime twin)
+
+`brewtools` also includes operator-facing command outputs for agitator PWM, density calibration (including target SG), and pressure zeroing, and now publishes these command parameters in graph `depends_on` to keep dependency ordering consistent in the UI.
 
 → See [ParameterDB Source Definitions](./docs/implementation/parameterdb-source-definitions.md) for details and transport notes.
 
@@ -247,7 +249,9 @@ For a first Pi dry run, use Raspberry Pi OS Bookworm or newer so `python3` resol
 
 The GitHub update feature does not require the React frontend. On a command-line-only Pi you can call the local Supervisor Agent API directly, for example with `curl`, and let `systemd` restart the service after the update.
 
-If you use the `brewtools_kvaser` datasource, the remaining manual step is installing the vendor Kvaser Linux CANlib driver/userspace on the Pi. That part is not automated by this repository because it depends on vendor-distributed software outside the project.
+If you use the `brewtools` datasource with the `kvaser` transport, the remaining manual step is installing the vendor Kvaser Linux CANlib driver/userspace on the Pi. That part is not automated by this repository because it depends on vendor-distributed software outside the project.
+
+If you use `brewtools` with the `pcan_gateway_udp` transport (PEAK PCAN-Ethernet Gateway), no local Kvaser CANlib install is required on the node. Configure gateway host/ports in the datasource (`gateway_host`, `gateway_tx_port`, `gateway_rx_port`, optional `gateway_bind_host`) and ensure UDP reachability between the node and gateway.
 
 Follow this guide for the full Pi driver build/install workflow: [Kvaser CANlib Setup on Raspberry Pi (Leaf v3)](./docs/implementation/kvaser_pi_setup_updated.md).
 

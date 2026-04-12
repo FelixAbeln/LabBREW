@@ -543,8 +543,14 @@ def build_agent_app(
         return {"ok": True}
 
     @app.delete("/parameterdb/sources/{name}")
-    def delete_source(name: str) -> dict[str, Any]:
-        _wrap(lambda: _ds().delete_source(name))
+    def delete_source(
+        name: str, delete_owned_parameters: bool = Query(False)
+    ) -> dict[str, Any]:
+        _wrap(
+            lambda: _ds().delete_source(
+                name, delete_owned_parameters=delete_owned_parameters
+            )
+        )
         return {"ok": True}
 
     @app.get("/parameterdb/fmu-files")

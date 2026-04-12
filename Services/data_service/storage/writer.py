@@ -214,8 +214,8 @@ class CSVWriter(FileWriter):
 
     def _write_header(self) -> None:
         try:
-            fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            self.file_handle = os.fdopen(fd, "w", encoding="utf-8")
             header = "timestamp,datetime," + ",".join(self.parameters) + "\n"
             self.file_handle.write(header)
             self.file_handle.flush()

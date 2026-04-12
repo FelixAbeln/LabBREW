@@ -68,6 +68,7 @@ def test_base_client_command_wrappers_and_subscribe_factory() -> None:
     c.create_source("s", "type", config={"a": 1})
     c.update_source("s", config={"b": 2})
     c.delete_source("s")
+    c.delete_source("s", delete_owned_parameters=True)
     c.create_parameter("p", "static", value=1, config={"x": 1}, metadata={"m": 2})
     c.delete_parameter("p")
     c.get_value("p", default=3)
@@ -87,6 +88,11 @@ def test_base_client_command_wrappers_and_subscribe_factory() -> None:
     assert "get_source_type_ui" in commands
     assert "create_parameter" in commands
     assert "load_parameter_type_folder" in commands
+    delete_payloads = [payload for name, payload in c.calls if name == "delete_source"]
+    assert delete_payloads == [
+        {"name": "s", "delete_owned_parameters": False},
+        {"name": "s", "delete_owned_parameters": True},
+    ]
 
 
 def test_subscription_enter_iter_exit_and_error_paths(monkeypatch) -> None:

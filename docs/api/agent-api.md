@@ -197,6 +197,39 @@ Imports a previously exported snapshot payload.
 }
 ```
 
+### `GET /parameterdb/sources`
+
+Returns all configured datasource instances and their current status.
+
+### `POST /parameterdb/sources`
+
+Creates a new datasource instance.
+
+**Request body** — the source definition record (name, source_type, config, etc.)
+
+### `PUT /parameterdb/sources/{name}`
+
+Updates the configuration of an existing datasource. The source is stopped and restarted with the new config.
+
+### `DELETE /parameterdb/sources/{name}`
+
+Deletes a datasource instance and stops its runtime.
+
+**Query parameters**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `delete_owned_parameters` | bool | `false` | When `true`, also deletes all ParameterDB parameters whose metadata has `created_by = "data_source"` and `owner = <name>`. |
+
+**Response** `200 OK`
+```json
+{ "ok": true }
+```
+
+### `GET /parameterdb/source-types`
+
+Returns available source type names and their UI schema metadata.
+
 These endpoints are local to the node agent. The central BrewSupervisor UI reaches them through its `/fermenters/{id}/parameterdb/...` proxy routes.
 
 ---

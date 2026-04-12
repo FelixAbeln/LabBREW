@@ -14,7 +14,8 @@ from Services.parameterDB.parameterdb_sources import loader
 
 
 class FakeSession:
-    def __init__(self) -> None:
+    def __init__(self, owner) -> None:
+        self.owner = owner
         self.connected = False
         self.closed = False
 
@@ -24,13 +25,22 @@ class FakeSession:
     def close(self) -> None:
         self.closed = True
 
+    def describe(self):
+        return self.owner.describe_payload
+
+    def delete_parameter(self, name: str):
+        self.owner.deleted_parameters.append(name)
+        return True
+
 
 class FakeClient:
     def __init__(self) -> None:
         self.sessions: list[FakeSession] = []
+        self.describe_payload: dict[str, Any] = {}
+        self.deleted_parameters: list[str] = []
 
     def session(self) -> FakeSession:
-        session = FakeSession()
+        session = FakeSession(self)
         self.sessions.append(session)
         return session
 
@@ -330,6 +340,55 @@ def test_source_runner_delete_source_unlink_typeerror_fallback(tmp_path: Path, m
 
     assert fake_path.calls[0][1] == {"missing_ok": True}
     assert fake_path.calls[1] == ((), {})
+
+
+def test_source_runner_delete_source_can_remove_owned_parameters(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.create_source("alpha", "fake", config={"interval": 1})
+
+    fake_client = runner.base_client
+    fake_client.describe_payload = {
+        "alpha.keep": {
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            }
+        },
+        "alpha.no_source_type": {
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+            }
+        },
+        "alpha.other_type": {
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "other",
+            }
+        },
+        "beta.keep": {
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "beta",
+                "source_type": "fake",
+            }
+        },
+        "operator.manual": {
+            "metadata": {
+                "created_by": "manual",
+                "owner": "alpha",
+                "source_type": "fake",
+            }
+        },
+    }
+
+    runner.delete_source("alpha", delete_owned_parameters=True)
+
+    assert sorted(fake_client.deleted_parameters) == ["alpha.keep", "alpha.no_source_type"]
+    with pytest.raises(KeyError):
+        runner.get_source_record("alpha")
 
 
 def test_service_ds_main_wires_runner_admin_and_shutdown(monkeypatch, tmp_path: Path) -> None:

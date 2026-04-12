@@ -286,7 +286,18 @@ Updates an existing datasource configuration.
 
 ### `DELETE /fermenters/{fermenter_id}/parameterdb/sources/{name}`
 
-Deletes a datasource instance.
+Deletes a datasource instance. Optionally removes all parameters that the source created.
+
+**Query parameters**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `delete_owned_parameters` | bool | `false` | When `true`, deletes every ParameterDB parameter whose metadata has `created_by = "data_source"` and `owner = <name>`. |
+
+**Response** `200 OK`
+```json
+{ "ok": true }
+```
 
 ### `GET /fermenters/{fermenter_id}/parameterdb/snapshot-file`
 

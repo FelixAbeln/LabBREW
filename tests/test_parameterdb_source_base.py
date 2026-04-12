@@ -63,7 +63,7 @@ def test_ensure_parameter_repairs_existing_parameter_metadata_and_config() -> No
         metadata={
             "owner": "brewtools",
             "created_by": "data_source",
-            "source_type": "brewtools_kvaser",
+            "source_type": "brewtools",
             "role": "command",
             "widget_hint": "button",
         },
@@ -79,7 +79,7 @@ def test_ensure_parameter_repairs_existing_parameter_metadata_and_config() -> No
             {
                 "owner": "brewtools",
                 "created_by": "data_source",
-                "source_type": "brewtools_kvaser",
+                "source_type": "brewtools",
                 "role": "command",
                 "widget_hint": "button",
             },

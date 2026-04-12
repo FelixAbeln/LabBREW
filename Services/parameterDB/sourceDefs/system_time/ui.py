@@ -16,9 +16,10 @@ def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
         "display_name": "System Time",
         "description": "Publishes the runner machine time into one hold parameter.",
         "create": {
-            "required": ["name", "config.parameter_name"],
+            "required": ["name", "config.parameter_prefix"],
             "defaults": {
                 "config": {
+                    "parameter_prefix": "system.time",
                     "parameter_name": "system.time.iso",
                     "update_interval_s": 1.0,
                     "mode": "iso",
@@ -35,10 +36,16 @@ def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
                             "required": True,
                         },
                         {
-                            "key": "config.parameter_name",
-                            "label": "Parameter Name",
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
                             "type": "string",
                             "required": True,
+                        },
+                        {
+                            "key": "config.parameter_name",
+                            "label": "Timestamp Parameter Name (optional override)",
+                            "type": "string",
+                            "required": False,
                         },
                     ],
                 },
@@ -74,10 +81,16 @@ def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
                             "required": True,
                         },
                         {
-                            "key": "config.parameter_name",
-                            "label": "Parameter Name",
+                            "key": "config.parameter_prefix",
+                            "label": "Parameter Prefix",
                             "type": "string",
                             "required": True,
+                        },
+                        {
+                            "key": "config.parameter_name",
+                            "label": "Timestamp Parameter Name (optional override)",
+                            "type": "string",
+                            "required": False,
                         },
                     ],
                 },
