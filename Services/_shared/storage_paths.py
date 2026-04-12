@@ -58,8 +58,19 @@ def _storage_root_from_config_env() -> Path | None:
     if not raw:
         return None
     try:
-        return Path(raw).expanduser().resolve(strict=False).parent
-    except Exception:
+        config_path = Path(raw).expanduser()
+        resolved_path = config_path.resolve(strict=False)
+        raw_looks_like_dir = raw.endswith((os.sep, os.altsep)) if os.altsep else raw.endswith(os.sep)
+        if resolved_path.is_dir() or raw_looks_like_dir:
+            return resolved_path
+        return resolved_path.parent
+    except Exception as exc:
+        _LOG.warning(
+            "Ignoring invalid %s value %r while determining storage root: %s",
+            _CONFIG_PATH_ENV,
+            raw,
+            exc,
+        )
         return None
 
 
