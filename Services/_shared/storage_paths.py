@@ -68,7 +68,8 @@ def _is_site_packages_install() -> bool:
         module_path = str(Path(__file__).resolve()).lower().replace("\\", "/")
     except Exception:
         return False
-    return "site-packages" in module_path or "/.venv/" in module_path
+    install_markers = ("site-packages", "dist-packages", "/.venv/")
+    return any(marker in module_path for marker in install_markers)
 
 
 def _storage_root_from_cwd() -> Path | None:
