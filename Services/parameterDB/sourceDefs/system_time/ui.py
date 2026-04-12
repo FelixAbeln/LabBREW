@@ -14,7 +14,7 @@ def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
     return {
         "source_type": "system_time",
         "display_name": "System Time",
-        "description": "Publishes the runner machine time into one hold parameter.",
+        "description": "Publishes the runner machine time into a single hold parameter.",
         "create": {
             "required": ["name", "config.parameter_prefix"],
             "defaults": {
