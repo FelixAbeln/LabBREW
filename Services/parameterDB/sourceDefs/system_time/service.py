@@ -23,6 +23,16 @@ class SystemTimeSource(DataSourceBase):
         )
         return f"{prefix}.{key}"
 
+    def _time_param(self) -> str:
+        explicit = str(self.config.get("parameter_name") or "").strip()
+        if explicit:
+            return explicit
+        prefix = (
+            str(self.config.get("parameter_prefix", "system.time")).strip()
+            or "system.time"
+        )
+        return f"{prefix}.iso"
+
     def _set_status(self, key: str, value: Any) -> None:
         self.client.set_value(self._status_param(key), value)
 
@@ -31,7 +41,7 @@ class SystemTimeSource(DataSourceBase):
         self._set_status("last_error", str(message))
 
     def ensure_parameters(self) -> None:
-        param_name = self.config.get("parameter_name", "system.time.iso")
+        param_name = self._time_param()
         owned = self.build_owned_metadata(role="timestamp")
         self.ensure_parameter(
             param_name,
@@ -69,7 +79,7 @@ class SystemTimeSource(DataSourceBase):
 
     def run(self) -> None:
         interval = float(self.config.get("update_interval_s", 1.0))
-        param_name = self.config.get("parameter_name", "system.time.iso")
+        param_name = self._time_param()
         while not self.should_stop():
             try:
                 self.client.set_value(param_name, self._current_value())
@@ -98,6 +108,7 @@ class SystemTimeSourceSpec(DataSourceSpec):
 
     def default_config(self) -> dict[str, Any]:
         return {
+            "parameter_prefix": "system.time",
             "parameter_name": "system.time.iso",
             "update_interval_s": 1.0,
             "mode": "iso",

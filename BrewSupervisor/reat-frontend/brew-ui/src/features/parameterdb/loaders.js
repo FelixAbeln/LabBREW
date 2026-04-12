@@ -81,8 +81,13 @@ export async function updateSource(fermenterId, name, config) {
   });
 }
 
-export async function deleteSource(fermenterId, name) {
-  return api(`${base(fermenterId)}/sources/${encodeURIComponent(name)}`, { method: 'DELETE' });
+export async function deleteSource(fermenterId, name, options = {}) {
+  const query = new URLSearchParams();
+  if (options.deleteOwnedParameters) {
+    query.set('delete_owned_parameters', 'true');
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return api(`${base(fermenterId)}/sources/${encodeURIComponent(name)}${suffix}`, { method: 'DELETE' });
 }
 
 export async function pinControlParameter(fermenterId, payload) {

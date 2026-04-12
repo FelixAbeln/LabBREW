@@ -154,8 +154,12 @@ Explore and manage the parameter database.
 - **Create or edit** parameters using a dynamic form generated from the parameter's JSON schema
 - View **parameter metadata**: type, unit, default value, constraints, ownership
 - Switch to the **Graph view** to see an interactive node-and-edge diagram of how parameters relate to one another — zoom, pan, and click a node to open its detail panel
-- Manage **data sources** — the pluggable adapters that push values into ParameterDB (e.g. hardware drivers, OPC-UA, simulators)
+- Manage **data sources** — the pluggable adapters that push values into ParameterDB (e.g. hardware drivers, OPC-UA, simulators):
+  - **Delete** removes the source definition only; its parameters remain in ParameterDB
+  - **Delete + Clean** removes the source *and* all parameters it owns (confirmed via an in-app modal — no browser pop-up)
 - **Star** frequently used parameters so they appear at the top of the list (stored in browser `localStorage`)
+
+The Graph view populates the **Depends On** column automatically for supported source types. For example, `brewtools` sources emit dependency edges for agitator PWM outputs, density calibration, and pressure calibration commands so that graph ordering reflects the real hardware execution order required by operators.
 
 ---
 

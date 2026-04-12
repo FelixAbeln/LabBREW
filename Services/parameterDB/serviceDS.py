@@ -228,12 +228,42 @@ class SourceRunner:
             self.records[name] = updated
             self._start_instance_locked(updated)
 
-    def delete_source(self, name: str) -> None:
+    def _delete_owned_parameters(self, record: SourceRecord) -> int:
+        removed = 0
+        session = self.base_client.session()
+        try:
+            session.connect()
+            described = session.describe()
+            if not isinstance(described, dict):
+                return 0
+            for param_name, param_record in described.items():
+                if not isinstance(param_record, dict):
+                    continue
+                metadata = param_record.get("metadata")
+                if not isinstance(metadata, dict):
+                    continue
+                if str(metadata.get("created_by") or "") != "data_source":
+                    continue
+                if str(metadata.get("owner") or "") != record.name:
+                    continue
+                metadata_source_type = str(metadata.get("source_type") or "").strip()
+                if metadata_source_type and metadata_source_type != record.source_type:
+                    continue
+                session.delete_parameter(str(param_name))
+                removed += 1
+        finally:
+            session.close()
+        return removed
+
+    def delete_source(self, name: str, *, delete_owned_parameters: bool = False) -> None:
         with self._lock:
-            record = self.records.pop(name, None)
+            record = self.records.get(name)
             if record is None:
                 raise KeyError(f"Unknown source '{name}'")
             self._stop_instance_locked(name)
+            if delete_owned_parameters:
+                self._delete_owned_parameters(record)
+            self.records.pop(name, None)
             try:
                 record.config_path.unlink(missing_ok=True)
             except TypeError:

@@ -62,8 +62,8 @@ def test_source_admin_dispatch_and_api_commands() -> None:
         def update_source(self, name: str, *, config: dict):
             self.calls.append(("update", name, dict(config)))
 
-        def delete_source(self, name: str):
-            self.calls.append(("delete", name))
+        def delete_source(self, name: str, *, delete_owned_parameters: bool = False):
+            self.calls.append(("delete", name, delete_owned_parameters))
 
     runner = Runner()
     server = _server_with_runner(runner)
@@ -81,10 +81,12 @@ def test_source_admin_dispatch_and_api_commands() -> None:
     assert server.api_create_source({"name": "n1", "source_type": "fake", "config": {"x": 1}}) is True
     assert server.api_update_source({"name": "n1", "config": {"x": 2}}) is True
     assert server.api_delete_source({"name": "n1"}) is True
+    assert server.api_delete_source({"name": "n2", "delete_owned_parameters": True}) is True
     assert runner.calls == [
         ("create", "n1", "fake", {"x": 1}),
         ("update", "n1", {"x": 2}),
-        ("delete", "n1"),
+        ("delete", "n1", False),
+        ("delete", "n2", True),
     ]
 
     with pytest.raises(ValueError):
@@ -98,6 +100,9 @@ def test_source_admin_dispatch_and_api_commands() -> None:
 
     with pytest.raises(ValueError):
         server.api_update_source({"name": "n1", "config": "bad"})
+
+    with pytest.raises(ValueError):
+        server.api_delete_source({"name": "n1", "delete_owned_parameters": "yes"})
 
 
 def test_source_request_handler_writes_success_and_error_responses() -> None:

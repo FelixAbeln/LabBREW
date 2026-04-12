@@ -119,7 +119,7 @@ def load_source_folder(
 
     module_base = ".".join(path.parts[-4:])  # adjust if needed
     # For your example this should become:
-    # Services.parameterDB.sourceDefs.brewtools_kvaser
+    # Services.parameterDB.sourceDefs.brewtools
 
     service_module = importlib.import_module(f"{module_base}.service")
     ui_module = (

@@ -377,7 +377,7 @@ Unlike create/edit UI spec mapping, this reflects runtime-created parameters eve
   "datasources": [
     {
       "name": "brewtools_can_demo",
-      "source_type": "brewtools_kvaser",
+      "source_type": "brewtools",
       "running": true,
       "parameter_count": 24,
       "control_count": 2,

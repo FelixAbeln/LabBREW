@@ -223,8 +223,14 @@ class _BaseClient:
     def update_source(self, name: str, *, config: dict[str, Any] | None = None) -> bool:
         return self._request("update_source", {"name": name, "config": config or {}})
 
-    def delete_source(self, name: str) -> bool:
-        return self._request("delete_source", {"name": name})
+    def delete_source(self, name: str, *, delete_owned_parameters: bool = False) -> bool:
+        return self._request(
+            "delete_source",
+            {
+                "name": name,
+                "delete_owned_parameters": bool(delete_owned_parameters),
+            },
+        )
 
     def create_parameter(
         self,

@@ -213,13 +213,25 @@ class CSVWriter(FileWriter):
         return str(Path(self.output_dir) / f"{self.session_name}.csv")
 
     def _write_header(self) -> None:
+        fd: int | None = None
+        handle = None
         try:
-            fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
             fd = os.open(self.filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+            fd = None
             header = "timestamp,datetime," + ",".join(self.parameters) + "\n"
-            self.file_handle.write(header)
-            self.file_handle.flush()
+            handle.write(header)
+            handle.flush()
+            self.file_handle = handle
         except Exception as e:
+            try:
+                if handle is not None:
+                    handle.close()
+                elif fd is not None:
+                    os.close(fd)
+            except Exception:
+                pass
+            self.file_handle = None
             print(f"Error writing CSV header: {e}")
 
     def write_sample(self, sample: dict) -> None:

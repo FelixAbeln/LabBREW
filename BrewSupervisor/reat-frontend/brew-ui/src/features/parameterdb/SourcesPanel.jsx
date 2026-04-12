@@ -146,6 +146,7 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
   const [sourceTypes, setSourceTypes] = useState({});
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // null | {mode:'create'|'edit', record?:...}
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState('');
 
@@ -173,10 +174,11 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
     await reload();
   }
 
-  async function handleDelete(name) {
+  async function handleDelete(name, deleteOwnedParameters = false) {
     setDeleting(name);
     try {
-      await deleteSource(fermenterId, name);
+      await deleteSource(fermenterId, name, { deleteOwnedParameters });
+      setDeleteTarget(null);
       await reload();
     } catch (err) {
       setError(err?.message ?? 'Delete failed');
@@ -255,7 +257,7 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
                         onClick={() => setModal({ mode: 'edit', record: { name, ...rec, source_type: sourceType } })}>Edit</button>
                       <button className="pdb-btn-danger pdb-btn-sm"
                         disabled={deleting === name}
-                        onClick={() => handleDelete(name)}>
+                        onClick={() => { setDeleteTarget(name); setError(''); }}>
                         {deleting === name ? '…' : 'Delete'}
                       </button>
                     </td>
@@ -276,6 +278,34 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
           onSave={handleSave}
           onClose={() => setModal(null)}
         />
+      )}
+      {deleteTarget && (
+        <div className="pdb-modal-overlay">
+          <div className="pdb-modal pdb-modal-sm">
+            <div className="pdb-modal-header">
+              <span>Delete Source</span>
+              <button className="pdb-close-btn" onClick={() => setDeleteTarget(null)}>✕</button>
+            </div>
+            <div className="pdb-modal-body">
+              <p>Delete source <code className="pdb-param-name">{deleteTarget}</code>?</p>
+              <p style={{ color: '#94a3b8', fontSize: 13 }}>
+                Delete + Clean also removes parameters created by this data source (for example, matching owner = {deleteTarget} and created_by = "data_source"; source type may also apply). Manually created parameters are not removed just because the owner matches.
+              </p>
+              {error && <div className="pdb-save-error">{error}</div>}
+            </div>
+            <div className="pdb-modal-footer">
+              <button className="pdb-btn-danger" onClick={() => handleDelete(deleteTarget, false)} disabled={Boolean(deleting)}>
+                {deleting === deleteTarget ? 'Deleting…' : 'Delete'}
+              </button>
+              <button className="pdb-btn-danger" onClick={() => handleDelete(deleteTarget, true)} disabled={Boolean(deleting)}>
+                {deleting === deleteTarget ? 'Deleting…' : 'Delete + Clean'}
+              </button>
+              <button className="pdb-btn-secondary" onClick={() => setDeleteTarget(null)} disabled={Boolean(deleting)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

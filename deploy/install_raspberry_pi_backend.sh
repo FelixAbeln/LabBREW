@@ -656,6 +656,11 @@ sync_repository() {
 }
 
 install_python_runtime() {
+  if [[ -d "$VENV_DIR" ]]; then
+    log 'Removing existing Python virtual environment so dependencies are refreshed.'
+    rm -rf "$VENV_DIR"
+  fi
+
   log 'Creating Python virtual environment.'
   validate_python_version
   python3 -m venv "$VENV_DIR"
