@@ -21,6 +21,7 @@ from Services.parameterDB.parameterdb_service import (
 def test_storage_defaults_without_override(monkeypatch) -> None:
     monkeypatch.delenv("LABBREW_STORAGE_ROOT", raising=False)
     monkeypatch.delenv("LABBREW_TOPOLOGY_PATH", raising=False)
+    monkeypatch.delenv("CONFIG_PATH", raising=False)
 
     assert default_parameterdb_snapshot_path() == "./data/parameterdb_snapshot.json"
     assert default_parameterdb_audit_path() == "./data/parameterdb_audit.jsonl"
@@ -35,6 +36,7 @@ def test_storage_defaults_with_override(monkeypatch, tmp_path: Path) -> None:
     root = tmp_path / "usb_data"
     monkeypatch.setenv("LABBREW_STORAGE_ROOT", str(root))
     monkeypatch.delenv("LABBREW_TOPOLOGY_PATH", raising=False)
+    monkeypatch.delenv("CONFIG_PATH", raising=False)
 
     assert default_parameterdb_snapshot_path() == str((root / "parameterdb_snapshot.json").resolve())
     assert default_parameterdb_audit_path() == str((root / "parameterdb_audit.jsonl").resolve())
@@ -46,8 +48,22 @@ def test_topology_path_explicit_override(monkeypatch, tmp_path: Path) -> None:
     topology_file = tmp_path / "topology" / "custom.yaml"
     monkeypatch.setenv("LABBREW_TOPOLOGY_PATH", str(topology_file))
     monkeypatch.delenv("LABBREW_STORAGE_ROOT", raising=False)
+    monkeypatch.delenv("CONFIG_PATH", raising=False)
 
     assert topology_path() == topology_file.resolve()
+
+
+def test_storage_defaults_with_config_path_env(monkeypatch, tmp_path: Path) -> None:
+    config_path = tmp_path / "deploy" / "system_topology.yaml"
+    monkeypatch.delenv("LABBREW_STORAGE_ROOT", raising=False)
+    monkeypatch.delenv("LABBREW_TOPOLOGY_PATH", raising=False)
+    monkeypatch.setenv("CONFIG_PATH", str(config_path))
+
+    assert default_parameterdb_snapshot_path() == str((config_path.parent / "parameterdb_snapshot.json").resolve())
+    assert default_parameterdb_audit_path() == str((config_path.parent / "parameterdb_audit.jsonl").resolve())
+    assert default_sources_dir() == str((config_path.parent / "sources").resolve())
+    assert default_measurements_dir() == str((config_path.parent / "measurements").resolve())
+    assert topology_path() == config_path.resolve()
 
 
 def test_add_network_drive_updates_topology(monkeypatch, tmp_path: Path) -> None:

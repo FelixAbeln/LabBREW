@@ -43,6 +43,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_STORAGE_ROOT = _PROJECT_ROOT / "data"
 _STORAGE_ROOT_ENV = "LABBREW_STORAGE_ROOT"
 _TOPOLOGY_PATH_ENV = "LABBREW_TOPOLOGY_PATH"
+_CONFIG_PATH_ENV = "CONFIG_PATH"
 
 
 def _configured_storage_root() -> Path | None:
@@ -52,8 +53,58 @@ def _configured_storage_root() -> Path | None:
     return Path(raw).expanduser().resolve()
 
 
+def _storage_root_from_config_env() -> Path | None:
+    raw = str(os.getenv(_CONFIG_PATH_ENV, "")).strip()
+    if not raw:
+        return None
+    try:
+        return Path(raw).expanduser().resolve(strict=False).parent
+    except Exception:
+        return None
+
+
+def _is_site_packages_install() -> bool:
+    try:
+        module_path = str(Path(__file__).resolve()).lower().replace("\\", "/")
+    except Exception:
+        return False
+    return "site-packages" in module_path or "/.venv/" in module_path
+
+
+def _storage_root_from_cwd() -> Path | None:
+    # When installed into a venv, services often run with WorkingDirectory set to
+    # the deployment root (for example /opt/labbrew). Prefer that data dir so all
+    # services and the supervisor agree on one storage location.
+    try:
+        cwd = Path.cwd().resolve(strict=False)
+    except Exception:
+        return None
+
+    looks_like_labbrew_root = (
+        (cwd / "Services").exists()
+        and (cwd / "Supervisor").exists()
+        and (cwd / "data").exists()
+    )
+    if not looks_like_labbrew_root:
+        return None
+    return (cwd / "data").resolve(strict=False)
+
+
+def _default_storage_root() -> Path:
+    from_config = _storage_root_from_config_env()
+    if from_config is not None:
+        return from_config
+
+    if _is_site_packages_install():
+        from_cwd = _storage_root_from_cwd()
+        if from_cwd is not None:
+            return from_cwd
+
+    return _DEFAULT_STORAGE_ROOT
+
+
 def storage_root() -> Path:
-    return _configured_storage_root() or _DEFAULT_STORAGE_ROOT
+    return _configured_storage_root() or _default_storage_root()
 
 
 def storage_path(*parts: str) -> Path:
@@ -68,11 +119,14 @@ def topology_path() -> Path:
     raw = str(os.getenv(_TOPOLOGY_PATH_ENV, "")).strip()
     if raw:
         return Path(raw).expanduser().resolve()
+    config_raw = str(os.getenv(_CONFIG_PATH_ENV, "")).strip()
+    if config_raw:
+        return Path(config_raw).expanduser().resolve(strict=False)
     return storage_path("system_topology.yaml")
 
 
 def storage_path_text(default_relative_path: str) -> str:
-    root = _configured_storage_root()
+    root = _configured_storage_root() or _storage_root_from_config_env()
     if root is None:
         return default_relative_path
 
