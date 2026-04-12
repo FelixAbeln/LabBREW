@@ -164,6 +164,7 @@ def test_system_time_source_ui_has_parameter_prefix_field() -> None:
     create = ui["create"]
     assert "config.parameter_prefix" in create["required"]
     assert create["defaults"]["config"]["parameter_prefix"] == "system.time"
+    assert create["defaults"]["config"]["parameter_name"] == ""
 
 
 def test_system_time_source_uses_prefix_when_parameter_name_missing() -> None:

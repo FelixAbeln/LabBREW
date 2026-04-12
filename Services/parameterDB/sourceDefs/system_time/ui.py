@@ -20,7 +20,7 @@ def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
             "defaults": {
                 "config": {
                     "parameter_prefix": "system.time",
-                    "parameter_name": "system.time.iso",
+                    "parameter_name": "",
                     "update_interval_s": 1.0,
                     "mode": "iso",
                 }
