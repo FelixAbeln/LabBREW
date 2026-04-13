@@ -65,6 +65,10 @@ def test_source_admin_dispatch_and_api_commands() -> None:
         def delete_source(self, name: str, *, delete_owned_parameters: bool = False):
             self.calls.append(("delete", name, delete_owned_parameters))
 
+        def invoke_source_ui_action(self, source_type: str, action: str, *, payload: dict, name: str | None = None):
+            self.calls.append(("ui_action", source_type, action, dict(payload), name))
+            return {"ok": True, "source_type": source_type, "action": action, "payload": dict(payload), "name": name}
+
     runner = Runner()
     server = _server_with_runner(runner)
 
@@ -82,11 +86,24 @@ def test_source_admin_dispatch_and_api_commands() -> None:
     assert server.api_update_source({"name": "n1", "config": {"x": 2}}) is True
     assert server.api_delete_source({"name": "n1"}) is True
     assert server.api_delete_source({"name": "n2", "delete_owned_parameters": True}) is True
+    assert server.api_invoke_source_type_ui_action({
+        "source_type": "fake",
+        "action": "scan",
+        "payload": {"host": "127.0.0.1"},
+        "name": "n1",
+    }) == {
+        "ok": True,
+        "source_type": "fake",
+        "action": "scan",
+        "payload": {"host": "127.0.0.1"},
+        "name": "n1",
+    }
     assert runner.calls == [
         ("create", "n1", "fake", {"x": 1}),
         ("update", "n1", {"x": 2}),
         ("delete", "n1", False),
         ("delete", "n2", True),
+        ("ui_action", "fake", "scan", {"host": "127.0.0.1"}, "n1"),
     ]
 
     with pytest.raises(ValueError):
@@ -103,6 +120,9 @@ def test_source_admin_dispatch_and_api_commands() -> None:
 
     with pytest.raises(ValueError):
         server.api_delete_source({"name": "n1", "delete_owned_parameters": "yes"})
+
+    with pytest.raises(ValueError):
+        server.api_invoke_source_type_ui_action({"source_type": "fake", "action": "scan", "payload": "bad"})
 
 
 def test_source_request_handler_writes_success_and_error_responses() -> None:

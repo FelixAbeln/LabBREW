@@ -63,9 +63,15 @@ async def lifespan(app: FastAPI):
     registry_kwargs: dict[str, float] = {}
     try:
         params = inspect.signature(FermenterRegistry).parameters
+        if "timeout_s" in params:
+            registry_kwargs["timeout_s"] = _read_float_env("REGISTRY_TIMEOUT_S", 0.6)
         if "snapshot_cache_ttl_s" in params:
             registry_kwargs["snapshot_cache_ttl_s"] = _read_float_env(
                 "REGISTRY_CACHE_TTL_S", 0.5
+            )
+        if "stale_snapshot_grace_s" in params:
+            registry_kwargs["stale_snapshot_grace_s"] = _read_float_env(
+                "REGISTRY_STALE_GRACE_S", 20.0
             )
     except (TypeError, ValueError):
         # Some test doubles may not expose an inspectable signature.

@@ -9,6 +9,7 @@ from Supervisor.infrastructure import agent_api
 
 class StubSignalClient:
     deleted_source_calls: list[tuple[str, bool]] = []
+    ui_action_calls: list[tuple[str, str, dict, str | None]] = []
 
     def __init__(self, host: str, port: int, timeout: float = 5.0) -> None:
         self.host = host
@@ -80,6 +81,11 @@ class StubSignalClient:
     def delete_source(self, name, *, delete_owned_parameters=False):
         StubSignalClient.deleted_source_calls.append((name, bool(delete_owned_parameters)))
         return True
+
+    def invoke_source_type_ui_action(self, source_type, action, *, payload=None, name=None):
+        payload_dict = dict(payload or {})
+        StubSignalClient.ui_action_calls.append((source_type, action, payload_dict, name))
+        return {"ok": True, "source_type": source_type, "action": action, "payload": payload_dict, "name": name}
 
 
 class _FakeProxyResponse:
@@ -269,6 +275,28 @@ def test_parameterdb_delete_source_accepts_cascade_query(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert StubSignalClient.deleted_source_calls[-1] == ("demo", True)
+
+
+def test_parameterdb_source_type_module_action(monkeypatch) -> None:
+    StubSignalClient.ui_action_calls = []
+    client = _build_client(monkeypatch)
+
+    response = client.post(
+        "/parameterdb/source-types/modbus_relay/module-actions/scan",
+        json={"name": "relay", "payload": {"host": "127.0.0.1", "port": 502}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["result"]["source_type"] == "modbus_relay"
+    assert body["result"]["action"] == "scan"
+    assert StubSignalClient.ui_action_calls[-1] == (
+        "modbus_relay",
+        "scan",
+        {"host": "127.0.0.1", "port": 502},
+        "relay",
+    )
 
 
 def test_agent_bridge_returns_404_when_service_unavailable(monkeypatch) -> None:

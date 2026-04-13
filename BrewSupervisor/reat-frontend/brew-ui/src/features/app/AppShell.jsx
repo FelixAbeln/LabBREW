@@ -57,12 +57,6 @@ export function AppShell({
     };
   }, [sidebarHidden]);
 
-  useEffect(() => {
-    if (!error) {
-      setDismissedError('');
-    }
-  }, [error]);
-
   const visibleError = error && error !== dismissedError ? error : '';
 
   return (

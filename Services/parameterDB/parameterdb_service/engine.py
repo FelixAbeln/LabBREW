@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-UTC = timezone.utc
 from .store import ParameterStore
+
+UTC = timezone.utc
 
 
 @dataclass(slots=True)

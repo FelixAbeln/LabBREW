@@ -348,6 +348,36 @@ Detailed syntax reference:
 
 ---
 
+## Source Module Action Run Contract
+
+Source-type UI metadata returned by `get_source_type_ui` may include `module.menu.run` to define how module actions execute in the React UI.
+
+```json
+{
+  "module": {
+    "menu": {
+      "run": {
+        "mode": "auto",
+        "poll_interval_s": 3.0,
+        "cancel_inflight_on_cleanup": true
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `mode` | string | yes | `"auto"` starts action on mount, `"manual"` requires user button click |
+| `poll_interval_s` | number | no | Re-run delay in seconds for auto mode (`<= 0` disables polling) |
+| `cancel_inflight_on_cleanup` | boolean | no | Abort active frontend request when modal/loop is cleaned up (default `true`) |
+
+Notes:
+- Legacy `menu.auto_run` is not part of the active contract.
+- Action execution still uses the module-action endpoint via the agent/supervisor proxy (`/parameterdb/source-types/{source_type}/module-actions/{action}`).
+
+---
+
 ### `graph_info`
 
 **Payload:** _(empty)_  

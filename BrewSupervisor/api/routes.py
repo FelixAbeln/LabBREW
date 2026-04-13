@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated, Any
 
 import requests
@@ -327,7 +328,8 @@ def build_router() -> APIRouter:
             )
 
         forwarded = {k: v for k, v in body.items() if k != "agent_base_url"}
-        status_code, payload = _read_json_response(
+        status_code, payload = await asyncio.to_thread(
+            _read_json_response,
             proxy,
             method="POST",
             url=_build_agent_proxy_url(node, f"/agent/storage/{action}"),
@@ -509,7 +511,8 @@ def build_router() -> APIRouter:
                 for key, value in request.headers.items()
                 if key.lower() in {"content-type", "accept"}
             }
-        status_code, payload = _read_json_response(
+        status_code, payload = await asyncio.to_thread(
+            _read_json_response,
             proxy,
             method=request.method,
             url=_build_service_proxy_url(node, service_name, service_path),
@@ -534,7 +537,8 @@ def build_router() -> APIRouter:
                 for key, value in request.headers.items()
                 if key.lower() in {"content-type", "accept"}
             }
-        status_code, payload = _read_json_response(
+        status_code, payload = await asyncio.to_thread(
+            _read_json_response,
             proxy,
             method=request.method,
             url=_build_agent_proxy_url(node, f"/parameterdb/{agent_path.lstrip('/')}"),

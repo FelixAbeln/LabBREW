@@ -50,6 +50,11 @@ class CreateSourceBody(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class SourceTypeUiActionBody(BaseModel):
+    payload: dict[str, Any] = Field(default_factory=dict)
+    name: str | None = None
+
+
 class ImportSnapshotBody(BaseModel):
     snapshot: dict[str, Any]
     replace_existing: bool = True
@@ -136,7 +141,7 @@ def build_agent_app(
     db_host = "127.0.0.1"
     db_port = 8765
     ds_port = 8766
-    db_timeout = 5.0
+    db_timeout = 8.0
 
     def _db() -> SignalClient:
         return SignalClient(db_host, db_port, timeout=db_timeout)
@@ -523,6 +528,22 @@ def build_agent_app(
             "ok": True,
             "ui": _wrap(
                 lambda: _ds().get_source_type_ui(source_type, name=name, mode=mode)
+            ),
+        }
+
+    @app.post("/parameterdb/source-types/{source_type}/module-actions/{action}")
+    def invoke_source_type_ui_action(
+        source_type: str, action: str, body: SourceTypeUiActionBody
+    ) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "result": _wrap(
+                lambda: _ds().invoke_source_type_ui_action(
+                    source_type,
+                    action,
+                    payload=body.payload,
+                    name=body.name,
+                )
             ),
         }
 

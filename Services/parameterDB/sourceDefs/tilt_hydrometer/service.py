@@ -177,10 +177,15 @@ class TiltHydrometerSource(DataSourceBase):
         manufacturer_data: dict[int, bytes], wanted_uuid: str
     ) -> dict[str, Any] | None:
         blob = manufacturer_data.get(_APPLE_COMPANY_ID)
+        if not blob:
+            return None
+        # Some adapters include company ID bytes (0x4C00) in this blob.
+        if len(blob) >= 25 and blob[0] == 0x4C and blob[1] == 0x00:
+            blob = blob[2:]
         # bleak manufacturer_data bytes do not include the 2-byte company ID.
         # Standard iBeacon payload here is 23 bytes:
         # 0x02,0x15 + UUID(16) + major(2) + minor(2) + tx(1).
-        if not blob or len(blob) < 23:
+        if len(blob) < 23:
             return None
         # Apple iBeacon framing: 0x02 0x15 + UUID(16) + major(2) + minor(2) + tx(1)
         if blob[0] != 0x02 or blob[1] != 0x15:

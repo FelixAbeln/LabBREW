@@ -734,6 +734,110 @@
 .pdb-status-ok  { background: #10b981; }
 .pdb-status-off { background: #374151; }
 
+.pdb-source-module {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #28435e;
+  border-radius: 8px;
+  background: #111b28;
+}
+
+.pdb-source-module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.pdb-source-module-header h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pdb-source-module-header span {
+  color: #7b8ca1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.pdb-source-module-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin-bottom: 10px;
+}
+
+.pdb-source-module-controls .pdb-btn-primary {
+  min-width: 96px;
+}
+
+.pdb-source-module-results {
+  display: grid;
+  gap: 8px;
+}
+
+.pdb-source-module-card {
+  border: 1px solid #2d3e50;
+  border-radius: 7px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+  background: #172434;
+}
+
+.pdb-source-module-card strong {
+  display: block;
+  font-size: 13px;
+}
+
+.pdb-source-module-card span {
+  color: #93a7bc;
+  font-size: 12px;
+}
+
+.pdb-source-module-card.is-selected {
+  border-color: #1f8f4c;
+  background: #14271c;
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.25);
+}
+
+.pdb-source-module-card.is-selected strong {
+  color: #dcfce7;
+}
+
+.pdb-source-module-card.is-selected span {
+  color: #a7f3d0;
+}
+
+.pdb-type-badge-selected {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #bbf7d0;
+}
+
+.pdb-btn-ghost-selected {
+  color: #bbf7d0;
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(20, 39, 28, 0.6);
+}
+
+@media (max-width: 860px) {
+  .pdb-source-module-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .pdb-source-module-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pdb-source-module-header span {
+    text-align: left;
+  }
+}
+
 /* ── Graph ───────────────────────────────────────────────────────────────────── */
 .pdb-graph-container {
   display: flex;

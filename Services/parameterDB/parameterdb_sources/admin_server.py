@@ -72,6 +72,23 @@ class SourceAdminTCPServer(socketserver.ThreadingTCPServer):
             mode=str(payload.get("mode") or "").strip() or None,
         )
 
+    def api_invoke_source_type_ui_action(
+        self, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        source_type = self._require_str(payload, "source_type")
+        action = self._require_str(payload, "action")
+        raw_payload = payload.get("payload") or {}
+        if not isinstance(raw_payload, dict):
+            raise ValueError("Invalid 'payload'")
+        name = payload.get("name")
+        source_name = name.strip() if isinstance(name, str) and name.strip() else None
+        return self.runner.invoke_source_ui_action(
+            source_type,
+            action,
+            payload=raw_payload,
+            name=source_name,
+        )
+
     def api_list_sources(self, _payload: dict[str, Any]) -> dict[str, Any]:
         return self.runner.list_sources()
 

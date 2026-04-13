@@ -335,6 +335,89 @@ def test_fermenter_registry_snapshot_cache_avoids_duplicate_fetches(monkeypatch)
     assert len(fake_session.calls) == 2
 
 
+def test_fermenter_registry_uses_recent_non_empty_snapshot_when_discovery_flaps() -> None:
+    agents: list[discovery_module.DiscoveredAgent] = []
+
+    agent = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+
+    browser = SimpleNamespace(snapshot=lambda: list(agents))
+    registry = FermenterRegistry(
+        browser,
+        snapshot_cache_ttl_s=0.0,
+        stale_snapshot_grace_s=30.0,
+    )
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    agents.append(agent)
+    fake_session.queue(
+        _FakeResponse(payload={"services": {"control_service": {"healthy": True}}})
+    )
+    fake_session.queue(_FakeResponse(payload={"control_available": True}))
+
+    first = registry.snapshot()
+    assert len(first) == 1
+
+    agents.clear()
+    second = registry.snapshot()
+    assert len(second) == 1
+    assert second[0].id == "01"
+
+
+def test_fermenter_registry_deduplicates_agents_by_base_url_before_probe() -> None:
+    agent_a = discovery_module.DiscoveredAgent(
+        service_name="svc-a",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+    agent_b = discovery_module.DiscoveredAgent(
+        service_name="svc-b",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["schedule_service"],
+    )
+
+    browser = SimpleNamespace(snapshot=lambda: [agent_a, agent_b])
+    registry = FermenterRegistry(browser, snapshot_cache_ttl_s=0.0)
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    fake_session.queue(
+        _FakeResponse(payload={"services": {"control_service": {"healthy": True}}})
+    )
+    fake_session.queue(_FakeResponse(payload={"control_available": True}))
+
+    snapshot = registry.snapshot()
+
+    assert len(snapshot) == 1
+    # One unique base_url should trigger exactly info + summary probes once.
+    assert len(fake_session.calls) == 2
+
+
 def test_fermenter_registry_prefers_stable_order_when_multiple_online() -> None:
     browser = SimpleNamespace(snapshot=lambda: [])
     registry = FermenterRegistry(browser)
