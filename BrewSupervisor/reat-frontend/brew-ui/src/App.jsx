@@ -51,6 +51,8 @@ function App() {
   const [controlUiSpec, setControlUiSpec] = useState(null)
   const [controlUiLoading, setControlUiLoading] = useState(false)
   const [controlWriteTarget, setControlWriteTarget] = useState('')
+  const [controlWriteError, setControlWriteError] = useState(null)
+  const [pendingControlWrites, setPendingControlWrites] = useState({})
   const [controlDrafts, setControlDrafts] = useState({})
   const [dataActionLoading, setDataActionLoading] = useState(false)
   const [dataServiceStatus, setDataServiceStatus] = useState(null)
@@ -303,13 +305,16 @@ function App() {
         if (Number.isFinite(sgNumeric)) {
           try {
             setControlWriteTarget(target)
+            setControlWriteError(null)
             setError('')
             await api(`/fermenters/${selected.id}/control/manual-write`, {
               method: 'POST',
               body: JSON.stringify({ target: valueTarget, value: sgNumeric, reason: 'manual control ui' }),
             })
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error')
+            const message = err instanceof Error ? err.message : 'Unknown error'
+            setError(message)
+            setControlWriteError({ target, message })
             setControlWriteTarget('')
             return
           }
@@ -345,6 +350,7 @@ function App() {
 
     try {
       setControlWriteTarget(target)
+      setControlWriteError(null)
       setError('')
       const result = await api(`/fermenters/${selected.id}/control/manual-write`, {
         method: 'POST',
@@ -356,8 +362,27 @@ function App() {
       })
       if (result && !result.ok) {
         const reason = result.reason || (result.blocked ? `target owned by ${result.current_owner || 'another process'}` : 'write rejected')
-        setError(`Could not write ${control.label || target}: ${reason}`)
+        const message = `Could not write ${control.label || target}: ${reason}`
+        setError(message)
+        setControlWriteError({ target, message: reason })
         return
+      }
+      setControlWriteError(null)
+      if (!expectsPulse) {
+        const valueType = expectsBool ? 'bool' : (expectsNumber ? 'number' : 'raw')
+        const now = Date.now()
+        const observeAfter = now + 1000
+        const expiresAt = now + 30000
+        setPendingControlWrites((current) => ({
+          ...current,
+          [target]: {
+            expected: value,
+            valueType,
+            observeAfter,
+            expiresAt,
+            label: String(control.label || target),
+          },
+        }))
       }
       brewApi.invalidateFermenter(selected.id)
       await Promise.all([
@@ -365,7 +390,9 @@ function App() {
         loadDetails(selected.id),
       ])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
+      setControlWriteError({ target, message })
     } finally {
       setControlWriteTarget('')
     }
@@ -630,6 +657,32 @@ function App() {
     () => new Set(Object.keys(rulesSnapshot?.held_rules || {})),
     [rulesSnapshot],
   )
+
+  useEffect(() => {
+    setPendingControlWrites({})
+  }, [selected?.id])
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      const now = Date.now()
+      setPendingControlWrites((current) => {
+        const entries = Object.entries(current)
+        if (!entries.length) return current
+        const next = {}
+        let changed = false
+        for (const [target, pending] of entries) {
+          if (now < pending.expiresAt) {
+            next[target] = pending
+          } else {
+            changed = true
+          }
+        }
+        return changed ? next : current
+      })
+    }, 1000)
+
+    return () => window.clearInterval(timerId)
+  }, [])
 
   const loadFermenters = useCallback(async () => {
     const data = await loadFermentersData(brewApi)
@@ -951,6 +1004,8 @@ function App() {
     controlUiSpec,
     controlUiLoading,
     controlWriteTarget,
+    controlWriteError,
+    pendingControlWrites,
     controlDrafts,
     onDraftChange: updateControlDraft,
     onWrite: writeControlValue,

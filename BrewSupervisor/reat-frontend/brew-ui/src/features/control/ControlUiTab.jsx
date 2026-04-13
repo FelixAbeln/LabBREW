@@ -17,6 +17,34 @@ function hasDraft(drafts, target) {
   return Object.prototype.hasOwnProperty.call(drafts, target)
 }
 
+function toBoolean(value) {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true' || normalized === '1' || normalized === 'on') return true
+    if (normalized === 'false' || normalized === '0' || normalized === 'off' || normalized === '') return false
+  }
+  return Boolean(value)
+}
+
+function normalizeForCompare(value, valueType) {
+  if (valueType === 'bool') return toBoolean(value)
+  if (valueType === 'number') {
+    const numeric = Number(value)
+    return Number.isFinite(numeric) ? numeric : null
+  }
+  return value
+}
+
+function differsFromExpected(actual, expected, valueType) {
+  const left = normalizeForCompare(actual, valueType)
+  const right = normalizeForCompare(expected, valueType)
+  if (valueType === 'number') {
+    if (typeof left !== 'number' || typeof right !== 'number') return true
+    return Math.abs(left - right) >= 1e-9
+  }
+  return left !== right
+}
+
 function nodeFromTarget(target, kind) {
   if (!target) return null
   const match = String(target).match(new RegExp(`\\.${kind}\\.(\\d+)\\.`))
@@ -69,6 +97,8 @@ export function ControlUiTab({
   controlUiSpec,
   controlUiLoading,
   controlWriteTarget,
+  controlWriteError,
+  pendingControlWrites,
   controlDrafts,
   onDraftChange,
   onWrite,
@@ -203,7 +233,16 @@ export function ControlUiTab({
                         const isStackedLayout = widget === 'number_button' || widget === 'button' || writeKind === 'pulse' || widget === 'toggle' || writeKind === 'bool' || widget === 'number' || writeKind === 'number'
                         const draftExists = target && hasDraft(controlDrafts, target)
                         const draftValue = draftExists ? controlDrafts[target] : currentValue
+                        const toggleValue = toBoolean(currentValue)
                         const isWriting = controlWriteTarget === target
+                        const inlineWriteError = controlWriteError?.target === target ? controlWriteError.message : ''
+                        const pendingWrite = pendingControlWrites?.[target]
+                        const now = Date.now()
+                        const inlineOverwriteNotice = pendingWrite
+                          && now >= pendingWrite.observeAfter
+                          && differsFromExpected(currentValue, pendingWrite.expected, pendingWrite.valueType)
+                          ? `${pendingWrite.label} was overwritten by backend value ${formatCurrentValue(currentValue)}`
+                          : ''
 
                         // number_button companion field values (hoisted to avoid IIFE inside JSX)
                         const vtTarget = widget === 'number_button' ? String(control?.value_target || '').trim() : ''
@@ -252,15 +291,14 @@ export function ControlUiTab({
                                 </button>
                               ) : (widget === 'toggle' || writeKind === 'bool') ? (
                                 <button
-                                  className={`toggle-button ${draftValue ? 'is-resume' : 'is-pause'}`}
+                                  className={`toggle-button ${toggleValue ? 'is-resume' : 'is-pause'}`}
                                   disabled={!target || isWriting || controlUiLoading}
                                   onClick={() => {
-                                    const nextValue = !draftValue
-                                    onDraftChange(target, nextValue)
+                                    const nextValue = !toggleValue
                                     onWrite(control, nextValue)
                                   }}
                                 >
-                                  {isWriting ? 'Writing…' : (draftValue ? 'On' : 'Off')}
+                                  {isWriting ? 'Writing…' : (toggleValue ? 'On' : 'Off')}
                                 </button>
                               ) : widget === 'number' || writeKind === 'number' ? (
                                 <>
@@ -300,6 +338,8 @@ export function ControlUiTab({
                                   </button>
                                 </>
                               )}
+                              {inlineOverwriteNotice ? <div className="small-text control-inline-notice">{inlineOverwriteNotice}</div> : null}
+                              {inlineWriteError ? <div className="small-text warning">Write failed: {inlineWriteError}</div> : null}
                             </div>
                           </div>
                         )

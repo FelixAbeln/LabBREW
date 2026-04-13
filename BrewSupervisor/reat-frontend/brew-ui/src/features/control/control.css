@@ -82,6 +82,29 @@
   max-width: 100%;
 }
 
+.control-inline-notice {
+  width: 100%;
+  color: #f2cd61;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.control-inline-notice::before {
+  content: "!";
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+  color: #101010;
+  background: #f2cd61;
+}
+
 .control-item-inputs input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
