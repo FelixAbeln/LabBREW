@@ -338,7 +338,18 @@ export function ControlUiTab({
                                   </button>
                                 </>
                               )}
-                              {inlineOverwriteNotice ? <div className="small-text control-inline-notice">{inlineOverwriteNotice}</div> : null}
+                              {inlineOverwriteNotice ? (
+                                <div className="small-text control-inline-notice">
+                                  <span
+                                    className="control-inline-notice-icon"
+                                    title="Backend/state machine overrode manual write"
+                                    aria-label="Backend/state machine overrode manual write"
+                                  >
+                                    !
+                                  </span>
+                                  <span>{inlineOverwriteNotice}</span>
+                                </div>
+                              ) : null}
                               {inlineWriteError ? <div className="small-text warning">Write failed: {inlineWriteError}</div> : null}
                             </div>
                           </div>

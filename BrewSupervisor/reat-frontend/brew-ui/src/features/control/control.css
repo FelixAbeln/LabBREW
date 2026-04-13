@@ -90,8 +90,7 @@
   gap: 6px;
 }
 
-.control-inline-notice::before {
-  content: "!";
+.control-inline-notice-icon {
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -103,6 +102,7 @@
   line-height: 1;
   color: #101010;
   background: #f2cd61;
+  flex: 0 0 auto;
 }
 
 .control-item-inputs input[type="number"] {
