@@ -228,6 +228,38 @@ def test_registry_ui_provider_typeerror_fallback() -> None:
     assert registry.get_ui_spec("fake")["display_name"] == "fallback"
 
 
+def test_registry_ui_action_supports_legacy_positional_provider() -> None:
+    registry = loader.DataSourceRegistry()
+    spec = FakeSpec()
+
+    def legacy_provider(action_name: str, action_payload: dict[str, Any]) -> dict[str, Any]:
+        return {"action": action_name, "payload": action_payload, "ok": True}
+
+    registry.register(spec, ui_actions=legacy_provider)
+    result = registry.invoke_ui_action("fake", "scan", payload={"x": 1})
+
+    assert result["ok"] is True
+    assert result["action"] == "scan"
+    assert result["payload"] == {"x": 1}
+
+
+def test_registry_ui_action_typeerror_is_not_retried() -> None:
+    registry = loader.DataSourceRegistry()
+    spec = FakeSpec()
+    calls = {"count": 0}
+
+    def buggy_provider(*, action: str, payload: dict[str, Any], record: dict[str, Any] | None = None) -> dict[str, Any]:
+        calls["count"] += 1
+        raise TypeError("boom from provider")
+
+    registry.register(spec, ui_actions=buggy_provider)
+
+    with pytest.raises(TypeError, match="boom from provider"):
+        registry.invoke_ui_action("fake", "scan", payload={})
+
+    assert calls["count"] == 1
+
+
 def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     class UiWithFunction:
         @staticmethod

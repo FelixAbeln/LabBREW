@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from ..._shared import json_persistence as _json_persistence
 from ..._shared.json_persistence import atomic_write_text, cleanup_stale_tmp_files
 from ..._shared.postgres_persistence import (
     PostgresPersistenceConfig,
@@ -17,6 +17,9 @@ from ..._shared.postgres_persistence import (
     resolve_postgres_persistence_settings,
 )
 from ..._shared.repository_status import RepositoryStatusMixin
+
+# Backwards-compatible test hook for the shared atomic write helpers.
+os = _json_persistence.os
 
 DATASOURCE_PERSISTENCE_KIND_ENV = "LABBREW_PARAMETERDB_DATASOURCE_PERSISTENCE_KIND"
 DATASOURCE_POSTGRES_HOST_ENV = "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_HOST"

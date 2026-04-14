@@ -50,6 +50,29 @@ def test_save_rule_requires_id(tmp_path, monkeypatch) -> None:
         storage.save_rule({"enabled": True})
 
 
+def test_save_rule_returns_postgres_storage_reference() -> None:
+    class _FakeRepo:
+        def save_rule(self, rule: dict) -> str:
+            assert rule["id"] == "pg-rule"
+            return "postgres:control_rules:control_rules:pg-rule"
+
+        def load_rules(self):
+            return []
+
+        def delete_rule(self, _rule_id: str) -> bool:
+            return False
+
+        def stats(self) -> dict:
+            return {"backend": "postgres"}
+
+    storage.set_rule_repository(_FakeRepo())
+    saved_ref = storage.save_rule({"id": "pg-rule", "enabled": True})
+    storage.set_rule_repository(None)
+
+    assert isinstance(saved_ref, str)
+    assert saved_ref.startswith("postgres:")
+
+
 def test_load_rules_skips_invalid_json_and_cleans_stale_tmp(tmp_path, monkeypatch, capsys) -> None:
     storage.set_rule_repository(None)
     rules_dir = tmp_path / "Rules"

@@ -40,9 +40,13 @@ def load_rules() -> list[dict]:
     return _get_rule_repository().load_rules()
 
 
-def save_rule(rule: dict) -> Path:
+def save_rule(rule: dict) -> Path | str:
     storage_ref = _get_rule_repository().save_rule(rule)
-    return Path(storage_ref) if not str(storage_ref).startswith("postgres:") else Path(RULE_DIR) / f"{rule['id']}.json"
+    return (
+        storage_ref
+        if str(storage_ref).startswith("postgres:")
+        else Path(storage_ref)
+    )
 
 
 def delete_rule(rule_id: str) -> bool:

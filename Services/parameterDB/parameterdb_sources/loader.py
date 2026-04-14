@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,84 @@ from .base import DataSourceSpec
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _call_ui_spec_provider(provider: Any, *, record: dict[str, Any] | None, mode: str | None) -> Any:
+    try:
+        signature = inspect.signature(provider)
+    except (TypeError, ValueError):
+        return provider(record=record, mode=mode)
+
+    params = signature.parameters
+    accepts_var_kwargs = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
+    )
+    kwargs: dict[str, Any] = {}
+
+    if accepts_var_kwargs or "record" in params:
+        kwargs["record"] = record
+    elif "_record" in params:
+        kwargs["_record"] = record
+
+    if accepts_var_kwargs or "mode" in params:
+        kwargs["mode"] = mode
+    elif "_mode" in params:
+        kwargs["_mode"] = mode
+
+    if kwargs or accepts_var_kwargs:
+        return provider(**kwargs)
+    return provider()
+
+
+def _call_ui_action_provider(
+    provider: Any,
+    *,
+    action_name: str,
+    action_payload: dict[str, Any],
+    record: dict[str, Any] | None,
+) -> Any:
+    try:
+        signature = inspect.signature(provider)
+    except (TypeError, ValueError):
+        return provider(action=action_name, payload=action_payload, record=record)
+
+    params = signature.parameters
+    accepts_var_kwargs = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
+    )
+    kwargs: dict[str, Any] = {}
+
+    if accepts_var_kwargs or "action" in params:
+        kwargs["action"] = action_name
+    elif "action_name" in params:
+        kwargs["action_name"] = action_name
+
+    if accepts_var_kwargs or "payload" in params:
+        kwargs["payload"] = action_payload
+    elif "action_payload" in params:
+        kwargs["action_payload"] = action_payload
+
+    if accepts_var_kwargs or "record" in params:
+        kwargs["record"] = record
+    elif "_record" in params:
+        kwargs["_record"] = record
+
+    if kwargs or accepts_var_kwargs:
+        return provider(**kwargs)
+
+    positional = [
+        param
+        for param in params.values()
+        if param.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    if len(positional) >= 3:
+        return provider(action_name, action_payload, record)
+    if len(positional) >= 2:
+        return provider(action_name, action_payload)
+    if len(positional) >= 1:
+        return provider(action_name)
+    return provider()
 
 
 @dataclass(slots=True)
@@ -58,10 +137,7 @@ class DataSourceRegistry:
         except KeyError as exc:
             raise KeyError(f"Unknown data source type '{source_type}'") from exc
         if callable(provider):
-            try:
-                value = provider(record=record, mode=mode)
-            except TypeError:
-                value = provider()
+            value = _call_ui_spec_provider(provider, record=record, mode=mode)
         else:
             value = provider
         if not isinstance(value, dict):
@@ -110,10 +186,12 @@ class DataSourceRegistry:
         if not action_name:
             raise ValueError("Action must be a non-empty string")
         action_payload = dict(payload or {})
-        try:
-            result = provider(action=action_name, payload=action_payload, record=record)
-        except TypeError:
-            result = provider(action_name, action_payload)
+        result = _call_ui_action_provider(
+            provider,
+            action_name=action_name,
+            action_payload=action_payload,
+            record=record,
+        )
         if not isinstance(result, dict):
             raise TypeError(
                 f"UI action provider for '{source_type}' must return a dict"
