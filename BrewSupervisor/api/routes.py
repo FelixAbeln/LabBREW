@@ -380,7 +380,9 @@ def build_router() -> APIRouter:
         layout = _normalize_workspace_layout_payload(body)
         layout["fermenter_name"] = str(getattr(node, "name", "") or fermenter_id)
 
-        _update_workspace_layout_store(fermenter_id, layout)
+        await asyncio.to_thread(
+            _update_workspace_layout_store, fermenter_id, layout
+        )
 
         return {
             "ok": True,
