@@ -263,6 +263,46 @@ def _get_control_spec(record: dict | None = None) -> dict:
         ]
     )
 
+    card_sections: list[dict[str, Any]] = []
+    seen_node_ids: list[int] = []
+    for node_id in nodes + density_nodes + pressure_nodes:
+        if node_id not in seen_node_ids:
+            seen_node_ids.append(node_id)
+    for node_id in seen_node_ids:
+        items: list[dict[str, Any]] = []
+        if node_id in nodes:
+            items.append(
+                {
+                    "kind": "control",
+                    "control_id": f"agitator_pwm_{node_id}",
+                    "action_label": "Apply PWM",
+                }
+            )
+        if node_id in density_nodes:
+            items.append(
+                {
+                    "kind": "control",
+                    "control_id": f"density_calibrate_{node_id}",
+                    "action_label": "Calibrate",
+                }
+            )
+        if node_id in pressure_nodes:
+            items.append(
+                {
+                    "kind": "control",
+                    "control_id": f"pressure_calibrate_{node_id}",
+                    "action_label": "Zero Sensor",
+                }
+            )
+        if items:
+            card_sections.append(
+                {
+                    "id": f"node-{node_id}",
+                    "title": f"Node {node_id}",
+                    "items": items,
+                }
+            )
+
     return {
         "spec_version": 1,
         "source_type": "brewtools",
@@ -271,6 +311,11 @@ def _get_control_spec(record: dict | None = None) -> dict:
             "Writable agitator PWM controls, density calibration triggers, "
             "and pressure sensor zeroing controls."
         ),
+        "app": {
+            "kind": "sections",
+            "version": 1,
+            "sections": card_sections,
+        },
         "controls": controls,
         "discovery": {
             "fallback_roles": ["command"],
@@ -281,6 +326,26 @@ def _get_control_spec(record: dict | None = None) -> dict:
             ),
         },
     }
+
+
+def _section_app_from_fields(sections: list[dict[str, Any]]) -> dict[str, Any]:
+    app_sections: list[dict[str, Any]] = []
+    for index, section in enumerate(sections):
+        if not isinstance(section, dict):
+            continue
+        fields = [
+            {"kind": "field", "field": dict(field)}
+            for field in section.get("fields", [])
+            if isinstance(field, dict)
+        ]
+        app_sections.append(
+            {
+                "id": section.get("id") or f"section-{index + 1}",
+                "title": section.get("title"),
+                "items": fields,
+            }
+        )
+    return {"kind": "sections", "version": 1, "sections": app_sections}
 
 
 def _get_graph_spec(record: dict | None = None) -> dict:
@@ -460,9 +525,13 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                     "gateway_bind_host": "0.0.0.0",
                 }
             },
+            "app": _section_app_from_fields(sections),
             "sections": sections,
         },
-        "edit": {"sections": edit_sections},
+        "edit": {
+            "app": _section_app_from_fields(edit_sections),
+            "sections": edit_sections,
+        },
     }
 
 

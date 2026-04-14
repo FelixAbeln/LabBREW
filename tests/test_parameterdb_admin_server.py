@@ -42,6 +42,9 @@ def test_source_admin_dispatch_and_api_commands() -> None:
             self.registry = self
             self.calls: list[tuple] = []
 
+        def stats(self):
+            return {"source_persistence": {"backend": "json"}, "source_count": 1, "running_count": 1}
+
         def list_ui(self):
             return {"fake": {"display_name": "Fake"}}
 
@@ -73,6 +76,7 @@ def test_source_admin_dispatch_and_api_commands() -> None:
     server = _server_with_runner(runner)
 
     assert server.dispatch("ping", {}) == "pong"
+    assert server.api_stats({}) == {"source_persistence": {"backend": "json"}, "source_count": 1, "running_count": 1}
     assert server.api_list_source_types_ui({}) == {"fake": {"display_name": "Fake"}}
     assert server.api_get_source_type_ui({"source_type": "fake", "name": "alpha", "mode": "edit"}) == {
         "source_type": "fake",

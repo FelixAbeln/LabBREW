@@ -186,6 +186,108 @@ def build_agent_app(
         graph["sources"] = sources
         return graph
 
+    def _parameterdb_persistence_status() -> dict[str, Any]:
+        services = service_map()
+        parameterdb_service = services.get("ParameterDB") or {}
+        if not parameterdb_service:
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": "ParameterDB service is not managed on this node",
+            }
+        if not parameterdb_service.get("healthy"):
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": str(parameterdb_service.get("reason") or "ParameterDB service is unavailable"),
+            }
+        try:
+            stats = dict(_db().stats() or {})
+        except Exception as exc:
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": str(exc),
+            }
+
+        persistence = dict(stats.get("snapshot_persistence") or {})
+        last_save_ok = persistence.get("last_save_ok")
+        persistence["available"] = True
+        persistence["healthy"] = False if last_save_ok is False else True
+        return persistence
+
+    def _datasource_persistence_status() -> dict[str, Any]:
+        services = service_map()
+        datasource_service = services.get("ParameterDB_DataSource") or {}
+        if not datasource_service:
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": "ParameterDB_DataSource service is not managed on this node",
+            }
+        if not datasource_service.get("healthy"):
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": str(datasource_service.get("reason") or "ParameterDB_DataSource service is unavailable"),
+            }
+        try:
+            stats = dict(_ds().stats() or {})
+        except Exception as exc:
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": str(exc),
+            }
+
+        persistence = dict(stats.get("source_persistence") or {})
+        persistence["available"] = bool(persistence.get("available", True))
+        persistence["healthy"] = bool(persistence.get("healthy", True))
+        return persistence
+
+    def _rules_persistence_status() -> dict[str, Any]:
+        services = service_map()
+        control_service = services.get("control_service") or {}
+        if not control_service:
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": "control_service is not managed on this node",
+            }
+        if not control_service.get("healthy"):
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": str(control_service.get("reason") or "control_service is unavailable"),
+            }
+
+        base_url = str(control_service.get("base_url") or "").rstrip("/")
+        if not base_url:
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": "control_service base URL is unavailable",
+            }
+        try:
+            response = proxy_session.request(
+                method="GET",
+                url=f"{base_url}/system/rules-persistence",
+                timeout=10,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            return {
+                "available": False,
+                "healthy": False,
+                "reason": str(exc),
+            }
+
+        persistence = dict(payload or {})
+        persistence["available"] = bool(persistence.get("available", True))
+        persistence["healthy"] = bool(persistence.get("healthy", True))
+        return persistence
+
     def _fmu_storage_dir() -> Path:
         folder = storage_subdir("datasource_files") / "fmu"
         folder.mkdir(parents=True, exist_ok=True)
@@ -409,6 +511,9 @@ def build_agent_app(
             "node_id": node_id,
             "node_name": node_name,
             "services": service_map(),
+            "persistence": _parameterdb_persistence_status(),
+            "datasource_persistence": _datasource_persistence_status(),
+            "rules_persistence": _rules_persistence_status(),
         }
 
     @app.get("/agent/services")
@@ -417,7 +522,20 @@ def build_agent_app(
 
     @app.get("/agent/summary")
     def agent_summary() -> dict[str, Any]:
-        return summary_provider()
+        summary = dict(summary_provider() or {})
+        summary["persistence"] = _parameterdb_persistence_status()
+        summary["datasource_persistence"] = _datasource_persistence_status()
+        summary["rules_persistence"] = _rules_persistence_status()
+        return summary
+
+    @app.get("/agent/persistence")
+    def agent_persistence() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "persistence": _parameterdb_persistence_status(),
+            "datasource_persistence": _datasource_persistence_status(),
+            "rules_persistence": _rules_persistence_status(),
+        }
 
     @app.get("/agent/repo/status")
     def agent_repo_status(force: bool = False) -> dict[str, Any]:

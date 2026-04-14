@@ -47,9 +47,11 @@ class FakeServer:
 
 
 class FakeSnapshotManager:
-    def __init__(self, store, path, *, interval_s=5.0, enabled=True):
+    def __init__(self, store, path, *, persistence_kind="json", postgres_config=None, interval_s=5.0, enabled=True):
         self.store = store
         self.path = path
+        self.persistence_kind = persistence_kind
+        self.postgres_config = postgres_config
         self.interval_s = interval_s
         self.enabled = enabled
         self.started = False
@@ -62,6 +64,25 @@ class FakeSnapshotManager:
     def stop(self, *, save_final=True):
         self.stopped = True
         self.last_save_final = save_final
+
+    def stats(self):
+        return {
+            "enabled": self.enabled,
+            "backend": self.persistence_kind,
+            "path": self.path,
+            "postgres": None
+            if self.postgres_config is None
+            else {
+                "host": self.postgres_config.host,
+                "port": self.postgres_config.port,
+                "database": self.postgres_config.database,
+                "table_prefix": self.postgres_config.table_prefix,
+            },
+            "last_save_ok": True,
+            "last_success_at": 123.0,
+            "last_error": None,
+            "last_error_at": None,
+        }
 
 
 class FakeAuditLogger:
@@ -94,12 +115,12 @@ def test_build_service_wires_components_and_restores_when_enabled(monkeypatch) -
         seen["autodiscover"] = root
         return ["fake_type"]
 
-    def _fake_restore(_store, _registry, path):
-        seen["restore"] = path
+    def _fake_restore(_store, _registry, path, *, persistence_kind="json", postgres_config=None):
+        seen["restore"] = (path, persistence_kind, postgres_config)
         return 4
 
     monkeypatch.setattr(service_module, "autodiscover_plugins", _fake_autodiscover)
-    monkeypatch.setattr(service_module, "load_snapshot_into_store", _fake_restore)
+    monkeypatch.setattr(service_module, "restore_snapshot_into_store", _fake_restore)
 
     engine, server, _registry, loaded, snapshots, restored_count, audit_logger = service_module.build_service(
         host="0.0.0.0",
@@ -117,6 +138,14 @@ def test_build_service_wires_components_and_restores_when_enabled(monkeypatch) -
         audit_log_path="./data/test_audit.jsonl",
         enable_audit_log=True,
         audit_external_writes=True,
+        persistence_kind="postgres",
+        postgres_host="db.internal",
+        postgres_port=5432,
+        postgres_database="labbrew",
+        postgres_username="brew",
+        postgres_password="secret",
+        postgres_table_prefix="parameterdb",
+        postgres_sslmode="require",
     )
 
     assert isinstance(engine, FakeEngine)
@@ -126,11 +155,19 @@ def test_build_service_wires_components_and_restores_when_enabled(monkeypatch) -
     assert loaded == ["fake_type"]
     assert restored_count == 4
     assert seen["autodiscover"] == "./Services/parameterDB/plugins"
-    assert seen["restore"] == "./data/test_snapshot.json"
+    restore_path, restore_kind, restore_config = seen["restore"]
+    assert restore_path == "./data/test_snapshot.json"
+    assert restore_kind == "postgres"
+    assert restore_config.host == "db.internal"
+    assert restore_config.database == "labbrew"
+    assert restore_config.table_prefix == "parameterdb"
     assert server.host == "0.0.0.0"
     assert server.port == 9876
     assert engine.mode == "adaptive"
     assert snapshots.enabled is True
+    assert snapshots.persistence_kind == "postgres"
+    assert snapshots.postgres_config.host == "db.internal"
+    assert server.snapshot_manager is snapshots
     assert audit_logger.audit_external_writes is True
 
 
@@ -148,7 +185,7 @@ def test_build_service_skips_restore_when_snapshot_persistence_disabled(monkeypa
         called["restore"] += 1
         return 99
 
-    monkeypatch.setattr(service_module, "load_snapshot_into_store", _fake_restore)
+    monkeypatch.setattr(service_module, "restore_snapshot_into_store", _fake_restore)
 
     _engine, _server, _registry, loaded, snapshots, restored_count, audit_logger = service_module.build_service(
         restore_snapshot=True,

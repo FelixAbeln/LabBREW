@@ -70,10 +70,21 @@ def test_operators_uses_registry_loader(monkeypatch) -> None:
 
 def test_rule_dir_uses_storage_path(monkeypatch) -> None:
     monkeypatch.setattr(routes_system, "get_rule_dir", lambda: Path("data/Rules"))
+    monkeypatch.setattr(routes_system, "rule_repository_stats", lambda: {"backend": "json", "available": True, "healthy": True, "path": "data/Rules"})
 
     response = _client().get("/system/rule-dir")
     assert response.status_code == 200
     assert Path(response.json()["rule_dir"]).as_posix() == "data/Rules"
+    assert response.json()["backend"] == "json"
+
+
+def test_rules_persistence_endpoint_returns_repository_stats(monkeypatch) -> None:
+    monkeypatch.setattr(routes_system, "rule_repository_stats", lambda: {"backend": "postgres", "available": True, "healthy": True})
+
+    response = _client().get("/system/rules-persistence")
+
+    assert response.status_code == 200
+    assert response.json()["backend"] == "postgres"
 
 
 def test_system_schema_contains_manual_control_paths() -> None:

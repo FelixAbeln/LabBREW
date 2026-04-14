@@ -1,3 +1,140 @@
+import { buildRuleEditorApp } from './ruleEditorSchema'
+
+function getRuleFieldValue(ruleForm, key) {
+  if (String(key).startsWith('operatorParams.')) {
+    const paramKey = String(key).slice('operatorParams.'.length)
+    return ruleForm?.operatorParams?.[paramKey] ?? ''
+  }
+  return ruleForm?.[key] ?? ''
+}
+
+function setRuleFieldValue(field, rawValue, updateRuleForm, updateRuleParam) {
+  const key = String(field?.key || '')
+  if (!key) return
+  if (key === 'operator') {
+    updateRuleForm({ operator: rawValue, operatorParams: {} })
+    return
+  }
+  if (key.startsWith('operatorParams.')) {
+    updateRuleParam(key.slice('operatorParams.'.length), rawValue)
+    return
+  }
+  updateRuleForm({ [key]: rawValue })
+}
+
+function RuleFieldItem({ field, ruleForm, updateRuleForm, updateRuleParam }) {
+  const value = getRuleFieldValue(ruleForm, field?.key)
+  const fieldType = String(field?.type || 'string')
+
+  if (fieldType === 'bool') {
+    return (
+      <label className="form-field checkbox-field">
+        <span>{field.label}</span>
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(event) => setRuleFieldValue(field, event.target.checked, updateRuleForm, updateRuleParam)}
+        />
+      </label>
+    )
+  }
+
+  let input = null
+  if (fieldType === 'enum') {
+    const options = Array.isArray(field?.options) ? field.options : []
+    input = (
+      <select
+        value={String(value ?? '')}
+        onChange={(event) => setRuleFieldValue(field, event.target.value, updateRuleForm, updateRuleParam)}
+      >
+        {options.map((option) => {
+          const optionValue = typeof option === 'object' ? option.value : option
+          const optionLabel = typeof option === 'object' ? option.label : option
+          return <option key={String(optionValue)} value={String(optionValue)}>{String(optionLabel)}</option>
+        })}
+      </select>
+    )
+  } else {
+    input = (
+      <input
+        type={fieldType === 'float' || fieldType === 'number' ? 'number' : 'text'}
+        step={field?.step ?? (fieldType === 'float' || fieldType === 'number' ? 'any' : undefined)}
+        list={field?.list || undefined}
+        value={String(value ?? '')}
+        onChange={(event) => setRuleFieldValue(field, event.target.value, updateRuleForm, updateRuleParam)}
+        placeholder={field?.placeholder || ''}
+      />
+    )
+  }
+
+  return (
+    <label className={`form-field ${field?.wide ? 'form-field-wide' : ''}`}>
+      <span>{field.label}</span>
+      {input}
+      {field?.help ? <small className="muted">{field.help}</small> : null}
+    </label>
+  )
+}
+
+function RuleActionList({ ruleForm, addRuleAction, removeRuleAction, updateRuleAction }) {
+  return (
+    <div className="rule-action-stack">
+      {(ruleForm.actions || []).map((action, index) => (
+        <div key={action.id} className="rule-action-card">
+          <div className="card-header-row rule-action-card-header">
+            <strong>Action {index + 1}</strong>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => removeRuleAction(action.id)}
+              disabled={(ruleForm.actions || []).length === 1}
+            >
+              Remove
+            </button>
+          </div>
+          <div className="rules-form-grid">
+            <label className="form-field">
+              <span>Type</span>
+              <select value={action.type} onChange={(event) => updateRuleAction(action.id, { type: event.target.value })}>
+                <option value="takeover">takeover</option>
+                <option value="set">set</option>
+                <option value="ramp">ramp</option>
+              </select>
+            </label>
+            <label className="form-field form-field-wide">
+              <span>Targets</span>
+              <input
+                list="rule-target-options"
+                value={action.targetsText}
+                onChange={(event) => updateRuleAction(action.id, { targetsText: event.target.value })}
+                placeholder="set_pres_Fermentor, set_temp_Fermentor"
+              />
+            </label>
+            {(action.type === 'set' || action.type === 'ramp') && (
+              <label className="form-field">
+                <span>Value</span>
+                <input type="number" step="any" value={action.value} onChange={(event) => updateRuleAction(action.id, { value: event.target.value })} />
+              </label>
+            )}
+            {action.type === 'takeover' && (
+              <label className="form-field form-field-wide">
+                <span>Reason</span>
+                <input value={action.reason} onChange={(event) => updateRuleAction(action.id, { reason: event.target.value })} />
+              </label>
+            )}
+            {action.type === 'ramp' && (
+              <label className="form-field">
+                <span>Duration (s)</span>
+                <input type="number" step="any" value={action.duration} onChange={(event) => updateRuleAction(action.id, { duration: event.target.value })} />
+              </label>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function RuleEditorModal({
   rulesModalOpen,
   ruleForm,
@@ -16,6 +153,8 @@ export function RuleEditorModal({
 }) {
   if (!rulesModalOpen || !ruleForm) return null
 
+  const editorApp = buildRuleEditorApp({ ruleForm, operators, selectedOperator })
+
   return (
     <div className="modal-backdrop" onClick={closeRuleModal}>
       <div className="modal-card" onClick={(event) => event.stopPropagation()}>
@@ -28,107 +167,53 @@ export function RuleEditorModal({
           <p className="muted">Loading operators and snapshot…</p>
         ) : (
           <>
-            <div className="rules-form-grid">
-              <label className="form-field">
-                <span>Rule id</span>
-                <input value={ruleForm.id} onChange={(e) => updateRuleForm({ id: e.target.value })} placeholder="manual-pressure-override" />
-              </label>
-              <label className="form-field checkbox-field">
-                <span>Enabled</span>
-                <input type="checkbox" checked={ruleForm.enabled} onChange={(e) => updateRuleForm({ enabled: e.target.checked })} />
-              </label>
-              <label className="form-field">
-                <span>Parameter</span>
-                <input list="rule-target-options" value={ruleForm.source} onChange={(e) => updateRuleForm({ source: e.target.value })} placeholder="set_temp_Fermentor" />
-              </label>
-              <label className="form-field">
-                <span>Operator</span>
-                <select value={ruleForm.operator} onChange={(e) => updateRuleForm({ operator: e.target.value, operatorParams: {} })}>
-                  {operators.map((operator) => (
-                    <option key={operator.name} value={operator.name}>{operator.label || operator.name}</option>
-                  ))}
-                </select>
-              </label>
-              {selectedOperator?.supports_for_s && (
-                <label className="form-field">
-                  <span>For seconds</span>
-                  <input type="number" step="0.1" value={ruleForm.for_s} onChange={(e) => updateRuleForm({ for_s: e.target.value })} placeholder="optional" />
-                </label>
-              )}
-              {Object.entries(selectedOperator?.param_schema || {}).map(([key, schema]) => (
-                <label key={key} className="form-field">
-                  <span>{key}</span>
-                  <input
-                    type={schema?.type === 'number' ? 'number' : 'text'}
-                    step={schema?.type === 'number' ? 'any' : undefined}
-                    value={ruleForm.operatorParams?.[key] ?? ''}
-                    onChange={(e) => updateRuleParam(key, e.target.value)}
-                    placeholder={schema?.required ? 'required' : 'optional'}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <div className="rules-section-title actions-header-row">
-              <span>Actions</span>
-              <button className="secondary-button" type="button" onClick={addRuleAction}>Add action</button>
-            </div>
-            <div className="rule-action-stack">
-              {(ruleForm.actions || []).map((action, index) => (
-                <div key={action.id} className="rule-action-card">
-                  <div className="card-header-row rule-action-card-header">
-                    <strong>Action {index + 1}</strong>
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      onClick={() => removeRuleAction(action.id)}
-                      disabled={(ruleForm.actions || []).length === 1}
-                    >
-                      Remove
-                    </button>
+            {editorApp.sections.map((section, sectionIndex) => {
+              const hasActionList = (section.items || []).some((item) => item?.kind === 'action_list')
+              return (
+                <div key={String(section?.id || sectionIndex)}>
+                  <div className={`rules-section-title${hasActionList ? ' actions-header-row' : ''}`}>
+                    <span>{section.title}</span>
+                    {hasActionList ? (
+                      <button className="secondary-button" type="button" onClick={addRuleAction}>
+                        {(section.items || []).find((item) => item?.kind === 'action_list')?.add_label || 'Add action'}
+                      </button>
+                    ) : null}
                   </div>
+                  {section.description ? <p className="muted">{section.description}</p> : null}
                   <div className="rules-form-grid">
-                    <label className="form-field">
-                      <span>Type</span>
-                      <select value={action.type} onChange={(e) => updateRuleAction(action.id, { type: e.target.value })}>
-                        <option value="takeover">takeover</option>
-                        <option value="set">set</option>
-                        <option value="ramp">ramp</option>
-                      </select>
-                    </label>
-                    <label className="form-field form-field-wide">
-                      <span>Targets</span>
-                      <input list="rule-target-options" value={action.targetsText} onChange={(e) => updateRuleAction(action.id, { targetsText: e.target.value })} placeholder="set_pres_Fermentor, set_temp_Fermentor" />
-                    </label>
-                    {(action.type === 'set' || action.type === 'ramp') && (
-                      <label className="form-field">
-                        <span>Value</span>
-                        <input type="number" step="any" value={action.value} onChange={(e) => updateRuleAction(action.id, { value: e.target.value })} />
-                      </label>
-                    )}
-                    {action.type === 'takeover' && (
-                      <label className="form-field form-field-wide">
-                        <span>Reason</span>
-                        <input value={action.reason} onChange={(e) => updateRuleAction(action.id, { reason: e.target.value })} />
-                      </label>
-                    )}
-                    {action.type === 'ramp' && (
-                      <label className="form-field">
-                        <span>Duration (s)</span>
-                        <input type="number" step="any" value={action.duration} onChange={(e) => updateRuleAction(action.id, { duration: e.target.value })} />
-                      </label>
-                    )}
+                    {(section.items || []).map((item, itemIndex) => {
+                      if (item?.kind === 'field' && item?.field) {
+                        return (
+                          <RuleFieldItem
+                            key={item.field.key || `${sectionIndex}-${itemIndex}`}
+                            field={item.field}
+                            ruleForm={ruleForm}
+                            updateRuleForm={updateRuleForm}
+                            updateRuleParam={updateRuleParam}
+                          />
+                        )
+                      }
+                      if (item?.kind === 'notice') {
+                        return <div key={`${sectionIndex}-${itemIndex}`} className="muted">{String(item.text || '')}</div>
+                      }
+                      if (item?.kind === 'action_list') {
+                        return (
+                          <div key={`${sectionIndex}-${itemIndex}`} className="form-field form-field-wide" style={{ gridColumn: '1 / -1' }}>
+                            <RuleActionList
+                              ruleForm={ruleForm}
+                              addRuleAction={addRuleAction}
+                              removeRuleAction={removeRuleAction}
+                              updateRuleAction={updateRuleAction}
+                            />
+                          </div>
+                        )
+                      }
+                      return null
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <div className="rules-form-grid">
-              <label className="form-field checkbox-field">
-                <span>Release when clear</span>
-                <input type="checkbox" checked={ruleForm.releaseWhenClear} onChange={(e) => updateRuleForm({ releaseWhenClear: e.target.checked })} />
-              </label>
-            </div>
+              )
+            })}
 
             <datalist id="rule-target-options">
               {snapshotKeys.map((key) => <option key={key} value={key} />)}

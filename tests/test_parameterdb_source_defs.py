@@ -223,6 +223,33 @@ def test_tilt_hydrometer_source_ui_has_color_dropdown() -> None:
     assert transport_field["choices"] == ["bridge", "ble"]
 
 
+def test_all_builtin_source_defs_expose_unified_app_schema() -> None:
+    from Services.parameterDB.sourceDefs.brewtools.ui import get_ui_spec as get_brewtools_ui_spec
+    from Services.parameterDB.sourceDefs.digital_twin.ui import get_ui_spec as get_twin_ui_spec
+    from Services.parameterDB.sourceDefs.labps3005dn.ui import get_ui_spec as get_psu_ui_spec
+    from Services.parameterDB.sourceDefs.modbus_relay.ui import get_ui_spec as get_relay_ui_spec
+    from Services.parameterDB.sourceDefs.system_time.ui import get_ui_spec as get_system_time_ui_spec
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.ui import get_ui_spec as get_tilt_ui_spec
+
+    ui_providers = [
+        get_brewtools_ui_spec,
+        get_twin_ui_spec,
+        get_psu_ui_spec,
+        get_relay_ui_spec,
+        get_system_time_ui_spec,
+        get_tilt_ui_spec,
+    ]
+
+    for provider in ui_providers:
+        create_ui = provider(mode="create")
+        edit_ui = provider(mode="edit")
+        control_ui = provider(mode="control")
+
+        assert create_ui["create"]["app"]["kind"] == "sections"
+        assert edit_ui["edit"]["app"]["kind"] == "sections"
+        assert control_ui["app"]["kind"] == "sections"
+
+
 def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
     from Services.parameterDB.sourceDefs.brewtools.ui import (
         get_ui_spec as get_brewtools_ui_spec,
@@ -254,6 +281,23 @@ def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
         "brewcan.density.0.calibrate_sg",
         "brewcan.pressure.0.calibrate",
     ]
+    assert brewtools_ui["edit"]["app"]["kind"] == "sections"
+    assert brewtools_ui["create"]["app"]["kind"] == "sections"
+    control_ui = get_brewtools_ui_spec(
+        record={
+            "name": "brewcan",
+            "config": {
+                "parameter_prefix": "brewcan",
+                "agitator_nodes": [3],
+                "density_nodes": [0],
+                "pressure_nodes": [0],
+            },
+        },
+        mode="control",
+    )
+    assert control_ui["app"]["kind"] == "sections"
+    assert control_ui["app"]["sections"][0]["title"] == "Node 3"
+    assert control_ui["app"]["sections"][0]["items"][0]["control_id"] == "agitator_pwm_3"
 
     twin_ui = get_twin_ui_spec(
         record={

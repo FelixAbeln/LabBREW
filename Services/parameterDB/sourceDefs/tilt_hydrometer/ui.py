@@ -6,6 +6,7 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from .service import _APPLE_COMPANY_ID, _TILT_COLOR_UUIDS
+from .._ui_schema import build_control_app, build_section_app
 
 
 _TILT_COLORS = [
@@ -149,19 +150,21 @@ def _scan_ble_tilts(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], str]
 
 
 def _get_control_spec(_record: dict | None = None) -> dict:
+    controls: list[dict[str, Any]] = []
     return {
         "spec_version": 1,
         "source_type": "tilt_hydrometer",
         "display_name": "Tilt Hydrometer",
         "description": "This datasource has no writable control parameters.",
-        "controls": [],
+        "controls": controls,
+        "app": build_control_app(controls, title="Controls"),
     }
 
 
 def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec()
-    return {
+    ui = {
         "source_type": "tilt_hydrometer",
         "display_name": "Tilt Hydrometer",
         "description": (
@@ -493,6 +496,11 @@ def get_ui_spec(_record: dict | None = None, mode: str | None = None) -> dict:
             ]
         },
     }
+    for mode_key in ("create", "edit"):
+        mode_spec = ui.get(mode_key)
+        if isinstance(mode_spec, dict) and "app" not in mode_spec:
+            mode_spec["app"] = build_section_app(mode_spec.get("sections", []))
+    return ui
 
 
 def run_ui_action(

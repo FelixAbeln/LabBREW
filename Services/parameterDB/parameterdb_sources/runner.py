@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
-import os
-import tempfile
-import threading
 from dataclasses import dataclass
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -15,14 +12,7 @@ except ImportError:
 
 from .base import DataSourceBase
 from .loader import DataSourceRegistry
-
-
-@dataclass(slots=True)
-class SourceRecord:
-    name: str
-    source_type: str
-    config: dict[str, Any]
-    config_path: Path
+from .repository import FileSourceConfigRepository, SourceConfigRepository, SourceRecord
 
 
 @dataclass(slots=True)
@@ -39,18 +29,23 @@ class SourceRunner:
         base_client: SignalClient,
         registry: DataSourceRegistry,
         *,
-        config_dir: str,
+        config_dir: str | None = None,
+        repository: SourceConfigRepository | None = None,
     ) -> None:
         self.base_client = base_client
         self.registry = registry
-        self.config_dir = Path(config_dir)
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+        if repository is None:
+            if not config_dir:
+                raise ValueError("SourceRunner requires config_dir or repository")
+            repository = FileSourceConfigRepository(config_dir)
+        self.repository = repository
+        self.config_dir = getattr(repository, "config_dir", None)
         self._lock = threading.RLock()
         self.records: dict[str, SourceRecord] = {}
         self.instances: dict[str, SourceInstance] = {}
 
     def _record_from_payload(
-        self, payload: dict[str, Any], *, config_path: Path
+        self, payload: dict[str, Any], *, storage_ref: str
     ) -> SourceRecord:
         name = str(payload["name"]).strip()
         source_type = str(payload["source_type"]).strip()
@@ -59,58 +54,21 @@ class SourceRunner:
             raise ValueError("Source config must include non-empty name and source_type")
         self.registry.get(source_type)
         return SourceRecord(
-            name=name, source_type=source_type, config=config, config_path=config_path
+            name=name, source_type=source_type, config=config, storage_ref=storage_ref
         )
 
     def _config_path_for_name(self, name: str) -> Path:
-        safe = "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in name)
-        return self.config_dir / f"{safe}.json"
+        if not isinstance(self.repository, FileSourceConfigRepository):
+            raise RuntimeError("config paths are only available for file-backed repositories")
+        return self.repository._config_path_for_name(name)
 
     def _write_record(self, record: SourceRecord) -> None:
-        payload = {
-            "name": record.name,
-            "source_type": record.source_type,
-            "config": record.config,
-        }
-        data = json.dumps(payload, indent=2, sort_keys=True)
-
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f"{record.config_path.name}.",
-            suffix=".tmp",
-            dir=str(record.config_path.parent),
-        )
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                handle.write(data)
-                handle.flush()
-                os.fsync(handle.fileno())
-
-            Path(tmp_name).replace(record.config_path)
-
-            try:
-                dir_fd = os.open(str(record.config_path.parent), os.O_RDONLY)
-                try:
-                    os.fsync(dir_fd)
-                finally:
-                    os.close(dir_fd)
-            except OSError:
-                pass
-        except Exception:
-            try:
-                tmp_path = Path(tmp_name)
-                if tmp_path.exists():
-                    tmp_path.unlink()
-            except OSError:
-                pass
-            raise
+        saved = self.repository.save_record(record)
+        record.storage_ref = saved.storage_ref
 
     def _cleanup_stale_config_tmp_files(self) -> None:
-        for tmp_path in self.config_dir.glob("*.json.*.tmp"):
-            try:
-                if tmp_path.is_file():
-                    tmp_path.unlink()
-            except OSError:
-                pass
+        if isinstance(self.repository, FileSourceConfigRepository):
+            self.repository._cleanup_stale_tmp_files()
 
     def _build_instance(self, record: SourceRecord) -> SourceInstance:
         spec = self.registry.get(record.source_type)
@@ -141,12 +99,17 @@ class SourceRunner:
         inst.session.close()
 
     def load_config_dir(self) -> list[SourceRecord]:
-        self._cleanup_stale_config_tmp_files()
-        loaded: list[SourceRecord] = []
-        for cfg_path in sorted(self.config_dir.glob("*.json")):
-            payload = json.loads(cfg_path.read_text(encoding="utf-8"))
-            record = self._record_from_payload(payload, config_path=cfg_path)
-            loaded.append(record)
+        loaded = [
+            self._record_from_payload(
+                {
+                    "name": record.name,
+                    "source_type": record.source_type,
+                    "config": record.config,
+                },
+                storage_ref=record.storage_ref,
+            )
+            for record in self.repository.load_records()
+        ]
         with self._lock:
             for record in loaded:
                 self.records[record.name] = record
@@ -173,9 +136,20 @@ class SourceRunner:
                     "source_type": record.source_type,
                     "config": dict(record.config),
                     "running": name in self.instances and self.instances[name].thread.is_alive(),
-                    "config_path": str(record.config_path),
+                    "config_path": record.storage_ref,
                 }
             return result
+
+    def stats(self) -> dict[str, Any]:
+        with self._lock:
+            running_count = sum(
+                1 for item in self.instances.values() if item.thread.is_alive()
+            )
+            return {
+                "source_persistence": dict(self.repository.stats()),
+                "source_count": len(self.records),
+                "running_count": running_count,
+            }
 
     def get_source_record(self, name: str) -> dict[str, Any]:
         with self._lock:
@@ -186,7 +160,7 @@ class SourceRunner:
                 "name": record.name,
                 "source_type": record.source_type,
                 "config": dict(record.config),
-                "config_path": str(record.config_path),
+                "config_path": record.storage_ref,
                 "running": name in self.instances and self.instances[name].thread.is_alive(),
             }
 
@@ -216,7 +190,7 @@ class SourceRunner:
             name=name,
             source_type=source_type,
             config=dict(config),
-            config_path=self._config_path_for_name(name),
+            storage_ref="",
         )
         self.registry.get(source_type)
         with self._lock:
@@ -235,7 +209,7 @@ class SourceRunner:
                 name=existing.name,
                 source_type=existing.source_type,
                 config=dict(config),
-                config_path=existing.config_path,
+                storage_ref=existing.storage_ref,
             )
             self._stop_instance_locked(name)
             self._write_record(updated)
@@ -278,8 +252,4 @@ class SourceRunner:
             if delete_owned_parameters:
                 self._delete_owned_parameters(record)
             self.records.pop(name, None)
-            try:
-                record.config_path.unlink(missing_ok=True)
-            except TypeError:
-                if record.config_path.exists():
-                    record.config_path.unlink()
+            self.repository.delete_record(name)

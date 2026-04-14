@@ -6,6 +6,7 @@ from ipaddress import ip_network
 from typing import Any
 
 from .service import RelayBoard, RelayError
+from .._ui_schema import build_control_app, build_section_app
 
 
 def _int_value(payload: dict[str, Any], key: str, default: int) -> int:
@@ -250,6 +251,7 @@ def _get_control_spec(record: dict | None = None) -> dict:
         "display_name": "Modbus Relay Board",
         "description": "Writable relay channel commands.",
         "controls": controls,
+        "app": build_control_app(controls, title="Relay Controls"),
     }
 
 
@@ -270,7 +272,7 @@ def _get_graph_spec(record: dict | None = None) -> dict:
 def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec(record)
-    return {
+    ui = {
         "source_type": "modbus_relay",
         "display_name": "Modbus Relay Board",
         "description": (
@@ -497,6 +499,11 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
             ]
         },
     }
+    for mode_key in ("create", "edit"):
+        mode_spec = ui.get(mode_key)
+        if isinstance(mode_spec, dict) and "app" not in mode_spec:
+            mode_spec["app"] = build_section_app(mode_spec.get("sections", []))
+    return ui
 
 
 def run_ui_action(

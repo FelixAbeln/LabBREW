@@ -1054,9 +1054,9 @@
 
 .pdb-open-btn-sticky {
   grid-column: 1 / -1;
-  position: sticky;
-  top: 8px;
-  z-index: 3;
+  position: static;
+  top: auto;
+  z-index: auto;
 }
 
 @media (max-width: 900px) {

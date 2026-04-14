@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import BackendControlCard, { hasBackendControlCardApp } from './BackendControlCard.jsx'
 
 function formatCurrentValue(value) {
   if (value === undefined) return '-'
@@ -100,17 +101,30 @@ export function ControlUiTab({
   controlWriteError,
   pendingControlWrites,
   controlDrafts,
+  layoutEditMode,
+  controlCardOrder,
   onDraftChange,
   onWrite,
+  onReorderCard,
   onReleaseManualControl,
 }) {
   const gridRef = useRef(null)
   const [columnCount, setColumnCount] = useState(1)
+  const [dragCardId, setDragCardId] = useState('')
   const cards = Array.isArray(controlUiSpec?.cards) ? [...controlUiSpec.cards] : []
   const visibleCards = cards.filter((card) => Array.isArray(card?.controls) && card.controls.length > 0)
   const backendReachable = controlUiSpec?.datasource_backend?.reachable !== false
 
   visibleCards.sort((a, b) => {
+    const aId = String(a?.card_id || `${a?.kind}-${a?.title}`)
+    const bId = String(b?.card_id || `${b?.kind}-${b?.title}`)
+    const aOrder = Array.isArray(controlCardOrder) ? controlCardOrder.indexOf(aId) : -1
+    const bOrder = Array.isArray(controlCardOrder) ? controlCardOrder.indexOf(bId) : -1
+    if (aOrder >= 0 || bOrder >= 0) {
+      if (aOrder < 0) return 1
+      if (bOrder < 0) return -1
+      if (aOrder !== bOrder) return aOrder - bOrder
+    }
     const aCount = Array.isArray(a?.controls) ? a.controls.length : 0
     const bCount = Array.isArray(b?.controls) ? b.controls.length : 0
     if (bCount !== aCount) return bCount - aCount
@@ -147,6 +161,8 @@ export function ControlUiTab({
   }, [visibleCards.length, selected?.id])
 
   const cardColumns = useMemo(() => {
+    if (layoutEditMode) return [visibleCards]
+
     const buckets = Array.from({ length: Math.max(1, columnCount) }, () => ({
       items: [],
       weight: 0,
@@ -166,7 +182,7 @@ export function ControlUiTab({
     }
 
     return buckets.map((bucket) => bucket.items)
-  }, [visibleCards, columnCount])
+  }, [visibleCards, columnCount, layoutEditMode])
 
   const applyOnEnter = (event, control, target, isWriting) => {
     if (event.key !== 'Enter') return
@@ -180,7 +196,7 @@ export function ControlUiTab({
       <div className="control-bar">
         <div className="control-bar-copy">
           <strong>Manual Device Controls</strong>
-          <span>Rendered from control service spec. Writes use manual takeover.</span>
+          {!layoutEditMode ? <span>Rendered from control service spec. Writes use manual takeover.</span> : null}
         </div>
         <div className="control-button-group">
           <button className="warning-button" disabled={!selected || controlUiLoading} onClick={() => onReleaseManualControl?.()}>
@@ -211,17 +227,27 @@ export function ControlUiTab({
             <div className="control-card-column" key={`control-column-${columnIndex}`}>
               {columnCards.map((card) => {
                 const controls = Array.isArray(card?.controls) ? card.controls : []
-                return (
+                const cardKey = String(card.card_id || `${card.kind}-${card.title}`)
+                const cardBody = hasBackendControlCardApp(card) ? (
+                  <BackendControlCard
+                    key={cardKey}
+                    card={card}
+                    controlUiLoading={controlUiLoading}
+                    controlWriteTarget={controlWriteTarget}
+                    controlWriteError={controlWriteError}
+                    controlDrafts={controlDrafts}
+                    onDraftChange={onDraftChange}
+                    onWrite={onWrite}
+                  />
+                ) : (
                   <div
-                    key={card.card_id || `${card.kind}-${card.title}`}
+                    key={cardKey}
                     className="info-card control-device-card"
                   >
                     <div className="card-header-row">
                       <h3>{card.title || 'Device'}</h3>
                       <span className={`pill ${card.running ? 'pill-ok' : 'pill-warn'}`}>{card.running ? 'running' : 'stopped'}</span>
                     </div>
-                    <div className="small-text">{card.subtitle || card.source_type || '-'}</div>
-
                     <div className="control-item-stack">
                       {controls.map((control) => {
                         const target = String(control?.target || '').trim()
@@ -356,6 +382,35 @@ export function ControlUiTab({
                         )
                       })}
                     </div>
+                  </div>
+                )
+
+                return (
+                  <div
+                    key={cardKey}
+                    className={`layout-draggable-card ${layoutEditMode ? 'is-editable' : ''} ${dragCardId === cardKey ? 'is-dragging' : ''}`}
+                    draggable={Boolean(layoutEditMode)}
+                    onDragStart={(event) => {
+                      if (!layoutEditMode) return
+                      setDragCardId(cardKey)
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('text/plain', cardKey)
+                    }}
+                    onDragOver={(event) => {
+                      if (!layoutEditMode) return
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'move'
+                    }}
+                    onDrop={(event) => {
+                      if (!layoutEditMode) return
+                      event.preventDefault()
+                      const draggedId = event.dataTransfer.getData('text/plain')
+                      setDragCardId('')
+                      onReorderCard?.(draggedId, cardKey)
+                    }}
+                    onDragEnd={() => setDragCardId('')}
+                  >
+                    {cardBody}
                   </div>
                 )
               })}

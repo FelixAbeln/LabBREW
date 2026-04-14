@@ -282,6 +282,7 @@ export function SchemaForm({
   return sections.map((section) => (
     <div key={section.title} className="pdb-section">
       <div className="pdb-section-title">{section.title}</div>
+      {section.description && <div className="pdb-field-help">{section.description}</div>}
       <div className="pdb-section-fields">
         {(section.fields ?? []).map((field) => {
           if (!isFieldVisible(field, data)) return null;

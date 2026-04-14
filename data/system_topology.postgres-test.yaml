@@ -1,0 +1,112 @@
+# Test topology configuration with PostgreSQL persistence enabled
+# Use this to test persistence backends end-to-end with a local Postgres instance.
+# Run with:
+#   python run_supervisor.py --topology data/system_topology.postgres-test.yaml
+
+advertise_service_type: _fcs._tcp.local.
+
+services:
+  ParameterDB:
+    module: Services.parameterDB.serviceDB
+    docs: docs/api/parameterdb-api.md
+    # Persistence: use PostgreSQL for parameter snapshots
+    persistence:
+      kind: postgres
+      host: localhost
+      port: 5432
+      database: labbrew
+      username: postgres
+      password: root
+      table_prefix: parameterdb
+      sslmode: disable
+    listen:
+      host: 127.0.0.1
+      port: 8765
+      proto: ParameterDB_Binary
+      path: /
+    backend: null
+    static_args:
+      - "--scan-mode"
+      - "adaptive"
+      - "--target-utilization"
+      - "0.7"
+    advertise_as:
+      - ParameterDB
+
+  ParameterDB_DataSource:
+    module: Services.parameterDB.serviceDS
+    docs: docs/api/parameterdb-api.md
+    # Persistence: use PostgreSQL for datasource instance configs
+    persistence:
+      kind: postgres
+      host: localhost
+      port: 5432
+      database: labbrew
+      username: postgres
+      password: root
+      table_prefix: datasource
+      sslmode: disable
+    listen:
+      host: 127.0.0.1
+      port: 8766
+      proto: ParameterDB_Binary
+      path: /
+    backend: ParameterDB
+    static_args: []
+    advertise_as:
+      - ParameterDB_DataSource
+
+  control_service:
+    module: Services.control_service.service
+    docs: docs/api/control-service-api.md
+    # Persistence: use PostgreSQL for control rules
+    persistence:
+      kind: postgres
+      host: localhost
+      port: 5432
+      database: labbrew
+      username: postgres
+      password: root
+      table_prefix: control_rules
+      sslmode: disable
+    listen:
+      host: 127.0.0.1
+      port: 8767
+      proto: http
+      path: /
+    backend: ParameterDB
+    static_args: []
+    advertise_as:
+      - control_service
+
+  schedule_service:
+    module: Services.schedule_service.service
+    docs: docs/api/schedule-service-api.md
+    listen:
+      host: 127.0.0.1
+      port: 8768
+      proto: http
+      path: /
+    backends:
+      control_service:
+        host_flag: --backend-host
+        port_flag: --backend-port
+      data_service:
+        host_flag: --data-backend-host
+        port_flag: --data-backend-port
+    static_args: []
+    advertise_as:
+      - schedule_service
+
+  data_service:
+    module: Services.data_service.service
+    docs: docs/api/data-service-api.md
+    listen:
+      host: 127.0.0.1
+      port: 8764
+      proto: http
+      path: /
+    backend: ParameterDB
+    static_args: []
+    advertise_as:
+      - data_service

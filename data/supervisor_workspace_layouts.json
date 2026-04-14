@@ -1,0 +1,119 @@
+{
+  "01": {
+    "active_tab": "custom-tab-fo65jvll",
+    "control_card_order": [],
+    "fermenter_name": "Test",
+    "tabs": [
+      {
+        "id": "custom-tab-fo65jvll",
+        "label": "Main",
+        "presetId": "system",
+        "widgets": [
+          {
+            "cols": 6,
+            "id": "widget-p08nrblu",
+            "rows": 1,
+            "type": "data-recording",
+            "x": 1,
+            "y": 1
+          },
+          {
+            "cols": 6,
+            "id": "widget-byzkek35",
+            "rows": 1,
+            "type": "schedule-controls",
+            "x": 7,
+            "y": 1
+          },
+          {
+            "cols": 12,
+            "id": "widget-jfrn2hw6",
+            "rows": 12,
+            "type": "data-snapshot",
+            "x": 1,
+            "y": 6
+          },
+          {
+            "cols": 4,
+            "id": "widget-py230ymm",
+            "rows": 2,
+            "type": "control-field:source%3ABrewtools:auto%3Abrewcan.density.0.calibrate",
+            "x": 1,
+            "y": 4
+          },
+          {
+            "cols": 4,
+            "id": "widget-6pv2rrej",
+            "rows": 2,
+            "type": "control-field:manual%3Acustom-map:manual_set_spd_Agitator",
+            "x": 1,
+            "y": 2
+          },
+          {
+            "cols": 4,
+            "id": "widget-f9fc6vhe",
+            "rows": 2,
+            "type": "control-field:manual%3Acustom-map:manual_set_pres_Fermentor",
+            "x": 9,
+            "y": 2
+          },
+          {
+            "cols": 4,
+            "id": "widget-t928g3qj",
+            "rows": 2,
+            "type": "control-field:manual%3Acustom-map:manual_set_temp_Fermentor",
+            "x": 5,
+            "y": 2
+          },
+          {
+            "cols": 4,
+            "id": "widget-z61pz5fe",
+            "rows": 2,
+            "type": "control-field:source%3ABrewtools:auto%3Abrewcan.pressure.0.calibrate",
+            "x": 9,
+            "y": 4
+          }
+        ]
+      },
+      {
+        "id": "custom-tab-m9vyyzj5",
+        "label": "Plan",
+        "widgets": [
+          {
+            "cols": 12,
+            "id": "widget-oalnxste",
+            "rows": 1,
+            "type": "schedule-controls",
+            "x": 1,
+            "y": 4
+          },
+          {
+            "cols": 12,
+            "id": "widget-950yw7ht",
+            "rows": 3,
+            "type": "schedule-summary",
+            "x": 1,
+            "y": 1
+          },
+          {
+            "cols": 12,
+            "id": "widget-pegeasvc",
+            "rows": 4,
+            "type": "schedule-workbook",
+            "x": 1,
+            "y": 5
+          },
+          {
+            "cols": 12,
+            "id": "widget-gnx7n04j",
+            "rows": 12,
+            "type": "schedule-events",
+            "x": 1,
+            "y": 9
+          }
+        ]
+      }
+    ],
+    "updated_at": "2026-04-14T19:53:59.793271+00:00"
+  }
+}

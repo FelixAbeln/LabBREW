@@ -302,7 +302,6 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
   const [jsonDrafts, setJsonDrafts] = useState({});
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const moduleReplacesForm = Boolean(schemaUi?.module?.replace_form);
 
   useEffect(() => {
     let cancelled = false;
@@ -411,56 +410,6 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
               <div className="pdb-readonly">{record?.source_type}</div>
             </div>
           )}
-          {isCreate && moduleReplacesForm && (
-            <div className="pdb-field">
-              <label className="pdb-label">Source Name</label>
-              <input
-                className="pdb-input"
-                value={String(draft?.name ?? '')}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setDraft((current) => ({ ...current, name: value }));
-                  setErrors((current) => {
-                    const next = { ...current };
-                    delete next.name;
-                    delete next.save;
-                    return next;
-                  });
-                }}
-                placeholder="tilt"
-              />
-              {errors.name && <div className="pdb-error-inline">{errors.name}</div>}
-            </div>
-          )}
-          {moduleReplacesForm && (
-            <div className="pdb-field">
-              <label className="pdb-label">Parameter Prefix</label>
-              <input
-                className="pdb-input"
-                value={String(draft?.config?.parameter_prefix ?? '')}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setDraft((current) => ({
-                    ...current,
-                    config: {
-                      ...(current?.config ?? {}),
-                      parameter_prefix: value,
-                    },
-                  }));
-                  setErrors((current) => {
-                    const next = { ...current };
-                    delete next['config.parameter_prefix'];
-                    delete next.save;
-                    return next;
-                  });
-                }}
-                placeholder="tilt"
-              />
-              {errors['config.parameter_prefix'] && (
-                <div className="pdb-error-inline">{errors['config.parameter_prefix']}</div>
-              )}
-            </div>
-          )}
           {schemaUi && (
             <>
               {schemaUi?.module && (
@@ -473,18 +422,16 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
                   onApplyConfig={handleApplyConfigPatch}
                 />
               )}
-              {!moduleReplacesForm && (
-                <SchemaForm
-                  fermenterId={fermenterId}
-                  sections={sections}
-                  data={draft}
-                  errors={errors}
-                  rawJson={jsonDrafts}
-                  parameterOptions={parameterNames}
-                  onFieldChange={handleFieldChange}
-                  onJsonChange={(key, value) => setJsonDrafts((current) => ({ ...current, [key]: value }))}
-                />
-              )}
+              <SchemaForm
+                fermenterId={fermenterId}
+                sections={sections}
+                data={draft}
+                errors={errors}
+                rawJson={jsonDrafts}
+                parameterOptions={parameterNames}
+                onFieldChange={handleFieldChange}
+                onJsonChange={(key, value) => setJsonDrafts((current) => ({ ...current, [key]: value }))}
+              />
             </>
           )}
           {errors.save && <div className="pdb-save-error">{errors.save}</div>}

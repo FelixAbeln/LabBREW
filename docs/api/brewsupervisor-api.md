@@ -63,6 +63,12 @@ Proxies `GET /agent/info` on the node's Supervisor Agent. See [Agent API — GET
 
 Proxies `GET /agent/services` on the node's Supervisor Agent.
 
+### `GET /fermenters/{fermenter_id}/agent/persistence`
+
+Proxies `GET /agent/persistence` on the node's Supervisor Agent.
+
+Used by the System tab to show ParameterDB snapshot backend health, backend type, and the last save error if persistence is degraded.
+
 ### `GET /fermenters/{fermenter_id}/summary`
 
 Proxies `GET /agent/summary` on the node's Supervisor Agent.

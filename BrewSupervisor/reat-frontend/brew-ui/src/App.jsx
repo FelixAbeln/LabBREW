@@ -20,6 +20,177 @@ import { AppShell } from './features/app/AppShell'
 import { FermenterTabContent } from './features/app/FermenterTabContent'
 import { useAdaptivePolling } from './hooks/useAdaptivePolling'
 import { ArchiveViewerPage } from './features/archive/ArchiveViewerPage'
+import { getWorkspaceModule } from './features/app/workspaceModuleCatalog'
+
+function createUiId(prefix) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+const WORKSPACE_GRID_COLUMNS = 12
+const WORKSPACE_MIN_COLS = 3
+const WORKSPACE_MIN_ROWS = 1
+
+function moveListItem(items, fromIndex, toIndex) {
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return items
+  const next = [...items]
+  const [moved] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, moved)
+  return next
+}
+
+function clampToRange(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function normalizeGridValue(value, fallback) {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : fallback
+}
+
+function defaultWidgetLayout(type) {
+  const moduleDef = getWorkspaceModule(type)
+  if (moduleDef) {
+    return {
+      cols: Number(moduleDef.defaultCols || 6),
+      rows: Number(moduleDef.defaultRows || 1),
+    }
+  }
+  return { cols: 6, rows: 1 }
+}
+
+function widgetsOverlap(left, right) {
+  return !(
+    left.x + left.cols - 1 < right.x ||
+    right.x + right.cols - 1 < left.x ||
+    left.y + left.rows - 1 < right.y ||
+    right.y + right.rows - 1 < left.y
+  )
+}
+
+function normalizePlacedWidgets(widgets) {
+  return (Array.isArray(widgets) ? widgets : []).map((widget) => ({
+    x: normalizeGridValue(widget?.x, 1),
+    y: normalizeGridValue(widget?.y, 1),
+    cols: clampToRange(normalizeGridValue(widget?.cols, 6), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
+    rows: clampToRange(normalizeGridValue(widget?.rows, 1), WORKSPACE_MIN_ROWS, 12),
+  }))
+}
+
+function nextWidgetPosition(widgets, layout) {
+  const placed = normalizePlacedWidgets(widgets)
+
+  for (let y = 1; y <= 48; y += 1) {
+    for (let x = 1; x <= Math.max(1, WORKSPACE_GRID_COLUMNS - layout.cols + 1); x += 1) {
+      const candidate = { x, y, cols: layout.cols, rows: layout.rows }
+      if (!placed.some((widget) => widgetsOverlap(candidate, widget))) {
+        return { x, y }
+      }
+    }
+  }
+
+  const maxRow = placed.reduce((max, widget) => Math.max(max, widget.y + widget.rows), 1)
+  return { x: 1, y: maxRow }
+}
+
+function getAutoSizeCandidates(type, layout) {
+  const rawType = String(type || '')
+  const preferred = []
+  const add = (cols, rows) => {
+    const nextCols = clampToRange(normalizeGridValue(cols, layout.cols), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS)
+    const nextRows = clampToRange(normalizeGridValue(rows, layout.rows), WORKSPACE_MIN_ROWS, 12)
+    if (!preferred.some((item) => item.cols === nextCols && item.rows === nextRows)) {
+      preferred.push({ cols: nextCols, rows: nextRows })
+    }
+  }
+
+  if (rawType.endsWith('-full') || rawType === 'data-snapshot' || rawType === 'archive-files' || rawType === 'schedule-events') {
+    add(12, Math.max(3, layout.rows))
+    add(9, Math.max(3, layout.rows))
+  } else if (rawType === 'data-recording' || rawType === 'system-actions' || rawType === 'schedule-controls') {
+    add(8, 1)
+    add(6, 1)
+    add(12, 1)
+  } else if (rawType === 'schedule-workbook' || rawType === 'system-persistence' || rawType === 'system-services') {
+    add(8, 2)
+    add(6, 2)
+  } else if (rawType === 'schedule-summary' || rawType === 'data-loadstep' || rawType === 'archive-summary' || rawType === 'system-node') {
+    add(4, 1)
+    add(3, 1)
+    add(6, 1)
+  } else if (rawType.startsWith('control-card:')) {
+    add(layout.cols >= 8 ? 8 : 6, Math.max(2, layout.rows))
+    add(12, Math.max(2, layout.rows))
+  } else if (rawType.startsWith('control-field:')) {
+    add(layout.cols >= 6 ? 6 : 4, 1)
+    add(4, 1)
+  }
+
+  add(layout.cols, layout.rows)
+  return preferred
+}
+
+function resolveAutoPlacedWidget(widgets, type, preferredPosition = null, layoutOverride = null) {
+  const baseLayout = defaultWidgetLayout(type)
+  const desiredLayout = {
+    cols: clampToRange(normalizeGridValue(layoutOverride?.cols, baseLayout.cols), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
+    rows: clampToRange(normalizeGridValue(layoutOverride?.rows, baseLayout.rows), WORKSPACE_MIN_ROWS, 12),
+  }
+  const placed = normalizePlacedWidgets(widgets)
+  const sizeCandidates = getAutoSizeCandidates(type, desiredLayout)
+
+  if (preferredPosition && typeof preferredPosition === 'object') {
+    for (const candidate of sizeCandidates) {
+      const positioned = {
+        x: clampToRange(normalizeGridValue(preferredPosition.x, 1), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - candidate.cols + 1)),
+        y: normalizeGridValue(preferredPosition.y, 1),
+        cols: candidate.cols,
+        rows: candidate.rows,
+      }
+      if (!placed.some((widget) => widgetsOverlap(positioned, widget))) {
+        return positioned
+      }
+    }
+  }
+
+  for (const candidate of sizeCandidates) {
+    const nextPosition = nextWidgetPosition(widgets, candidate)
+    const positioned = { ...nextPosition, cols: candidate.cols, rows: candidate.rows }
+    if (!placed.some((widget) => widgetsOverlap(positioned, widget))) {
+      return positioned
+    }
+  }
+
+  return {
+    x: 1,
+    y: 1,
+    cols: desiredLayout.cols,
+    rows: desiredLayout.rows,
+  }
+}
+
+function buildCustomWidget(type, position = null, layoutOverride = null) {
+  const resolved = resolveAutoPlacedWidget([], type, position, layoutOverride)
+  return {
+    id: createUiId('widget'),
+    type,
+    cols: resolved.cols,
+    rows: resolved.rows,
+    x: resolved.x,
+    y: resolved.y,
+  }
+}
+
+function buildCustomTab(label = 'Custom Workspace') {
+  return {
+    id: createUiId('custom-tab'),
+    label: String(label || '').trim() || 'Workspace',
+    widgets: [
+      buildCustomWidget('system-actions', { x: 1, y: 1 }, { cols: 12, rows: 1 }),
+      buildCustomWidget('data-recording', { x: 1, y: 3 }, { cols: 8, rows: 1 }),
+      buildCustomWidget('data-snapshot', { x: 1, y: 5 }, { cols: 12, rows: 4 }),
+    ],
+  }
+}
 
 function App() {
   const brewApiRef = useRef(null)
@@ -38,7 +209,8 @@ function App() {
   const [importResult, setImportResult] = useState(null)
   const [scheduleDefinition, setScheduleDefinition] = useState(null)
   const dashboardRequestRef = useRef(0)
-  const [activeTab, setActiveTab] = useState('control')
+  const sharedWorkspaceSignatureRef = useRef('')
+  const [activeTab, setActiveTab] = useState('')
   const [globalView, setGlobalView] = useState(null)
   const [rules, setRules] = useState([])
   const [rulesModalOpen, setRulesModalOpen] = useState(false)
@@ -57,7 +229,13 @@ function App() {
   const [dataActionLoading, setDataActionLoading] = useState(false)
   const [dataServiceStatus, setDataServiceStatus] = useState(null)
   const [repoUpdateStatus, setRepoUpdateStatus] = useState(null)
+  const [persistenceStatus, setPersistenceStatus] = useState(null)
+  const [healthyServices, setHealthyServices] = useState([])
   const [repoStatusLoading, setRepoStatusLoading] = useState(false)
+  const [persistenceLoading, setPersistenceLoading] = useState(false)
+  const [workspaceSaveLoading, setWorkspaceSaveLoading] = useState(false)
+  const [datasourcePersistenceStatus, setDatasourcePersistenceStatus] = useState(null)
+  const [rulesPersistenceStatus, setRulesPersistenceStatus] = useState(null)
   const [repoUpdateLoading, setRepoUpdateLoading] = useState(false)
   const [archivePayload, setArchivePayload] = useState(null)
   const [selectedArchiveName, setSelectedArchiveName] = useState('')
@@ -74,6 +252,26 @@ function App() {
       return raw ? JSON.parse(raw) : []
     } catch {
       return []
+    }
+  })
+  const [layoutEditMode, setLayoutEditMode] = useState(false)
+  const [customTabs, setCustomTabs] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem('brew-ui.custom-tabs')
+      const parsed = raw ? JSON.parse(raw) : []
+      if (Array.isArray(parsed) && parsed.length) return parsed
+    } catch {
+      // Ignore storage failures and fall back to a default workspace.
+    }
+    return [buildCustomTab('Workspace 1')]
+  })
+  const [controlCardLayouts, setControlCardLayouts] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem('brew-ui.control-card-layouts')
+      const parsed = raw ? JSON.parse(raw) : {}
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {}
     }
   })
   const { ruleForm, setRuleForm, updateRuleForm, updateRuleParam, addRuleAction, removeRuleAction, updateRuleAction } = useRuleForm()
@@ -413,6 +611,7 @@ function App() {
 
   async function openAddRule() {
     if (!selected?.id) return
+    setGlobalView('rules-studio')
     setRulesModalOpen(true)
     setRuleForm(makeEmptyRuleForm())
     try {
@@ -424,6 +623,7 @@ function App() {
 
   async function openEditRule(rule) {
     if (!selected?.id) return
+    setGlobalView('rules-studio')
     setRulesModalOpen(true)
     setRuleForm(normalizeRuleForm(rule))
     try {
@@ -611,14 +811,257 @@ function App() {
     return fermenters.find((f) => f.id === selectedId) || fermenters[0]
   }, [fermenters, selectedId])
 
+  function addCustomTab() {
+    const nextTab = buildCustomTab(`Workspace ${customTabs.length + 1}`)
+    setCustomTabs((current) => [...current, nextTab])
+    setActiveTab(nextTab.id)
+    setLayoutEditMode(true)
+  }
+
+  function renameCustomTab(tabId, label) {
+    setCustomTabs((current) => current.map((tab) => (
+      tab.id === tabId
+        ? { ...tab, label: String(label || '').trimStart() }
+        : tab
+    )))
+  }
+
+  function deleteCustomTab(tabId) {
+    if (!tabId) return
+    const doomed = customTabs.find((tab) => tab.id === tabId)
+    const tabLabel = String(doomed?.label || 'this workspace').trim() || 'this workspace'
+    if (!window.confirm(`Delete ${tabLabel}?`)) return
+
+    const fallbackTab = customTabs.find((tab) => tab.id !== tabId) || null
+    setCustomTabs((current) => {
+      const remaining = current.filter((tab) => tab.id !== tabId)
+      return remaining.length ? remaining : [buildCustomTab('Workspace 1')]
+    })
+
+    if (activeTab === tabId) {
+      setActiveTab(fallbackTab?.id || '')
+    }
+  }
+
+  function addWidgetToCustomTab(tabId, type, placement = null, layoutOverride = null) {
+    if (!tabId || !type) return
+    setCustomTabs((current) => current.map((tab) => {
+      if (tab.id !== tabId) return tab
+      const widgets = Array.isArray(tab.widgets) ? [...tab.widgets] : []
+      const resolved = resolveAutoPlacedWidget(widgets, type, placement, layoutOverride)
+      const nextWidget = {
+        id: createUiId('widget'),
+        type,
+        cols: resolved.cols,
+        rows: resolved.rows,
+        x: resolved.x,
+        y: resolved.y,
+      }
+      widgets.push(nextWidget)
+      return {
+        ...tab,
+        widgets,
+      }
+    }))
+  }
+
+  function removeWidgetFromCustomTab(tabId, widgetId) {
+    if (!tabId || !widgetId) return
+    setCustomTabs((current) => current.map((tab) => {
+      if (tab.id !== tabId) return tab
+      return {
+        ...tab,
+        widgets: (Array.isArray(tab.widgets) ? tab.widgets : []).filter((widget) => widget?.id !== widgetId),
+      }
+    }))
+  }
+
+  function moveWidgetInCustomTab(tabId, draggedId, target) {
+    if (!tabId || !draggedId || !target) return
+    setCustomTabs((current) => current.map((tab) => {
+      if (tab.id !== tabId) return tab
+      const widgets = Array.isArray(tab.widgets) ? [...tab.widgets] : []
+
+      if (target && typeof target === 'object') {
+        return {
+          ...tab,
+          widgets: widgets.map((widget) => {
+            if (widget?.id !== draggedId) return widget
+            const cols = normalizeGridValue(widget?.cols, 6)
+            return {
+              ...widget,
+              x: clampToRange(normalizeGridValue(target.x, normalizeGridValue(widget?.x, 1)), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - cols + 1)),
+              y: normalizeGridValue(target.y, normalizeGridValue(widget?.y, 1)),
+            }
+          }),
+        }
+      }
+
+      const targetId = String(target)
+      if (!targetId || draggedId === targetId) return tab
+      const fromIndex = widgets.findIndex((widget) => widget?.id === draggedId)
+      const toIndex = widgets.findIndex((widget) => widget?.id === targetId)
+      if (fromIndex < 0 || toIndex < 0) return tab
+      return {
+        ...tab,
+        widgets: moveListItem(widgets, fromIndex, toIndex),
+      }
+    }))
+  }
+
+  function resizeCustomWidget(tabId, widgetId, preset) {
+    const presetLayouts = {
+      compact: { cols: 4, rows: 1 },
+      medium: { cols: 6, rows: 1 },
+      wide: { cols: 12, rows: 1 },
+      tall: { cols: 6, rows: 2 },
+      hero: { cols: 12, rows: 2 },
+    }
+    const nextLayout = preset && typeof preset === 'object'
+      ? {
+          cols: clampToRange(normalizeGridValue(preset.cols, 6), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
+          rows: clampToRange(normalizeGridValue(preset.rows, 1), WORKSPACE_MIN_ROWS, 12),
+        }
+      : presetLayouts[String(preset || '')]
+    if (!tabId || !widgetId || !nextLayout) return
+    setCustomTabs((current) => current.map((tab) => {
+      if (tab.id !== tabId) return tab
+      return {
+        ...tab,
+        widgets: (Array.isArray(tab.widgets) ? tab.widgets : []).map((widget) => {
+          if (widget?.id !== widgetId) return widget
+          const nextX = clampToRange(normalizeGridValue(widget?.x, 1), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - nextLayout.cols + 1))
+          return { ...widget, cols: nextLayout.cols, rows: nextLayout.rows, x: nextX }
+        }),
+      }
+    }))
+  }
+
+  function reorderControlCard(draggedId, targetId) {
+    if (!draggedId || !targetId || draggedId === targetId) return
+    const layoutKey = selected?.id || '__global__'
+    const baseCardIds = (Array.isArray(controlUiSpec?.cards) ? controlUiSpec.cards : [])
+      .filter((card) => Array.isArray(card?.controls) && card.controls.length > 0)
+      .map((card) => String(card?.card_id || `${card?.kind}-${card?.title}`))
+    setControlCardLayouts((current) => {
+      const existing = Array.isArray(current[layoutKey])
+        ? current[layoutKey].filter((id) => baseCardIds.includes(id))
+        : []
+      const merged = [...existing, ...baseCardIds.filter((id) => !existing.includes(id))]
+      const fromIndex = merged.indexOf(String(draggedId))
+      const toIndex = merged.indexOf(String(targetId))
+      if (fromIndex < 0 || toIndex < 0) return current
+      return {
+        ...current,
+        [layoutKey]: moveListItem(merged, fromIndex, toIndex),
+      }
+    })
+  }
+
+  const controlCardOrder = useMemo(() => {
+    const layoutKey = selected?.id || '__global__'
+    return Array.isArray(controlCardLayouts[layoutKey]) ? controlCardLayouts[layoutKey] : []
+  }, [controlCardLayouts, selected?.id])
+
+  const applySharedWorkspaceLayout = useCallback((fermenterId, payload) => {
+    const layout = payload?.workspace_layout && typeof payload.workspace_layout === 'object'
+      ? payload.workspace_layout
+      : null
+    if (!layout || !Array.isArray(layout.tabs) || !layout.tabs.length) return null
+
+    const signature = JSON.stringify({
+      fermenter_id: fermenterId,
+      updated_at: layout.updated_at || '',
+      active_tab: layout.active_tab || '',
+      tabs: layout.tabs,
+      control_card_order: Array.isArray(layout.control_card_order) ? layout.control_card_order : [],
+    })
+
+    if (sharedWorkspaceSignatureRef.current === signature) return layout
+    sharedWorkspaceSignatureRef.current = signature
+
+    setCustomTabs(layout.tabs)
+    if (Array.isArray(layout.control_card_order)) {
+      setControlCardLayouts((current) => ({
+        ...current,
+        [fermenterId]: layout.control_card_order,
+      }))
+    }
+
+    if (layout.active_tab && layout.tabs.some((tab) => tab?.id === layout.active_tab)) {
+      setActiveTab(layout.active_tab)
+    } else if (!layout.tabs.some((tab) => tab?.id === activeTab)) {
+      setActiveTab(String(layout.tabs[0]?.id || ''))
+    }
+
+    return layout
+  }, [activeTab])
+
+  const loadSharedWorkspaceLayouts = useCallback(async (id = selectedId, { force = false, quiet = false } = {}) => {
+    if (!id) return null
+    try {
+      const payload = await brewApi.getWorkspaceLayouts(id, { force })
+      return applySharedWorkspaceLayout(id, payload)
+    } catch (err) {
+      if (!quiet) {
+        setError(err instanceof Error ? err.message : 'Failed to load shared workspaces')
+      }
+      return null
+    }
+  }, [applySharedWorkspaceLayout, brewApi, selectedId])
+
+  const saveWorkspaceLayoutsToSupervisor = useCallback(async (id = selected?.id) => {
+    if (!id) return null
+    try {
+      setWorkspaceSaveLoading(true)
+      setError('')
+      const payload = await brewApi.saveWorkspaceLayouts(id, {
+        tabs: customTabs,
+        active_tab: activeTab,
+        control_card_order: controlCardOrder,
+      })
+      return applySharedWorkspaceLayout(id, payload)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save workspaces to supervisor')
+      return null
+    } finally {
+      setWorkspaceSaveLoading(false)
+    }
+  }, [activeTab, applySharedWorkspaceLayout, brewApi, controlCardOrder, customTabs, selected?.id])
+
+  const activeCustomTab = useMemo(
+    () => customTabs.find((tab) => tab?.id === activeTab) || null,
+    [activeTab, customTabs],
+  )
+
+  const activeCustomWidgetTypes = useMemo(
+    () => new Set((Array.isArray(activeCustomTab?.widgets) ? activeCustomTab.widgets : []).map((widget) => String(widget?.type || ''))),
+    [activeCustomTab],
+  )
+
+  const hasCustomModulePrefix = (prefix) => Array.from(activeCustomWidgetTypes).some((type) => type.startsWith(prefix))
+
+  const showControlTab = hasCustomModulePrefix('control')
+  const showDataTab = hasCustomModulePrefix('data')
+  const showArchiveTab = hasCustomModulePrefix('archive')
+  const showRulesTab = globalView === 'rules-studio' || hasCustomModulePrefix('rules')
+  const showSystemTab = globalView === 'system-studio' || hasCustomModulePrefix('system')
+
   const runToggle = useMemo(() => getRunToggle(schedule?.state || null), [schedule?.state])
   const importErrorIssues = useMemo(() => collectIssues(importResult, 'error'), [importResult])
   const importWarningIssues = useMemo(() => collectIssues(importResult, 'warning'), [importResult])
 
-  const healthyServices = useMemo(() => {
-    const services = Object.entries(selected?.services || {})
-    return services.filter(([, service]) => service?.healthy)
-  }, [selected])
+  useEffect(() => {
+    if (!selected?.id) {
+      setHealthyServices([])
+      return
+    }
+    const servicesObject = selected?.services
+    if (!servicesObject || typeof servicesObject !== 'object') return
+    const serviceEntries = Object.entries(servicesObject)
+    if (!serviceEntries.length) return
+    setHealthyServices(serviceEntries.filter(([, service]) => service?.healthy))
+  }, [selected?.id, selected?.services])
 
   const selectedStarredParams = useMemo(() => {
     const values = rulesSnapshot?.values && typeof rulesSnapshot.values === 'object' ? rulesSnapshot.values : {}
@@ -717,7 +1160,7 @@ function App() {
     try {
       const payload = await brewApi.getAgentRepoStatus(id, { force })
       const status = payload?.status && typeof payload.status === 'object' ? payload.status : null
-      setRepoUpdateStatus(status)
+      if (status) setRepoUpdateStatus(status)
       return status
     } catch (err) {
       if (!quiet) {
@@ -728,6 +1171,34 @@ function App() {
       return null
     } finally {
       if (!quiet) setRepoStatusLoading(false)
+    }
+  }, [brewApi, selectedId])
+
+  const refreshPersistenceStatus = useCallback(async (id = selectedId, { force = false, quiet = false } = {}) => {
+    if (!id) return null
+    if (!quiet) setPersistenceLoading(true)
+    try {
+      const payload = await brewApi.getAgentPersistence(id, { force })
+      const status = payload?.persistence && typeof payload.persistence === 'object' ? payload.persistence : null
+      const datasourceStatus = payload?.datasource_persistence && typeof payload.datasource_persistence === 'object'
+        ? payload.datasource_persistence
+        : null
+      const rulesStatus = payload?.rules_persistence && typeof payload.rules_persistence === 'object'
+        ? payload.rules_persistence
+        : null
+      if (status) setPersistenceStatus(status)
+      if (datasourceStatus) setDatasourcePersistenceStatus(datasourceStatus)
+      if (rulesStatus) setRulesPersistenceStatus(rulesStatus)
+      return { persistence: status, datasource_persistence: datasourceStatus, rules_persistence: rulesStatus }
+    } catch (err) {
+      if (!quiet) {
+        setError(err instanceof Error ? err.message : 'Failed to refresh persistence status')
+      } else {
+        console.warn('Persistence status polling failed', err)
+      }
+      return null
+    } finally {
+      if (!quiet) setPersistenceLoading(false)
     }
   }, [brewApi, selectedId])
 
@@ -835,9 +1306,47 @@ function App() {
   }, [refreshAll])
 
   useEffect(() => {
+    if (!selected?.id) {
+      sharedWorkspaceSignatureRef.current = ''
+      setRepoUpdateStatus(null)
+      setPersistenceStatus(null)
+      setDatasourcePersistenceStatus(null)
+      setRulesPersistenceStatus(null)
+    }
+  }, [selected?.id])
+
+  useEffect(() => {
     const summaryStatus = selected?.summary?.repo_update
-    setRepoUpdateStatus(summaryStatus && typeof summaryStatus === 'object' ? summaryStatus : null)
-  }, [selected?.id, selected?.summary])
+    if (summaryStatus && typeof summaryStatus === 'object') {
+      setRepoUpdateStatus(summaryStatus)
+    }
+  }, [selected?.summary?.repo_update])
+
+  useEffect(() => {
+    const summaryStatus = selected?.summary?.persistence
+    if (summaryStatus && typeof summaryStatus === 'object') {
+      setPersistenceStatus(summaryStatus)
+    }
+  }, [selected?.summary?.persistence])
+
+  useEffect(() => {
+    const summaryStatus = selected?.summary?.datasource_persistence
+    if (summaryStatus && typeof summaryStatus === 'object') {
+      setDatasourcePersistenceStatus(summaryStatus)
+    }
+  }, [selected?.summary?.datasource_persistence])
+
+  useEffect(() => {
+    const summaryStatus = selected?.summary?.rules_persistence
+    if (summaryStatus && typeof summaryStatus === 'object') {
+      setRulesPersistenceStatus(summaryStatus)
+    }
+  }, [selected?.summary?.rules_persistence])
+
+  useEffect(() => {
+    if (!selected?.id || layoutEditMode) return
+    loadSharedWorkspaceLayouts(selected.id, { force: true, quiet: true }).catch(() => {})
+  }, [layoutEditMode, loadSharedWorkspaceLayouts, selected?.id])
 
   useAdaptivePolling({
     enabled: Boolean(selected?.id),
@@ -849,15 +1358,15 @@ function App() {
       }
     },
     getDelay: () => {
-      if (activeTab === 'schedule') return 1000
-      if (activeTab === 'control') return 2000
-      if (activeTab === 'rules' || activeTab === 'data') return 2500
+      if (hasCustomModulePrefix('schedule')) return 1000
+      if (hasCustomModulePrefix('control')) return 2000
+      if (hasCustomModulePrefix('rules') || hasCustomModulePrefix('data')) return 2500
       return 2000
     },
   })
 
   useAdaptivePolling({
-    enabled: activeTab === 'control' && Boolean(selected?.id),
+    enabled: showControlTab && Boolean(selected?.id),
     task: async () => {
       try {
         await loadControlUiSpec(selected.id, { quiet: true })
@@ -869,7 +1378,7 @@ function App() {
   })
 
   useAdaptivePolling({
-    enabled: activeTab === 'rules' && Boolean(selected?.id),
+    enabled: showRulesTab && Boolean(selected?.id),
     task: async () => {
       try {
         await loadRules(selected.id)
@@ -881,7 +1390,7 @@ function App() {
   })
 
   useAdaptivePolling({
-    enabled: activeTab === 'data' && Boolean(selected?.id),
+    enabled: showDataTab && Boolean(selected?.id),
     task: async () => {
       try {
         await loadDataTab(selected.id)
@@ -893,7 +1402,7 @@ function App() {
   })
 
   useAdaptivePolling({
-    enabled: activeTab === 'archive' && Boolean(selected?.id),
+    enabled: showArchiveTab && Boolean(selected?.id),
     task: async () => {
       try {
         await loadArchiveTab(selected.id)
@@ -913,7 +1422,19 @@ function App() {
   })
 
   useAdaptivePolling({
-    enabled: activeTab === 'system' && Boolean(selected?.id),
+    enabled: Boolean(selected?.id) && !layoutEditMode,
+    task: async () => {
+      try {
+        await loadSharedWorkspaceLayouts(selected.id, { force: true, quiet: true })
+      } catch {
+        // Shared layout polling is best-effort and should stay silent.
+      }
+    },
+    getDelay: () => 4000,
+  })
+
+  useAdaptivePolling({
+    enabled: showSystemTab && Boolean(selected?.id),
     task: async () => {
       try {
         await refreshRepoUpdateStatus(selected.id, { force: false, quiet: true })
@@ -922,6 +1443,18 @@ function App() {
       }
     },
     getDelay: () => 20000,
+  })
+
+  useAdaptivePolling({
+    enabled: showSystemTab && Boolean(selected?.id),
+    task: async () => {
+      try {
+        await refreshPersistenceStatus(selected.id, { force: false, quiet: true })
+      } catch {
+        // Suppress errors in quiet polling mode to avoid unhandled promise rejections
+      }
+    },
+    getDelay: () => 10000,
   })
 
 
@@ -934,11 +1467,33 @@ function App() {
   }, [starredParams])
 
   useEffect(() => {
-    if (activeTab !== 'archive' || !selected?.id) return
+    try {
+      window.localStorage.setItem('brew-ui.custom-tabs', JSON.stringify(customTabs))
+    } catch {
+      // Ignore storage failures and keep UI responsive.
+    }
+  }, [customTabs])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('brew-ui.control-card-layouts', JSON.stringify(controlCardLayouts))
+    } catch {
+      // Ignore storage failures and keep UI responsive.
+    }
+  }, [controlCardLayouts])
+
+  useEffect(() => {
+    if (!Array.isArray(customTabs) || !customTabs.length) return
+    if (customTabs.some((tab) => tab?.id === activeTab)) return
+    setActiveTab(customTabs[0]?.id || '')
+  }, [activeTab, customTabs])
+
+  useEffect(() => {
+    if (!showArchiveTab || !selected?.id) return
     loadArchiveTab(selected.id).catch((err) => {
       setError(err instanceof Error ? err.message : 'Unknown error')
     })
-  }, [activeTab, loadArchiveTab, selected?.id])
+  }, [showArchiveTab, loadArchiveTab, selected?.id])
 
   useEffect(() => {
     archiveViewRequestRef.current += 1
@@ -949,11 +1504,11 @@ function App() {
   }, [selected?.id])
 
   useEffect(() => {
-    if (activeTab !== 'control' || !selected?.id) return
+    if (!showControlTab || !selected?.id) return
     loadControlUiSpec(selected.id).catch((err) => {
       setError(err instanceof Error ? err.message : 'Unknown error')
     })
-  }, [activeTab, loadControlUiSpec, selected?.id])
+  }, [showControlTab, loadControlUiSpec, selected?.id])
 
   function toggleStarredParam(name) {
     setStarredParams((current) =>
@@ -1007,8 +1562,11 @@ function App() {
     controlWriteError,
     pendingControlWrites,
     controlDrafts,
+    layoutEditMode,
+    controlCardOrder,
     onDraftChange: updateControlDraft,
     onWrite: writeControlValue,
+    onReorderCard: reorderControlCard,
     onReleaseManualControl: () => releaseManualControl(),
   }
 
@@ -1039,9 +1597,15 @@ function App() {
     healthyServices,
     onOpenParameterDB: () => setGlobalView('parameterdb'),
     onOpenStorageManager: () => setGlobalView('storage-manager'),
+    onOpenRulesStudio: () => setGlobalView('rules-studio'),
+    persistenceStatus,
+    persistenceLoading,
+    datasourcePersistenceStatus,
+    rulesPersistenceStatus,
     repoUpdateStatus,
     repoStatusLoading,
     repoUpdateLoading,
+    onRefreshPersistenceStatus: () => refreshPersistenceStatus(selected?.id, { force: true }),
     onRefreshRepoStatus: () => refreshRepoUpdateStatus(selected?.id, { force: true }),
     onApplyRepoUpdate: applyRepoUpdate,
   }
@@ -1071,16 +1635,31 @@ function App() {
       error={error}
       activeTab={activeTab}
       onTabChange={setActiveTab}
+      customTabs={customTabs}
+      layoutEditMode={layoutEditMode}
+      onToggleLayoutEdit={() => setLayoutEditMode((current) => !current)}
+      onOpenSystemStudio={() => setGlobalView('system-studio')}
     >
       <FermenterTabContent
         selected={selected}
         activeTab={activeTab}
+        onSaveSharedWorkspaceLayouts={() => saveWorkspaceLayoutsToSupervisor(selected?.id)}
+        workspaceSaveLoading={workspaceSaveLoading}
         scheduleProps={scheduleTabProps}
         dataProps={dataTabProps}
         controlProps={controlTabProps}
         archiveProps={archiveTabProps}
         rulesProps={rulesTabProps}
         systemProps={systemTabProps}
+        customTabs={customTabs}
+        layoutEditMode={layoutEditMode}
+        onRenameCustomTab={renameCustomTab}
+        onDeleteCustomTab={deleteCustomTab}
+        onAddCustomWidget={addWidgetToCustomTab}
+        onRemoveCustomWidget={removeWidgetFromCustomTab}
+        onMoveCustomWidget={moveWidgetInCustomTab}
+        onResizeCustomWidget={resizeCustomWidget}
+        onCreateCustomTab={addCustomTab}
         globalView={globalView}
         setGlobalView={setGlobalView}
         ruleEditorProps={ruleEditorProps}

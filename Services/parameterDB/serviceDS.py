@@ -11,7 +11,12 @@ from .._shared.storage_paths import default_sources_dir
 from .parameterdb_core.client import SignalClient
 from .parameterdb_sources.admin_server import SourceAdminTCPServer
 from .parameterdb_sources.loader import DataSourceRegistry, autodiscover_sources
-from .parameterdb_sources.runner import SourceRunner
+from .parameterdb_sources.repository import (
+    FileSourceConfigRepository,
+    PostgresSourceConfigRepository,
+    resolve_source_repository_settings,
+)
+from .parameterdb_sources.runner import SourceRecord, SourceRunner
 
 
 def _builtin_source_root() -> str:
@@ -20,6 +25,15 @@ def _builtin_source_root() -> str:
 
 def _default_config_dir() -> str:
     return default_sources_dir()
+
+
+def _build_source_repository(*, config_dir: str) -> FileSourceConfigRepository | PostgresSourceConfigRepository:
+    persistence_kind, postgres_config = resolve_source_repository_settings()
+    if persistence_kind == "postgres":
+        if postgres_config is None:
+            raise ValueError("Datasource Postgres persistence selected without configuration")
+        return PostgresSourceConfigRepository(postgres_config)
+    return FileSourceConfigRepository(config_dir)
 
 
 def main() -> None:
@@ -34,7 +48,9 @@ def main() -> None:
     print(f"[INFO] Built-in source root: {builtin_root}")
     print(f"[INFO] Loaded built-in source types: {loaded_builtin}")
 
-    runner = SourceRunner(base_client, registry, config_dir=_default_config_dir())
+    repository = _build_source_repository(config_dir=_default_config_dir())
+    print(f"[INFO] Source config backend: {repository.stats()['backend']}")
+    runner = SourceRunner(base_client, registry, repository=repository)
     records = runner.load_config_dir()
 
     print(f"[INFO] Loaded source instances: {[r.name for r in records]}")

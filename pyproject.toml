@@ -17,6 +17,8 @@ dependencies = [
     "python-multipart",
     # HTTP client (inter-service communication)
     "requests",
+    # Remote SQL persistence for ParameterDB snapshots
+    "psycopg[binary]>=3.2",
     # Binary serialisation (ParameterDB protocol)
     "msgpack>=1.0",
     # Excel schedule import

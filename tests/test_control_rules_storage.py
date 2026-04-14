@@ -4,10 +4,12 @@ import json
 
 import pytest
 
+from Services.control_service.rules import repository as repository_module
 from Services.control_service.rules import storage
 
 
 def test_get_rule_dir_creates_directory(tmp_path, monkeypatch) -> None:
+    storage.set_rule_repository(None)
     monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
 
     result = storage.get_rule_dir()
@@ -17,6 +19,7 @@ def test_get_rule_dir_creates_directory(tmp_path, monkeypatch) -> None:
 
 
 def test_save_load_delete_rule_roundtrip(tmp_path, monkeypatch) -> None:
+    storage.set_rule_repository(None)
     monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
     rule = {
         "id": "r1",
@@ -40,6 +43,7 @@ def test_save_load_delete_rule_roundtrip(tmp_path, monkeypatch) -> None:
 
 
 def test_save_rule_requires_id(tmp_path, monkeypatch) -> None:
+    storage.set_rule_repository(None)
     monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
 
     with pytest.raises(ValueError):
@@ -47,6 +51,7 @@ def test_save_rule_requires_id(tmp_path, monkeypatch) -> None:
 
 
 def test_load_rules_skips_invalid_json_and_cleans_stale_tmp(tmp_path, monkeypatch, capsys) -> None:
+    storage.set_rule_repository(None)
     rules_dir = tmp_path / "Rules"
     rules_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(storage, "RULE_DIR", rules_dir)
@@ -66,6 +71,7 @@ def test_load_rules_skips_invalid_json_and_cleans_stale_tmp(tmp_path, monkeypatc
 
 
 def test_delete_rule_returns_false_for_missing_rule(tmp_path, monkeypatch) -> None:
+    storage.set_rule_repository(None)
     monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
 
     assert storage.delete_rule("missing") is False
@@ -89,11 +95,12 @@ def test_cleanup_stale_rule_tmp_files_ignores_unlink_oserror(tmp_path) -> None:
 
 
 def test_save_rule_runs_directory_fsync_when_supported(tmp_path, monkeypatch) -> None:
+    storage.set_rule_repository(None)
     monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
 
     fsync_calls: list[int] = []
     close_calls: list[int] = []
-    original_open = storage.os.open
+    original_open = repository_module.os.open
 
     def fake_fsync(fd: int) -> None:
         fsync_calls.append(fd)
@@ -103,9 +110,9 @@ def test_save_rule_runs_directory_fsync_when_supported(tmp_path, monkeypatch) ->
             return 999
         return original_open(path, flags, mode)
 
-    monkeypatch.setattr(storage.os, "fsync", fake_fsync)
-    monkeypatch.setattr(storage.os, "open", fake_open)
-    monkeypatch.setattr(storage.os, "close", lambda fd: close_calls.append(fd))
+    monkeypatch.setattr(repository_module.os, "fsync", fake_fsync)
+    monkeypatch.setattr(repository_module.os, "open", fake_open)
+    monkeypatch.setattr(repository_module.os, "close", lambda fd: close_calls.append(fd))
 
     saved_path = storage.save_rule({"id": "dirsync", "enabled": True})
 
@@ -115,10 +122,11 @@ def test_save_rule_runs_directory_fsync_when_supported(tmp_path, monkeypatch) ->
 
 
 def test_save_rule_cleanup_tolerates_unlink_failure(tmp_path, monkeypatch) -> None:
+    storage.set_rule_repository(None)
     monkeypatch.setattr(storage, "RULE_DIR", tmp_path / "Rules")
 
     temp_paths: list[str] = []
-    original_mkstemp = storage.tempfile.mkstemp
+    original_mkstemp = repository_module.tempfile.mkstemp
 
     def tracking_mkstemp(*args, **kwargs):
         fd, tmp_name = original_mkstemp(*args, **kwargs)
@@ -132,10 +140,10 @@ def test_save_rule_cleanup_tolerates_unlink_failure(tmp_path, monkeypatch) -> No
         assert path == temp_paths[0]
         raise OSError("busy")
 
-    monkeypatch.setattr(storage.tempfile, "mkstemp", tracking_mkstemp)
-    monkeypatch.setattr(storage.os, "replace", fail_replace)
-    monkeypatch.setattr(storage.os.path, "exists", lambda path: path == temp_paths[0])
-    monkeypatch.setattr(storage.os, "unlink", fail_unlink)
+    monkeypatch.setattr(repository_module.tempfile, "mkstemp", tracking_mkstemp)
+    monkeypatch.setattr(repository_module.Path, "replace", fail_replace)
+    monkeypatch.setattr(repository_module.Path, "exists", lambda self: str(self) == temp_paths[0])
+    monkeypatch.setattr(repository_module.Path, "unlink", lambda self: fail_unlink(str(self)))
 
     with pytest.raises(RuntimeError, match="replace failed"):
         storage.save_rule({"id": "cleanup", "enabled": True})

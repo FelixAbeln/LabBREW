@@ -8,6 +8,7 @@ import pytest
 
 from Services.parameterDB.parameterdb_service.persistence.audit_log import AuditLogger
 from Services.parameterDB.parameterdb_service.persistence.snapshots import (
+    PostgresSnapshotConfig,
     SNAPSHOT_FORMAT_VERSION,
     SnapshotManager,
     build_snapshot_payload,
@@ -15,7 +16,12 @@ from Services.parameterDB.parameterdb_service.persistence.snapshots import (
     load_snapshot_file,
     load_snapshot_into_store,
     load_snapshot_payload_into_store,
+    load_snapshot_postgres,
+    load_snapshot_postgres_into_store,
+    resolve_snapshot_persistence_settings,
+    restore_snapshot_into_store,
     write_snapshot_file,
+    write_snapshot_postgres,
 )
 from Services.parameterDB.parameterdb_service.plugin_api import (
     ParameterBase,
@@ -55,6 +61,68 @@ class FakeRegistry:
         return self.spec
 
 
+class FakePostgresCursor:
+    def __init__(self, state: dict[str, object]) -> None:
+        self.state = state
+        self._result_one = None
+        self._result_all: list[tuple[object, ...]] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        _ = exc_type, exc, tb
+
+    def execute(self, query: str, params=None) -> None:
+        normalized = " ".join(query.split()).lower()
+        if normalized.startswith("create table if not exists"):
+            return
+        if normalized.startswith("delete from"):
+            self.state["rows"] = []
+            return
+        if "insert into" in normalized and "snapshot_meta" in normalized:
+            assert params is not None
+            self.state["meta"] = tuple(params)
+            return
+        if normalized.startswith("select format_version, saved_at, store_revision"):
+            meta = self.state.get("meta")
+            self._result_one = None if meta is None else (meta[0], meta[1], meta[2])
+            return
+        if normalized.startswith("select name, parameter_type, value_json"):
+            rows = list(self.state.get("rows") or [])
+            self._result_all = sorted(rows, key=lambda row: row[0])
+            return
+        raise AssertionError(f"Unexpected query: {query}")
+
+    def executemany(self, query: str, params_seq) -> None:
+        normalized = " ".join(query.split()).lower()
+        if "insert into" not in normalized or "snapshot_parameters" not in normalized:
+            raise AssertionError(f"Unexpected executemany query: {query}")
+        self.state["rows"] = [tuple(row) for row in params_seq]
+
+    def fetchone(self):
+        return self._result_one
+
+    def fetchall(self):
+        return list(self._result_all)
+
+
+class FakePostgresConnection:
+    def __init__(self, state: dict[str, object]) -> None:
+        self.state = state
+        self.committed = False
+        self.closed = False
+
+    def cursor(self) -> FakePostgresCursor:
+        return FakePostgresCursor(self.state)
+
+    def commit(self) -> None:
+        self.committed = True
+
+    def close(self) -> None:
+        self.closed = True
+
+
 
 def test_snapshot_payload_write_and_load_roundtrip(tmp_path: Path) -> None:
     store = ParameterStore()
@@ -68,6 +136,32 @@ def test_snapshot_payload_write_and_load_roundtrip(tmp_path: Path) -> None:
     snapshot_file = tmp_path / "snapshot.json"
     write_snapshot_file(snapshot_file, payload)
     loaded = load_snapshot_file(snapshot_file)
+
+    assert isinstance(loaded, dict)
+    assert loaded["parameters"]["reactor.temp"]["value"] == 21.0
+
+
+def test_snapshot_postgres_write_and_load_roundtrip(monkeypatch) -> None:
+    store = ParameterStore()
+    store.add(FakeParameter("reactor.temp", value=21.0, config={"unit": "C"}, metadata={"owner": "pytest"}))
+    payload = build_snapshot_payload(store)
+    state: dict[str, object] = {"rows": [], "meta": None}
+    config = PostgresSnapshotConfig(
+        host="db.internal",
+        port=5432,
+        database="labbrew",
+        username="brew",
+        password="secret",
+        table_prefix="parameterdb",
+    )
+
+    monkeypatch.setattr(
+        "Services.parameterDB.parameterdb_service.persistence.snapshots._connect_postgres",
+        lambda _config: FakePostgresConnection(state),
+    )
+
+    write_snapshot_postgres(config, payload)
+    loaded = load_snapshot_postgres(config)
 
     assert isinstance(loaded, dict)
     assert loaded["parameters"]["reactor.temp"]["value"] == 21.0
@@ -138,6 +232,41 @@ def test_load_snapshot_into_store_restores_valid_entries_only(tmp_path: Path) ->
     assert rec.state == {"connected": True}
 
 
+def test_load_snapshot_postgres_into_store_restores_entries(monkeypatch) -> None:
+    snapshot_payload = {
+        "format_version": SNAPSHOT_FORMAT_VERSION,
+        "parameters": {
+            "ok.param": {
+                "parameter_type": "fake",
+                "value": 5,
+                "config": {"unit": "bar"},
+                "metadata": {"seed": 1},
+                "state": {"connected": True},
+            },
+        },
+    }
+    state: dict[str, object] = {"rows": [], "meta": None}
+    config = PostgresSnapshotConfig(
+        host="db.internal",
+        port=5432,
+        database="labbrew",
+        username="brew",
+        password="secret",
+        table_prefix="parameterdb",
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.parameterdb_service.persistence.snapshots._connect_postgres",
+        lambda _config: FakePostgresConnection(state),
+    )
+    write_snapshot_postgres(config, snapshot_payload)
+
+    store = ParameterStore()
+    restored = load_snapshot_postgres_into_store(store, FakeRegistry(), config)
+
+    assert restored == 1
+    assert store.get_value("ok.param") == 5
+
+
 
 def test_load_snapshot_into_store_rejects_wrong_format_version(tmp_path: Path) -> None:
     snapshot_file = tmp_path / "snapshot.json"
@@ -145,6 +274,29 @@ def test_load_snapshot_into_store_rejects_wrong_format_version(tmp_path: Path) -
 
     with pytest.raises(ValueError):
         load_snapshot_into_store(ParameterStore(), FakeRegistry(), snapshot_file)
+
+
+def test_load_snapshot_payload_into_store_skips_unknown_parameter_types() -> None:
+    payload = {
+        "format_version": SNAPSHOT_FORMAT_VERSION,
+        "parameters": {
+            "ok.param": {
+                "parameter_type": "fake",
+                "value": 5,
+            },
+            "bad.param": {
+                "parameter_type": "float",
+                "value": 1.23,
+            },
+        },
+    }
+
+    store = ParameterStore()
+    restored = load_snapshot_payload_into_store(store, FakeRegistry(), payload)
+
+    assert restored == 1
+    assert store.get_value("ok.param") == 5
+    assert not store.exists("bad.param")
 
 
 def test_load_snapshot_payload_into_store_rejects_non_object_payload() -> None:
@@ -158,11 +310,132 @@ def test_load_snapshot_into_store_returns_zero_when_snapshot_missing(tmp_path: P
     assert restored == 0
 
 
+def test_restore_snapshot_into_store_uses_postgres_when_selected(monkeypatch, tmp_path: Path) -> None:
+    postgres_payload = {
+        "format_version": SNAPSHOT_FORMAT_VERSION,
+        "parameters": {
+            "postgres.param": {"parameter_type": "fake", "value": 2},
+        },
+    }
+    json_path = tmp_path / "snapshot.json"
+    state: dict[str, object] = {"rows": [], "meta": None}
+    config = PostgresSnapshotConfig(
+        host="db.internal",
+        port=5432,
+        database="labbrew",
+        username="brew",
+        password="secret",
+        table_prefix="parameterdb",
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.parameterdb_service.persistence.snapshots._connect_postgres",
+        lambda _config: FakePostgresConnection(state),
+    )
+    write_snapshot_postgres(config, postgres_payload)
+
+    store = ParameterStore()
+    restored = restore_snapshot_into_store(
+        store,
+        FakeRegistry(),
+        json_path,
+        persistence_kind="postgres",
+        postgres_config=config,
+    )
+
+    assert restored == 1
+    assert store.get_value("postgres.param") == 2
+
+
+def test_resolve_snapshot_persistence_settings_reads_postgres_env(monkeypatch) -> None:
+    monkeypatch.setenv("LABBREW_PARAMETERDB_PERSISTENCE_KIND", "postgres")
+    monkeypatch.setenv("LABBREW_PARAMETERDB_POSTGRES_HOST", "db.internal")
+    monkeypatch.setenv("LABBREW_PARAMETERDB_POSTGRES_PORT", "5432")
+    monkeypatch.setenv("LABBREW_PARAMETERDB_POSTGRES_DATABASE", "labbrew")
+    monkeypatch.setenv("LABBREW_PARAMETERDB_POSTGRES_USERNAME", "brew")
+    monkeypatch.setenv("LABBREW_PARAMETERDB_POSTGRES_PASSWORD", "secret")
+    monkeypatch.setenv("LABBREW_PARAMETERDB_POSTGRES_TABLE_PREFIX", "runtime")
+    monkeypatch.setenv("LABBREW_PARAMETERDB_POSTGRES_SSLMODE", "require")
+
+    kind, config = resolve_snapshot_persistence_settings()
+
+    assert kind == "postgres"
+    assert config is not None
+    assert config.host == "db.internal"
+    assert config.table_prefix == "runtime"
+    assert config.sslmode == "require"
+
+
+def test_resolve_snapshot_persistence_settings_rejects_invalid_kind() -> None:
+    with pytest.raises(ValueError, match="Unsupported persistence kind"):
+        resolve_snapshot_persistence_settings(kind="oracle")
+
+
+def test_resolve_snapshot_persistence_settings_rejects_invalid_table_prefix() -> None:
+    with pytest.raises(ValueError, match="table_prefix"):
+        resolve_snapshot_persistence_settings(
+            kind="postgres",
+            postgres_host="db.internal",
+            postgres_database="labbrew",
+            postgres_username="brew",
+            postgres_password="secret",
+            postgres_table_prefix="bad-prefix",
+        )
+
+
+def test_snapshot_manager_save_now_uses_postgres_backend(monkeypatch, tmp_path: Path) -> None:
+    store = ParameterStore()
+    store.add(FakeParameter("reactor.temp", value=21.0))
+    config = PostgresSnapshotConfig(
+        host="db.internal",
+        port=5432,
+        database="labbrew",
+        username="brew",
+        password="secret",
+        table_prefix="runtime",
+        sslmode="require",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_write_snapshot_postgres(postgres_config: PostgresSnapshotConfig, payload: dict[str, object]) -> None:
+        captured["config"] = postgres_config
+        captured["payload"] = payload
+
+    monkeypatch.setattr(
+        "Services.parameterDB.parameterdb_service.persistence.snapshots.write_snapshot_postgres",
+        _fake_write_snapshot_postgres,
+    )
+
+    manager = SnapshotManager(
+        store,
+        tmp_path / "unused.json",
+        persistence_kind="postgres",
+        postgres_config=config,
+        interval_s=0.1,
+        enabled=True,
+    )
+
+    saved = manager.save_now()
+
+    assert saved is True
+    assert captured["config"] == config
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert payload["parameters"]["reactor.temp"]["value"] == 21.0
+    stats = manager.stats()
+    assert stats["backend"] == "postgres"
+    assert stats["postgres"]["host"] == "db.internal"
+
+
 
 def test_snapshot_manager_save_now_and_force_behaviors(tmp_path: Path) -> None:
     store = ParameterStore()
     store.add(FakeParameter("a", value=1))
-    manager = SnapshotManager(store, tmp_path / "snap.json", interval_s=0.1, enabled=True)
+    manager = SnapshotManager(
+        store,
+        tmp_path / "snap.json",
+        interval_s=0.1,
+        enabled=True,
+    )
 
     first = manager.save_now()
     second = manager.save_now()
@@ -174,6 +447,10 @@ def test_snapshot_manager_save_now_and_force_behaviors(tmp_path: Path) -> None:
     stats = manager.stats()
     assert stats["last_saved_revision"] == store.revision()
     assert stats["last_saved_at"] is not None
+    assert stats["backend"] == "json"
+    assert stats["last_save_ok"] is True
+    assert stats["last_success_at"] is not None
+    assert stats["last_error"] is None
 
 
 
@@ -192,12 +469,47 @@ def test_snapshot_manager_stop_with_final_save_writes_file(tmp_path: Path) -> No
 def test_snapshot_manager_disabled_does_not_save(tmp_path: Path) -> None:
     store = ParameterStore()
     store.add(FakeParameter("a", value=1))
-    manager = SnapshotManager(store, tmp_path / "disabled.json", enabled=False)
+    manager = SnapshotManager(
+        store,
+        tmp_path / "disabled.json",
+        enabled=False,
+    )
 
     assert manager.save_now() is False
     manager.start()
     manager.stop(save_final=True)
     assert not (tmp_path / "disabled.json").exists()
+
+
+def test_snapshot_manager_records_last_error_on_failed_save(monkeypatch, tmp_path: Path) -> None:
+    store = ParameterStore()
+    store.add(FakeParameter("a", value=1))
+    manager = SnapshotManager(
+        store,
+        tmp_path / "snap.json",
+        persistence_kind="postgres",
+        postgres_config=PostgresSnapshotConfig(
+            host="db.internal",
+            port=5432,
+            database="labbrew",
+            username="brew",
+            password="secret",
+        ),
+        enabled=True,
+    )
+
+    monkeypatch.setattr(
+        "Services.parameterDB.parameterdb_service.persistence.snapshots.write_snapshot_postgres",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("db offline")),
+    )
+
+    with pytest.raises(RuntimeError, match="db offline"):
+        manager.save_now(force=True)
+
+    stats = manager.stats()
+    assert stats["last_save_ok"] is False
+    assert stats["last_error"] == "db offline"
+    assert stats["last_error_at"] is not None
 
 
 

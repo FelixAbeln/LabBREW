@@ -110,7 +110,7 @@ LabBREW is not just a controller or dashboard.
 ### 🗄️ ParameterDB Binary Protocol
 - Custom MessagePack-over-TCP protocol for minimal latency
 - Thread-safe parameter store with fixed/adaptive scan modes (current node topology runs adaptive at target utilization 0.7, bounded by 2-50 ms period; up to 500 Hz at the 2 ms floor)
-- Pub/sub event broker, snapshot persistence (JSON), plugin hooks (PID, deadband, scripts)
+- Pub/sub event broker, snapshot persistence (JSON by default or topology-configured Postgres), plugin hooks (PID, deadband, scripts)
 - Python client library included
 
 ### 🔌 Built-in Data Source Support
@@ -149,6 +149,7 @@ LabBREW is not just a controller or dashboard.
 | [Frontend Documentation](./docs/frontend/README.md) | React UI — features, tech stack, setup, and source layout |
 | [ParameterDB Source Definitions](./docs/implementation/parameterdb-source-definitions.md) | Built-in datasource types, hardware/protocol coverage, and Tilt BLE notes |
 | [ParameterDB + Relationship Setup Guide](./docs/frontend/parameterdb-relationship-setup.md) | Frontend workflow to set up ParameterDB entities and graph relationships |
+| [PostgreSQL Persistence Testing Guide](./docs/POSTGRES_PERSISTENCE_TESTING.md) | Set up and test PostgreSQL backends for parameter snapshots, datasource configs, and control rules |
 | [BrewSupervisor Gateway API](./docs/api/brewsupervisor-api.md) | Central gateway: fermenter discovery, dashboard, schedule import — **start here for frontend work** |
 | [Supervisor Agent API](./docs/api/agent-api.md) | Per-node agent: health, service proxy, mDNS registration |
 | [Control Service API](./docs/api/control-service-api.md) | Ownership, read/write/ramp, rules engine, WebSocket streaming |
@@ -215,6 +216,40 @@ python .\run_supervisor.py
 ```
 
 If `LABBREW_STORAGE_ROOT` is not set, existing `./data/...` defaults are used.
+
+### Remote ParameterDB Persistence
+
+If you want ParameterDB state to live in a running database instead of a local snapshot file, add a `persistence` block to the `ParameterDB` service in [data/system_topology.yaml](data/system_topology.yaml). The supervisor forwards those settings into the service environment when it launches the backend.
+
+Example:
+
+```yaml
+services:
+	ParameterDB:
+		module: Services.parameterDB.serviceDB
+		listen:
+			host: 127.0.0.1
+			port: 8765
+			proto: ParameterDB_Binary
+			path: /
+		persistence:
+			kind: postgres
+			host: db.internal
+			port: 5432
+			database: labbrew
+			username: brew
+			password: change-me
+			table_prefix: parameterdb
+			sslmode: require
+```
+
+With this enabled, ParameterDB writes its current full snapshot to Postgres tables and restores from those tables on startup. Without it, the service stays on the existing local JSON persistence path.
+
+The datasource service can be configured the same way in that same topology file. Add a `persistence` block to `ParameterDB_DataSource` if you want source instance configs to live in Postgres instead of `data/sources`.
+
+The control service now supports the same pattern for safety and automation rules. Add a `persistence` block to `control_service` if you want rule definitions to live in Postgres instead of `data/Rules`.
+
+That keeps the whole node description in one topology document while still letting each service own its own storage schema. The System tab now surfaces all three backends separately: ParameterDB snapshots, datasource source definitions, and control rules.
 
 ### Raspberry Pi Backend Install
 

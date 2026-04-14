@@ -18,6 +18,22 @@ Returns static node metadata and the current service map.
 {
   "node_id": "01",
   "node_name": "Test",
+  "persistence": {
+    "available": true,
+    "healthy": true,
+    "backend": "postgres",
+    "last_save_ok": true
+  },
+  "datasource_persistence": {
+    "available": true,
+    "healthy": true,
+    "backend": "postgres"
+  },
+  "rules_persistence": {
+    "available": true,
+    "healthy": true,
+    "backend": "json"
+  },
   "services": {
     "control_service": {
       "healthy": true,
@@ -56,6 +72,40 @@ Returns a high-level availability summary computed by the Supervisor.
 {
   "node_id": "rpi-node-1",
   "node_name": "Fermentation Room A",
+  "persistence": {
+    "available": true,
+    "healthy": true,
+    "backend": "postgres",
+    "last_save_ok": true,
+    "postgres": {
+      "host": "db.internal",
+      "port": 5432,
+      "database": "labbrew",
+      "table_prefix": "runtime"
+    }
+  },
+  "datasource_persistence": {
+    "available": true,
+    "healthy": true,
+    "backend": "postgres",
+    "postgres": {
+      "host": "db.internal",
+      "port": 5432,
+      "database": "labbrew",
+      "table_prefix": "datasource"
+    }
+  },
+  "rules_persistence": {
+    "available": true,
+    "healthy": true,
+    "backend": "postgres",
+    "postgres": {
+      "host": "db.internal",
+      "port": 5432,
+      "database": "labbrew",
+      "table_prefix": "control_rules"
+    }
+  },
   "schedule_available": true,
   "control_available": true,
   "data_available": true,
@@ -85,6 +135,35 @@ Returns a high-level availability summary computed by the Supervisor.
     "dirty": false,
     "restart_requested": false,
     "error": null
+  }
+}
+```
+
+### `GET /agent/persistence`
+
+Returns the node-local ParameterDB snapshot persistence status as seen by the Agent.
+
+This is intended for UI/system status use so callers do not need to speak the binary ParameterDB protocol directly.
+
+The higher-level `GET /agent/info` and `GET /agent/summary` payloads also include `datasource_persistence` and `rules_persistence` fields so the UI can show where source-instance definitions and control rules are stored.
+
+**Response** `200 OK`
+```json
+{
+  "ok": true,
+  "persistence": {
+    "available": true,
+    "healthy": true,
+    "backend": "postgres",
+    "last_save_ok": true,
+    "last_success_at": 1713012345.0,
+    "last_error": null,
+    "postgres": {
+      "host": "db.internal",
+      "port": 5432,
+      "database": "labbrew",
+      "table_prefix": "runtime"
+    }
   }
 }
 ```
@@ -179,6 +258,10 @@ Applies metadata changes from a JSON object body.
 ### `GET /parameterdb/snapshot-file`
 
 Exports the current full snapshot payload and current snapshot persistence stats.
+
+### `GET /parameterdb/stats`
+
+Returns ParameterDB runtime stats plus `snapshot_persistence`, which reports the configured persistence backend and the last save health.
 
 ### `POST /parameterdb/snapshot-file`
 

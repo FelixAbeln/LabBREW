@@ -54,6 +54,9 @@ class SourceAdminTCPServer(socketserver.ThreadingTCPServer):
     def api_ping(self, _payload: dict[str, Any]) -> str:
         return "pong"
 
+    def api_stats(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        return self.runner.stats()
+
     def api_list_source_types_ui(self, _payload: dict[str, Any]) -> dict[str, Any]:
         return self.runner.registry.list_ui()
 

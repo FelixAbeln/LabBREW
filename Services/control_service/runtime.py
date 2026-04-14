@@ -15,6 +15,7 @@ from typing import Any
 from .._shared.parameterDB.paremeterDB import SignalStoreBackend
 from .._shared.storage_paths import storage_path
 from ..parameterDB.parameterdb_core.client import SignalSession
+from ..parameterDB.sourceDefs._ui_schema import build_control_app
 from .control.executor import execute_action, read_value, set_value_checked
 from .control.ownership import OwnershipManager
 from .control.utils import get_targets
@@ -862,6 +863,13 @@ class ControlRuntime:
                         "source_control_spec_error": source_control_spec_error,
                     }
                 )
+                resolved_app = source_control_spec.get("app") or source_control_spec.get("card_app")
+                has_app_items = isinstance(resolved_app, dict) and any(
+                    isinstance(section, dict) and isinstance(section.get("items"), list) and len(section.get("items", [])) > 0
+                    for section in resolved_app.get("sections", [])
+                )
+                if not has_app_items:
+                    resolved_app = build_control_app(controls, title=str(source_name))
                 ui_cards.append(
                     {
                         "card_id": f"source:{source_name}",
@@ -871,6 +879,8 @@ class ControlRuntime:
                         "running": bool(source.get("running")),
                         "source_name": source_name,
                         "source_type": source_type,
+                        "app": dict(resolved_app),
+                        "card_app": dict(resolved_app),
                         "controls": controls,
                     }
                 )
@@ -976,6 +986,7 @@ class ControlRuntime:
         )
 
         if manual_controls:
+            manual_app = build_control_app(manual_controls, title="Custom Manual Controls")
             ui_cards.append(
                 {
                     "card_id": "manual:custom-map",
@@ -985,6 +996,8 @@ class ControlRuntime:
                     "running": True,
                     "source_name": "manual_map",
                     "source_type": "manual",
+                    "app": manual_app,
+                    "card_app": manual_app,
                     "controls": manual_controls,
                 }
             )

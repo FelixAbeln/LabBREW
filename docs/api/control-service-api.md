@@ -5,6 +5,8 @@
 
 The Control Service manages parameter ownership, value writes, ramping, and an automated rules engine. It communicates with [ParameterDB](./parameterdb-api.md) over the binary TCP protocol.
 
+Control rules can be persisted either as JSON files under `data/Rules` or in a topology-configured Postgres backend. Supervisor injects the selected backend into the service when it starts.
+
 ---
 
 ## Control Endpoints (`/control`)
@@ -86,6 +88,41 @@ Resets a target to its default value and clears its ownership.
 **Request body**
 ```json
 {"target": "reactor.temp.setpoint"}
+```
+
+---
+
+## System Endpoints (`/system`)
+
+### `GET /system/rule-dir`
+
+Returns the local rule directory when the backend is file-based.
+
+**Response** `200 OK`
+```json
+{"rule_dir": "data/Rules", "backend": "json"}
+```
+
+When rules are stored in Postgres, `rule_dir` is `null` and `backend` reports `postgres`.
+
+### `GET /system/rules-persistence`
+
+Returns the active control-rules persistence backend.
+
+**Response** `200 OK`
+```json
+{
+  "available": true,
+  "healthy": true,
+  "backend": "postgres",
+  "postgres": {
+    "host": "db.internal",
+    "port": 5432,
+    "database": "labbrew",
+    "table_prefix": "control_rules",
+    "sslmode": "require"
+  }
+}
 ```
 
 ---
