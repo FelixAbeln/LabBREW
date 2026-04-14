@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -11,6 +12,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
+from Services._shared.json_persistence import atomic_write_json
 from Services._shared.storage_paths import storage_path
 
 from .models import FermenterView
@@ -168,6 +170,9 @@ def _get_datasource_node(registry: Any, fermenter_id: str):
     return registry.get_node(fermenter_id)
 
 
+_WORKSPACE_LAYOUT_STORE_LOCK = threading.RLock()
+
+
 def _workspace_layout_store_path() -> Path:
     path = storage_path("supervisor_workspace_layouts.json")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,22 +180,29 @@ def _workspace_layout_store_path() -> Path:
 
 
 def _load_workspace_layout_store() -> dict[str, Any]:
-    path = _workspace_layout_store_path()
-    if not path.exists():
-        return {}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    with _WORKSPACE_LAYOUT_STORE_LOCK:
+        path = _workspace_layout_store_path()
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
 
 
 def _save_workspace_layout_store(store: dict[str, Any]) -> None:
-    path = _workspace_layout_store_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    tmp_path.write_text(json.dumps(store, indent=2, sort_keys=True), encoding="utf-8")
-    tmp_path.replace(path)
+    with _WORKSPACE_LAYOUT_STORE_LOCK:
+        path = _workspace_layout_store_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(path, store, indent=2, sort_keys=True, ensure_ascii=False)
+
+
+def _update_workspace_layout_store(fermenter_id: str, layout: dict[str, Any]) -> None:
+    with _WORKSPACE_LAYOUT_STORE_LOCK:
+        store = _load_workspace_layout_store()
+        store[str(fermenter_id)] = layout
+        _save_workspace_layout_store(store)
 
 
 def _normalize_workspace_layout_payload(raw: Any) -> dict[str, Any]:
@@ -368,9 +380,7 @@ def build_router() -> APIRouter:
         layout = _normalize_workspace_layout_payload(body)
         layout["fermenter_name"] = str(getattr(node, "name", "") or fermenter_id)
 
-        store = _load_workspace_layout_store()
-        store[str(fermenter_id)] = layout
-        _save_workspace_layout_store(store)
+        _update_workspace_layout_store(fermenter_id, layout)
 
         return {
             "ok": True,

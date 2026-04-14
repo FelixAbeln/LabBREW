@@ -603,6 +603,54 @@ def test_tilt_hydrometer_run_ui_action_falls_back_to_manual_colors(monkeypatch) 
     assert any("bridge: timed out" in warning for warning in result["warnings"])
 
 
+def test_tilt_bridge_scan_rejects_unsupported_url_schemes(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer import ui as tilt_ui
+
+    calls = {"count": 0}
+
+    def fake_urlopen(*_args, **_kwargs):
+        calls["count"] += 1
+        raise AssertionError("urlopen should not be reached for invalid schemes")
+
+    monkeypatch.setattr(tilt_ui, "urlopen", fake_urlopen)
+
+    candidates, error = tilt_ui._scan_bridge_tilts({"bridge_url": "file:///tmp/tilt.json"}, None)
+
+    assert candidates == []
+    assert calls["count"] == 0
+    assert "http" in error.lower()
+
+
+def test_tilt_bridge_scan_defaults_to_documented_timeout(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer import ui as tilt_ui
+
+    observed: dict[str, float] = {}
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"tilts": []}'
+
+    def fake_urlopen(req, timeout):
+        observed["url"] = req.full_url
+        observed["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr(tilt_ui, "urlopen", fake_urlopen)
+
+    candidates, error = tilt_ui._scan_bridge_tilts({}, None)
+
+    assert candidates == []
+    assert error == ""
+    assert observed["url"] == "http://tiltbridge.local/json"
+    assert observed["timeout"] == 3.0
+
+
 def test_tilt_ble_decode_accepts_standard_ibeacon_payload_length() -> None:
     from Services.parameterDB.sourceDefs.tilt_hydrometer.service import (
         TiltHydrometerSource,

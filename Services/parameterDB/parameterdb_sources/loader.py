@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import importlib
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .base import DataSourceSpec
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -187,6 +191,12 @@ def autodiscover_sources(root: str | Path, registry: DataSourceRegistry) -> list
         try:
             info = load_source_folder(child, registry)
             loaded.append(info.source_type)
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning(
+                "Skipping data source folder '%s' due to load error: %s",
+                child,
+                exc,
+                exc_info=True,
+            )
             continue
     return loaded

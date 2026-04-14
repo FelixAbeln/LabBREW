@@ -51,7 +51,8 @@ class FermenterRegistry:
 
     def _refresh_snapshot_background(self) -> None:
         try:
-            self._compute_snapshot(force_refresh=True)
+            # Preserve the last known non-empty topology if discovery briefly flaps.
+            self._compute_snapshot(force_refresh=False)
         finally:
             with self._snapshot_lock:
                 self._refresh_inflight = False

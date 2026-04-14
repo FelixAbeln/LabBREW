@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import runpy
 import warnings
 from pathlib import Path
@@ -227,7 +228,7 @@ def test_registry_ui_provider_typeerror_fallback() -> None:
     assert registry.get_ui_spec("fake")["display_name"] == "fallback"
 
 
-def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path) -> None:
+def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     class UiWithFunction:
         @staticmethod
         def get_ui_spec(*, _record=None, _mode=None):
@@ -254,8 +255,10 @@ def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(loader, "load_source_folder", fake_load_source_folder)
 
     registry = loader.DataSourceRegistry()
-    loaded = loader.autodiscover_sources(root, registry)
+    with caplog.at_level(logging.WARNING):
+        loaded = loader.autodiscover_sources(root, registry)
     assert loaded == ["good_type"]
+    assert "bad source" in caplog.text
     assert loader.autodiscover_sources(root / "missing", registry) == []
 
 

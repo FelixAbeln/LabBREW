@@ -268,6 +268,29 @@ def test_workspace_layouts_round_trip(monkeypatch, tmp_path: Path) -> None:
     assert loaded_layout["fermenter_name"] == "Test Fermenter"
 
 
+def test_workspace_layouts_use_atomic_json_write(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(supervisor_routes, "storage_path", lambda *parts: tmp_path.joinpath(*parts))
+    calls: list[tuple[Path, dict[str, object]]] = []
+
+    def fake_atomic_write_json(path: Path, payload: dict[str, object], **_kwargs) -> None:
+        calls.append((path, payload))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(supervisor_routes, "atomic_write_json", fake_atomic_write_json, raising=False)
+    client = _client(nodes=[_make_node()])
+
+    response = client.put(
+        "/fermenters/01/workspace-layouts",
+        json={"tabs": [{"id": "w1", "label": "Workspace", "widgets": []}]},
+    )
+
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0][0].name == "supervisor_workspace_layouts.json"
+    assert "01" in calls[0][1]
+
+
 def test_agent_endpoints_return_404_for_missing_node() -> None:
     client = _client(nodes=[], proxy=StubProxy())
     response = client.get("/fermenters/missing/agent/info")

@@ -225,22 +225,22 @@ Example:
 
 ```yaml
 services:
-	ParameterDB:
-		module: Services.parameterDB.serviceDB
-		listen:
-			host: 127.0.0.1
-			port: 8765
-			proto: ParameterDB_Binary
-			path: /
-		persistence:
-			kind: postgres
-			host: db.internal
-			port: 5432
-			database: labbrew
-			username: brew
-			password: change-me
-			table_prefix: parameterdb
-			sslmode: require
+  ParameterDB:
+    module: Services.parameterDB.serviceDB
+    listen:
+      host: 127.0.0.1
+      port: 8765
+      proto: ParameterDB_Binary
+      path: /
+    persistence:
+      kind: postgres
+      host: db.internal
+      port: 5432
+      database: labbrew
+      username: brew
+      password: change-me
+      table_prefix: parameterdb
+      sslmode: require
 ```
 
 With this enabled, ParameterDB writes its current full snapshot to Postgres tables and restores from those tables on startup. Without it, the service stays on the existing local JSON persistence path.

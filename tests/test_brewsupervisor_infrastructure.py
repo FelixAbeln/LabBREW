@@ -375,6 +375,39 @@ def test_fermenter_registry_uses_recent_non_empty_snapshot_when_discovery_flaps(
     assert second[0].id == "01"
 
 
+def test_fermenter_registry_background_refresh_keeps_recent_non_empty_snapshot() -> None:
+    agents: list[discovery_module.DiscoveredAgent] = []
+    agent = discovery_module.DiscoveredAgent(
+        service_name="svc",
+        node_id="01",
+        node_name="Fermenter 01",
+        address="10.0.0.10",
+        host="host",
+        port=8780,
+        proto="http",
+        api_path="/agent/info",
+        summary_path="/agent/summary",
+        services_hint=["control_service"],
+    )
+
+    browser = SimpleNamespace(snapshot=lambda: list(agents))
+    registry = FermenterRegistry(browser, snapshot_cache_ttl_s=0.0, stale_snapshot_grace_s=30.0)
+    fake_session = _FakeSession()
+    registry._session = fake_session
+
+    agents.append(agent)
+    fake_session.queue(_FakeResponse(payload={"services": {"control_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"control_available": True}))
+    assert len(registry.snapshot()) == 1
+
+    agents.clear()
+    registry._refresh_snapshot_background()
+
+    cached = registry.snapshot()
+    assert len(cached) == 1
+    assert cached[0].id == "01"
+
+
 def test_fermenter_registry_deduplicates_agents_by_base_url_before_probe() -> None:
     agent_a = discovery_module.DiscoveredAgent(
         service_name="svc-a",

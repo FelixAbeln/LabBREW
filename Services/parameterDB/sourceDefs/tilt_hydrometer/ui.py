@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .service import _APPLE_COMPANY_ID, _TILT_COLOR_UUIDS
@@ -44,6 +45,16 @@ def _bridge_url(payload: dict[str, Any], record: dict[str, Any] | None) -> str:
     return "http://tiltbridge.local/json"
 
 
+def _validated_bridge_url(payload: dict[str, Any], record: dict[str, Any] | None) -> str:
+    bridge_url = _bridge_url(payload, record)
+    parsed = urlparse(bridge_url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("bridge_url must use http or https")
+    if not parsed.netloc:
+        raise ValueError("bridge_url must include a host")
+    return bridge_url
+
+
 def _parse_bridge_payload(data: Any) -> list[dict[str, Any]]:
     if isinstance(data, list):
         return [item for item in data if isinstance(item, dict)]
@@ -56,8 +67,8 @@ def _scan_bridge_tilts(
     payload: dict[str, Any], record: dict[str, Any] | None
 ) -> tuple[list[dict[str, Any]], str]:
     try:
-        bridge_url = _bridge_url(payload, record)
-        timeout_s = float(payload.get("request_timeout_s") or 1.0)
+        bridge_url = _validated_bridge_url(payload, record)
+        timeout_s = max(0.1, float(payload.get("request_timeout_s") or 3.0))
         req = Request(
             bridge_url,
             headers={"Accept": "application/json", "User-Agent": "LabBREW-TiltScan/1.0"},
