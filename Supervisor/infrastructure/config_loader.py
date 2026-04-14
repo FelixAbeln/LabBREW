@@ -20,6 +20,7 @@ _ALLOWED_SERVICE_KEYS = {
     "listen",
     "backend",
     "backends",
+    "persistence",
     "static_args",
     "advertise_as",
     "env",
@@ -28,6 +29,49 @@ _ALLOWED_SERVICE_KEYS = {
     "enabled",
 }
 _ALLOWED_LISTEN_KEYS = {"host", "port", "proto", "path"}
+_ALLOWED_PERSISTENCE_KEYS = {
+    "kind",
+    "host",
+    "port",
+    "database",
+    "username",
+    "password",
+    "table_prefix",
+    "sslmode",
+}
+
+_PERSISTENCE_ENV_NAMES_BY_MODULE = {
+    "Services.parameterDB.serviceDB": {
+        "kind": "LABBREW_PARAMETERDB_PERSISTENCE_KIND",
+        "host": "LABBREW_PARAMETERDB_POSTGRES_HOST",
+        "port": "LABBREW_PARAMETERDB_POSTGRES_PORT",
+        "database": "LABBREW_PARAMETERDB_POSTGRES_DATABASE",
+        "username": "LABBREW_PARAMETERDB_POSTGRES_USERNAME",
+        "password": "LABBREW_PARAMETERDB_POSTGRES_PASSWORD",
+        "table_prefix": "LABBREW_PARAMETERDB_POSTGRES_TABLE_PREFIX",
+        "sslmode": "LABBREW_PARAMETERDB_POSTGRES_SSLMODE",
+    },
+    "Services.parameterDB.serviceDS": {
+        "kind": "LABBREW_PARAMETERDB_DATASOURCE_PERSISTENCE_KIND",
+        "host": "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_HOST",
+        "port": "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_PORT",
+        "database": "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_DATABASE",
+        "username": "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_USERNAME",
+        "password": "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_PASSWORD",
+        "table_prefix": "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_TABLE_PREFIX",
+        "sslmode": "LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_SSLMODE",
+    },
+    "Services.control_service.service": {
+        "kind": "LABBREW_CONTROL_RULES_PERSISTENCE_KIND",
+        "host": "LABBREW_CONTROL_RULES_POSTGRES_HOST",
+        "port": "LABBREW_CONTROL_RULES_POSTGRES_PORT",
+        "database": "LABBREW_CONTROL_RULES_POSTGRES_DATABASE",
+        "username": "LABBREW_CONTROL_RULES_POSTGRES_USERNAME",
+        "password": "LABBREW_CONTROL_RULES_POSTGRES_PASSWORD",
+        "table_prefix": "LABBREW_CONTROL_RULES_POSTGRES_TABLE_PREFIX",
+        "sslmode": "LABBREW_CONTROL_RULES_POSTGRES_SSLMODE",
+    },
+}
 
 
 class YamlTopologyLoader:
@@ -166,7 +210,15 @@ class YamlTopologyLoader:
                     *static_args,
                 ]
 
-            env = tuple((str(k), str(v)) for k, v in (raw.get("env") or {}).items())
+            env_map = {str(k): str(v) for k, v in (raw.get("env") or {}).items()}
+            env_map.update(
+                self._build_persistence_env(
+                    name,
+                    str(raw.get("module") or ""),
+                    raw.get("persistence"),
+                )
+            )
+            env = tuple(env_map.items())
             services.append(
                 ServiceSpec(
                     name=name,
@@ -191,6 +243,70 @@ class YamlTopologyLoader:
             ),
         )
 
+    def _build_persistence_env(
+        self,
+        service_name: str,
+        module_name: str,
+        persistence: object,
+    ) -> dict[str, str]:
+        if persistence is None:
+            return {}
+        if not isinstance(persistence, dict):
+            raise ValueError(f"Service '{service_name}'.persistence must be a mapping")
+
+        env_names = _PERSISTENCE_ENV_NAMES_BY_MODULE.get(module_name)
+        if env_names is None:
+            raise ValueError(
+                f"Service '{service_name}'.persistence is not supported for module '{module_name}'"
+            )
+
+        unknown = sorted(set(persistence.keys()) - _ALLOWED_PERSISTENCE_KEYS)
+        if unknown:
+            joined = ", ".join(unknown)
+            raise ValueError(
+                f"Service '{service_name}'.persistence has unsupported key(s): {joined}"
+            )
+
+        kind = str(persistence.get("kind") or "").strip().lower()
+        if kind not in {"json", "postgres"}:
+            raise ValueError(
+                f"Service '{service_name}'.persistence.kind must be 'json' or 'postgres'"
+            )
+
+        env = {env_names["kind"]: kind}
+        if kind == "json":
+            extra_keys = sorted(key for key in persistence.keys() if key != "kind")
+            if extra_keys:
+                joined = ", ".join(extra_keys)
+                raise ValueError(
+                    f"Service '{service_name}'.persistence kind 'json' does not support key(s): {joined}"
+                )
+            return env
+
+        required = ("host", "database", "username", "password")
+        missing = [key for key in required if not str(persistence.get(key) or "").strip()]
+        if missing:
+            raise ValueError(
+                f"Service '{service_name}'.persistence missing required key(s): {', '.join(missing)}"
+            )
+
+        env.update(
+            {
+                env_names["host"]: str(persistence["host"]),
+                env_names["port"]: str(int(persistence.get("port", 5432))),
+                env_names["database"]: str(persistence["database"]),
+                env_names["username"]: str(persistence["username"]),
+                env_names["password"]: str(persistence["password"]),
+                env_names["table_prefix"]: str(
+                    persistence.get("table_prefix", "parameterdb")
+                ),
+            }
+        )
+        sslmode = str(persistence.get("sslmode") or "").strip()
+        if sslmode:
+            env[env_names["sslmode"]] = sslmode
+        return env
+
     def _validate_service_shape(self, service_name: str, raw: object) -> None:
         if not isinstance(raw, dict):
             raise ValueError(f"Service '{service_name}' must be a mapping")
@@ -201,7 +317,7 @@ class YamlTopologyLoader:
             raise ValueError(
                 f"Service '{service_name}' uses legacy config key(s): {joined}. "
                 "Use only the new schema: module, docs, listen, backend, "
-                "backends, static_args, advertise_as, env, "
+                "backends, persistence, static_args, advertise_as, env, "
                 "startup_timeout_s, restart_backoff_s, enabled"
             )
 
@@ -283,6 +399,10 @@ class YamlTopologyLoader:
                         "cannot define url_flag together with "
                         "host_flag/port_flag"
                     )
+
+                persistence = raw.get("persistence")
+                if persistence is not None and not isinstance(persistence, dict):
+                    raise ValueError(f"Service '{service_name}'.persistence must be a mapping")
 
                 if has_url_flag:
                     continue

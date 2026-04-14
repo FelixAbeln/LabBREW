@@ -10,11 +10,30 @@ from .api.routes_rules import router as rules_router
 from .api.routes_system import router as system_router
 from .api.routes_ws import router as ws_router
 from .api.routes_ws import set_runtime as set_ws_runtime
+from .rules.repository import (
+    FileRuleRepository,
+    PostgresRuleRepository,
+    resolve_rule_repository_settings,
+)
+from .rules.storage import set_rule_repository
 from .runtime import ControlRuntime
+
+
+def _build_rule_repository() -> FileRuleRepository | PostgresRuleRepository:
+    persistence_kind, postgres_config = resolve_rule_repository_settings()
+    if persistence_kind == "postgres":
+        if postgres_config is None:
+            raise ValueError("Control rule Postgres persistence selected without configuration")
+        return PostgresRuleRepository(postgres_config)
+    return FileRuleRepository()
 
 
 def main():
     args = parse_args("Control Service")
+
+    rule_repository = _build_rule_repository()
+    set_rule_repository(rule_repository)
+    print(f"[INFO] Control rule backend: {rule_repository.stats()['backend']}")
 
     runtime = ControlRuntime(host=args.backend_host, port=args.backend_port)
 

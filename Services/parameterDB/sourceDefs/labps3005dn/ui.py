@@ -1,3 +1,6 @@
+from .._ui_schema import build_control_app, build_section_app
+
+
 def _get_control_spec(record: dict | None = None) -> dict:
     record = dict(record or {})
     config = dict(record.get("config") or {})
@@ -39,6 +42,7 @@ def _get_control_spec(record: dict | None = None) -> dict:
         "display_name": "LABPS3005DN PSU",
         "description": "Writable PSU command controls.",
         "controls": controls,
+        "app": build_control_app(controls, title="PSU Controls"),
     }
 
 
@@ -59,7 +63,7 @@ def _get_graph_spec(record: dict | None = None) -> dict:
 def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
     if mode == "control":
         return _get_control_spec(record)
-    return {
+    ui = {
         "source_type": "labps3005dn",
         "display_name": "LABPS3005DN PSU",
         "description": (
@@ -318,3 +322,8 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
             ]
         },
     }
+    for mode_key in ("create", "edit"):
+        mode_spec = ui.get(mode_key)
+        if isinstance(mode_spec, dict) and "app" not in mode_spec:
+            mode_spec["app"] = build_section_app(mode_spec.get("sections", []))
+    return ui

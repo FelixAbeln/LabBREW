@@ -35,6 +35,14 @@ export async function fetchSourceTypeUi(fermenterId, sourceType, name = null, mo
   return api(`${base(fermenterId)}/source-types/${encodeURIComponent(sourceType)}/ui?${q}`);
 }
 
+export async function invokeSourceTypeModuleAction(fermenterId, sourceType, action, payload = {}, name = null, signal = null) {
+  return api(`${base(fermenterId)}/source-types/${encodeURIComponent(sourceType)}/module-actions/${encodeURIComponent(action)}`, {
+    method: 'POST',
+    body: JSON.stringify({ payload, name }),
+    ...(signal ? { signal } : {}),
+  });
+}
+
 export async function createParam(fermenterId, name, parameter_type, value, config, metadata) {
   return api(`${base(fermenterId)}/params`, {
     method: 'POST',

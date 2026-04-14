@@ -150,3 +150,171 @@ services:
         "Service 'schedule_service'.backends['database.local'] uses url_flag with external HTTP capability "
         "that does not target Supervisor Agent port 9000"
     )
+
+
+def test_loader_maps_postgres_persistence_block_to_service_env(tmp_path: Path) -> None:
+    config_path = tmp_path / "topology.yaml"
+    config_path.write_text(
+        """
+services:
+  ParameterDB:
+    module: Services.parameterDB.serviceDB
+    listen:
+      host: 127.0.0.1
+      port: 8765
+      proto: tcp
+    persistence:
+      kind: postgres
+      host: db.internal
+      port: 5432
+      database: labbrew
+      username: brew
+      password: secret
+      table_prefix: runtime
+      sslmode: require
+""".strip(),
+        encoding="utf-8",
+    )
+
+    topology = YamlTopologyLoader().load(config_path)
+    service = topology.services[0]
+    env = dict(service.env)
+
+    assert env["LABBREW_PARAMETERDB_PERSISTENCE_KIND"] == "postgres"
+    assert env["LABBREW_PARAMETERDB_POSTGRES_HOST"] == "db.internal"
+    assert env["LABBREW_PARAMETERDB_POSTGRES_PORT"] == "5432"
+    assert env["LABBREW_PARAMETERDB_POSTGRES_DATABASE"] == "labbrew"
+    assert env["LABBREW_PARAMETERDB_POSTGRES_USERNAME"] == "brew"
+    assert env["LABBREW_PARAMETERDB_POSTGRES_PASSWORD"] == "secret"
+    assert env["LABBREW_PARAMETERDB_POSTGRES_TABLE_PREFIX"] == "runtime"
+    assert env["LABBREW_PARAMETERDB_POSTGRES_SSLMODE"] == "require"
+
+
+def test_loader_maps_datasource_postgres_persistence_block_to_service_env(tmp_path: Path) -> None:
+    config_path = tmp_path / "topology.yaml"
+    config_path.write_text(
+        """
+services:
+  ParameterDB_DataSource:
+    module: Services.parameterDB.serviceDS
+    listen:
+      host: 127.0.0.1
+      port: 8766
+      proto: tcp
+    persistence:
+      kind: postgres
+      host: db.internal
+      port: 5432
+      database: labbrew
+      username: brew
+      password: secret
+      table_prefix: datasource
+      sslmode: require
+""".strip(),
+        encoding="utf-8",
+    )
+
+    topology = YamlTopologyLoader().load(config_path)
+    service = topology.services[0]
+    env = dict(service.env)
+
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_PERSISTENCE_KIND"] == "postgres"
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_HOST"] == "db.internal"
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_PORT"] == "5432"
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_DATABASE"] == "labbrew"
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_USERNAME"] == "brew"
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_PASSWORD"] == "secret"
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_TABLE_PREFIX"] == "datasource"
+    assert env["LABBREW_PARAMETERDB_DATASOURCE_POSTGRES_SSLMODE"] == "require"
+
+
+def test_loader_rejects_incomplete_postgres_persistence_block(tmp_path: Path) -> None:
+    config_path = tmp_path / "topology.yaml"
+    config_path.write_text(
+        """
+services:
+  ParameterDB:
+    module: Services.parameterDB.serviceDB
+    listen:
+      host: 127.0.0.1
+      port: 8765
+      proto: tcp
+    persistence:
+      kind: postgres
+      host: db.internal
+      database: labbrew
+      username: brew
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc:
+        YamlTopologyLoader().load(config_path)
+
+    assert str(exc.value) == (
+        "Service 'ParameterDB'.persistence missing required key(s): password"
+    )
+
+
+def test_loader_maps_control_rules_postgres_persistence_block_to_service_env(tmp_path: Path) -> None:
+    config_path = tmp_path / "topology.yaml"
+    config_path.write_text(
+        """
+services:
+  control_service:
+    module: Services.control_service.service
+    listen:
+      host: 127.0.0.1
+      port: 8767
+      proto: http
+    persistence:
+      kind: postgres
+      host: db.internal
+      port: 5432
+      database: labbrew
+      username: brew
+      password: secret
+      table_prefix: control_rules
+      sslmode: require
+""".strip(),
+        encoding="utf-8",
+    )
+
+    topology = YamlTopologyLoader().load(config_path)
+    service = topology.services[0]
+    env = dict(service.env)
+
+    assert env["LABBREW_CONTROL_RULES_PERSISTENCE_KIND"] == "postgres"
+    assert env["LABBREW_CONTROL_RULES_POSTGRES_HOST"] == "db.internal"
+    assert env["LABBREW_CONTROL_RULES_POSTGRES_PORT"] == "5432"
+    assert env["LABBREW_CONTROL_RULES_POSTGRES_DATABASE"] == "labbrew"
+    assert env["LABBREW_CONTROL_RULES_POSTGRES_USERNAME"] == "brew"
+    assert env["LABBREW_CONTROL_RULES_POSTGRES_PASSWORD"] == "secret"
+    assert env["LABBREW_CONTROL_RULES_POSTGRES_TABLE_PREFIX"] == "control_rules"
+    assert env["LABBREW_CONTROL_RULES_POSTGRES_SSLMODE"] == "require"
+
+
+def test_loader_rejects_json_persistence_with_postgres_fields(tmp_path: Path) -> None:
+    config_path = tmp_path / "topology.yaml"
+    config_path.write_text(
+        """
+services:
+  ParameterDB:
+    module: Services.parameterDB.serviceDB
+    listen:
+      host: 127.0.0.1
+      port: 8765
+      proto: tcp
+    persistence:
+      kind: json
+      host: db.internal
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc:
+        YamlTopologyLoader().load(config_path)
+
+    assert str(exc.value) == (
+        "Service 'ParameterDB'.persistence kind 'json' does not support key(s): host"
+    )

@@ -12,7 +12,8 @@ from .parameterdb_service.loader import PluginRegistry, autodiscover_plugins
 from .parameterdb_service.persistence import (
     AuditLogger,
     SnapshotManager,
-    load_snapshot_into_store,
+    resolve_snapshot_persistence_settings,
+    restore_snapshot_into_store,
 )
 from .parameterdb_service.server import SignalTCPServer
 from .parameterdb_service.store import ParameterStore
@@ -35,11 +36,32 @@ def build_service(
     audit_log_path: str | None = None,
     enable_audit_log: bool = True,
     audit_external_writes: bool = False,
+    persistence_kind: str | None = None,
+    postgres_host: str | None = None,
+    postgres_port: int | None = None,
+    postgres_database: str | None = None,
+    postgres_username: str | None = None,
+    postgres_password: str | None = None,
+    postgres_table_prefix: str | None = None,
+    postgres_sslmode: str | None = None,
 ):
     if snapshot_path is None:
         snapshot_path = default_parameterdb_snapshot_path()
     if audit_log_path is None:
         audit_log_path = default_parameterdb_audit_path()
+
+    resolved_persistence_kind, postgres_config = (
+        resolve_snapshot_persistence_settings(
+            kind=persistence_kind,
+            postgres_host=postgres_host,
+            postgres_port=postgres_port,
+            postgres_database=postgres_database,
+            postgres_username=postgres_username,
+            postgres_password=postgres_password,
+            postgres_table_prefix=postgres_table_prefix,
+            postgres_sslmode=postgres_sslmode,
+        )
+    )
 
     registry = PluginRegistry()
     loaded = autodiscover_plugins(plugin_root, registry)
@@ -48,7 +70,13 @@ def build_service(
 
     restored_count = 0
     if restore_snapshot and enable_snapshot_persistence:
-        restored_count = load_snapshot_into_store(store, registry, snapshot_path)
+        restored_count = restore_snapshot_into_store(
+            store,
+            registry,
+            snapshot_path,
+            persistence_kind=resolved_persistence_kind,
+            postgres_config=postgres_config,
+        )
 
     engine = ScanEngine(
         period_s=period_s,
@@ -69,6 +97,8 @@ def build_service(
     snapshots = SnapshotManager(
         store,
         snapshot_path,
+        persistence_kind=resolved_persistence_kind,
+        postgres_config=postgres_config,
         interval_s=snapshot_interval_s,
         enabled=enable_snapshot_persistence,
     )
@@ -136,7 +166,18 @@ def main() -> None:
         f"min_period={args.min_period:.4f}s | max_period={args.max_period:.4f}s"
     )
     if not args.no_snapshot_persistence:
-        print(f"[INFO] Snapshot path: {snapshot_path}")
+        snapshot_stats = snapshots.stats()
+        print(f"[INFO] Snapshot backend: {snapshot_stats['backend']}")
+        if snapshot_stats["backend"] == "json":
+            print(f"[INFO] Snapshot path: {snapshot_path}")
+        else:
+            postgres_stats = snapshot_stats.get("postgres") or {}
+            print(
+                "[INFO] Snapshot Postgres target: "
+                f"{postgres_stats.get('host')}:{postgres_stats.get('port')} "
+                f"db={postgres_stats.get('database')} "
+                f"prefix={postgres_stats.get('table_prefix')}"
+            )
         print(f"[INFO] Restored parameters from snapshot: {restored_count}")
     if not args.no_audit_log:
         print(f"[INFO] Audit log path: {audit_log_path}")

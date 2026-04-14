@@ -348,6 +348,36 @@ Detailed syntax reference:
 
 ---
 
+## Source Module Action Run Contract
+
+Source-type UI metadata returned by `get_source_type_ui` may include `module.menu.run` to define how module actions execute in the React UI.
+
+```json
+{
+  "module": {
+    "menu": {
+      "run": {
+        "mode": "auto",
+        "poll_interval_s": 3.0,
+        "cancel_inflight_on_cleanup": true
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `mode` | string | yes | `"auto"` starts action on mount, `"manual"` requires user button click |
+| `poll_interval_s` | number | no | Re-run delay in seconds for auto mode (`<= 0` disables polling) |
+| `cancel_inflight_on_cleanup` | boolean | no | Abort active frontend request when modal/loop is cleaned up (default `true`) |
+
+Notes:
+- Legacy `menu.auto_run` is not part of the active contract.
+- Action execution still uses the module-action endpoint via the agent/supervisor proxy (`/parameterdb/source-types/{source_type}/module-actions/{action}`).
+
+---
+
 ### `graph_info`
 
 **Payload:** _(empty)_  
@@ -414,6 +444,39 @@ No lock is held while doing I/O. See `Services/parameterDB/LOCKING.md` for the f
 
 ## Persistence
 
-The ParameterDB periodically snapshots all parameter values to a JSON file (default interval 5 s) and reloads them on startup when `restore_snapshot` is enabled. All commands are optionally recorded to a JSONL audit log.
+The ParameterDB periodically snapshots all parameter values to a persistence backend. By default this is a local JSON file. When the service is configured with `persistence.kind: postgres` in topology, the same logical snapshot is stored in Postgres tables instead and startup restore reads from those tables. All commands are optionally recorded to a JSONL audit log.
+
+Behavior notes:
+
+- The Postgres backend stores the current full snapshot, not an append-only history.
+- Each snapshot rewrite replaces the previous parameter rows for the configured table prefix.
+- Two tables are used: `<table_prefix>_snapshot_parameters` and `<table_prefix>_snapshot_meta`.
+- Parameter values, config, state, and metadata are stored as JSON text columns so the runtime snapshot contract stays identical to JSON export/import.
+- If no `persistence` block is configured, the service continues using the local JSON snapshot file exactly as before.
+- The remote backend requires the `psycopg` driver to be installed in the runtime environment.
+
+Topology example:
+
+```yaml
+services:
+  ParameterDB:
+    module: Services.parameterDB.serviceDB
+    listen:
+      host: 127.0.0.1
+      port: 8765
+      proto: ParameterDB_Binary
+      path: /
+    persistence:
+      kind: postgres
+      host: db.internal
+      port: 5432
+      database: labbrew
+      username: brew
+      password: change-me
+      table_prefix: parameterdb
+      sslmode: require
+```
 
 The same snapshot payload format is also exposed at runtime through `export_snapshot` and `import_snapshot`, which is what the Supervisor agent and frontend ParameterDB editor use for operator-driven backup and restore.
+
+For the separate datasource service (`Services.parameterDB.serviceDS`), source instance configs can also be driven from the same topology file with their own `persistence` block on the `ParameterDB_DataSource` service. That storage is intentionally separate from the ParameterDB snapshot tables so Supervisor remains the composition point and each service keeps ownership of its own persistence schema.

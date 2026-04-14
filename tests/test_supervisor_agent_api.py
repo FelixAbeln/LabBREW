@@ -9,6 +9,27 @@ from Supervisor.infrastructure import agent_api
 
 class StubSignalClient:
     deleted_source_calls: list[tuple[str, bool]] = []
+    ui_action_calls: list[tuple[str, str, dict, str | None]] = []
+    snapshot_payload: dict = {"format_version": 1, "parameters": {"reactor.temp": {"value": 21.0}}}
+    snapshot_stats_payload: dict = {
+        "backend": "postgres",
+        "available": True,
+        "healthy": True,
+        "last_save_ok": True,
+        "last_success_at": 123.0,
+        "last_error": None,
+        "postgres": {"host": "db.internal", "port": 5432, "database": "labbrew", "table_prefix": "runtime"},
+    }
+    datasource_stats_payload: dict = {
+        "backend": "postgres",
+        "available": True,
+        "healthy": True,
+        "last_save_ok": True,
+        "last_success_at": 456.0,
+        "last_error": None,
+        "postgres": {"host": "db.internal", "port": 5432, "database": "labbrew", "table_prefix": "datasource"},
+    }
+    imported_snapshot_calls: list[dict] = []
 
     def __init__(self, host: str, port: int, timeout: float = 5.0) -> None:
         self.host = host
@@ -25,6 +46,13 @@ class StubSignalClient:
         }
 
     def import_snapshot(self, snapshot, *, replace_existing=True, save_to_disk=True):
+        StubSignalClient.imported_snapshot_calls.append(
+            {
+                "snapshot": snapshot,
+                "replace_existing": replace_existing,
+                "save_to_disk": save_to_disk,
+            }
+        )
         return {
             "imported": True,
             "snapshot": snapshot,
@@ -39,10 +67,15 @@ class StubSignalClient:
         return {}
 
     def stats(self):
-        return {}
+        if self.port == 8766:
+            return {"source_persistence": dict(StubSignalClient.datasource_stats_payload)}
+        return {"snapshot_persistence": dict(StubSignalClient.snapshot_stats_payload)}
 
     def export_snapshot(self):
-        return {"snapshot": {}}
+        return {
+            "snapshot": dict(StubSignalClient.snapshot_payload),
+            "snapshot_stats": dict(StubSignalClient.snapshot_stats_payload),
+        }
 
     def list_parameter_type_ui(self):
         return []
@@ -81,12 +114,21 @@ class StubSignalClient:
         StubSignalClient.deleted_source_calls.append((name, bool(delete_owned_parameters)))
         return True
 
+    def invoke_source_type_ui_action(self, source_type, action, *, payload=None, name=None):
+        payload_dict = dict(payload or {})
+        StubSignalClient.ui_action_calls.append((source_type, action, payload_dict, name))
+        return {"ok": True, "source_type": source_type, "action": action, "payload": payload_dict, "name": name}
+
 
 class _FakeProxyResponse:
     def __init__(self, *, status_code: int = 200, payload: dict | None = None, headers: dict | None = None):
         self.status_code = status_code
         self._payload = payload if payload is not None else {"ok": True}
         self.headers = headers or {"content-type": "application/json"}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
 
     def json(self):
         return self._payload
@@ -105,6 +147,9 @@ class _FakeProxySession:
 
     def request(self, **kwargs):
         self.calls.append(kwargs)
+        url = str(kwargs.get("url") or "")
+        if url.endswith("/system/rules-persistence"):
+            return _FakeProxyResponse(payload={"backend": "postgres", "available": True, "healthy": True, "last_save_ok": True, "last_success_at": 789.0, "last_error": None, "postgres": {"host": "db.internal", "port": 5432, "database": "labbrew", "table_prefix": "control_rules"}})
         return _FakeProxyResponse()
 
 
@@ -146,6 +191,7 @@ def test_create_param_reads_json_body(monkeypatch) -> None:
 
 
 def test_import_snapshot_reads_json_body(monkeypatch) -> None:
+    StubSignalClient.imported_snapshot_calls = []
     client = _build_client(monkeypatch)
 
     response = client.post(
@@ -161,6 +207,7 @@ def test_import_snapshot_reads_json_body(monkeypatch) -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["imported"] is True
+    assert StubSignalClient.imported_snapshot_calls[-1]["replace_existing"] is True
 
 
 def test_graph_endpoint_enriches_graph_with_source_metadata(monkeypatch) -> None:
@@ -201,6 +248,92 @@ def test_agent_repo_update_endpoint_uses_update_action(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert response.json()["updated"] is True
+
+
+def test_agent_persistence_endpoint_returns_parameterdb_status(monkeypatch) -> None:
+    client = _build_client(
+        monkeypatch,
+        service_map=lambda: {
+            "ParameterDB": {"healthy": True, "base_url": "http://127.0.0.1:8765"},
+            "ParameterDB_DataSource": {"healthy": True, "base_url": "http://127.0.0.1:8766"},
+            "control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"},
+        },
+    )
+
+    response = client.get("/agent/persistence")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["persistence"]["backend"] == "postgres"
+    assert body["persistence"]["healthy"] is True
+    assert body["persistence"]["postgres"]["host"] == "db.internal"
+    assert body["datasource_persistence"]["backend"] == "postgres"
+    assert body["rules_persistence"]["backend"] == "postgres"
+
+
+def test_agent_summary_includes_persistence_status(monkeypatch) -> None:
+    monkeypatch.setattr(agent_api, "SignalClient", StubSignalClient)
+    app = agent_api.build_agent_app(
+        node_id="node-1",
+        node_name="Node 1",
+        service_map=lambda: {
+            "ParameterDB": {"healthy": True, "base_url": "http://127.0.0.1:8765"},
+            "ParameterDB_DataSource": {"healthy": True, "base_url": "http://127.0.0.1:8766"},
+            "control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"},
+        },
+        summary_provider=lambda: {"node_id": "node-1", "services": {}},
+        proxy_session=_FakeProxySession(),
+    )
+    client = TestClient(app)
+
+    response = client.get("/agent/summary")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["persistence"]["backend"] == "postgres"
+    assert body["persistence"]["healthy"] is True
+    assert body["datasource_persistence"]["backend"] == "postgres"
+    assert body["datasource_persistence"]["last_success_at"] == 456.0
+    assert body["rules_persistence"]["backend"] == "postgres"
+    assert body["rules_persistence"]["last_success_at"] == 789.0
+
+
+def test_agent_snapshot_export_import_round_trip(monkeypatch) -> None:
+    StubSignalClient.imported_snapshot_calls = []
+    StubSignalClient.snapshot_payload = {
+        "format_version": 1,
+        "parameters": {
+            "reactor.temp": {
+                "parameter_type": "static",
+                "value": 21.5,
+                "config": {},
+                "state": {},
+                "metadata": {},
+            }
+        },
+    }
+    client = _build_client(monkeypatch)
+
+    exported = client.get("/parameterdb/snapshot-file")
+    assert exported.status_code == 200
+    exported_body = exported.json()
+    assert exported_body["ok"] is True
+    assert exported_body["snapshot"]["parameters"]["reactor.temp"]["value"] == 21.5
+
+    imported = client.post(
+        "/parameterdb/snapshot-file",
+        json={
+            "snapshot": exported_body["snapshot"],
+            "replace_existing": False,
+            "save_to_disk": True,
+        },
+    )
+
+    assert imported.status_code == 200
+    assert imported.json()["ok"] is True
+    assert StubSignalClient.imported_snapshot_calls[-1]["snapshot"] == exported_body["snapshot"]
+    assert StubSignalClient.imported_snapshot_calls[-1]["replace_existing"] is False
 
 
 def test_agent_repo_endpoints_return_501_when_unconfigured(monkeypatch) -> None:
@@ -269,6 +402,28 @@ def test_parameterdb_delete_source_accepts_cascade_query(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert StubSignalClient.deleted_source_calls[-1] == ("demo", True)
+
+
+def test_parameterdb_source_type_module_action(monkeypatch) -> None:
+    StubSignalClient.ui_action_calls = []
+    client = _build_client(monkeypatch)
+
+    response = client.post(
+        "/parameterdb/source-types/modbus_relay/module-actions/scan",
+        json={"name": "relay", "payload": {"host": "127.0.0.1", "port": 502}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["result"]["source_type"] == "modbus_relay"
+    assert body["result"]["action"] == "scan"
+    assert StubSignalClient.ui_action_calls[-1] == (
+        "modbus_relay",
+        "scan",
+        {"host": "127.0.0.1", "port": 502},
+        "relay",
+    )
 
 
 def test_agent_bridge_returns_404_when_service_unavailable(monkeypatch) -> None:

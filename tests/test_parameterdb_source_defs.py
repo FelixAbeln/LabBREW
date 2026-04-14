@@ -223,6 +223,33 @@ def test_tilt_hydrometer_source_ui_has_color_dropdown() -> None:
     assert transport_field["choices"] == ["bridge", "ble"]
 
 
+def test_all_builtin_source_defs_expose_unified_app_schema() -> None:
+    from Services.parameterDB.sourceDefs.brewtools.ui import get_ui_spec as get_brewtools_ui_spec
+    from Services.parameterDB.sourceDefs.digital_twin.ui import get_ui_spec as get_twin_ui_spec
+    from Services.parameterDB.sourceDefs.labps3005dn.ui import get_ui_spec as get_psu_ui_spec
+    from Services.parameterDB.sourceDefs.modbus_relay.ui import get_ui_spec as get_relay_ui_spec
+    from Services.parameterDB.sourceDefs.system_time.ui import get_ui_spec as get_system_time_ui_spec
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.ui import get_ui_spec as get_tilt_ui_spec
+
+    ui_providers = [
+        get_brewtools_ui_spec,
+        get_twin_ui_spec,
+        get_psu_ui_spec,
+        get_relay_ui_spec,
+        get_system_time_ui_spec,
+        get_tilt_ui_spec,
+    ]
+
+    for provider in ui_providers:
+        create_ui = provider(mode="create")
+        edit_ui = provider(mode="edit")
+        control_ui = provider(mode="control")
+
+        assert create_ui["create"]["app"]["kind"] == "sections"
+        assert edit_ui["edit"]["app"]["kind"] == "sections"
+        assert control_ui["app"]["kind"] == "sections"
+
+
 def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
     from Services.parameterDB.sourceDefs.brewtools.ui import (
         get_ui_spec as get_brewtools_ui_spec,
@@ -254,6 +281,23 @@ def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
         "brewcan.density.0.calibrate_sg",
         "brewcan.pressure.0.calibrate",
     ]
+    assert brewtools_ui["edit"]["app"]["kind"] == "sections"
+    assert brewtools_ui["create"]["app"]["kind"] == "sections"
+    control_ui = get_brewtools_ui_spec(
+        record={
+            "name": "brewcan",
+            "config": {
+                "parameter_prefix": "brewcan",
+                "agitator_nodes": [3],
+                "density_nodes": [0],
+                "pressure_nodes": [0],
+            },
+        },
+        mode="control",
+    )
+    assert control_ui["app"]["kind"] == "sections"
+    assert control_ui["app"]["sections"][0]["title"] == "Node 3"
+    assert control_ui["app"]["sections"][0]["items"][0]["control_id"] == "agitator_pwm_3"
 
     twin_ui = get_twin_ui_spec(
         record={
@@ -274,6 +318,68 @@ def test_command_sources_report_graph_dependencies_from_source_defs() -> None:
         "dbc_press_Fermenter_Hi",
         "twin.reset",
     ]
+
+
+def test_modbus_relay_ui_module_uses_zero_input_scan() -> None:
+    from Services.parameterDB.sourceDefs.modbus_relay.ui import get_ui_spec
+
+    ui = get_ui_spec(mode="edit")
+    module = dict(ui.get("module") or {})
+    menu = dict(module.get("menu") or {})
+    run = dict(menu.get("run") or {})
+    action = dict(menu.get("action") or {})
+
+    assert module.get("replace_form") is True
+    assert menu.get("fields") == []
+    assert run.get("mode") == "auto"
+    assert run.get("cancel_inflight_on_cleanup") is True
+    assert action.get("action") == "scan_relays"
+
+
+def test_modbus_relay_run_ui_action_auto_scan_returns_reachable_only(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.modbus_relay import ui as relay_ui
+
+    monkeypatch.setattr(relay_ui, "_candidate_hosts", lambda *_args, **_kwargs: ["h1", "h2"])
+    monkeypatch.setattr(relay_ui, "_candidate_ports", lambda *_args, **_kwargs: [502, 4196])
+    monkeypatch.setattr(relay_ui, "_candidate_unit_ids", lambda *_args, **_kwargs: [1])
+    monkeypatch.setattr(
+        relay_ui,
+        "_discover_open_targets",
+        lambda hosts, ports, timeout: [(host, port) for host in hosts for port in ports],
+    )
+
+    def _fake_probe(host: str, port: int, unit_id: int, timeout: float):
+        _ = (unit_id, timeout)
+        if host == "h2" and port == 4196:
+            return {
+                "host": host,
+                "port": port,
+                "unit_id": 1,
+                "channel_count": 8,
+                "reachable": True,
+                "error": "",
+                "states": [{"channel": 1, "state": True}],
+            }
+        return {
+            "host": host,
+            "port": port,
+            "unit_id": 1,
+            "channel_count": 0,
+            "reachable": False,
+            "error": "offline",
+            "states": [],
+        }
+
+    monkeypatch.setattr(relay_ui, "_probe_host_port", _fake_probe)
+
+    result = relay_ui.run_ui_action("scan", payload={})
+
+    assert result["action"] == "scan_relays"
+    assert result["scanned"] == 4
+    assert result["open_targets"] == 4
+    assert len(result["candidates"]) == 1
+    assert result["candidates"][0]["host"] == "h2"
+    assert result["candidates"][0]["port"] == 4196
 
 
 def test_tilt_hydrometer_source_publishes_selected_color_and_connected_state(monkeypatch) -> None:
@@ -417,6 +523,132 @@ def test_tilt_hydrometer_source_ble_transport_connected_and_missing(monkeypatch)
     source.run()
     assert any(name == "tilt.ble.connected" and value is False for name, value in client.calls)
     assert any(name == "tilt.ble.last_error" and "not seen over BLE" in str(value) for name, value in client.calls)
+
+
+def test_tilt_hydrometer_ui_module_scan_metadata() -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer.ui import get_ui_spec
+
+    ui = get_ui_spec(mode="edit")
+    module = dict(ui.get("module") or {})
+    menu = dict(module.get("menu") or {})
+    run = dict(menu.get("run") or {})
+    action = dict(menu.get("action") or {})
+
+    assert module.get("id") == "tiltDiscovery"
+    assert run.get("mode") == "auto"
+    assert run.get("poll_interval_s") == 3.0
+    assert run.get("cancel_inflight_on_cleanup") is True
+    assert menu.get("preserve_results") is True
+    assert action.get("action") == "scan_tilts"
+    assert isinstance(menu.get("fields"), list)
+
+
+def test_tilt_hydrometer_run_ui_action_scans_bridge_and_ble(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer import ui as tilt_ui
+
+    monkeypatch.setattr(
+        tilt_ui,
+        "_scan_bridge_tilts",
+        lambda payload, record: (
+            [
+                {
+                    "source": "bridge",
+                    "tilt_color": "Red",
+                    "transport": "bridge",
+                    "ble_device_address": "",
+                    "bridge_url": "http://tiltbridge.local/json",
+                    "selectable": True,
+                }
+            ],
+            "",
+        ),
+    )
+    monkeypatch.setattr(
+        tilt_ui,
+        "_scan_ble_tilts",
+        lambda payload: (
+            [
+                {
+                    "source": "ble",
+                    "tilt_color": "Blue",
+                    "transport": "ble",
+                    "ble_device_address": "AA:BB:CC:DD:EE:FF",
+                    "bridge_url": "",
+                    "selectable": True,
+                }
+            ],
+            "",
+        ),
+    )
+
+    result = tilt_ui.run_ui_action("scan_tilts", payload={})
+
+    assert result["ok"] is True
+    assert result["action"] == "scan_tilts"
+    assert len(result["candidates"]) == 2
+    assert {item["source"] for item in result["candidates"]} == {"bridge", "ble"}
+
+
+def test_tilt_hydrometer_run_ui_action_falls_back_to_manual_colors(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer import ui as tilt_ui
+
+    monkeypatch.setattr(tilt_ui, "_scan_bridge_tilts", lambda payload, record: ([], "timed out"))
+    monkeypatch.setattr(tilt_ui, "_scan_ble_tilts", lambda payload: ([], ""))
+
+    result = tilt_ui.run_ui_action("scan_tilts", payload={})
+
+    assert result["ok"] is True
+    assert result["action"] == "scan_tilts"
+    assert result["candidates"] == []
+    assert any("bridge: timed out" in warning for warning in result["warnings"])
+
+
+def test_tilt_bridge_scan_rejects_unsupported_url_schemes(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer import ui as tilt_ui
+
+    calls = {"count": 0}
+
+    def fake_urlopen(*_args, **_kwargs):
+        calls["count"] += 1
+        raise AssertionError("urlopen should not be reached for invalid schemes")
+
+    monkeypatch.setattr(tilt_ui, "urlopen", fake_urlopen)
+
+    candidates, error = tilt_ui._scan_bridge_tilts({"bridge_url": "file:///tmp/tilt.json"}, None)
+
+    assert candidates == []
+    assert calls["count"] == 0
+    assert "http" in error.lower()
+
+
+def test_tilt_bridge_scan_defaults_to_documented_timeout(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.tilt_hydrometer import ui as tilt_ui
+
+    observed: dict[str, float] = {}
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"tilts": []}'
+
+    def fake_urlopen(req, timeout):
+        observed["url"] = req.full_url
+        observed["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr(tilt_ui, "urlopen", fake_urlopen)
+
+    candidates, error = tilt_ui._scan_bridge_tilts({}, None)
+
+    assert candidates == []
+    assert error == ""
+    assert observed["url"] == "http://tiltbridge.local/json"
+    assert observed["timeout"] == 3.0
 
 
 def test_tilt_ble_decode_accepts_standard_ibeacon_payload_length() -> None:

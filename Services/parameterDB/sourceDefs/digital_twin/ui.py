@@ -6,6 +6,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from .._ui_schema import build_control_app, build_section_app
+
 
 def _normalize_fmu_path(path: str) -> str:
     path = str(path or "").strip()
@@ -189,21 +191,24 @@ def _get_control_spec(record: dict[str, Any] | None = None) -> dict[str, Any]:
         str(config.get("reset_param") or f"{prefix}.reset").strip() or f"{prefix}.reset"
     )
 
+    controls = [
+        {
+            "id": "reset",
+            "label": "Reset Twin",
+            "target": reset_target,
+            "widget": "button",
+            "write": {"kind": "pulse", "value": True},
+            "role": "control",
+        }
+    ]
+
     return {
         "spec_version": 1,
         "source_type": "digital_twin",
         "display_name": "Digital Twin FMU",
         "description": "Writable digital twin runtime controls.",
-        "controls": [
-            {
-                "id": "reset",
-                "label": "Reset Twin",
-                "target": reset_target,
-                "widget": "button",
-                "write": {"kind": "pulse", "value": True},
-                "role": "control",
-            }
-        ],
+        "controls": controls,
+        "app": build_control_app(controls, title="Twin Controls"),
     }
 
 
@@ -339,7 +344,7 @@ def get_ui_spec(record: dict[str, Any] | None = None, mode: str | None = None) -
         edit_sections.extend(_build_dynamic_sections(config))
         record["config"] = config
 
-    return {
+    ui = {
         "source_type": "digital_twin",
         "display_name": "Digital Twin FMU",
         "description": (
@@ -425,3 +430,8 @@ def get_ui_spec(record: dict[str, Any] | None = None, mode: str | None = None) -
             "sections": edit_sections,
         },
     }
+    for mode_key in ("create", "edit"):
+        mode_spec = ui.get(mode_key)
+        if isinstance(mode_spec, dict) and "app" not in mode_spec:
+            mode_spec["app"] = build_section_app(mode_spec.get("sections", []))
+    return ui

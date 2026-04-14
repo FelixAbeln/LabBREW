@@ -65,16 +65,10 @@ async def run_probe(
         found_event = asyncio.Event()
         selected: dict[str, Any] = {}
 
-        def on_detection(
-            device: Any,
-            adv_data: Any,
-            *,
-            selected_ref: dict[str, Any] = selected,
-            found_event_ref: asyncio.Event = found_event,
-        ) -> None:
+        def on_detection(device: Any, adv_data: Any) -> None:
             nonlocal total_seen, matched_seen
             total_seen += 1
-            if selected_ref:
+            if selected:
                 return
             if (
                 wanted_address
@@ -88,7 +82,7 @@ async def run_probe(
             if decoded is None:
                 return
             temp_f, gravity_sg = decoded
-            selected_ref.update(
+            selected.update(
                 {
                     "address": str(getattr(device, "address", "")),
                     "rssi": float(
@@ -99,7 +93,7 @@ async def run_probe(
                 }
             )
             matched_seen += 1
-            found_event_ref.set()
+            found_event.set()
 
         scanner = BleakScanner(detection_callback=on_detection)
         t0 = time.monotonic()

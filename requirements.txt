@@ -19,6 +19,9 @@ python-multipart
 # HTTP client
 requests
 
+# Remote SQL persistence for ParameterDB snapshots
+psycopg[binary]>=3.2
+
 # Binary serialisation (parameterDB protocol)
 msgpack>=1.0
 

@@ -1,18 +1,30 @@
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 from pathlib import Path
+from typing import Any
 
-from ..._shared.storage_paths import storage_subdir
+from .repository import DEFAULT_RULE_DIR, FileRuleRepository, RuleRepository
 
-RULE_DIR = storage_subdir("Rules")
+RULE_DIR = DEFAULT_RULE_DIR
+_rule_repository_override: RuleRepository | None = None
+
+
+def set_rule_repository(repository: RuleRepository | None) -> None:
+    global _rule_repository_override
+    _rule_repository_override = repository
+
+
+def _get_rule_repository() -> RuleRepository:
+    if _rule_repository_override is not None:
+        return _rule_repository_override
+    return FileRuleRepository(RULE_DIR)
 
 
 def get_rule_dir() -> Path:
-    RULE_DIR.mkdir(parents=True, exist_ok=True)
-    return RULE_DIR
+    repository = _get_rule_repository()
+    rule_dir = getattr(repository, "rule_dir", RULE_DIR)
+    rule_dir.mkdir(parents=True, exist_ok=True)
+    return rule_dir
 
 
 def _cleanup_stale_rule_tmp_files(rule_dir: Path) -> None:
@@ -25,65 +37,21 @@ def _cleanup_stale_rule_tmp_files(rule_dir: Path) -> None:
 
 
 def load_rules() -> list[dict]:
-    rule_dir = get_rule_dir()
-    _cleanup_stale_rule_tmp_files(rule_dir)
-    rules: list[dict] = []
-
-    for file in sorted(rule_dir.glob("*.json")):
-        try:
-            with file.open(encoding="utf-8") as f:
-                rules.append(json.load(f))
-        except Exception as exc:
-            print(f"Failed to load rule file {file}: {exc}")
-
-    return rules
+    return _get_rule_repository().load_rules()
 
 
-def save_rule(rule: dict) -> Path:
-    rule_dir = get_rule_dir()
-
-    rule_id = rule.get("id")
-    if not rule_id:
-        raise ValueError("Rule must contain an 'id'")
-
-    path = rule_dir / f"{rule_id}.json"
-
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=f"{path.name}.",
-        suffix=".tmp",
-        dir=str(path.parent),
+def save_rule(rule: dict) -> Path | str:
+    storage_ref = _get_rule_repository().save_rule(rule)
+    return (
+        storage_ref
+        if str(storage_ref).startswith("postgres:")
+        else Path(storage_ref)
     )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(rule, f, indent=2, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-
-        Path(tmp_name).replace(path)
-
-        try:
-            dir_fd = os.open(str(path.parent), os.O_RDONLY)
-            try:
-                os.fsync(dir_fd)
-            finally:
-                os.close(dir_fd)
-        except OSError:
-            pass
-    except Exception:
-        try:
-            tmp_path = Path(tmp_name)
-            if tmp_path.exists():
-                tmp_path.unlink()
-        except OSError:
-            pass
-        raise
-
-    return path
 
 
 def delete_rule(rule_id: str) -> bool:
-    path = get_rule_dir() / f"{rule_id}.json"
-    if path.exists():
-        path.unlink()
-        return True
-    return False
+    return _get_rule_repository().delete_rule(rule_id)
+
+
+def rule_repository_stats() -> dict[str, Any]:
+    return dict(_get_rule_repository().stats())

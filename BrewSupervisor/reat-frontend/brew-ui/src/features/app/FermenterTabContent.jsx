@@ -2,23 +2,31 @@ import { ParameterDBPage } from '../parameterdb/ParameterDBPage';
 import { StorageManagerPage } from '../storage/StorageManagerPage';
 import { ArchiveViewerPage } from '../archive/ArchiveViewerPage';
 import { RuleEditorModal } from '../rules/RuleEditorModal';
-import { ArchiveTabContainer } from './containers/ArchiveTabContainer';
-import { ControlUiTabContainer } from './containers/ControlUiTabContainer';
-import { DataTabContainer } from './containers/DataTabContainer';
-import { RulesTabContainer } from './containers/RulesTabContainer';
-import { ScheduleTabContainer } from './containers/ScheduleTabContainer';
-import { SystemTabContainer } from './containers/SystemTabContainer';
+import { RulesStudioPage } from '../rules/RulesStudioPage';
+import { SystemStudioPage } from '../system/SystemStudioPage';
+import { CustomLayoutTab } from './CustomLayoutTab';
 import asleepBreweryIcon from '../../assets/brewery-asleep.svg';
 
 export function FermenterTabContent({
   selected,
   activeTab,
+  onSaveSharedWorkspaceLayouts,
+  workspaceSaveLoading,
   scheduleProps,
   dataProps,
   controlProps,
   archiveProps,
   rulesProps,
   systemProps,
+  customTabs,
+  layoutEditMode,
+  onRenameCustomTab,
+  onDeleteCustomTab,
+  onAddCustomWidget,
+  onRemoveCustomWidget,
+  onMoveCustomWidget,
+  onResizeCustomWidget,
+  onCreateCustomTab,
   globalView,
   setGlobalView,
   ruleEditorProps,
@@ -38,21 +46,35 @@ export function FermenterTabContent({
     );
   }
 
+  const activeCustomTab = Array.isArray(customTabs)
+    ? (customTabs.find((tab) => tab?.id === activeTab) || customTabs[0] || null)
+    : null;
+  const closeToSystemStudio = () => setGlobalView('system-studio');
+
   return (
     <>
-      {activeTab === 'schedule' ? (
-        <ScheduleTabContainer {...scheduleProps} />
-      ) : activeTab === 'control' ? (
-        <ControlUiTabContainer {...controlProps} />
-      ) : activeTab === 'data' ? (
-        <DataTabContainer {...dataProps} />
-      ) : activeTab === 'archive' ? (
-        <ArchiveTabContainer {...archiveProps} />
-      ) : activeTab === 'rules' ? (
-        <RulesTabContainer {...rulesProps} />
-      ) : (
-        <SystemTabContainer {...systemProps} />
-      )}
+      {activeCustomTab ? (
+        <CustomLayoutTab
+          selected={selected}
+          customTab={activeCustomTab}
+          editMode={layoutEditMode}
+          scheduleProps={scheduleProps}
+          dataProps={dataProps}
+          controlProps={controlProps}
+          archiveProps={archiveProps}
+          rulesProps={rulesProps}
+          systemProps={systemProps}
+          onRenameTab={onRenameCustomTab}
+          onDeleteTab={onDeleteCustomTab}
+          onAddWidget={onAddCustomWidget}
+          onRemoveWidget={onRemoveCustomWidget}
+          onMoveWidget={onMoveCustomWidget}
+          onResizeWidget={onResizeCustomWidget}
+          onCreateTab={onCreateCustomTab}
+          onSaveToSupervisor={onSaveSharedWorkspaceLayouts}
+          saveToSupervisorBusy={workspaceSaveLoading}
+        />
+      ) : null}
 
       {globalView === 'parameterdb' && (
         <div
@@ -68,7 +90,7 @@ export function FermenterTabContent({
           <ParameterDBPage
             fermenterId={selected?.id || null}
             fermenterName={selected?.name || null}
-            onClose={() => setGlobalView(null)}
+            onClose={closeToSystemStudio}
           />
         </div>
       )}
@@ -87,7 +109,7 @@ export function FermenterTabContent({
           <StorageManagerPage
             fermenterId={selected?.id || null}
             fermenterName={selected?.name || null}
-            onClose={() => setGlobalView(null)}
+            onClose={closeToSystemStudio}
           />
         </div>
       )}
@@ -109,6 +131,46 @@ export function FermenterTabContent({
             archiveViewPayload={archiveViewPayload}
             archiveViewLoading={archiveViewLoading}
             archiveViewError={archiveViewError}
+            onClose={() => setGlobalView(null)}
+          />
+        </div>
+      )}
+
+      {globalView === 'rules-studio' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            background: '#11161c',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <RulesStudioPage
+            fermenterId={selected?.id || null}
+            fermenterName={selected?.name || null}
+            rulesProps={rulesProps}
+            onClose={closeToSystemStudio}
+          />
+        </div>
+      )}
+
+      {globalView === 'system-studio' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            background: '#11161c',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <SystemStudioPage
+            fermenterId={selected?.id || null}
+            fermenterName={selected?.name || null}
+            systemProps={systemProps}
             onClose={() => setGlobalView(null)}
           />
         </div>

@@ -85,6 +85,28 @@ export function createBrewApi(apiClient) {
       })
     },
 
+    getAgentPersistence(id, options = {}) {
+      return requestLayer.get(`/fermenters/${id}/agent/persistence`, {
+        ttlMs: 5000,
+        bypassCache: Boolean(options.force),
+      })
+    },
+
+    getWorkspaceLayouts(id, options = {}) {
+      return requestLayer.get(`/fermenters/${id}/workspace-layouts`, {
+        ttlMs: 1500,
+        bypassCache: Boolean(options.force),
+      })
+    },
+
+    saveWorkspaceLayouts(id, payload) {
+      requestLayer.invalidate(`/fermenters/${id}/workspace-layouts`)
+      return apiClient(`/fermenters/${id}/workspace-layouts`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+    },
+
     applyAgentRepoUpdate(id) {
       return apiClient(`/fermenters/${id}/agent/repo/update`, {
         method: 'POST',

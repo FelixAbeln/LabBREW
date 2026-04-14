@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from ..._shared.operator_engine.loader import load_registry
-from ..rules.storage import get_rule_dir
+from ..rules.storage import get_rule_dir, rule_repository_stats
 
 router = APIRouter(prefix="/system")
 
@@ -34,7 +34,16 @@ def list_operators():
 
 @router.get("/rule-dir")
 def rule_dir():
-    return {"rule_dir": str(get_rule_dir())}
+    stats = rule_repository_stats()
+    return {
+        "rule_dir": str(get_rule_dir()) if stats.get("backend") == "json" else None,
+        "backend": stats.get("backend"),
+    }
+
+
+@router.get("/rules-persistence")
+def rules_persistence():
+    return rule_repository_stats()
 
 
 @router.get("/schema")
@@ -69,6 +78,10 @@ def schema():
             "path": "/system/datasource-contract",
             "fields": ["datasources", "orphan_sources", "orphan_parameters"],
         },
+        "rules_persistence": {
+            "path": "/system/rules-persistence",
+            "fields": ["available", "healthy", "backend", "path|postgres"],
+        },
         "control_ui_spec": {
             "path": "/system/control-ui-spec",
             "query": {
@@ -77,7 +90,7 @@ def schema():
                     "that have zero writable controls"
                 ),
             },
-            "fields": ["cards", "write_path", "release_path", "manual_owner"],
+            "fields": ["cards", "write_path", "release_path", "manual_owner", "cards[].app"],
         },
         "manual_control": {
             "write_path": "/control/manual-write",

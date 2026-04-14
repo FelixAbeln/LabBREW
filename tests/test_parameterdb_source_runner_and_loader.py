@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import runpy
 import warnings
 from pathlib import Path
@@ -11,6 +12,7 @@ import pytest
 
 from Services.parameterDB import serviceDS
 from Services.parameterDB.parameterdb_sources import loader
+from Services.parameterDB.parameterdb_sources import repository as repository_module
 
 
 class FakeSession:
@@ -108,10 +110,10 @@ def test_source_runner_rejects_invalid_payload_and_unknown_type(tmp_path: Path, 
     runner, registry, _ = _build_runner(tmp_path, monkeypatch)
 
     with pytest.raises(ValueError):
-        runner._record_from_payload({"name": "", "source_type": "fake"}, config_path=runner._config_path_for_name("x"))
+        runner._record_from_payload({"name": "", "source_type": "fake"}, storage_ref=str(runner._config_path_for_name("x")))
 
     with pytest.raises(KeyError):
-        runner._record_from_payload({"name": "alpha", "source_type": "missing"}, config_path=runner._config_path_for_name("x"))
+        runner._record_from_payload({"name": "alpha", "source_type": "missing"}, storage_ref=str(runner._config_path_for_name("x")))
 
     registry.get("fake")
 
@@ -161,18 +163,21 @@ def test_source_runner_write_record_cleans_tmp_on_failure(tmp_path: Path, monkey
         name="alpha",
         source_type="fake",
         config={"k": 1},
-        config_path=runner._config_path_for_name("alpha"),
+        storage_ref="",
     )
 
-    def boom_replace(_src: str, _dst: Path) -> None:
+    original_replace = repository_module.Path.replace
+
+    def boom_replace(self: Path, target: Path) -> None:
+        _ = self, target
         raise RuntimeError("replace failed")
 
-    monkeypatch.setattr(serviceDS.os, "replace", boom_replace)
+    monkeypatch.setattr(repository_module.Path, "replace", boom_replace)
 
     with pytest.raises(RuntimeError):
         runner._write_record(record)
 
-    assert list(record.config_path.parent.glob("*.tmp")) == []
+    assert list(runner.config_dir.glob("*.tmp")) == []
 
 
 def test_source_runner_cleans_stale_tmp_files(tmp_path: Path, monkeypatch) -> None:
@@ -223,7 +228,39 @@ def test_registry_ui_provider_typeerror_fallback() -> None:
     assert registry.get_ui_spec("fake")["display_name"] == "fallback"
 
 
-def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path) -> None:
+def test_registry_ui_action_supports_legacy_positional_provider() -> None:
+    registry = loader.DataSourceRegistry()
+    spec = FakeSpec()
+
+    def legacy_provider(action_name: str, action_payload: dict[str, Any]) -> dict[str, Any]:
+        return {"action": action_name, "payload": action_payload, "ok": True}
+
+    registry.register(spec, ui_actions=legacy_provider)
+    result = registry.invoke_ui_action("fake", "scan", payload={"x": 1})
+
+    assert result["ok"] is True
+    assert result["action"] == "scan"
+    assert result["payload"] == {"x": 1}
+
+
+def test_registry_ui_action_typeerror_is_not_retried() -> None:
+    registry = loader.DataSourceRegistry()
+    spec = FakeSpec()
+    calls = {"count": 0}
+
+    def buggy_provider(*, action: str, payload: dict[str, Any], record: dict[str, Any] | None = None) -> dict[str, Any]:
+        calls["count"] += 1
+        raise TypeError("boom from provider")
+
+    registry.register(spec, ui_actions=buggy_provider)
+
+    with pytest.raises(TypeError, match="boom from provider"):
+        registry.invoke_ui_action("fake", "scan", payload={})
+
+    assert calls["count"] == 1
+
+
+def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     class UiWithFunction:
         @staticmethod
         def get_ui_spec(*, _record=None, _mode=None):
@@ -250,8 +287,10 @@ def test_extract_ui_spec_and_autodiscover(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(loader, "load_source_folder", fake_load_source_folder)
 
     registry = loader.DataSourceRegistry()
-    loaded = loader.autodiscover_sources(root, registry)
+    with caplog.at_level(logging.WARNING):
+        loaded = loader.autodiscover_sources(root, registry)
     assert loaded == ["good_type"]
+    assert "bad source" in caplog.text
     assert loader.autodiscover_sources(root / "missing", registry) == []
 
 
@@ -300,25 +339,27 @@ def test_source_runner_write_record_tolerates_dir_fsync_open_error(tmp_path: Pat
         name="alpha",
         source_type="fake",
         config={"k": 1},
-        config_path=runner._config_path_for_name("alpha"),
+        storage_ref="",
     )
 
-    original_open = serviceDS.os.open
+    config_path = runner._config_path_for_name("alpha")
+
+    original_open = repository_module.os.open
 
     def selective_open(path, flags, *args, **kwargs):
-        if str(path) == str(record.config_path.parent) and flags == serviceDS.os.O_RDONLY:
+        if str(path) == str(config_path.parent) and flags == repository_module.os.O_RDONLY:
             raise OSError("no dir fd")
         return original_open(path, flags, *args, **kwargs)
 
-    monkeypatch.setattr(serviceDS.os, "open", selective_open)
+    monkeypatch.setattr(repository_module.os, "open", selective_open)
 
     runner._write_record(record)
-    payload = json.loads(record.config_path.read_text(encoding="utf-8"))
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
     assert payload["name"] == "alpha"
 
 
 def test_source_runner_delete_source_unlink_typeerror_fallback(tmp_path: Path, monkeypatch) -> None:
-    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    repo = repository_module.FileSourceConfigRepository(tmp_path / "sources")
 
     class FakePath:
         def __init__(self) -> None:
@@ -333,10 +374,9 @@ def test_source_runner_delete_source_unlink_typeerror_fallback(tmp_path: Path, m
             return True
 
     fake_path = FakePath()
-    record = serviceDS.SourceRecord(name="alpha", source_type="fake", config={}, config_path=fake_path)  # type: ignore[arg-type]
-    runner.records["alpha"] = record
+    monkeypatch.setattr(repo, "_config_path_for_name", lambda _name: fake_path)
 
-    runner.delete_source("alpha")
+    repo.delete_record("alpha")
 
     assert fake_path.calls[0][1] == {"missing_ok": True}
     assert fake_path.calls[1] == ((), {})
@@ -404,11 +444,11 @@ def test_service_ds_main_wires_runner_admin_and_shutdown(monkeypatch, tmp_path: 
     }
 
     class FakeRunner:
-        def __init__(self, base_client, registry, *, config_dir: str) -> None:
+        def __init__(self, base_client, registry, *, repository=None, config_dir=None) -> None:
+            captured["runner_repository"] = repository
             captured["runner_config_dir"] = config_dir
             self.base_client = base_client
             self.registry = registry
-            self.config_dir = config_dir
             self.stop_all_calls = 0
 
         def load_config_dir(self):
@@ -459,6 +499,7 @@ def test_service_ds_main_wires_runner_admin_and_shutdown(monkeypatch, tmp_path: 
     monkeypatch.setattr(serviceDS, "SourceAdminTCPServer", FakeAdminServer)
     monkeypatch.setattr(serviceDS.threading, "Thread", MainThread)
     monkeypatch.setattr(serviceDS, "_default_config_dir", lambda: str(tmp_path / "sources"))
+    monkeypatch.setattr(serviceDS, "_build_source_repository", lambda *, config_dir: SimpleNamespace(stats=lambda: {"backend": "json"}))
 
     def fake_signal(sig, handler):
         captured["signal_calls"].append(sig)
@@ -492,16 +533,18 @@ def test_source_runner_write_record_dir_fsync_inner_error_path(tmp_path: Path, m
         name="alpha-dirfsync",
         source_type="fake",
         config={"k": 1},
-        config_path=runner._config_path_for_name("alpha-dirfsync"),
+        storage_ref="",
     )
+
+    config_path = runner._config_path_for_name("alpha-dirfsync")
 
     fake_dir_fd = 4242
     closed_fds: list[int] = []
-    original_open = serviceDS.os.open
-    original_fsync = serviceDS.os.fsync
+    original_open = repository_module.os.open
+    original_fsync = repository_module.os.fsync
 
     def selective_open(path, flags, *args, **kwargs):
-        if str(path) == str(record.config_path.parent) and flags == serviceDS.os.O_RDONLY:
+        if str(path) == str(config_path.parent) and flags == repository_module.os.O_RDONLY:
             return fake_dir_fd
         return original_open(path, flags, *args, **kwargs)
 
@@ -510,14 +553,14 @@ def test_source_runner_write_record_dir_fsync_inner_error_path(tmp_path: Path, m
             raise OSError("dir fsync unsupported")
         return original_fsync(fd)
 
-    monkeypatch.setattr(serviceDS.os, "open", selective_open)
-    monkeypatch.setattr(serviceDS.os, "fsync", selective_fsync)
-    monkeypatch.setattr(serviceDS.os, "close", lambda fd: closed_fds.append(fd))
+    monkeypatch.setattr(repository_module.os, "open", selective_open)
+    monkeypatch.setattr(repository_module.os, "fsync", selective_fsync)
+    monkeypatch.setattr(repository_module.os, "close", lambda fd: closed_fds.append(fd))
 
     runner._write_record(record)
 
     assert fake_dir_fd in closed_fds
-    payload = json.loads(record.config_path.read_text(encoding="utf-8"))
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
     assert payload["name"] == "alpha-dirfsync"
 
 
@@ -527,12 +570,12 @@ def test_source_runner_write_record_cleanup_ignores_unlink_oserror(tmp_path: Pat
         name="alpha-cleanup",
         source_type="fake",
         config={"k": 1},
-        config_path=runner._config_path_for_name("alpha-cleanup"),
+        storage_ref="",
     )
 
-    monkeypatch.setattr(serviceDS.os, "replace", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("replace failed")))
-    monkeypatch.setattr(serviceDS.os.path, "exists", lambda _path: True)
-    monkeypatch.setattr(serviceDS.os, "unlink", lambda _path: (_ for _ in ()).throw(OSError("busy")))
+    monkeypatch.setattr(repository_module.Path, "replace", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("replace failed")))
+    monkeypatch.setattr(repository_module.Path, "exists", lambda _self: True)
+    monkeypatch.setattr(repository_module.Path, "unlink", lambda _self: (_ for _ in ()).throw(OSError("busy")))
 
     with pytest.raises(RuntimeError, match="replace failed"):
         runner._write_record(record)
@@ -565,7 +608,7 @@ def test_source_runner_start_instance_locked_rejects_duplicate(tmp_path: Path, m
         name="alpha",
         source_type="fake",
         config={},
-        config_path=runner._config_path_for_name("alpha"),
+        storage_ref=str(runner._config_path_for_name("alpha")),
     )
 
     with pytest.raises(ValueError, match="already running"):

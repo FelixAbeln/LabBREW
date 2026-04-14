@@ -471,6 +471,17 @@ def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_ca
     }
     runtime.datasource_admin._ui_specs = {
         "brewtools_can": {
+            "app": {
+                "kind": "sections",
+                "version": 1,
+                "sections": [
+                    {
+                        "id": "node-1",
+                        "title": "Node 1",
+                        "items": [{"kind": "control", "control_id": "source-temp", "action_label": "Apply"}],
+                    }
+                ],
+            },
             "controls": [
                 {
                     "id": "source-temp",
@@ -489,9 +500,13 @@ def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_ca
     assert len(snap["datasources"]) == 1
     assert snap["datasources"][0]["name"] == "brewtools"
     assert snap["datasources"][0]["control_count"] == 1
+    assert snap["ui_cards"][0]["app"]["kind"] == "sections"
+    assert snap["ui_cards"][0]["app"]["sections"][0]["items"][0]["control_id"] == "source-temp"
     assert snap["orphan_parameters"][0]["name"] == "orphan.param"
     assert snap["manual_controls"][0]["target"] == "manual.target"
-    assert any(card["kind"] == "manual" for card in snap["ui_cards"])
+    manual_card = next(card for card in snap["ui_cards"] if card["kind"] == "manual")
+    assert manual_card["app"]["kind"] == "sections"
+    assert manual_card["app"]["sections"][0]["items"][0]["control_id"] == manual_card["controls"][0]["id"]
 
 
 def test_get_datasource_contract_snapshot_marks_backend_unreachable_on_list_failure() -> None:
@@ -544,6 +559,46 @@ def test_datasource_contract_snapshot_hides_empty_datasource_ui_cards() -> None:
     assert len(snap["datasources"]) == 1
     assert snap["datasources"][0]["control_count"] == 0
     assert snap["ui_cards"] == []
+
+
+def test_datasource_contract_snapshot_builds_fallback_app_for_discovered_controls() -> None:
+    runtime = _make_runtime()
+    runtime.get_control_contract_snapshot = lambda: {"source": "map.json", "resolved_controls": []}
+    runtime.backend.describe = lambda: {
+        "brewcan.agitator.0.set_pwm": {
+            "parameter_type": "float",
+            "value": 42.0,
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "brewtools",
+                "source_type": "brewtools",
+                "role": "command",
+                "node_type": "agitator",
+            },
+        },
+    }
+    runtime.datasource_admin._sources = {
+        "brewtools": {
+            "source_type": "brewtools",
+            "running": True,
+            "config": {},
+        }
+    }
+    runtime.datasource_admin._ui_specs = {
+        "brewtools": {
+            "app": {"kind": "sections", "version": 1, "sections": []},
+            "controls": [],
+        }
+    }
+
+    snap = runtime.get_datasource_contract_snapshot()
+
+    card = next(card for card in snap["ui_cards"] if card["source_name"] == "brewtools")
+    assert card["controls"]
+    assert card["app"]["kind"] == "sections"
+    assert card["app"]["sections"]
+    assert card["app"]["sections"][0]["items"][0]["kind"] == "control"
+
 
 
 def test_collect_sources_handles_nested_conditions_and_non_dict() -> None:

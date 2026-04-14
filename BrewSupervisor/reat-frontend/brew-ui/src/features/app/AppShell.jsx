@@ -16,6 +16,10 @@ export function AppShell({
   error,
   activeTab,
   onTabChange,
+  customTabs,
+  layoutEditMode,
+  onToggleLayoutEdit,
+  onOpenSystemStudio,
   children,
 }) {
   const sidebarDockRef = useRef(null);
@@ -56,12 +60,6 @@ export function AppShell({
       window.removeEventListener('click', handleOutsideClick);
     };
   }, [sidebarHidden]);
-
-  useEffect(() => {
-    if (!error) {
-      setDismissedError('');
-    }
-  }, [error]);
 
   const visibleError = error && error !== dismissedError ? error : '';
 
@@ -126,6 +124,10 @@ export function AppShell({
                 selected={selected}
                 activeTab={activeTab}
                 onTabChange={onTabChange}
+                customTabs={customTabs}
+                layoutEditMode={layoutEditMode}
+                onToggleLayoutEdit={onToggleLayoutEdit}
+                onOpenSystemStudio={onOpenSystemStudio}
               />
               {children}
             </div>

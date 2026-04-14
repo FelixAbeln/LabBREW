@@ -64,6 +64,7 @@ def test_base_client_command_wrappers_and_subscribe_factory() -> None:
     c.get_parameter_type_ui("pt")
     c.list_source_types_ui()
     c.get_source_type_ui("src", name="n1", mode="m1")
+    c.invoke_source_type_ui_action("src", "scan", payload={"host": "127.0.0.1"}, name="n1")
     c.list_sources()
     c.create_source("s", "type", config={"a": 1})
     c.update_source("s", config={"b": 2})
@@ -86,6 +87,7 @@ def test_base_client_command_wrappers_and_subscribe_factory() -> None:
     assert "export_snapshot" in commands
     assert "import_snapshot" in commands
     assert "get_source_type_ui" in commands
+    assert "invoke_source_type_ui_action" in commands
     assert "create_parameter" in commands
     assert "load_parameter_type_folder" in commands
     delete_payloads = [payload for name, payload in c.calls if name == "delete_source"]

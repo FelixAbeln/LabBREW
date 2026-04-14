@@ -110,6 +110,9 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
         validate_empty_ok(payload)
         stats = self.engine.stats()
         stats["subscriber_count"] = self.event_broker.subscriber_count()
+        stats["snapshot_persistence"] = (
+            self.snapshot_manager.stats() if self.snapshot_manager is not None else None
+        )
         return stats
 
     def api_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:

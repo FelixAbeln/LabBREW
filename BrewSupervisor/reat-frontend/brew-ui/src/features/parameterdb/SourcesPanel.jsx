@@ -1,11 +1,297 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchSources, fetchSourceTypes, fetchSourceTypeUi,
-  createSource, updateSource, deleteSource,
+  createSource, updateSource, deleteSource, invokeSourceTypeModuleAction,
 } from './loaders.js';
 import { SchemaForm } from './SchemaForm.jsx';
 import { buildFormData, buildSections, collectJsonFieldKeys, collectRequiredPaths, getByPath, setByPath } from './schemaUtils.js';
 import { buildSourceInventory } from './graph/graphModel.js';
+
+function buildModuleState(moduleSpec, draft) {
+  const fields = Array.isArray(moduleSpec?.menu?.fields) ? moduleSpec.menu.fields : [];
+  const next = {};
+  fields.forEach((field) => {
+    const key = String(field?.key ?? '').trim();
+    if (!key) return;
+    const configKey = String(field?.config_key || key);
+    const fromDraft = draft?.config?.[configKey];
+    if (fromDraft !== undefined && fromDraft !== null && fromDraft !== '') {
+      next[key] = fromDraft;
+      return;
+    }
+    if (field?.default !== undefined) {
+      next[key] = field.default;
+      return;
+    }
+    next[key] = field?.type === 'string' ? '' : null;
+  });
+  return next;
+}
+
+function SourceModulePanel({ fermenterId, sourceType, sourceName, moduleSpec, draft, onApplyConfig }) {
+  const [moduleState, setModuleState] = useState(() => buildModuleState(moduleSpec, draft));
+  const [resultItems, setResultItems] = useState([]);
+  const [lastScannedCount, setLastScannedCount] = useState(null);
+  const [moduleWarnings, setModuleWarnings] = useState([]);
+  const [moduleError, setModuleError] = useState('');
+  const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    setModuleState(buildModuleState(moduleSpec, draft));
+  }, [moduleSpec, draft]);
+
+  const fields = Array.isArray(moduleSpec?.menu?.fields) ? moduleSpec.menu.fields : [];
+  const actionSpec = moduleSpec?.menu?.action ?? null;
+  const resultSpec = useMemo(() => {
+    if (moduleSpec?.menu?.result && typeof moduleSpec.menu.result === 'object') {
+      return moduleSpec.menu.result;
+    }
+    return {};
+  }, [moduleSpec]);
+  const runSpec = moduleSpec?.menu?.run && typeof moduleSpec.menu.run === 'object' ? moduleSpec.menu.run : {};
+  const runMode = String(runSpec?.mode || 'manual').trim().toLowerCase();
+  const autoRun = runMode === 'auto';
+  const suppressWarnings = Boolean(moduleSpec?.menu?.suppress_warnings);
+  const preserveResults = Boolean(moduleSpec?.menu?.preserve_results);
+  const pollIntervalSeconds = Number(runSpec?.poll_interval_s ?? 0);
+  const pollIntervalMs = Number.isFinite(pollIntervalSeconds) && pollIntervalSeconds > 0
+    ? pollIntervalSeconds * 1000
+    : 0;
+  const requestTimeoutSeconds = Number(runSpec?.request_timeout_s ?? 8);
+  const requestTimeoutMs = Number.isFinite(requestTimeoutSeconds) && requestTimeoutSeconds > 0
+    ? requestTimeoutSeconds * 1000
+    : 8000;
+  const cancelInflightOnCleanup = runSpec?.cancel_inflight_on_cleanup === undefined
+    ? true
+    : Boolean(runSpec.cancel_inflight_on_cleanup);
+  const hasFermenterId = typeof fermenterId === 'string' && fermenterId.trim().length > 0;
+
+  const runAction = useCallback(async (signal) => {
+    const actionName = String(actionSpec?.action || actionSpec?.id || '').trim();
+    if (!actionName || !hasFermenterId) return;
+    const abortSignal = (typeof AbortSignal !== 'undefined' && signal instanceof AbortSignal)
+      ? signal
+      : null;
+    const requestController = new AbortController();
+    const timeoutId = setTimeout(() => requestController.abort(), requestTimeoutMs);
+    let detachExternalAbort = null;
+    if (abortSignal) {
+      const onExternalAbort = () => requestController.abort();
+      abortSignal.addEventListener('abort', onExternalAbort, { once: true });
+      detachExternalAbort = () => abortSignal.removeEventListener('abort', onExternalAbort);
+    }
+    setRunning(true);
+    setModuleError('');
+    setModuleWarnings([]);
+    try {
+      const response = await invokeSourceTypeModuleAction(
+        fermenterId,
+        sourceType,
+        actionName,
+        moduleState,
+        sourceName,
+        requestController.signal,
+      );
+      const listKey = String(resultSpec.list_key || 'candidates');
+      const items = Array.isArray(response?.result?.[listKey]) ? response.result[listKey] : [];
+      if (preserveResults) {
+        const keyFields = Array.isArray(resultSpec?.key_fields) ? resultSpec.key_fields : [];
+        const titleKey = String(resultSpec?.title_key || 'host');
+        const buildResultKey = (item) => {
+          if (keyFields.length > 0) {
+            return keyFields.map((field) => String(item?.[field] ?? '')).join('||');
+          }
+          return String(item?.[titleKey] ?? '');
+        };
+        setResultItems((previous) => {
+          const merged = new Map();
+          previous.forEach((item) => merged.set(buildResultKey(item), item));
+          items.forEach((item) => merged.set(buildResultKey(item), item));
+          return Array.from(merged.values());
+        });
+      } else {
+        setResultItems(items);
+      }
+      setLastScannedCount(Number(response?.result?.scanned ?? 0));
+      setModuleWarnings(Array.isArray(response?.result?.warnings) ? response.result.warnings : []);
+    } catch (err) {
+      const message = String(err?.message ?? '');
+      const isAbortError = err?.name === 'AbortError' || /aborted/i.test(message);
+      const isTransientFermenterLookup = /fermenter not found/i.test(message);
+      if (isAbortError || isTransientFermenterLookup) return;
+      setModuleError(err?.message ?? 'Module action failed');
+      setResultItems([]);
+      setLastScannedCount(null);
+      setModuleWarnings([]);
+    } finally {
+      clearTimeout(timeoutId);
+      if (detachExternalAbort) detachExternalAbort();
+      setRunning(false);
+    }
+  }, [actionSpec?.action, actionSpec?.id, hasFermenterId, fermenterId, moduleState, preserveResults, requestTimeoutMs, resultSpec, sourceName, sourceType]);
+
+  useEffect(() => {
+    if (!autoRun || !actionSpec?.action || !hasFermenterId) return;
+    const controller = new AbortController();
+    let timerId = null;
+
+    async function scanLoop() {
+      if (controller.signal.aborted) return;
+      await runAction(controller.signal);
+      if (controller.signal.aborted || pollIntervalMs <= 0) return;
+      timerId = setTimeout(scanLoop, pollIntervalMs);
+    }
+
+    scanLoop();
+    return () => {
+      if (cancelInflightOnCleanup) controller.abort();
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [autoRun, actionSpec?.action, cancelInflightOnCleanup, hasFermenterId, pollIntervalMs, runAction]);
+
+  function applyResultItem(item) {
+    const applyMap = resultSpec?.apply_map;
+    if (!applyMap || typeof applyMap !== 'object') return;
+    const patch = {};
+    Object.entries(applyMap).forEach(([configKey, itemKey]) => {
+      if (typeof itemKey !== 'string') return;
+      if (item[itemKey] !== undefined) patch[configKey] = item[itemKey];
+    });
+    onApplyConfig(patch);
+  }
+
+  function valuesMatch(left, right) {
+    if (left == null && right == null) return true;
+    if (left == null || right == null) return false;
+    return String(left) === String(right);
+  }
+
+  function isItemSelected(item) {
+    const applyMap = resultSpec?.apply_map;
+    if (!applyMap || typeof applyMap !== 'object') return false;
+    const pairs = Object.entries(applyMap).filter(([, itemKey]) => typeof itemKey === 'string');
+    if (!pairs.length) return false;
+    const config = draft?.config ?? {};
+    return pairs.every(([configKey, itemKey]) => valuesMatch(config?.[configKey], item?.[itemKey]));
+  }
+
+  if (!actionSpec?.action) {
+    return null;
+  }
+
+  return (
+    <div className="pdb-source-module">
+      <div className="pdb-source-module-header">
+        <h4>{moduleSpec?.display_name || 'Source Module'}</h4>
+        <span>{moduleSpec?.description || ''}</span>
+      </div>
+      <div className="pdb-source-module-controls">
+        {fields.map((field) => {
+          const key = String(field?.key ?? '').trim();
+          if (!key) return null;
+          const type = String(field?.type || 'string');
+          const configKey = String(field?.config_key || key);
+          const value = moduleState[key] ?? '';
+          const onFieldChange = (raw) => {
+            const parsed = type === 'int'
+              ? (raw === '' ? null : Number.parseInt(raw, 10))
+              : type === 'float'
+                ? (raw === '' ? null : Number.parseFloat(raw))
+                : raw;
+            setModuleState((current) => ({
+              ...current,
+              [key]: parsed,
+            }));
+            onApplyConfig({ [configKey]: parsed });
+          };
+
+          if (type === 'enum') {
+            const choices = Array.isArray(field?.choices) ? field.choices : [];
+            return (
+              <select
+                key={key}
+                className="pdb-input"
+                value={String(value ?? '')}
+                onChange={(e) => onFieldChange(e.target.value)}
+              >
+                {choices.map((choice) => {
+                  const text = String(choice);
+                  return <option key={text} value={text}>{text}</option>;
+                })}
+              </select>
+            );
+          }
+
+          return (
+            <input
+              key={key}
+              className="pdb-input"
+              type={type === 'int' || type === 'float' ? 'number' : 'text'}
+              step={type === 'float' ? 'any' : undefined}
+              min={field?.min ?? undefined}
+              placeholder={field?.label || key}
+              value={value}
+              onChange={(e) => onFieldChange(e.target.value)}
+            />
+          );
+        })}
+        {!autoRun && (
+          <button className="pdb-btn-primary" onClick={() => runAction(null)} disabled={running || !hasFermenterId}>
+            {running ? 'Running…' : String(actionSpec.label || 'Run')}
+          </button>
+        )}
+      </div>
+      {!suppressWarnings && moduleWarnings.length > 0 && (
+        <div className="pdb-field-help">{moduleWarnings.join(' | ')}</div>
+      )}
+      {moduleError && <div className="pdb-save-error">{moduleError}</div>}
+      {!moduleError && lastScannedCount !== null && resultItems.length === 0 && (
+        <div className="pdb-field-help">{String(resultSpec?.empty_message || `Scanned ${lastScannedCount} targets, no devices discovered.`)}</div>
+      )}
+      {resultItems.length > 0 && (
+        <div className="pdb-source-module-results">
+          {resultItems.map((item, index) => {
+            const titleKey = String(resultSpec?.title_key || 'host');
+            const subtitleKeys = Array.isArray(resultSpec?.subtitle_keys) ? resultSpec.subtitle_keys : [];
+            const statusKey = String(resultSpec?.status_key || 'reachable');
+            const errorKey = String(resultSpec?.error_key || 'error');
+            const title = String(item?.[titleKey] ?? `item-${index + 1}`);
+            const subtitle = subtitleKeys
+              .map((k) => String(item?.[k] ?? '').trim())
+              .filter(Boolean)
+              .join(' · ');
+            const status = Boolean(item?.[statusKey]);
+            const selected = isItemSelected(item);
+            return (
+              <div key={`${title}-${index}`} className={`pdb-source-module-card${selected ? ' is-selected' : ''}`}>
+                <div>
+                  <strong>{title}</strong>
+                  {subtitle && <span>{subtitle}</span>}
+                </div>
+                <div>
+                  {selected ? (
+                    <span className="pdb-type-badge pdb-type-badge-selected">selected</span>
+                  ) : status ? (
+                    <span className="pdb-type-badge">ready</span>
+                  ) : (
+                    <span className="pdb-error-inline">{String(item?.[errorKey] || 'unavailable')}</span>
+                  )}
+                </div>
+                <button
+                  className={`pdb-btn-ghost pdb-btn-sm${selected ? ' pdb-btn-ghost-selected' : ''}`}
+                  disabled={!status || selected}
+                  onClick={() => applyResultItem(item)}
+                >
+                  {selected ? 'Selected' : String(resultSpec?.apply_label || 'Apply')}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterNames, onSave, onClose }) {
   const isCreate = mode === 'create';
@@ -56,6 +342,14 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
       const next = { ...current };
       delete next[field.key];
       delete next.save;
+      return next;
+    });
+  }
+
+  function handleApplyConfigPatch(configPatch) {
+    setDraft((current) => {
+      const next = JSON.parse(JSON.stringify(current));
+      next.config = { ...(next.config ?? {}), ...(configPatch ?? {}) };
       return next;
     });
   }
@@ -117,16 +411,28 @@ function SourceEditModal({ fermenterId, mode, record, sourceTypes, parameterName
             </div>
           )}
           {schemaUi && (
-            <SchemaForm
-              fermenterId={fermenterId}
-              sections={sections}
-              data={draft}
-              errors={errors}
-              rawJson={jsonDrafts}
-              parameterOptions={parameterNames}
-              onFieldChange={handleFieldChange}
-              onJsonChange={(key, value) => setJsonDrafts((current) => ({ ...current, [key]: value }))}
-            />
+            <>
+              {schemaUi?.module && (
+                <SourceModulePanel
+                  fermenterId={fermenterId}
+                  sourceType={sourceType}
+                  sourceName={record?.name ?? null}
+                  moduleSpec={schemaUi.module}
+                  draft={draft}
+                  onApplyConfig={handleApplyConfigPatch}
+                />
+              )}
+              <SchemaForm
+                fermenterId={fermenterId}
+                sections={sections}
+                data={draft}
+                errors={errors}
+                rawJson={jsonDrafts}
+                parameterOptions={parameterNames}
+                onFieldChange={handleFieldChange}
+                onJsonChange={(key, value) => setJsonDrafts((current) => ({ ...current, [key]: value }))}
+              />
+            </>
           )}
           {errors.save && <div className="pdb-save-error">{errors.save}</div>}
         </div>

@@ -37,12 +37,36 @@ export function isFieldVisible(field, data) {
   });
 }
 
+function sectionFields(section) {
+  const directFields = Array.isArray(section?.fields) ? section.fields : [];
+  if (directFields.length > 0) return directFields;
+
+  const items = Array.isArray(section?.items) ? section.items : [];
+  return items
+    .flatMap((item) => {
+      if (item?.kind === 'field' && item?.field && typeof item.field === 'object') return [item.field];
+      if (item && typeof item === 'object' && item.key) return [item];
+      return [];
+    });
+}
+
 export function buildSections(schemaUi, mode) {
-  const source = schemaUi?.[mode]?.sections ?? [];
+  const modeSpec = schemaUi?.[mode] ?? {};
+  const appSpec = modeSpec?.app?.kind === 'sections'
+    ? modeSpec.app
+    : modeSpec?.card_app?.kind === 'sections'
+      ? modeSpec.card_app
+      : null;
+  const source = Array.isArray(appSpec?.sections)
+    ? appSpec.sections.map((section) => ({
+        ...cloneValue(section),
+        fields: cloneValue(sectionFields(section)),
+      }))
+    : (modeSpec?.sections ?? []);
   const sections = cloneValue(source) ?? [];
   if (
     mode === 'create' &&
-    !sections.some((section) => (section?.fields ?? []).some((field) => field?.key === 'name'))
+    !sections.some((section) => sectionFields(section).some((field) => field?.key === 'name'))
   ) {
     sections.unshift({
       title: 'Identity',
@@ -87,7 +111,7 @@ export function buildFormData(schemaUi, mode, record, typeKey) {
 export function collectRequiredPaths(schemaUi, sections, data = {}) {
   const required = new Set(schemaUi?.create?.required ?? []);
   sections.forEach((section) => {
-    (section?.fields ?? []).forEach((field) => {
+    sectionFields(section).forEach((field) => {
       if (field?.required && field?.key && isFieldVisible(field, data)) required.add(field.key);
     });
   });
@@ -96,7 +120,7 @@ export function collectRequiredPaths(schemaUi, sections, data = {}) {
 
 export function collectJsonFieldKeys(sections) {
   return sections.flatMap((section) =>
-    (section?.fields ?? [])
+    sectionFields(section)
       .filter((field) => field?.type === 'json')
       .map((field) => field.key),
   );
@@ -118,7 +142,7 @@ export function deriveSourceLinks(record, schemaUi) {
   normalizeList(schemaUi?.graph?.depends_on).forEach((item) => feedsFrom.add(item));
 
   sections.forEach((section) => {
-    (section?.fields ?? []).forEach((field) => {
+    sectionFields(section).forEach((field) => {
       if (!field?.key?.startsWith('config.')) return;
       const value = getByPath(record, field.key);
       const key = field.key.toLowerCase();

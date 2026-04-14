@@ -1,8 +1,61 @@
 import { useState } from 'react'
 
+export function PersistenceStatusCard({ title, status }) {
+  const backend = typeof status?.backend === 'string' ? status.backend : '-'
+  const errorText = typeof status?.last_error === 'string' ? status.last_error : ''
+
+  return (
+    <div className="system-service-item" style={{ marginTop: 16 }}>
+      <div className="system-service-header">
+        <strong>{title}</strong>
+        <span className={`pill ${statusPillClass(status)}`}>{statusPillLabel(status)}</span>
+      </div>
+      <div className="small-text">Backend: {backend}</div>
+      <div className="small-text">Target: {backendTargetText(status)}</div>
+      <div className="small-text">Last save: {status?.last_save_ok === false ? 'failed' : status?.last_save_ok === true ? 'ok' : '-'}</div>
+      <div className="small-text">Last success: {formatTimestamp(status?.last_success_at)}</div>
+      <div className="small-text">Error: {errorText || status?.reason || '-'}</div>
+    </div>
+  )
+}
+
 function shortSha(value) {
   if (typeof value !== 'string' || !value.trim()) return '-'
   return value.slice(0, 8)
+}
+
+function formatTimestamp(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '-'
+  try {
+    return new Date(value * 1000).toLocaleString()
+  } catch {
+    return '-'
+  }
+}
+
+function statusPillClass(status) {
+  if (!status) return 'pill-warn'
+  if (status.available === false || status.healthy === false) return 'pill-bad'
+  if (status.last_save_ok === false) return 'pill-warn'
+  return 'pill-ok'
+}
+
+function statusPillLabel(status) {
+  if (!status) return 'unknown'
+  if (status.available === false || status.healthy === false) return 'degraded'
+  if (status.last_save_ok === false) return 'save failed'
+  return 'healthy'
+}
+
+function backendTargetText(status) {
+  if (!status || typeof status !== 'object') return '-'
+  if (status.backend === 'postgres' && status.postgres && typeof status.postgres === 'object') {
+    return `${status.postgres.host || '-'}:${status.postgres.port || '-'} / ${status.postgres.database || '-'}`
+  }
+  if (status.backend === 'json') {
+    return status.path || '-'
+  }
+  return '-'
 }
 
 function UpdateConfirmModal({ onConfirm, onCancel }) {
@@ -28,11 +81,73 @@ function UpdateConfirmModal({ onConfirm, onCancel }) {
   )
 }
 
+export function SystemLauncherPanel({
+  onOpenParameterDB,
+  onOpenStorageManager,
+  onOpenRulesStudio,
+  className = 'info-card system-launcher-card',
+}) {
+  const actions = [
+    onOpenStorageManager
+      ? {
+          key: 'storage',
+          title: 'Storage Manager',
+          description: 'Browse, create, move, and delete managed files.',
+          cta: 'Open Storage',
+          onClick: onOpenStorageManager,
+        }
+      : null,
+    onOpenParameterDB
+      ? {
+          key: 'parameterdb',
+          title: 'ParameterDB',
+          description: 'View parameters, dependency graph, and source config.',
+          cta: 'Open ParameterDB',
+          onClick: onOpenParameterDB,
+        }
+      : null,
+    onOpenRulesStudio
+      ? {
+          key: 'rules',
+          title: 'Rules Studio',
+          description: 'Open the dedicated automation rules workspace.',
+          cta: 'Open Rules',
+          onClick: onOpenRulesStudio,
+        }
+      : null,
+  ].filter(Boolean)
+
+  if (!actions.length) return null
+
+  return (
+    <div className={className}>
+      <div className="card-header-row">
+        <h3>System Tools</h3>
+        <span className="tag">{actions.length} launchers</span>
+      </div>
+      <div className="system-launcher-grid">
+        {actions.map((action) => (
+          <button key={action.key} type="button" className="system-launcher-button" onClick={action.onClick}>
+            <span className="system-launcher-button-title">{action.title}</span>
+            <span className="system-launcher-button-desc">{action.description}</span>
+            <span className="system-launcher-button-cta">{action.cta}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function SystemTab({
   selected,
   healthyServices,
   onOpenParameterDB,
   onOpenStorageManager,
+  onOpenRulesStudio,
+  persistenceStatus,
+  persistenceLoading,
+  datasourcePersistenceStatus,
+  rulesPersistenceStatus,
   repoUpdateStatus,
   repoStatusLoading,
   repoUpdateLoading,
@@ -61,32 +176,11 @@ export function SystemTab({
         />
       )}
     <div className="tab-content-grid system-layout">
-      {(onOpenParameterDB || onOpenStorageManager) && (
-        <>
-        {onOpenStorageManager && (
-          <div className="control-bar pdb-open-btn-card pdb-open-btn-sticky">
-            <div className="control-bar-copy">
-              <strong>Storage Manager</strong>
-              <span>Open the cross-agent storage manager to browse, create, move and delete managed files.</span>
-            </div>
-            <div className="control-button-group">
-              <button className="primary-button" onClick={onOpenStorageManager}>Storage</button>
-            </div>
-          </div>
-        )}
-        {onOpenParameterDB && (
-        <div className="control-bar pdb-open-btn-card pdb-open-btn-sticky">
-          <div className="control-bar-copy">
-            <strong>ParameterDB</strong>
-            <span>View and manage the local ParameterDB - parameters, dependencies graph and data sources.</span>
-          </div>
-          <div className="control-button-group">
-            <button className="primary-button" onClick={onOpenParameterDB}>ParameterDB</button>
-          </div>
-        </div>
-        )}
-        </>
-      )}
+      <SystemLauncherPanel
+        onOpenStorageManager={onOpenStorageManager}
+        onOpenParameterDB={onOpenParameterDB}
+        onOpenRulesStudio={onOpenRulesStudio}
+      />
 
       <div className="system-left-column">
         <div className="info-card system-node-card">
@@ -143,6 +237,22 @@ export function SystemTab({
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="info-card system-node-card">
+          <h3>Persistence</h3>
+          <PersistenceStatusCard
+            title="ParameterDB snapshot backend"
+            status={persistenceStatus}
+          />
+          <PersistenceStatusCard
+            title="Source config backend"
+            status={datasourcePersistenceStatus}
+          />
+          <PersistenceStatusCard
+            title="Control rules backend"
+            status={rulesPersistenceStatus}
+          />
         </div>
       </div>
 

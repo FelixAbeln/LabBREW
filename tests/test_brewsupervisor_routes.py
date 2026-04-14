@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import ClassVar
 
@@ -199,6 +200,7 @@ def test_agent_info_services_and_summary_proxy() -> None:
     for path in [
         "/fermenters/01/agent/info",
         "/fermenters/01/agent/services",
+        "/fermenters/01/agent/persistence",
         "/fermenters/01/summary",
     ]:
         response = client.get(path)
@@ -225,6 +227,68 @@ def test_agent_repo_status_and_update_proxy() -> None:
 
     assert update_call[0] == "POST"
     assert update_call[1].endswith("/agent/repo/update")
+
+
+def test_workspace_layouts_round_trip(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(supervisor_routes, "storage_path", lambda *parts: tmp_path.joinpath(*parts))
+    client = _client(nodes=[_make_node()])
+
+    body = {
+        "tabs": [
+            {
+                "id": "workspace-1",
+                "label": "Workspace 1",
+                "widgets": [
+                    {
+                        "id": "widget-1",
+                        "type": "data-snapshot",
+                        "x": 1,
+                        "y": 1,
+                        "cols": 12,
+                        "rows": 4,
+                    }
+                ],
+            }
+        ],
+        "active_tab": "workspace-1",
+        "control_card_order": ["brewcan", "chiller"],
+    }
+
+    put_response = client.put("/fermenters/01/workspace-layouts", json=body)
+    assert put_response.status_code == 200
+    saved_layout = put_response.json()["workspace_layout"]
+    assert saved_layout["tabs"][0]["label"] == "Workspace 1"
+    assert saved_layout["active_tab"] == "workspace-1"
+    assert saved_layout["control_card_order"] == ["brewcan", "chiller"]
+
+    get_response = client.get("/fermenters/01/workspace-layouts")
+    assert get_response.status_code == 200
+    loaded_layout = get_response.json()["workspace_layout"]
+    assert loaded_layout["tabs"][0]["widgets"][0]["type"] == "data-snapshot"
+    assert loaded_layout["fermenter_name"] == "Test Fermenter"
+
+
+def test_workspace_layouts_use_atomic_json_write(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(supervisor_routes, "storage_path", lambda *parts: tmp_path.joinpath(*parts))
+    calls: list[tuple[Path, dict[str, object]]] = []
+
+    def fake_atomic_write_json(path: Path, payload: dict[str, object], **_kwargs) -> None:
+        calls.append((path, payload))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(supervisor_routes, "atomic_write_json", fake_atomic_write_json, raising=False)
+    client = _client(nodes=[_make_node()])
+
+    response = client.put(
+        "/fermenters/01/workspace-layouts",
+        json={"tabs": [{"id": "w1", "label": "Workspace", "widgets": []}]},
+    )
+
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0][0].name == "supervisor_workspace_layouts.json"
+    assert "01" in calls[0][1]
 
 
 def test_agent_endpoints_return_404_for_missing_node() -> None:

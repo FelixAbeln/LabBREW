@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import asyncio
+import json
+import threading
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 
 import requests
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
+
+from Services._shared.json_persistence import atomic_write_json
+from Services._shared.storage_paths import storage_path
 
 from .models import FermenterView
 from .schedule_import.parser import (
@@ -162,6 +170,75 @@ def _get_datasource_node(registry: Any, fermenter_id: str):
     return registry.get_node(fermenter_id)
 
 
+_WORKSPACE_LAYOUT_STORE_LOCK = threading.RLock()
+
+
+def _workspace_layout_store_path() -> Path:
+    path = storage_path("supervisor_workspace_layouts.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _load_workspace_layout_store() -> dict[str, Any]:
+    with _WORKSPACE_LAYOUT_STORE_LOCK:
+        path = _workspace_layout_store_path()
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+
+def _save_workspace_layout_store(store: dict[str, Any]) -> None:
+    with _WORKSPACE_LAYOUT_STORE_LOCK:
+        path = _workspace_layout_store_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(path, store, indent=2, sort_keys=True, ensure_ascii=False)
+
+
+def _update_workspace_layout_store(fermenter_id: str, layout: dict[str, Any]) -> None:
+    with _WORKSPACE_LAYOUT_STORE_LOCK:
+        store = _load_workspace_layout_store()
+        store[str(fermenter_id)] = layout
+        _save_workspace_layout_store(store)
+
+
+def _normalize_workspace_layout_payload(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Body must be a JSON object")
+
+    tabs = raw.get("tabs")
+    if not isinstance(tabs, list) or not tabs:
+        raise HTTPException(status_code=400, detail="Body must include a non-empty tabs list")
+
+    try:
+        normalized_tabs = json.loads(json.dumps(tabs))
+    except TypeError as exc:
+        raise HTTPException(status_code=400, detail="Workspace tabs must be JSON serializable") from exc
+
+    encoded_tabs = json.dumps(normalized_tabs, separators=(",", ":"))
+    if len(encoded_tabs.encode("utf-8")) > 500_000:
+        raise HTTPException(status_code=413, detail="Workspace layout payload is too large")
+
+    control_card_order_raw = raw.get("control_card_order")
+    control_card_order = []
+    if isinstance(control_card_order_raw, list):
+        control_card_order = [
+            str(item).strip() for item in control_card_order_raw if str(item).strip()
+        ]
+
+    active_tab = str(raw.get("active_tab") or "").strip() or None
+
+    return {
+        "tabs": normalized_tabs,
+        "active_tab": active_tab,
+        "control_card_order": control_card_order,
+        "updated_at": datetime.now(tz=UTC).isoformat(),
+    }
+
+
 def _get_available_backend_parameters(
     proxy: Any, node: Any
 ) -> tuple[set[str] | None, dict[str, Any] | None]:
@@ -246,6 +323,18 @@ def build_router() -> APIRouter:
         )
         return JSONResponse(status_code=status_code, content=payload)
 
+    @router.get("/fermenters/{fermenter_id}/agent/persistence")
+    def get_agent_persistence(fermenter_id: str, request: Request):
+        registry = request.app.state.registry
+        proxy = request.app.state.proxy
+        node = registry.get_node(fermenter_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail="Fermenter not found")
+        status_code, payload = _read_json_response(
+            proxy, method="GET", url=_build_agent_proxy_url(node, "/agent/persistence")
+        )
+        return JSONResponse(status_code=status_code, content=payload)
+
     @router.get("/fermenters/{fermenter_id}/summary")
     def get_summary(fermenter_id: str, request: Request):
         registry = request.app.state.registry
@@ -257,6 +346,49 @@ def build_router() -> APIRouter:
             proxy, method="GET", url=_build_agent_proxy_url(node, "/agent/summary")
         )
         return JSONResponse(status_code=status_code, content=payload)
+
+    @router.get("/fermenters/{fermenter_id}/workspace-layouts")
+    def get_workspace_layouts(fermenter_id: str, request: Request):
+        registry = request.app.state.registry
+        node = registry.get_node(fermenter_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail="Fermenter not found")
+
+        store = _load_workspace_layout_store()
+        layout = store.get(str(fermenter_id))
+        if not isinstance(layout, dict):
+            layout = None
+
+        return {
+            "ok": True,
+            "fermenter_id": fermenter_id,
+            "workspace_layout": layout,
+        }
+
+    @router.put("/fermenters/{fermenter_id}/workspace-layouts")
+    async def put_workspace_layouts(fermenter_id: str, request: Request):
+        registry = request.app.state.registry
+        node = registry.get_node(fermenter_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail="Fermenter not found")
+
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+
+        layout = _normalize_workspace_layout_payload(body)
+        layout["fermenter_name"] = str(getattr(node, "name", "") or fermenter_id)
+
+        await asyncio.to_thread(
+            _update_workspace_layout_store, fermenter_id, layout
+        )
+
+        return {
+            "ok": True,
+            "fermenter_id": fermenter_id,
+            "workspace_layout": layout,
+        }
 
     @router.get("/fermenters/{fermenter_id}/agents/storage")
     def list_agent_storage(fermenter_id: str, request: Request):
@@ -327,7 +459,8 @@ def build_router() -> APIRouter:
             )
 
         forwarded = {k: v for k, v in body.items() if k != "agent_base_url"}
-        status_code, payload = _read_json_response(
+        status_code, payload = await asyncio.to_thread(
+            _read_json_response,
             proxy,
             method="POST",
             url=_build_agent_proxy_url(node, f"/agent/storage/{action}"),
@@ -509,7 +642,8 @@ def build_router() -> APIRouter:
                 for key, value in request.headers.items()
                 if key.lower() in {"content-type", "accept"}
             }
-        status_code, payload = _read_json_response(
+        status_code, payload = await asyncio.to_thread(
+            _read_json_response,
             proxy,
             method=request.method,
             url=_build_service_proxy_url(node, service_name, service_path),
@@ -534,7 +668,8 @@ def build_router() -> APIRouter:
                 for key, value in request.headers.items()
                 if key.lower() in {"content-type", "accept"}
             }
-        status_code, payload = _read_json_response(
+        status_code, payload = await asyncio.to_thread(
+            _read_json_response,
             proxy,
             method=request.method,
             url=_build_agent_proxy_url(node, f"/parameterdb/{agent_path.lstrip('/')}"),

@@ -1,14 +1,94 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
-import uuid
+import importlib
+import inspect
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 from .base import DataSourceSpec
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _call_ui_spec_provider(provider: Any, *, record: dict[str, Any] | None, mode: str | None) -> Any:
+    try:
+        signature = inspect.signature(provider)
+    except (TypeError, ValueError):
+        return provider(record=record, mode=mode)
+
+    params = signature.parameters
+    accepts_var_kwargs = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
+    )
+    kwargs: dict[str, Any] = {}
+
+    if accepts_var_kwargs or "record" in params:
+        kwargs["record"] = record
+    elif "_record" in params:
+        kwargs["_record"] = record
+
+    if accepts_var_kwargs or "mode" in params:
+        kwargs["mode"] = mode
+    elif "_mode" in params:
+        kwargs["_mode"] = mode
+
+    if kwargs or accepts_var_kwargs:
+        return provider(**kwargs)
+    return provider()
+
+
+def _call_ui_action_provider(
+    provider: Any,
+    *,
+    action_name: str,
+    action_payload: dict[str, Any],
+    record: dict[str, Any] | None,
+) -> Any:
+    try:
+        signature = inspect.signature(provider)
+    except (TypeError, ValueError):
+        return provider(action=action_name, payload=action_payload, record=record)
+
+    params = signature.parameters
+    accepts_var_kwargs = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
+    )
+    kwargs: dict[str, Any] = {}
+
+    if accepts_var_kwargs or "action" in params:
+        kwargs["action"] = action_name
+    elif "action_name" in params:
+        kwargs["action_name"] = action_name
+
+    if accepts_var_kwargs or "payload" in params:
+        kwargs["payload"] = action_payload
+    elif "action_payload" in params:
+        kwargs["action_payload"] = action_payload
+
+    if accepts_var_kwargs or "record" in params:
+        kwargs["record"] = record
+    elif "_record" in params:
+        kwargs["_record"] = record
+
+    if kwargs or accepts_var_kwargs:
+        return provider(**kwargs)
+
+    positional = [
+        param
+        for param in params.values()
+        if param.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    if len(positional) >= 3:
+        return provider(action_name, action_payload, record)
+    if len(positional) >= 2:
+        return provider(action_name, action_payload)
+    if len(positional) >= 1:
+        return provider(action_name)
+    return provider()
 
 
 @dataclass(slots=True)
@@ -22,11 +102,19 @@ class DataSourceRegistry:
     def __init__(self) -> None:
         self._specs: dict[str, DataSourceSpec] = {}
         self._ui_specs: dict[str, Any] = {}
+        self._ui_actions: dict[str, Any] = {}
 
-    def register(self, spec: DataSourceSpec, ui_spec: Any | None = None) -> None:
+    def register(
+        self,
+        spec: DataSourceSpec,
+        ui_spec: Any | None = None,
+        ui_actions: Any | None = None,
+    ) -> None:
         self._specs[spec.source_type] = spec
         if ui_spec is not None:
             self._ui_specs[spec.source_type] = ui_spec
+        if ui_actions is not None:
+            self._ui_actions[spec.source_type] = ui_actions
 
     def get(self, source_type: str) -> DataSourceSpec:
         try:
@@ -49,10 +137,7 @@ class DataSourceRegistry:
         except KeyError as exc:
             raise KeyError(f"Unknown data source type '{source_type}'") from exc
         if callable(provider):
-            try:
-                value = provider(record=record, mode=mode)
-            except TypeError:
-                value = provider()
+            value = _call_ui_spec_provider(provider, record=record, mode=mode)
         else:
             value = provider
         if not isinstance(value, dict):
@@ -79,20 +164,48 @@ class DataSourceRegistry:
     ) -> dict[str, Any]:
         return self._resolve_ui_spec(source_type, record=record, mode=mode)
 
+    def invoke_ui_action(
+        self,
+        source_type: str,
+        action: str,
+        *,
+        payload: dict[str, Any] | None = None,
+        record: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            provider = self._ui_actions[source_type]
+        except KeyError as exc:
+            raise KeyError(
+                f"Data source type '{source_type}' does not support UI module actions"
+            ) from exc
+        if not callable(provider):
+            raise TypeError(
+                f"UI action provider for '{source_type}' must be callable"
+            )
+        action_name = str(action or "").strip()
+        if not action_name:
+            raise ValueError("Action must be a non-empty string")
+        action_payload = dict(payload or {})
+        result = _call_ui_action_provider(
+            provider,
+            action_name=action_name,
+            action_payload=action_payload,
+            record=record,
+        )
+        if not isinstance(result, dict):
+            raise TypeError(
+                f"UI action provider for '{source_type}' must return a dict"
+            )
+        return dict(result)
 
-def _load_py_module(pyfile: Path) -> ModuleType:
-    module_name = f"source_{pyfile.stem}_{uuid.uuid4().hex[:8]}"
-    spec = importlib.util.spec_from_file_location(module_name, pyfile)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load module from '{pyfile}'")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
+
+def _folder_to_module_base(path: Path) -> str:
+    parts = list(path.parts)
     try:
-        spec.loader.exec_module(module)
-        return module
-    except Exception:
-        sys.modules.pop(module_name, None)
-        raise
+        start = parts.index("Services")
+    except ValueError as exc:
+        raise ValueError(f"Cannot derive module path from '{path}'") from exc
+    return ".".join(parts[start:])
 
 
 def _extract_ui_spec(ui_module: Any | None) -> Any | None:
@@ -105,11 +218,20 @@ def _extract_ui_spec(ui_module: Any | None) -> Any | None:
     return None
 
 
+def _extract_ui_actions(ui_module: Any | None) -> Any | None:
+    if ui_module is None:
+        return None
+    if hasattr(ui_module, "invoke_ui_action"):
+        return ui_module.invoke_ui_action
+    if hasattr(ui_module, "run_ui_action"):
+        return ui_module.run_ui_action
+    return None
+
+
 def load_source_folder(
     folder: str | Path, registry: DataSourceRegistry
 ) -> LoadedSourceType:
     path = Path(folder)
-    print(path)
 
     service_file = path / "service.py"
     ui_file = path / "ui.py"
@@ -117,9 +239,7 @@ def load_source_folder(
     if not service_file.exists():
         raise FileNotFoundError(f"Missing service.py in '{path}'")
 
-    module_base = ".".join(path.parts[-4:])  # adjust if needed
-    # For your example this should become:
-    # Services.parameterDB.sourceDefs.brewtools
+    module_base = _folder_to_module_base(path)
 
     service_module = importlib.import_module(f"{module_base}.service")
     ui_module = (
@@ -131,7 +251,8 @@ def load_source_folder(
         raise ValueError(f"'{service_file}' must define SOURCE")
 
     ui_spec = _extract_ui_spec(ui_module)
-    registry.register(spec, ui_spec)
+    ui_actions = _extract_ui_actions(ui_module)
+    registry.register(spec, ui_spec, ui_actions)
     return LoadedSourceType(
         source_type=spec.source_type, folder=str(path), ui_spec=ui_spec
     )
@@ -139,9 +260,7 @@ def load_source_folder(
 
 def autodiscover_sources(root: str | Path, registry: DataSourceRegistry) -> list[str]:
     path = Path(root)
-    print(path)
     if not path.exists():
-        print("path n9t foudn")
         return []
     loaded: list[str] = []
     for child in sorted(path.iterdir()):
@@ -150,7 +269,12 @@ def autodiscover_sources(root: str | Path, registry: DataSourceRegistry) -> list
         try:
             info = load_source_folder(child, registry)
             loaded.append(info.source_type)
-        except Exception as e:
-            print(e)
-    print(loaded)
+        except Exception as exc:
+            LOGGER.warning(
+                "Skipping data source folder '%s' due to load error: %s",
+                child,
+                exc,
+                exc_info=True,
+            )
+            continue
     return loaded

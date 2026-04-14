@@ -209,6 +209,23 @@ class _BaseClient:
             payload["mode"] = mode
         return self._request("get_source_type_ui", payload)
 
+    def invoke_source_type_ui_action(
+        self,
+        source_type: str,
+        action: str,
+        *,
+        payload: dict[str, Any] | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        req_payload: dict[str, Any] = {
+            "source_type": source_type,
+            "action": action,
+            "payload": payload or {},
+        }
+        if name:
+            req_payload["name"] = name
+        return self._request("invoke_source_type_ui_action", req_payload)
+
     def list_sources(self) -> dict[str, Any]:
         return self._request("list_sources")
 

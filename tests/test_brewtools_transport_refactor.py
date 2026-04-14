@@ -89,6 +89,97 @@ def test_brewtools_default_config_exposes_both_transport_families() -> None:
     assert config["gateway_rx_port"] == 55001
 
 
+def test_brewtools_ui_module_scan_metadata() -> None:
+    ui = get_brewtools_ui_spec(record={"name": "brewcan", "config": {}}, mode="edit")
+    module = dict(ui.get("module") or {})
+    menu = dict(module.get("menu") or {})
+    run = dict(menu.get("run") or {})
+    action = dict(menu.get("action") or {})
+
+    assert module.get("id") == "brewtoolsCanDiscovery"
+    assert module.get("replace_form") is True
+    assert menu.get("fields") == []
+    assert run.get("mode") == "auto"
+    assert run.get("cancel_inflight_on_cleanup") is True
+    assert action.get("action") == "scan_channels"
+
+
+def test_brewtools_run_ui_action_scans_kvaser_and_peak(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.brewtools import ui as brewtools_ui
+
+    monkeypatch.setattr(
+        brewtools_ui,
+        "_scan_kvaser_channels",
+        lambda payload: (
+            [
+                {
+                    "title": "kvaser:0",
+                    "subtitle": "Kvaser channel",
+                    "source": "kvaser",
+                    "transport": "kvaser",
+                    "interface": "kvaser",
+                    "channel": 0,
+                    "bitrate": 500000,
+                    "gateway_host": "",
+                    "gateway_tx_port": 55002,
+                    "gateway_rx_port": 55001,
+                    "gateway_bind_host": "0.0.0.0",
+                    "selectable": True,
+                    "error": "",
+                }
+            ],
+            "",
+        ),
+    )
+    monkeypatch.setattr(
+        brewtools_ui,
+        "_scan_peak_gateways",
+        lambda payload, record: (
+            [
+                {
+                    "title": "pcan:192.168.0.30",
+                    "subtitle": "UDP 55002/55001",
+                    "source": "pcan_gateway_udp",
+                    "transport": "pcan_gateway_udp",
+                    "interface": "",
+                    "channel": 0,
+                    "bitrate": 500000,
+                    "gateway_host": "192.168.0.30",
+                    "gateway_tx_port": 55002,
+                    "gateway_rx_port": 55001,
+                    "gateway_bind_host": "0.0.0.0",
+                    "selectable": True,
+                    "error": "",
+                }
+            ],
+            "",
+        ),
+    )
+
+    result = brewtools_ui.run_ui_action("scan_channels", payload={})
+
+    assert result["ok"] is True
+    assert result["action"] == "scan_channels"
+    assert len(result["channels"]) == 2
+    assert {item["source"] for item in result["channels"]} == {"kvaser", "pcan_gateway_udp"}
+
+
+def test_brewtools_run_ui_action_filters_unreachable_peak_candidates(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.brewtools import ui as brewtools_ui
+
+    monkeypatch.setattr(brewtools_ui, "_scan_kvaser_channels", lambda payload: ([], ""))
+    monkeypatch.setattr(
+        brewtools_ui,
+        "_scan_peak_gateways",
+        lambda payload, record: ([], ""),
+    )
+
+    result = brewtools_ui.run_ui_action("scan_channels", payload={})
+
+    assert result["ok"] is True
+    assert result["channels"] == []
+
+
 def test_parse_gateway_packet_rejects_crc_frame_shorter_than_header_plus_crc() -> None:
     packet = bytearray(31)
     struct.pack_into(">H", packet, 0, 31)
