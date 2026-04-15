@@ -21,14 +21,20 @@ import { FermenterTabContent } from './features/app/FermenterTabContent'
 import { useAdaptivePolling } from './hooks/useAdaptivePolling'
 import { ArchiveViewerPage } from './features/archive/ArchiveViewerPage'
 import { getWorkspaceModule } from './features/app/workspaceModuleCatalog'
+import {
+  GRID_CONTRACT,
+  WORKSPACE_RESIZE_PRESETS,
+  autoPackWidgets,
+  clampInt,
+  normalizeGridInt,
+  normalizeWidgetPlacement,
+  normalizeWidgetSize,
+  resolveAutoPlacedWidget,
+} from './features/app/workspaceGridContract'
 
 function createUiId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
-
-const WORKSPACE_GRID_COLUMNS = 12
-const WORKSPACE_MIN_COLS = 3
-const WORKSPACE_MIN_ROWS = 1
 
 function moveListItem(items, fromIndex, toIndex) {
   if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return items
@@ -38,138 +44,23 @@ function moveListItem(items, fromIndex, toIndex) {
   return next
 }
 
-function clampToRange(value, min, max) {
-  return Math.min(max, Math.max(min, value))
-}
-
-function normalizeGridValue(value, fallback) {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : fallback
-}
-
 function defaultWidgetLayout(type) {
   const moduleDef = getWorkspaceModule(type)
   if (moduleDef) {
-    return {
+    return normalizeWidgetSize({
       cols: Number(moduleDef.defaultCols || 6),
       rows: Number(moduleDef.defaultRows || 1),
-    }
+    })
   }
-  return { cols: 6, rows: 1 }
-}
-
-function widgetsOverlap(left, right) {
-  return !(
-    left.x + left.cols - 1 < right.x ||
-    right.x + right.cols - 1 < left.x ||
-    left.y + left.rows - 1 < right.y ||
-    right.y + right.rows - 1 < left.y
-  )
-}
-
-function normalizePlacedWidgets(widgets) {
-  return (Array.isArray(widgets) ? widgets : []).map((widget) => ({
-    x: normalizeGridValue(widget?.x, 1),
-    y: normalizeGridValue(widget?.y, 1),
-    cols: clampToRange(normalizeGridValue(widget?.cols, 6), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
-    rows: clampToRange(normalizeGridValue(widget?.rows, 1), WORKSPACE_MIN_ROWS, 12),
-  }))
-}
-
-function nextWidgetPosition(widgets, layout) {
-  const placed = normalizePlacedWidgets(widgets)
-
-  for (let y = 1; y <= 48; y += 1) {
-    for (let x = 1; x <= Math.max(1, WORKSPACE_GRID_COLUMNS - layout.cols + 1); x += 1) {
-      const candidate = { x, y, cols: layout.cols, rows: layout.rows }
-      if (!placed.some((widget) => widgetsOverlap(candidate, widget))) {
-        return { x, y }
-      }
-    }
-  }
-
-  const maxRow = placed.reduce((max, widget) => Math.max(max, widget.y + widget.rows), 1)
-  return { x: 1, y: maxRow }
-}
-
-function getAutoSizeCandidates(type, layout) {
-  const rawType = String(type || '')
-  const preferred = []
-  const add = (cols, rows) => {
-    const nextCols = clampToRange(normalizeGridValue(cols, layout.cols), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS)
-    const nextRows = clampToRange(normalizeGridValue(rows, layout.rows), WORKSPACE_MIN_ROWS, 12)
-    if (!preferred.some((item) => item.cols === nextCols && item.rows === nextRows)) {
-      preferred.push({ cols: nextCols, rows: nextRows })
-    }
-  }
-
-  if (rawType.endsWith('-full') || rawType === 'data-snapshot' || rawType === 'archive-files' || rawType === 'schedule-events') {
-    add(12, Math.max(3, layout.rows))
-    add(9, Math.max(3, layout.rows))
-  } else if (rawType === 'data-recording' || rawType === 'system-actions' || rawType === 'schedule-controls') {
-    add(8, 1)
-    add(6, 1)
-    add(12, 1)
-  } else if (rawType === 'schedule-workbook' || rawType === 'system-persistence' || rawType === 'system-services') {
-    add(8, 2)
-    add(6, 2)
-  } else if (rawType === 'schedule-summary' || rawType === 'data-loadstep' || rawType === 'archive-summary' || rawType === 'system-node') {
-    add(4, 1)
-    add(3, 1)
-    add(6, 1)
-  } else if (rawType.startsWith('control-card:')) {
-    add(layout.cols >= 8 ? 8 : 6, Math.max(2, layout.rows))
-    add(12, Math.max(2, layout.rows))
-  } else if (rawType.startsWith('control-field:')) {
-    add(layout.cols >= 6 ? 6 : 4, 1)
-    add(4, 1)
-  }
-
-  add(layout.cols, layout.rows)
-  return preferred
-}
-
-function resolveAutoPlacedWidget(widgets, type, preferredPosition = null, layoutOverride = null) {
-  const baseLayout = defaultWidgetLayout(type)
-  const desiredLayout = {
-    cols: clampToRange(normalizeGridValue(layoutOverride?.cols, baseLayout.cols), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
-    rows: clampToRange(normalizeGridValue(layoutOverride?.rows, baseLayout.rows), WORKSPACE_MIN_ROWS, 12),
-  }
-  const placed = normalizePlacedWidgets(widgets)
-  const sizeCandidates = getAutoSizeCandidates(type, desiredLayout)
-
-  if (preferredPosition && typeof preferredPosition === 'object') {
-    for (const candidate of sizeCandidates) {
-      const positioned = {
-        x: clampToRange(normalizeGridValue(preferredPosition.x, 1), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - candidate.cols + 1)),
-        y: normalizeGridValue(preferredPosition.y, 1),
-        cols: candidate.cols,
-        rows: candidate.rows,
-      }
-      if (!placed.some((widget) => widgetsOverlap(positioned, widget))) {
-        return positioned
-      }
-    }
-  }
-
-  for (const candidate of sizeCandidates) {
-    const nextPosition = nextWidgetPosition(widgets, candidate)
-    const positioned = { ...nextPosition, cols: candidate.cols, rows: candidate.rows }
-    if (!placed.some((widget) => widgetsOverlap(positioned, widget))) {
-      return positioned
-    }
-  }
-
-  return {
-    x: 1,
-    y: 1,
-    cols: desiredLayout.cols,
-    rows: desiredLayout.rows,
-  }
+  return normalizeWidgetSize({ cols: 6, rows: 1 })
 }
 
 function buildCustomWidget(type, position = null, layoutOverride = null) {
-  const resolved = resolveAutoPlacedWidget([], type, position, layoutOverride)
+  const resolved = resolveAutoPlacedWidget([], type, {
+    preferredPosition: position,
+    layoutOverride,
+    getDefaultLayout: defaultWidgetLayout,
+  })
   return {
     id: createUiId('widget'),
     type,
@@ -848,7 +739,11 @@ function App() {
     setCustomTabs((current) => current.map((tab) => {
       if (tab.id !== tabId) return tab
       const widgets = Array.isArray(tab.widgets) ? [...tab.widgets] : []
-      const resolved = resolveAutoPlacedWidget(widgets, type, placement, layoutOverride)
+      const resolved = resolveAutoPlacedWidget(widgets, type, {
+        preferredPosition: placement,
+        layoutOverride,
+        getDefaultLayout: defaultWidgetLayout,
+      })
       const nextWidget = {
         id: createUiId('widget'),
         type,
@@ -869,9 +764,10 @@ function App() {
     if (!tabId || !widgetId) return
     setCustomTabs((current) => current.map((tab) => {
       if (tab.id !== tabId) return tab
+      const remainingWidgets = (Array.isArray(tab.widgets) ? tab.widgets : []).filter((widget) => widget?.id !== widgetId)
       return {
         ...tab,
-        widgets: (Array.isArray(tab.widgets) ? tab.widgets : []).filter((widget) => widget?.id !== widgetId),
+        widgets: GRID_CONTRACT.collision.autoPackOnDelete ? autoPackWidgets(remainingWidgets) : remainingWidgets,
       }
     }))
   }
@@ -887,11 +783,20 @@ function App() {
           ...tab,
           widgets: widgets.map((widget) => {
             if (widget?.id !== draggedId) return widget
-            const cols = normalizeGridValue(widget?.cols, 6)
+            const size = normalizeWidgetSize(widget)
+            const currentPosition = normalizeWidgetPlacement(widget, 0, size)
+            const nextPosition = normalizeWidgetPlacement(
+              {
+                x: normalizeGridInt(target.x, currentPosition.x),
+                y: normalizeGridInt(target.y, currentPosition.y),
+              },
+              0,
+              size,
+            )
             return {
               ...widget,
-              x: clampToRange(normalizeGridValue(target.x, normalizeGridValue(widget?.x, 1)), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - cols + 1)),
-              y: normalizeGridValue(target.y, normalizeGridValue(widget?.y, 1)),
+              x: nextPosition.x,
+              y: nextPosition.y,
             }
           }),
         }
@@ -910,18 +815,9 @@ function App() {
   }
 
   function resizeCustomWidget(tabId, widgetId, preset) {
-    const presetLayouts = {
-      compact: { cols: 4, rows: 1 },
-      medium: { cols: 6, rows: 1 },
-      wide: { cols: 12, rows: 1 },
-      tall: { cols: 6, rows: 2 },
-      hero: { cols: 12, rows: 2 },
-    }
+    const presetLayouts = WORKSPACE_RESIZE_PRESETS
     const nextLayout = preset && typeof preset === 'object'
-      ? {
-          cols: clampToRange(normalizeGridValue(preset.cols, 6), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
-          rows: clampToRange(normalizeGridValue(preset.rows, 1), WORKSPACE_MIN_ROWS, 12),
-        }
+      ? normalizeWidgetSize(preset)
       : presetLayouts[String(preset || '')]
     if (!tabId || !widgetId || !nextLayout) return
     setCustomTabs((current) => current.map((tab) => {
@@ -930,8 +826,15 @@ function App() {
         ...tab,
         widgets: (Array.isArray(tab.widgets) ? tab.widgets : []).map((widget) => {
           if (widget?.id !== widgetId) return widget
-          const nextX = clampToRange(normalizeGridValue(widget?.x, 1), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - nextLayout.cols + 1))
-          return { ...widget, cols: nextLayout.cols, rows: nextLayout.rows, x: nextX }
+          const normalizedLayout = normalizeWidgetSize(nextLayout, widget)
+          const normalizedPosition = normalizeWidgetPlacement(widget, 0, normalizedLayout)
+          return {
+            ...widget,
+            cols: normalizedLayout.cols,
+            rows: normalizedLayout.rows,
+            x: normalizedPosition.x,
+            y: normalizedPosition.y,
+          }
         }),
       }
     }))
