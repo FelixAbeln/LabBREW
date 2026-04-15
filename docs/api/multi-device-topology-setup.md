@@ -64,12 +64,12 @@ services:
     advertise_as:
       - control_service
 
-  schedule_service:
-    module: Services.schedule_service.service
-    docs: docs/api/schedule-service-api.md
+  scenario_service:
+    module: Services.scenario_service.service
+    docs: docs/implementation/scenario-service-integration.md
     listen:
       host: 0.0.0.0
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
@@ -81,7 +81,7 @@ services:
         port_flag: --data-backend-port
     static_args: []
     advertise_as:
-      - schedule_service
+      - scenario_service
 ```
 
 Start command:
@@ -153,7 +153,7 @@ python run_supervisor.py --config ./data/system_topology_server.yaml --node-id 0
 2. Call `GET /fermenters` on the gateway and confirm the fermenter shows combined service availability.
 3. Test each service route:
    - `/fermenters/01/control/...`
-   - `/fermenters/01/schedule/...`
+  - `/fermenters/01/scenario/...`
    - `/fermenters/01/data/...`
 4. Confirm each endpoint responds when only that device hosts the service.
 5. Verify bridge pathing directly: `GET http://10.10.0.20:8780/data/status`.
@@ -168,7 +168,7 @@ python run_supervisor.py --config ./data/system_topology_server.yaml --node-id 0
 
 ## Scope Note
 
-Agent bridging in this guide applies to HTTP capabilities (`control_service`, `schedule_service`, `data_service`).
+Agent bridging in this guide applies to HTTP capabilities (`control_service`, `scenario_service`, `data_service`).
 
 `ParameterDB` remains a binary TCP capability and is configured with direct TCP endpoints.
 
@@ -180,7 +180,7 @@ For topology `proto` values, prefer `tcp` for binary capabilities. Some legacy e
 
 You can define topology-level aliases for remote capabilities and inject them as URL endpoints.
 
-Example: schedule on node A consumes a remote database-related HTTP backend through node B's Agent bridge.
+Example: scenario service on node A consumes a remote database-related HTTP backend through node B's Agent bridge.
 
 ```yaml
 external_capabilities:
@@ -192,18 +192,18 @@ external_capabilities:
       path: /data
 
 services:
-  schedule_service:
-    module: Services.schedule_service.service
+  scenario_service:
+    module: Services.scenario_service.service
     listen:
       host: 0.0.0.0
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
       database.local:
         url_flag: --data-backend-url
     advertise_as:
-      - schedule_service
+      - scenario_service
 ```
 
 With this setup, Supervisor injects a URL endpoint (including path) and the service talks to `http://10.10.0.20:8780/data/...`, which is forwarded by node B's Agent to its local `data_service`.

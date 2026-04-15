@@ -1,19 +1,74 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
-export function ScheduleControlsBar({ schedule, runToggle, loadingAction, selected, runAction }) {
+function decodeBase64Text(contentB64) {
+  const raw = window.atob(String(contentB64 || ''))
+  const bytes = Uint8Array.from(raw, (char) => char.charCodeAt(0))
+  return new TextDecoder('utf-8').decode(bytes)
+}
+
+function readPath(root, path) {
+  if (!root || typeof root !== 'object') return undefined
+  const parts = String(path || '').split('.').filter(Boolean)
+  let cursor = root
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== 'object' || !(part in cursor)) return undefined
+    cursor = cursor[part]
+  }
+  return cursor
+}
+
+function writePath(root, path, value) {
+  const parts = String(path || '').split('.').filter(Boolean)
+  if (!parts.length) return
+  let cursor = root
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const key = parts[i]
+    if (!cursor[key] || typeof cursor[key] !== 'object' || Array.isArray(cursor[key])) {
+      cursor[key] = {}
+    }
+    cursor = cursor[key]
+  }
+  cursor[parts[parts.length - 1]] = value
+}
+
+function flattenSpecFields(spec) {
+  if (!spec || typeof spec !== 'object') return []
+  const sections = Array.isArray(spec.sections) ? spec.sections : []
+  const fields = []
+  for (const section of sections) {
+    const sectionFields = Array.isArray(section?.fields) ? section.fields : []
+    for (const field of sectionFields) {
+      const path = String(field || '').trim()
+      if (!path || fields.includes(path)) continue
+      fields.push(path)
+    }
+  }
+  return fields
+}
+
+function inferFieldType(value) {
+  if (typeof value === 'boolean') return 'boolean'
+  if (typeof value === 'number') return 'number'
+  if (Array.isArray(value)) return 'json'
+  if (value && typeof value === 'object') return 'json'
+  return 'string'
+}
+
+export function ScenarioControlsBar({ scenario, runToggle, loadingAction, selected, runAction }) {
   return (
     <div className="control-bar">
       <div className="control-bar-copy">
-        <strong>Schedule controls</strong>
+        <strong>Run controls</strong>
         <span>{runToggle.hint}</span>
       </div>
       <div className="control-button-group">
         <button
-          className={`primary-button ${schedule?.state === 'running' ? 'is-running' : schedule?.state === 'paused' ? 'is-restart' : ''}`}
+          className={`primary-button ${scenario?.state === 'running' ? 'is-running' : scenario?.state === 'paused' ? 'is-restart' : ''}`}
           disabled={!selected || loadingAction}
-          onClick={() => runAction('/schedule/start')}
+          onClick={() => runAction('/scenario/run/start')}
         >
-          {schedule?.state === 'running' ? 'Running' : schedule?.state === 'paused' ? 'Restart' : 'Start'}
+          {scenario?.state === 'running' ? 'Running' : scenario?.state === 'paused' ? 'Restart' : 'Start'}
         </button>
         <button
           className={runToggle.className}
@@ -22,13 +77,13 @@ export function ScheduleControlsBar({ schedule, runToggle, loadingAction, select
         >
           {runToggle.label}
         </button>
-        <button className="danger-button" disabled={!selected || loadingAction} onClick={() => runAction('/schedule/stop')}>
+        <button className="secondary-button" disabled={!selected || loadingAction} onClick={() => runAction('/scenario/run/stop')}>
           Stop
         </button>
-        <button className="secondary-button" disabled={!selected || loadingAction} onClick={() => runAction('/schedule/previous')}>
+        <button className="secondary-button" disabled={!selected || loadingAction} onClick={() => runAction('/scenario/run/previous')}>
           Previous
         </button>
-        <button className="secondary-button" disabled={!selected || loadingAction} onClick={() => runAction('/schedule/next')}>
+        <button className="secondary-button" disabled={!selected || loadingAction} onClick={() => runAction('/scenario/run/next')}>
           Next
         </button>
       </div>
@@ -36,88 +91,375 @@ export function ScheduleControlsBar({ schedule, runToggle, loadingAction, select
   )
 }
 
-export function ScheduleSummaryCard({ schedule, scheduleDefinition }) {
+export function ScenarioSummaryCard({ scenario, scenarioPackage }) {
   return (
     <div className="info-card schedule-card">
       <div className="card-header-row">
-        <h3>Schedule</h3>
-        <span className={`pill ${schedule?.state === 'running' ? 'pill-ok' : schedule?.state === 'paused' ? 'pill-warn' : 'pill-neutral'}`}>
-          {schedule?.state || 'idle'}
+        <h3>Scenario</h3>
+        <span className={`pill ${scenario?.state === 'running' ? 'pill-ok' : scenario?.state === 'paused' ? 'pill-warn' : 'pill-neutral'}`}>
+          {scenario?.state || 'idle'}
         </span>
       </div>
       <div className="info-rows-grid">
-        <div className="info-row"><span>Schedule name</span><strong>{scheduleDefinition?.name || '-'}</strong></div>
-        <div className="info-row"><span>Schedule id</span><strong>{scheduleDefinition?.id || '-'}</strong></div>
-        <div className="info-row"><span>Phase</span><strong>{schedule?.phase || '-'}</strong></div>
-        <div className="info-row"><span>Index</span><strong>{schedule?.current_step_index ?? '-'}</strong></div>
-        <div className="info-row info-row-block"><span>Step</span><strong>{schedule?.current_step_name || '-'}</strong></div>
-        <div className="info-row info-row-block"><span>Wait</span><strong>{schedule?.wait_message || '-'}</strong></div>
-        <div className="info-row info-row-block"><span>Pause reason</span><strong>{schedule?.pause_reason || '-'}</strong></div>
+        <div className="info-row"><span>Package name</span><strong>{scenarioPackage?.name || '-'}</strong></div>
+        <div className="info-row"><span>Package id</span><strong>{scenarioPackage?.id || '-'}</strong></div>
+        <div className="info-row"><span>Run phase</span><strong>{scenario?.phase || '-'}</strong></div>
+        <div className="info-row"><span>Run index</span><strong>{scenario?.current_step_index ?? '-'}</strong></div>
+        <div className="info-row info-row-block"><span>Step</span><strong>{scenario?.current_step_name || '-'}</strong></div>
+        <div className="info-row info-row-block"><span>Wait</span><strong>{scenario?.wait_message || '-'}</strong></div>
+        <div className="info-row info-row-block"><span>Pause reason</span><strong>{scenario?.pause_reason || '-'}</strong></div>
       </div>
     </div>
   )
 }
 
-export function ScheduleWorkbookCard({ selected, loadingAction, scheduleFile, setScheduleFile, uploadWorkbook, importResult, importErrorIssues, importWarningIssues }) {
+export function ScenarioPackageCard({
+  selected,
+  loadingAction,
+  scenarioFile,
+  setScenarioFile,
+  uploadWorkbook,
+  importResult,
+  importErrorIssues,
+  importWarningIssues,
+  scenarioPackage,
+  tunePackageArtifact,
+  tuneEditorSpec,
+  tunePackagePatch,
+}) {
   const fileInputRef = useRef(null)
+  const [artifactPath, setArtifactPath] = useState('data/program.json')
+  const [artifactFile, setArtifactFile] = useState(null)
+  const [editorSpecText, setEditorSpecText] = useState('')
+  const [editorModalOpen, setEditorModalOpen] = useState(false)
+  const [specEditorError, setSpecEditorError] = useState('')
+  const [specFieldDrafts, setSpecFieldDrafts] = useState({})
 
-  const workbookActionDisabledReason =
+  const resolvedEditorSpec = useMemo(() => {
+    const editorSpecMeta = scenarioPackage?.editor_spec
+    const artifactPathFromSpec = String(editorSpecMeta?.artifact || editorSpecMeta?.schema_artifact || '').trim()
+    const artifacts = Array.isArray(scenarioPackage?.artifacts) ? scenarioPackage.artifacts : []
+    if (artifactPathFromSpec) {
+      const artifact = artifacts.find((item) => String(item?.path || '').trim() === artifactPathFromSpec)
+      if (artifact?.content_b64) {
+        try {
+          const parsed = JSON.parse(decodeBase64Text(artifact.content_b64))
+          if (parsed && typeof parsed === 'object') return parsed
+        } catch {
+          // Fall back to manifest-level spec below.
+        }
+      }
+    }
+    if (editorSpecMeta && typeof editorSpecMeta === 'object') {
+      return editorSpecMeta
+    }
+    return null
+  }, [scenarioPackage])
+
+  const specFieldPaths = useMemo(() => flattenSpecFields(resolvedEditorSpec), [resolvedEditorSpec])
+
+  const specFieldTypes = useMemo(() => {
+    const result = {}
+    for (const path of specFieldPaths) {
+      result[path] = inferFieldType(readPath(scenarioPackage, path))
+    }
+    return result
+  }, [scenarioPackage, specFieldPaths])
+
+  useEffect(() => {
+    const editorSpec = scenarioPackage?.editor_spec
+    if (!editorSpec || typeof editorSpec !== 'object') {
+      setEditorSpecText('')
+      return
+    }
+    try {
+      setEditorSpecText(JSON.stringify(editorSpec, null, 2))
+    } catch {
+      setEditorSpecText('')
+    }
+  }, [scenarioPackage])
+
+  useEffect(() => {
+    const nextDrafts = {}
+    for (const path of specFieldPaths) {
+      const value = readPath(scenarioPackage, path)
+      if (value === undefined || value === null) {
+        nextDrafts[path] = ''
+      } else if (typeof value === 'object') {
+        try {
+          nextDrafts[path] = JSON.stringify(value, null, 2)
+        } catch {
+          nextDrafts[path] = ''
+        }
+      } else {
+        nextDrafts[path] = String(value)
+      }
+    }
+    setSpecFieldDrafts(nextDrafts)
+    setSpecEditorError('')
+  }, [scenarioPackage, specFieldPaths])
+
+  useEffect(() => {
+    if (!editorModalOpen) return undefined
+    function onKeyDown(event) {
+      if (event.key === 'Escape') {
+        setEditorModalOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [editorModalOpen])
+
+  useEffect(() => {
+    if (!editorModalOpen) return undefined
+    const body = document.body
+    const previousOverflow = body.style.overflow
+    const previousPaddingRight = body.style.paddingRight
+    const scrollbarCompensation = window.innerWidth - document.documentElement.clientWidth
+
+    body.classList.add('modal-open')
+    body.style.overflow = 'hidden'
+    if (scrollbarCompensation > 0) {
+      body.style.paddingRight = `${scrollbarCompensation}px`
+    }
+
+    return () => {
+      body.classList.remove('modal-open')
+      body.style.overflow = previousOverflow
+      body.style.paddingRight = previousPaddingRight
+    }
+  }, [editorModalOpen])
+
+  async function applySpecEditorPatch() {
+    if (!tunePackagePatch || !specFieldPaths.length) return
+    const patch = {}
+    try {
+      for (const path of specFieldPaths) {
+        const raw = specFieldDrafts[path] ?? ''
+        const fieldType = specFieldTypes[path] || 'string'
+        let parsedValue
+        if (fieldType === 'boolean') {
+          const lowered = String(raw).trim().toLowerCase()
+          parsedValue = lowered === 'true' || lowered === '1' || lowered === 'on'
+        } else if (fieldType === 'number') {
+          const numberValue = Number(raw)
+          if (!Number.isFinite(numberValue)) {
+            throw new Error(`Field ${path} requires a numeric value`)
+          }
+          parsedValue = numberValue
+        } else if (fieldType === 'json') {
+          parsedValue = raw.trim() ? JSON.parse(raw) : null
+        } else {
+          parsedValue = String(raw)
+        }
+        writePath(patch, path, parsedValue)
+      }
+    } catch (err) {
+      setSpecEditorError(err instanceof Error ? err.message : 'Invalid edit payload')
+      return
+    }
+
+    setSpecEditorError('')
+    await tunePackagePatch(patch)
+    setEditorModalOpen(false)
+  }
+
+  const packageActionDisabledReason =
     !selected
       ? 'Select a fermenter first'
-      : !scheduleFile
-        ? 'Choose a workbook first'
+      : !scenarioFile
+        ? 'Choose a package file first'
         : loadingAction
           ? 'Action in progress'
           : ''
 
-  function openWorkbookFilePicker() {
+  function openPackageFilePicker() {
     fileInputRef.current?.click()
   }
 
   return (
     <div className="info-card workbook-card">
-      <h3>Schedule workbook</h3>
+      <h3>Scenario package workbook</h3>
       <div className="upload-row">
-        <button type="button" className="file-picker-button" onClick={openWorkbookFilePicker}>Choose workbook</button>
+        <button type="button" className="file-picker-button" onClick={openPackageFilePicker}>Choose package file</button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".xlsx"
+          accept=".zip,.lbpkg"
           onClick={(e) => {
             e.currentTarget.value = ''
           }}
-          onChange={(e) => setScheduleFile(e.target.files?.[0] || null)}
+          onChange={(e) => setScenarioFile(e.target.files?.[0] || null)}
           className="hidden-file-input"
         />
-        <div className="selected-file-name">{scheduleFile ? scheduleFile.name : 'No file selected'}</div>
+        <div className="selected-file-name">{scenarioFile ? scenarioFile.name : 'No file selected'}</div>
       </div>
 
       <div className="button-row">
         <button
           className="secondary-button"
-          disabled={!selected || !scheduleFile || loadingAction}
-          title={workbookActionDisabledReason}
-          onClick={() => uploadWorkbook('/schedule/validate-import')}
+          disabled={!selected || !scenarioFile || loadingAction}
+          title={packageActionDisabledReason}
+          onClick={() => uploadWorkbook('/scenario/validate-import')}
         >
-          Validate workbook
+          Validate package
         </button>
         <button
           className="primary-button"
-          disabled={!selected || !scheduleFile || loadingAction}
-          title={workbookActionDisabledReason}
-          onClick={() => uploadWorkbook('/schedule/import')}
+          disabled={!selected || !scenarioFile || loadingAction}
+          title={packageActionDisabledReason}
+          onClick={() => uploadWorkbook('/scenario/import')}
         >
-          Import workbook
+          Import package
+        </button>
+        <button
+          className="secondary-button"
+          disabled={!selected || loadingAction || !scenarioPackage}
+          onClick={() => setEditorModalOpen(true)}
+        >
+          Edit package
         </button>
       </div>
+
+      {editorModalOpen && typeof document !== 'undefined' ? createPortal((
+        <div className="pdb-modal-overlay scenario-editor-overlay" onClick={(event) => event.target === event.currentTarget && setEditorModalOpen(false)}>
+          <div className="pdb-modal pdb-modal-editor scenario-package-editor-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="pdb-modal-header">
+              <h3>Edit Scenario Package</h3>
+              <button className="pdb-close-btn" onClick={() => setEditorModalOpen(false)}>✕</button>
+            </div>
+
+            <div className="pdb-modal-body scenario-package-editor-body">
+              <div className="scenario-package-editor-section">
+                <div className="scenario-package-editor-title-row">
+                  <h4>Spec-driven fields</h4>
+                  <span className="small-text">Generated from editor spec artifact</span>
+                </div>
+                {!specFieldPaths.length ? (
+                  <div className="muted">No editable fields were found in the loaded spec.</div>
+                ) : (
+                  <div className="scenario-spec-field-grid">
+                    {specFieldPaths.map((path) => {
+                      const type = specFieldTypes[path] || 'string'
+                      const value = specFieldDrafts[path] ?? ''
+                      return (
+                        <label key={path} className="scenario-spec-field-item">
+                          <div className="scenario-spec-field-header">
+                            <span>{path}</span>
+                            <span className="scenario-spec-field-type">{type}</span>
+                          </div>
+                          {type === 'json' ? (
+                            <textarea
+                              rows={6}
+                              className="pdb-textarea"
+                              value={value}
+                              onChange={(e) => setSpecFieldDrafts((current) => ({ ...current, [path]: e.target.value }))}
+                              disabled={!selected || loadingAction}
+                            />
+                          ) : (
+                            <input
+                              className="pdb-input"
+                              type={type === 'number' ? 'number' : 'text'}
+                              value={value}
+                              onChange={(e) => setSpecFieldDrafts((current) => ({ ...current, [path]: e.target.value }))}
+                              disabled={!selected || loadingAction}
+                            />
+                          )}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+                {specEditorError && <div className="error">✖ {specEditorError}</div>}
+              </div>
+
+              <div className="scenario-package-editor-section">
+                <div className="scenario-package-editor-title-row">
+                  <h4>Artifact update</h4>
+                  <span className="small-text">Patch JSON/CSV/TXT artifacts in package</span>
+                </div>
+                <div className="scenario-artifact-controls">
+                  <label className="scenario-spec-field-item">
+                    <div className="scenario-spec-field-header">
+                      <span>Artifact path</span>
+                    </div>
+                    <input
+                      className="pdb-input"
+                      type="text"
+                      value={artifactPath}
+                      onChange={(e) => setArtifactPath(e.target.value)}
+                      placeholder="data/program.json"
+                      disabled={!selected || loadingAction}
+                    />
+                  </label>
+                  <div className="upload-row">
+                    <input
+                      type="file"
+                      accept=".json,.csv,.txt"
+                      onClick={(e) => {
+                        e.currentTarget.value = ''
+                      }}
+                      onChange={(e) => setArtifactFile(e.target.files?.[0] || null)}
+                      disabled={!selected || loadingAction}
+                    />
+                    <div className="selected-file-name">{artifactFile ? artifactFile.name : 'No artifact file selected'}</div>
+                    <button
+                      className="secondary-button"
+                      disabled={!selected || !artifactFile || !artifactPath.trim() || loadingAction}
+                      onClick={() => tunePackageArtifact?.({ path: artifactPath.trim(), file: artifactFile })}
+                    >
+                      Apply artifact update
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="scenario-package-editor-section">
+                <div className="scenario-package-editor-title-row">
+                  <h4>Editor spec JSON</h4>
+                  <span className="small-text">Advanced: replace loaded editor spec</span>
+                </div>
+                <textarea
+                  className="pdb-textarea"
+                  rows={10}
+                  value={editorSpecText}
+                  onChange={(e) => setEditorSpecText(e.target.value)}
+                  placeholder={`{\n  "artifact": "editor/spec.json"\n}`}
+                  disabled={!selected || loadingAction}
+                />
+                <div className="button-row">
+                  <button
+                    className="secondary-button"
+                    disabled={!selected || !editorSpecText.trim() || loadingAction}
+                    onClick={() => tuneEditorSpec?.(editorSpecText)}
+                  >
+                    Apply editor spec
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pdb-modal-footer">
+              <button className="pdb-btn-secondary" disabled={loadingAction} onClick={() => setEditorModalOpen(false)}>Close</button>
+              <button
+                className="pdb-btn-primary"
+                disabled={!selected || loadingAction || !specFieldPaths.length}
+                onClick={applySpecEditorPatch}
+              >
+                Apply spec edits
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body) : null}
 
       {importResult && (
         <div className="import-result">
           {importResult.valid ? (
             <>
-              <div className="success">✔ Schedule valid</div>
+              <div className="success">✔ Scenario package valid</div>
               <div className="summary">
-                <div>Name: {importResult.schedule?.name}</div>
+                <div>Name: {importResult.scenario_package?.name || importResult.schedule?.name}</div>
                 <div>Setup steps: {importResult.summary?.setup_step_count}</div>
                 <div>Plan steps: {importResult.summary?.plan_step_count}</div>
               </div>
@@ -151,7 +493,7 @@ export function ScheduleWorkbookCard({ selected, loadingAction, scheduleFile, se
                   </details>
                 </div>
               ) : (
-                <ul>{importResult.errors?.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                <ul>{importResult.errors?.map((e, i) => <li key={i}>{typeof e === 'string' ? e : (e?.message || JSON.stringify(e))}</li>)}</ul>
               )}
             </>
           )}
@@ -185,17 +527,21 @@ export function ScheduleWorkbookCard({ selected, loadingAction, scheduleFile, se
                   </details>
                 </div>
               ) : (
-                <ul>{importResult.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                <ul>{importResult.warnings.map((w, i) => <li key={i}>{typeof w === 'string' ? w : (w?.message || JSON.stringify(w))}</li>)}</ul>
               )}
             </>
           )}
         </div>
       )}
+
+      <div className="package-tune-panel">
+        <h4>Package editing</h4>
+      </div>
     </div>
   )
 }
 
-export function ScheduleEventLogCard({ schedule }) {
+export function ScenarioEventLogCard({ scenario }) {
   const logRef = useRef(null)
   const [followLogBottom, setFollowLogBottom] = useState(true)
 
@@ -215,26 +561,26 @@ export function ScheduleEventLogCard({ schedule }) {
   }
 
   useEffect(() => {
-    if (!schedule?.event_log?.length) return
+    if (!scenario?.event_log?.length) return
     if (!followLogBottom) return
     const timeoutId = window.setTimeout(() => {
       scrollEventLogToBottom('smooth')
     }, 0)
     return () => window.clearTimeout(timeoutId)
-  }, [schedule?.event_log, followLogBottom])
+  }, [scenario?.event_log, followLogBottom])
 
   return (
-    <div className="info-card">
+    <div className="info-card scenario-event-log-card">
       <div className="card-header-row">
         <h3>Event log</h3>
         <span className="small-text">Newest entries append at the bottom</span>
       </div>
-      {!schedule?.event_log?.length ? (
+      {!scenario?.event_log?.length ? (
         <p className="muted">No events yet.</p>
       ) : (
         <div className="event-log-wrap">
           <div ref={logRef} className="event-list" onScroll={handleEventLogScroll}>
-            {schedule.event_log.map((event, index) => (
+            {scenario.event_log.map((event, index) => (
               <div key={index} className="event-item">{event}</div>
             ))}
           </div>
@@ -249,23 +595,43 @@ export function ScheduleEventLogCard({ schedule }) {
   )
 }
 
-export function ScheduleTab(props) {
-  const { schedule, scheduleDefinition, runToggle, loadingAction, selected, runAction, scheduleFile, setScheduleFile, uploadWorkbook, importResult, importErrorIssues, importWarningIssues } = props
+export function ScenarioTab(props) {
+  const {
+    scenario,
+    scenarioPackage,
+    runToggle,
+    loadingAction,
+    selected,
+    runAction,
+    scenarioFile,
+    setScenarioFile,
+    uploadWorkbook,
+    importResult,
+    importErrorIssues,
+    importWarningIssues,
+    tunePackageArtifact,
+    tuneEditorSpec,
+    tunePackagePatch,
+  } = props
   return (
     <div className="tab-content-grid">
-      <ScheduleControlsBar schedule={schedule} runToggle={runToggle} loadingAction={loadingAction} selected={selected} runAction={runAction} />
-      <ScheduleSummaryCard schedule={schedule} scheduleDefinition={scheduleDefinition} />
-      <ScheduleWorkbookCard
+      <ScenarioControlsBar scenario={scenario} runToggle={runToggle} loadingAction={loadingAction} selected={selected} runAction={runAction} />
+      <ScenarioSummaryCard scenario={scenario} scenarioPackage={scenarioPackage} />
+      <ScenarioPackageCard
         selected={selected}
         loadingAction={loadingAction}
-        scheduleFile={scheduleFile}
-        setScheduleFile={setScheduleFile}
+        scenarioFile={scenarioFile}
+        setScenarioFile={setScenarioFile}
         uploadWorkbook={uploadWorkbook}
         importResult={importResult}
         importErrorIssues={importErrorIssues}
         importWarningIssues={importWarningIssues}
+        scenarioPackage={scenarioPackage}
+        tunePackageArtifact={tunePackageArtifact}
+        tuneEditorSpec={tuneEditorSpec}
+        tunePackagePatch={tunePackagePatch}
       />
-      <ScheduleEventLogCard schedule={schedule} />
+      <ScenarioEventLogCard scenario={scenario} />
     </div>
   )
 }

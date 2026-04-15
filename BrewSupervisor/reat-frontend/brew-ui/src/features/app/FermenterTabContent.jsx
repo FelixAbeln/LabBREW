@@ -12,7 +12,7 @@ export function FermenterTabContent({
   activeTab,
   onSaveSharedWorkspaceLayouts,
   workspaceSaveLoading,
-  scheduleProps,
+  scenarioProps,
   dataProps,
   controlProps,
   archiveProps,
@@ -58,7 +58,7 @@ export function FermenterTabContent({
           selected={selected}
           customTab={activeCustomTab}
           editMode={layoutEditMode}
-          scheduleProps={scheduleProps}
+          scenarioProps={scenarioProps}
           dataProps={dataProps}
           controlProps={controlProps}
           archiveProps={archiveProps}

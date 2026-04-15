@@ -1,7 +1,7 @@
 # Schedule Excel Import Format
 
 **Source:** `BrewSupervisor/api/schedule_import/parser.py`  
-**Related API:** [`PUT /fermenters/{id}/schedule/import`](./brewsupervisor-api.md#put-fermentersfermenteridfscheduleimport)
+**Related API:** [`PUT /fermenters/{id}/scenario/import`](./brewsupervisor-api.md#put-fermentersfermenteridscenarioimport)
 
 The BrewSupervisor Gateway accepts a `.xlsx` workbook and converts it to the JSON `ScheduleDefinition` expected by the [Schedule Service](./schedule-service-api.md). This page documents every sheet, column, and cell syntax the parser understands.
 
@@ -363,7 +363,7 @@ Validation is also checked against the live backend parameter namespace (via con
 
 ## Validation Response Contract
 
-`PUT /fermenters/{id}/schedule/validate-import` and failed `PUT /fermenters/{id}/schedule/import` responses include machine-readable issue metadata for frontend display.
+`PUT /fermenters/{id}/scenario/validate-import` and failed `PUT /fermenters/{id}/scenario/import` responses include machine-readable issue metadata for frontend display.
 
 ### Response fields
 

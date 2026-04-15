@@ -1,6 +1,6 @@
 # LabBREW Frontend
 
-The LabBREW frontend is a React-based browser UI that gives you a real-time window into every fermenter node in your LabBREW installation. Through a single web page you can monitor live parameters, run fermentation schedules, define automation rules, record measurements, and explore the parameter database — all without writing a single line of code.
+The LabBREW frontend is a React-based browser UI that gives you a real-time window into every fermenter node in your LabBREW installation. Through a single web page you can monitor live parameters, run scenario packages, define automation rules, record measurements, and explore the parameter database — all without writing a single line of code.
 
 ---
 
@@ -8,7 +8,7 @@ The LabBREW frontend is a React-based browser UI that gives you a real-time wind
 
 | Tab | What it is for |
 |-----|----------------|
-| **Schedule** | Upload an Excel schedule, validate it, and drive step-by-step execution (play · pause · next · previous · stop) |
+| **Scenario** | Upload an Excel workbook, validate/package it, and drive step-by-step execution (play · pause · next · previous · stop) |
 | **Control** | Operate datasource and custom manual controls rendered from backend control UI spec |
 | **System** | Get an at-a-glance health and status overview for every fermenter node |
 | **Data** | Configure and start/stop parameter recording; set the logging rate and capture loadstep averages |
@@ -87,20 +87,20 @@ The left-hand sidebar lists every fermenter node discovered automatically via mD
 
 ---
 
-### Schedule Tab
+### Scenario Tab
 
-Manage the execution of multi-step fermentation schedules.
+Manage the execution of multi-step scenario runs.
 
 **What you can do:**
 - **Upload** a `.xlsx` workbook containing `meta`, `setup_steps`, and `plan_steps` sheets
 - **Validate** the workbook with a dry-run before committing it — any column or syntax errors are reported inline
-- **Start** the schedule to run the setup phase followed by the repeating plan steps
+- **Start** the scenario run to execute setup then repeating plan steps
 - **Pause / Resume** at any time without losing position
 - **Step manually** using *Next* (skip to the next step) and *Previous* (go back one step)
 - **Stop** execution and reset
 - View the **current step**, elapsed time, and wait condition status in real time
 
-See [Schedule Excel Import Guide](../api/schedule-excel-import.md) for the workbook format.
+See [Schedule Excel Import Guide](../api/schedule-excel-import.md) for the workbook format used to build scenario packages.
 
 ---
 
@@ -204,7 +204,7 @@ BrewSupervisor/reat-frontend/brew-ui/
 │   │   ├── fermenters/           # Sidebar and tab header for fermenter node selection
 │   │   ├── parameterdb/          # ParameterDB tab, graph view, schema form, sources panel
 │   │   ├── rules/                # Rules tab, rule editor modal, rule form hook
-│   │   ├── schedule/             # Schedule tab, import validation, schedule utilities
+│   │   ├── schedule/             # Scenario tab components and import utilities
 │   │   └── system/               # System overview tab
 │   ├── hooks/
 │   │   └── useAdaptivePolling.js # Polling hook with configurable back-off
@@ -234,7 +234,7 @@ BrewSupervisor/reat-frontend/brew-ui/
 
 - [API Overview](../api/README.md) — index of all backend service APIs
 - [BrewSupervisor Gateway API](../api/brewsupervisor-api.md) — the primary API consumed by this UI
-- [Schedule Excel Import Guide](../api/schedule-excel-import.md) — workbook format for the Schedule tab
+- [Schedule Excel Import Guide](../api/schedule-excel-import.md) — workbook format for the Scenario tab
 - [Control Service API](../api/control-service-api.md) — ownership, ramp, rules, WebSocket streaming
 - [Manual Control Map Setup](../api/manual-control-map.md) — setup and maintenance for custom manual controls
 - [ParameterDB + Relationship Setup Guide](./parameterdb-relationship-setup.md) — step-by-step frontend workflow for building parameter and source relationships

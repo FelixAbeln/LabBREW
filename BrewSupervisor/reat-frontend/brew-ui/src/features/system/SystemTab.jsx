@@ -67,7 +67,7 @@ function UpdateConfirmModal({ onConfirm, onCancel }) {
           Applying the update will <strong>restart all services</strong> on this node.
         </p>
         <ul style={{ marginBottom: '1rem', paddingLeft: '1.25rem' }}>
-          <li>Any running schedule will be <strong>aborted</strong>.</li>
+          <li>Any running scenario will be <strong>aborted</strong>.</li>
           <li>All active setpoints will be <strong>released</strong>.</li>
           <li>The node will be unreachable for a few seconds during the restart.</li>
         </ul>

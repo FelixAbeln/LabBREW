@@ -79,6 +79,7 @@ def test_setup_delegates_runtime_arguments() -> None:
         "output_format": "csv",
         "session_name": "run_1",
         "include_files": ["a.txt"],
+        "include_payloads": None,
     }
 
 

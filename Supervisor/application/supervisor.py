@@ -409,7 +409,7 @@ class TopologySupervisor:
     def summary(self) -> dict[str, Any]:
         repo_status = self.repo_update_status(force=False)
         services = self.service_map()
-        schedule = services.get("schedule_service")
+        scenario = services.get("scenario_service")
         control = services.get("control_service")
         data = services.get("data_service")
         return {
@@ -417,7 +417,7 @@ class TopologySupervisor:
             "node_name": self.node_name,
             "services": services,
             "repo_update": repo_status,
-            "schedule_available": bool(schedule and schedule["healthy"]),
+            "scenario_available": bool(scenario and scenario["healthy"]),
             "control_available": bool(control and control["healthy"]),
             "data_available": bool(data and data["healthy"]),
         }

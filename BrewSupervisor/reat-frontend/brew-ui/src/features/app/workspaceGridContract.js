@@ -37,6 +37,8 @@ export const GRID_CONTRACT = {
   autoGrow: {
     allowedExactTypes: [
       'data-snapshot',
+      'scenario-events',
+      'scenario-package',
       'schedule-events',
       'schedule-workbook',
       'archive-files',
@@ -44,6 +46,8 @@ export const GRID_CONTRACT = {
     blockedTypePrefixes: ['control-field:', 'control-card:'],
     maxRowsByType: {
       'data-snapshot': 10,
+      'scenario-events': 8,
+      'scenario-package': 8,
       'schedule-events': 8,
       'schedule-workbook': 8,
       'archive-files': 10,
@@ -178,17 +182,17 @@ function getAutoSizeCandidates(type, layout) {
     }
   }
 
-  if (rawType.endsWith('-full') || rawType === 'data-snapshot' || rawType === 'archive-files' || rawType === 'schedule-events') {
+  if (rawType.endsWith('-full') || rawType === 'data-snapshot' || rawType === 'archive-files' || rawType === 'scenario-events' || rawType === 'schedule-events') {
     add(12, Math.max(3, layout.rows))
     add(9, Math.max(3, layout.rows))
-  } else if (rawType === 'data-recording' || rawType === 'system-actions' || rawType === 'schedule-controls') {
+  } else if (rawType === 'data-recording' || rawType === 'system-actions' || rawType === 'scenario-controls' || rawType === 'schedule-controls') {
     add(8, 1)
     add(6, 1)
     add(12, 1)
-  } else if (rawType === 'schedule-workbook' || rawType === 'system-persistence' || rawType === 'system-services') {
+  } else if (rawType === 'scenario-package' || rawType === 'schedule-workbook' || rawType === 'system-persistence' || rawType === 'system-services') {
     add(8, 2)
     add(6, 2)
-  } else if (rawType === 'schedule-summary' || rawType === 'data-loadstep' || rawType === 'archive-summary' || rawType === 'system-node') {
+  } else if (rawType === 'scenario-summary' || rawType === 'schedule-summary' || rawType === 'data-loadstep' || rawType === 'archive-summary' || rawType === 'system-node') {
     add(4, 1)
     add(3, 1)
     add(6, 1)

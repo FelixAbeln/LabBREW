@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import ClassVar
+
+import msgpack
 
 import pytest
 import requests
@@ -48,6 +52,12 @@ class StubProxy:
     def request(self, *, method, url, params=None, json_body=None, data_body=None, headers=None):
         self.calls.append((method, url, params, json_body, data_body, headers))
 
+        if "/proxy/scenario_service/scenario/run/status" in url:
+            return 200, {"runner_status": {"owned_targets": ["reactor.temp.setpoint"]}}
+        if "/proxy/scenario_service/scenario/package" in url and method == "GET":
+            return 200, {"package": {"id": "sched-1", "program": {"id": "sched-1"}}}
+        if "/proxy/scenario_service/scenario/compile" in url:
+            return 200, {"ok": True, "errors": [], "warnings": []}
         if url.endswith("/proxy/schedule_service/schedule/status"):
             return 200, {"owned_targets": ["reactor.temp.setpoint"]}
         if url.endswith("/proxy/schedule_service/schedule"):
@@ -96,10 +106,10 @@ def _make_node(node_id: str = "01"):
         host="127.0.0.1",
         online=True,
         agent_base_url="http://127.0.0.1:8780",
-        services_hint=["control_service", "schedule_service", "data_service"],
+        services_hint=["control_service", "scenario_service", "data_service"],
         services={"control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"}},
         service_agents={"control_service": "http://127.0.0.1:8780"},
-        summary={"schedule_available": True, "control_available": True},
+        summary={"scenario_available": True, "control_available": True},
         last_error=None,
     )
 
@@ -303,7 +313,7 @@ def test_proxy_routes_cover_service_wrappers() -> None:
 
     paths = [
         "/fermenters/01/services/control_service/read/reactor.temp.setpoint",
-        "/fermenters/01/schedule/status",
+        "/fermenters/01/scenario/run/status",
         "/fermenters/01/control/read/reactor.temp.setpoint",
         "/fermenters/01/rules/list",
         "/fermenters/01/system/health",
@@ -327,25 +337,25 @@ def test_split_service_routing_targets_service_specific_agent() -> None:
     })
     control_node = SimpleNamespace(**control_payload)
 
-    schedule_payload = _make_node("01").__dict__.copy()
-    schedule_payload.update({
+    scenario_payload = _make_node("01").__dict__.copy()
+    scenario_payload.update({
         "agent_base_url": "http://10.0.0.11:8780",
-        "services_hint": ["schedule_service"],
-        "services": {"schedule_service": {"healthy": True}},
-        "service_agents": {"schedule_service": "http://10.0.0.11:8780"},
+        "services_hint": ["scenario_service"],
+        "services": {"scenario_service": {"healthy": True}},
+        "service_agents": {"scenario_service": "http://10.0.0.11:8780"},
     })
-    schedule_node = SimpleNamespace(**schedule_payload)
+    scenario_node = SimpleNamespace(**scenario_payload)
     proxy = StubProxy()
-    client = _client(nodes=[control_node, schedule_node], proxy=proxy)
+    client = _client(nodes=[control_node, scenario_node], proxy=proxy)
 
     control_response = client.get("/fermenters/01/control/read/reactor.temp.setpoint")
-    schedule_response = client.get("/fermenters/01/schedule/status")
+    schedule_response = client.get("/fermenters/01/scenario/run/status")
 
     assert control_response.status_code == 200
     assert schedule_response.status_code == 200
 
     control_call = next(call for call in proxy.calls if call[1].endswith("/proxy/control_service/control/read/reactor.temp.setpoint"))
-    schedule_call = next(call for call in proxy.calls if call[1].endswith("/proxy/schedule_service/schedule/status"))
+    schedule_call = next(call for call in proxy.calls if "/proxy/scenario_service/scenario/run/status" in call[1])
 
     assert control_call[1].startswith("http://10.0.0.10:8780")
     assert schedule_call[1].startswith("http://10.0.0.11:8780")
@@ -607,88 +617,107 @@ def test_helper_read_functions_raise_http_502_on_request_exception() -> None:
     assert raw_exc.value.status_code == 502
 
 
-def test_schedule_import_returns_422_when_validation_fails(monkeypatch) -> None:
-    proxy = StubProxy()
-    client = _client(nodes=[_make_node()], proxy=proxy)
+def _make_scenario_lbpkg(manifest_override: dict | None = None) -> bytes:
+    """Build minimal .lbpkg bytes with a MessagePack manifest for use in tests."""
+    manifest: dict = {
+        "id": "test-pkg",
+        "name": "Test Package",
+        "version": "0.1.0",
+        "runner": {"kind": "scripted"},
+        "interface": {"kind": "labbrew.scenario-package", "version": "1"},
+        "endpoint_code": {"language": "python", "entrypoint": "bin/runner.py"},
+    }
+    if manifest_override:
+        manifest.update(manifest_override)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("scenario.package.msgpack", msgpack.packb(manifest, use_bin_type=True))
+        zf.writestr("bin/runner.py", b"# runner stub")
+    return buf.getvalue()
 
-    def _parse_schedule(_bytes, filename=None):
-        _ = filename
-        return {"id": "imported", "plan_steps": [], "setup_steps": [], "measurement_config": {}}
 
-    monkeypatch.setattr(supervisor_routes, "parse_schedule_workbook", _parse_schedule)
-    monkeypatch.setattr(
-        supervisor_routes,
-        "collect_workbook_parameter_references",
-        lambda _bytes: set(),
-    )
-    monkeypatch.setattr(
-        supervisor_routes,
-        "_get_available_backend_parameters",
-        lambda _proxy, _node: ({"reactor.temp.setpoint"}, None),
-    )
-    monkeypatch.setattr(
-        supervisor_routes,
-        "validate_schedule_payload",
-        lambda *_args, **_kwargs: {
-            "valid": False,
-            "errors": ["bad schedule"],
-            "warnings": [],
-            "error_codes": ["BAD_SCHEDULE"],
-            "warning_codes": [],
-            "issues": [{"level": "error", "code": "BAD_SCHEDULE", "message": "bad schedule"}],
-        },
-    )
+def test_scenario_package_upload_rejects_json_format() -> None:
+    client = _client(nodes=[_make_node()])
+    for path in ["/fermenters/01/scenario/validate-import", "/fermenters/01/scenario/import"]:
+        response = client.put(
+            path,
+            files={"file": ("plan.json", b'{"id": "x"}', "application/json")},
+        )
+        assert response.status_code == 415
 
+
+def test_scenario_validate_import_accepts_valid_lbpkg() -> None:
+    client = _client(nodes=[_make_node()], proxy=StubProxy())
+    pkg_bytes = _make_scenario_lbpkg()
     response = client.put(
-        "/fermenters/01/schedule/import",
-        files={"file": ("plan.xlsx", b"dummy", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        "/fermenters/01/scenario/validate-import",
+        files={"file": ("test.lbpkg", pkg_bytes, "application/octet-stream")},
     )
-
-    assert response.status_code == 422
-    assert response.json()["ok"] is False
-
-
-def test_validate_schedule_import_includes_backend_issue(monkeypatch) -> None:
-    proxy = StubProxy()
-    client = _client(nodes=[_make_node()], proxy=proxy)
-
-    def _parse_schedule(_bytes, filename=None):
-        _ = filename
-        return {"id": "imported", "plan_steps": [], "setup_steps": []}
-
-    monkeypatch.setattr(supervisor_routes, "parse_schedule_workbook", _parse_schedule)
-    monkeypatch.setattr(supervisor_routes, "collect_workbook_parameter_references", lambda _bytes: set())
-    monkeypatch.setattr(
-        supervisor_routes,
-        "_get_available_backend_parameters",
-        lambda _proxy, _node: (
-            None,
-            {
-                "level": "error",
-                "code": "BACKEND_UNREACHABLE",
-                "message": "Could not reach control backend for parameter validation",
-            },
-        ),
-    )
-    monkeypatch.setattr(
-        supervisor_routes,
-        "validate_schedule_payload",
-        lambda *_args, **_kwargs: {
-            "valid": True,
-            "errors": [],
-            "warnings": [],
-            "error_codes": [],
-            "warning_codes": [],
-            "issues": [],
-        },
-    )
-
-    response = client.put(
-        "/fermenters/01/schedule/validate-import",
-        files={"file": ("plan.xlsx", b"dummy", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
-    )
-
     assert response.status_code == 200
     body = response.json()
-    assert body["valid"] is False
-    assert "BACKEND_UNREACHABLE" in body["error_codes"]
+    assert body["ok"] is True
+    assert body["valid"] is True
+    assert body["errors"] == []
+
+
+def test_scenario_import_accepts_valid_lbpkg() -> None:
+    client = _client(nodes=[_make_node()], proxy=StubProxy())
+    pkg_bytes = _make_scenario_lbpkg()
+    response = client.put(
+        "/fermenters/01/scenario/import",
+        files={"file": ("test.lbpkg", pkg_bytes, "application/octet-stream")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+
+
+def test_scenario_validate_import_rejects_archive_without_manifest() -> None:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("README.txt", "no manifest here")
+    pkg_bytes = buf.getvalue()
+    client = _client(nodes=[_make_node()])
+    response = client.put(
+        "/fermenters/01/scenario/validate-import",
+        files={"file": ("empty.lbpkg", pkg_bytes, "application/octet-stream")},
+    )
+    assert response.status_code == 422
+    assert "msgpack" in response.json()["detail"].lower()
+
+
+def test_scenario_validate_import_rejects_corrupt_msgpack() -> None:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("scenario.package.msgpack", b"\xff\xfe\xfd not valid msgpack")
+    pkg_bytes = buf.getvalue()
+    client = _client(nodes=[_make_node()])
+    response = client.put(
+        "/fermenters/01/scenario/validate-import",
+        files={"file": ("bad.lbpkg", pkg_bytes, "application/octet-stream")},
+    )
+    assert response.status_code == 422
+    assert "messagepack" in response.json()["detail"].lower()
+
+
+def test_scenario_import_returns_422_on_compile_failure() -> None:
+    class FailingCompileProxy(StubProxy):
+        def request(self, *, method, url, **kwargs):
+            if "/scenario/compile" in url:
+                return 200, {
+                    "ok": False,
+                    "errors": [{"code": "package_id_missing", "message": "id is blank"}],
+                    "warnings": [],
+                }
+            return super().request(method=method, url=url, **kwargs)
+
+    client = _client(nodes=[_make_node()], proxy=FailingCompileProxy())
+    pkg_bytes = _make_scenario_lbpkg()
+    response = client.put(
+        "/fermenters/01/scenario/import",
+        files={"file": ("test.lbpkg", pkg_bytes, "application/octet-stream")},
+    )
+    assert response.status_code == 422
+    body = response.json()
+    assert body["ok"] is False
+    assert any(e["code"] == "package_id_missing" for e in body["errors"])

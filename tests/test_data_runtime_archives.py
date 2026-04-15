@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import zipfile
 from collections import deque
 from datetime import datetime, timedelta
@@ -80,6 +81,41 @@ def test_runtime_records_samples_tracks_missing_parameters_and_finalizes_archive
     assert names == ["archive-session.jsonl", "archive-session.loadsteps.jsonl", "notes.txt"]
     assert not (tmp_path / "archive-session.jsonl").exists()
     assert not (tmp_path / "archive-session.loadsteps.jsonl").exists()
+
+
+def test_archive_includes_inline_payload_members(tmp_path: Path) -> None:
+    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}, values={"temp": 21.0}))
+    package_json = '{"id":"pkg-1","name":"Scenario"}'
+    setup = runtime.setup_measurement(
+        parameters=["temp"],
+        hz=5.0,
+        output_dir=str(tmp_path),
+        output_format="jsonl",
+        session_name="inline-payload",
+        include_payloads=[
+            {
+                "name": "scenario.package.snapshot.json",
+                "media_type": "application/json",
+                "content_b64": base64.b64encode(package_json.encode("utf-8")).decode("ascii"),
+            }
+        ],
+    )
+
+    assert setup["ok"] is True
+    assert runtime.measure_start()["ok"] is True
+    runtime._record_sample()
+    result = runtime.measure_stop()
+    archive_path = Path(result["archive_file"])
+
+    assert result["ok"] is True
+    with zipfile.ZipFile(archive_path) as zf:
+        names = sorted(zf.namelist())
+        payload = zf.read("scenario.package.snapshot.json").decode("utf-8")
+
+    assert "inline-payload.jsonl" in names
+    assert "inline-payload.loadsteps.jsonl" in names
+    assert "scenario.package.snapshot.json" in names
+    assert payload == package_json
 
 
 def test_archive_list_resolve_and_delete_cycle(tmp_path: Path) -> None:

@@ -911,12 +911,12 @@ def build_agent_app(
         )
 
     @app.api_route(
-        "/schedule/{service_path:path}", methods=["GET", "POST", "PUT", "DELETE"]
+        "/scenario/{service_path:path}", methods=["GET", "POST", "PUT", "DELETE"]
     )
-    @app.api_route("/schedule", methods=["GET", "POST", "PUT", "DELETE"])
-    async def proxy_schedule(request: Request, service_path: str = ""):
+    @app.api_route("/scenario", methods=["GET", "POST", "PUT", "DELETE"])
+    async def proxy_scenario(request: Request, service_path: str = ""):
         return await _proxy_to_service(
-            request, "schedule_service", _join_bridge_path("schedule", service_path)
+            request, "scenario_service", _join_bridge_path("scenario", service_path)
         )
 
     @app.api_route(

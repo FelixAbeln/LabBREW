@@ -36,6 +36,39 @@ function createUiId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function encodeTextToBase64(text) {
+  const bytes = new TextEncoder().encode(String(text || ''))
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  return window.btoa(binary)
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Could not read selected file'))
+        return
+      }
+      const marker = 'base64,'
+      const idx = result.indexOf(marker)
+      if (idx < 0) {
+        reject(new Error('Unexpected file encoding result'))
+        return
+      }
+      resolve(result.slice(idx + marker.length))
+    }
+    reader.onerror = () => reject(new Error('Failed to read selected file'))
+    reader.readAsDataURL(file)
+  })
+}
+
 function moveListItem(items, fromIndex, toIndex) {
   if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return items
   const next = [...items]
@@ -92,13 +125,13 @@ function App() {
 
   const [fermenters, setFermenters] = useState([])
   const [selectedId, setSelectedId] = useState(null)
-  const [schedule, setSchedule] = useState(null)
+  const [scenario, setScenario] = useState(null)
   const [ownedTargetValues, setOwnedTargetValues] = useState([])
   const [error, setError] = useState('')
   const [loadingAction, setLoadingAction] = useState(false)
-  const [scheduleFile, setScheduleFile] = useState(null)
+  const [scenarioFile, setScenarioFile] = useState(null)
   const [importResult, setImportResult] = useState(null)
-  const [scheduleDefinition, setScheduleDefinition] = useState(null)
+  const [scenarioPackage, setScenarioPackage] = useState(null)
   const dashboardRequestRef = useRef(0)
   const sharedWorkspaceSignatureRef = useRef('')
   const [activeTab, setActiveTab] = useState('')
@@ -293,6 +326,15 @@ function App() {
             hz: Number(dataHz),
             output_format: 'parquet',
             session_name: buildMeasurementSessionName(selected),
+            include_payloads: scenarioPackage
+              ? [
+                {
+                  name: 'scenario.package.snapshot.json',
+                  media_type: 'application/json',
+                  content_b64: encodeTextToBase64(JSON.stringify(scenarioPackage, null, 2)),
+                },
+              ]
+              : [],
           }),
         })
 
@@ -950,7 +992,7 @@ function App() {
   const showRulesTab = globalView === 'rules-studio' || hasCustomModulePrefix('rules')
   const showSystemTab = globalView === 'system-studio' || hasCustomModulePrefix('system')
 
-  const runToggle = useMemo(() => getRunToggle(schedule?.state || null), [schedule?.state])
+  const runToggle = useMemo(() => getRunToggle(scenario?.state || null), [scenario?.state])
   const importErrorIssues = useMemo(() => collectIssues(importResult, 'error'), [importResult])
   const importWarningIssues = useMemo(() => collectIssues(importResult, 'warning'), [importResult])
 
@@ -1052,8 +1094,8 @@ function App() {
       )
     }
 
-    setSchedule(payload?.schedule || null)
-    setScheduleDefinition(payload?.schedule_definition || null)
+    setScenario(payload?.schedule || null)
+    setScenarioPackage(payload?.scenario_package || payload?.schedule_definition || null)
     setOwnedTargetValues(Array.isArray(payload?.owned_target_values) ? payload.owned_target_values : [])
   }, [brewApi])
 
@@ -1135,7 +1177,7 @@ function App() {
 
       if (!data.length) {
         setSelectedId(null)
-        setSchedule(null)
+        setScenario(null)
         setOwnedTargetValues([])
         return
       }
@@ -1173,7 +1215,7 @@ function App() {
   }
 
   async function uploadWorkbook(path) {
-    if (!selected || !scheduleFile) return
+    if (!selected || !scenarioFile) return
 
     try {
       setLoadingAction(true)
@@ -1181,7 +1223,7 @@ function App() {
       setImportResult(null)
 
       const formData = new FormData()
-      formData.append('file', scheduleFile)
+      formData.append('file', scenarioFile)
 
       const result = await api(`/fermenters/${selected.id}${path}`, {
         method: 'PUT',
@@ -1199,6 +1241,98 @@ function App() {
       } else {
         setError(err instanceof Error ? err.message : 'Unknown error')
       }
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function tunePackageArtifact({ path, file }) {
+    if (!selected?.id || !path || !file) return
+    try {
+      setLoadingAction(true)
+      setError('')
+      const contentB64 = await readFileAsBase64(file)
+      const response = await api(`/fermenters/${selected.id}/scenario/package/tune`, {
+        method: 'POST',
+        body: JSON.stringify({
+          artifact_updates: [
+            {
+              path,
+              content_b64: contentB64,
+              media_type: file.type || undefined,
+            },
+          ],
+        }),
+      })
+      if (!response?.ok) {
+        const detail = response?.error || 'Failed to apply artifact update'
+        throw new Error(String(detail))
+      }
+      brewApi.invalidateFermenter(selected.id)
+      await loadDetails(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function tuneEditorSpec(editorSpecText) {
+    if (!selected?.id || !editorSpecText) return
+    let patch
+    try {
+      patch = JSON.parse(editorSpecText)
+    } catch {
+      setError('Editor spec must be valid JSON')
+      return
+    }
+
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      setError('Editor spec must be a JSON object')
+      return
+    }
+
+    try {
+      setLoadingAction(true)
+      setError('')
+      const response = await api(`/fermenters/${selected.id}/scenario/package/tune`, {
+        method: 'POST',
+        body: JSON.stringify({
+          editor_spec_patch: patch,
+        }),
+      })
+      if (!response?.ok) {
+        const detail = response?.error || 'Failed to apply editor spec update'
+        throw new Error(String(detail))
+      }
+      brewApi.invalidateFermenter(selected.id)
+      await loadDetails(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function tunePackagePatch(packagePatch) {
+    if (!selected?.id || !packagePatch || typeof packagePatch !== 'object') return
+    try {
+      setLoadingAction(true)
+      setError('')
+      const response = await api(`/fermenters/${selected.id}/scenario/package/tune`, {
+        method: 'POST',
+        body: JSON.stringify({
+          package_patch: packagePatch,
+        }),
+      })
+      if (!response?.ok) {
+        const detail = response?.error || 'Failed to apply package patch'
+        throw new Error(String(detail))
+      }
+      brewApi.invalidateFermenter(selected.id)
+      await loadDetails(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoadingAction(false)
     }
@@ -1261,7 +1395,7 @@ function App() {
       }
     },
     getDelay: () => {
-      if (hasCustomModulePrefix('schedule')) return 1000
+      if (hasCustomModulePrefix('scenario') || hasCustomModulePrefix('schedule')) return 1000
       if (hasCustomModulePrefix('control')) return 2000
       if (hasCustomModulePrefix('rules') || hasCustomModulePrefix('data')) return 2500
       return 2000
@@ -1419,17 +1553,20 @@ function App() {
     )
   }
 
-  const scheduleTabProps = {
-    schedule,
-    scheduleDefinition,
+  const scenarioTabProps = {
+    scenario,
+    scenarioPackage,
     runToggle,
     loadingAction,
     selected,
     runAction,
     ownedTargetValues,
-    scheduleFile,
-    setScheduleFile,
+    scenarioFile,
+    setScenarioFile,
     uploadWorkbook,
+    tunePackageArtifact,
+    tuneEditorSpec,
+    tunePackagePatch,
     importResult,
     importErrorIssues,
     importWarningIssues,
@@ -1548,7 +1685,7 @@ function App() {
         activeTab={activeTab}
         onSaveSharedWorkspaceLayouts={() => saveWorkspaceLayoutsToSupervisor(selected?.id)}
         workspaceSaveLoading={workspaceSaveLoading}
-        scheduleProps={scheduleTabProps}
+        scenarioProps={scenarioTabProps}
         dataProps={dataTabProps}
         controlProps={controlTabProps}
         archiveProps={archiveTabProps}

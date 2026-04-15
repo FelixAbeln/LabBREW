@@ -1,0 +1,52 @@
+{
+  "id": "first-run",
+  "name": "First Run Package",
+  "version": "0.1.0",
+  "description": "Initial scenario package using legacy schedule runtime",
+  "interface": {
+    "kind": "labbrew.scenario-package",
+    "version": "1.0",
+    "status_endpoint": "/scenario/run/status"
+  },
+  "validation": {
+    "required_fields": [
+      "id",
+      "name",
+      "runner",
+      "interface",
+      "endpoint_code",
+      "program"
+    ]
+  },
+  "endpoint_code": {
+    "language": "python",
+    "entrypoint": "bin/runner.py"
+  },
+  "runner": {
+    "kind": "scripted",
+    "entrypoint": "scripted.run",
+    "config": {}
+  },
+  "program": {
+    "id": "first-run-program",
+    "name": "First Run Program",
+    "measurement_config": {},
+    "setup_steps": [],
+    "plan_steps": [
+      {
+        "id": "plan-1",
+        "name": "Hold",
+        "enabled": true,
+        "actions": [],
+        "wait": {
+          "kind": "elapsed",
+          "duration_s": 60
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "created_by": "labbrew",
+    "import_source": "package"
+  }
+}

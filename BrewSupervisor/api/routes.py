@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import json
+import mimetypes
 import threading
+import zipfile
+
+import msgpack
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -16,11 +22,89 @@ from Services._shared.json_persistence import atomic_write_json
 from Services._shared.storage_paths import storage_path
 
 from .models import FermenterView
-from .schedule_import.parser import (
-    collect_workbook_parameter_references,
-    parse_schedule_workbook,
-)
-from .schedule_import.validator import validate_schedule_payload
+
+
+def _parse_uploaded_scenario_package(file_bytes: bytes, filename: str) -> dict[str, Any]:
+    suffix = Path(filename or "").suffix.lower()
+
+    def _read_msgpack_payload(raw: bytes) -> dict[str, Any]:
+        try:
+            payload = msgpack.unpackb(raw, raw=False)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid scenario package MessagePack manifest: {exc}",
+            ) from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(
+                status_code=422,
+                detail="Scenario package manifest root must be a map/object",
+            )
+        return payload
+
+    if suffix in {".zip", ".lbpkg"}:
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_bytes), "r") as archive:
+                candidates = (
+                    "scenario.package.msgpack",
+                    "scenario-package.msgpack",
+                    "package.msgpack",
+                    "scenario.package.mpk",
+                    "scenario-package.mpk",
+                    "package.mpk",
+                )
+                manifest_name = None
+                for candidate in candidates:
+                    if candidate in archive.namelist():
+                        manifest_name = candidate
+                        break
+                if manifest_name is None:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=(
+                            "Scenario package archive must contain one of: "
+                            "scenario.package.msgpack, scenario-package.msgpack, package.msgpack"
+                        ),
+                    )
+
+                payload = _read_msgpack_payload(archive.read(manifest_name))
+                artifacts: list[dict[str, Any]] = []
+                for info in archive.infolist():
+                    if info.is_dir():
+                        continue
+                    item_name = str(info.filename or "").strip()
+                    if not item_name or item_name == manifest_name:
+                        continue
+                    blob = archive.read(item_name)
+                    media_type, _ = mimetypes.guess_type(item_name)
+                    artifacts.append(
+                        {
+                            "path": item_name,
+                            "media_type": media_type or "application/octet-stream",
+                            "encoding": "base64",
+                            "content_b64": base64.b64encode(blob).decode("ascii"),
+                            "size": len(blob),
+                        }
+                    )
+
+                payload["artifacts"] = artifacts
+                payload.setdefault("metadata", {})
+                if isinstance(payload.get("metadata"), dict):
+                    payload["metadata"]["archive_filename"] = filename
+                return payload
+        except zipfile.BadZipFile as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid scenario package archive: {exc}",
+            ) from exc
+
+    raise HTTPException(
+        status_code=415,
+        detail=(
+            "Unsupported scenario package format. "
+            "Use .zip or .lbpkg"
+        ),
+    )
 
 
 def _read_json_response(
@@ -237,46 +321,6 @@ def _normalize_workspace_layout_payload(raw: Any) -> dict[str, Any]:
         "control_card_order": control_card_order,
         "updated_at": datetime.now(tz=UTC).isoformat(),
     }
-
-
-def _get_available_backend_parameters(
-    proxy: Any, node: Any
-) -> tuple[set[str] | None, dict[str, Any] | None]:
-    status_code, payload = _read_best_effort(
-        proxy,
-        method="GET",
-        url=_build_service_proxy_url(node, "control_service", "system/snapshot"),
-    )
-    if status_code is None:
-        return None, {
-            "level": "error",
-            "code": "BACKEND_UNREACHABLE",
-            "path": "backend.control_service.system/snapshot",
-            "message": "Could not reach control backend for parameter validation",
-            "detail": payload.get("detail")
-            if isinstance(payload, dict)
-            else str(payload),
-        }
-    if not (200 <= status_code < 300) or not isinstance(payload, dict):
-        return None, {
-            "level": "error",
-            "code": "BACKEND_VALIDATION_REQUEST_FAILED",
-            "path": "backend.control_service.system/snapshot",
-            "message": "Control backend rejected parameter validation request",
-            "status_code": status_code,
-            "detail": payload,
-        }
-
-    values = payload.get("values")
-    if not isinstance(values, dict):
-        return None, {
-            "level": "error",
-            "code": "BACKEND_SNAPSHOT_INVALID",
-            "path": "backend.control_service.system/snapshot.values",
-            "message": "Control backend snapshot does not contain a values object",
-        }
-
-    return {str(name) for name in values}, None
 
 
 def build_router() -> APIRouter:
@@ -679,9 +723,11 @@ def build_router() -> APIRouter:
         )
         return JSONResponse(status_code=status_code, content=payload)
 
-    @router.put("/fermenters/{fermenter_id}/schedule/validate-import")
-    async def validate_schedule_import(
-        fermenter_id: str, request: Request, file: Annotated[UploadFile, File(...)]
+    @router.put("/fermenters/{fermenter_id}/scenario/validate-import")
+    async def validate_scenario_import(
+        fermenter_id: str,
+        request: Request,
+        file: Annotated[UploadFile, File(...)],
     ):
         registry = request.app.state.registry
         proxy = request.app.state.proxy
@@ -690,44 +736,53 @@ def build_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Fermenter not found")
 
         file_bytes = await file.read()
-        payload = parse_schedule_workbook(
-            file_bytes, filename=file.filename or "schedule.xlsx"
+        package_payload = _parse_uploaded_scenario_package(
+            file_bytes,
+            file.filename or "scenario.package.msgpack",
         )
-        refs = collect_workbook_parameter_references(file_bytes)
-        available_parameters, backend_issue = _get_available_backend_parameters(
-            proxy, node
+
+        status_code, compile_result = _read_json_response(
+            proxy,
+            method="POST",
+            url=_build_service_proxy_url(node, "scenario_service", "scenario/compile"),
+            json_body=package_payload,
         )
-        result = validate_schedule_payload(
-            payload,
-            available_parameters=available_parameters,
-            extra_parameter_references=refs,
+
+        compile_ok = bool(
+            status_code and 200 <= status_code < 300 and isinstance(compile_result, dict)
+            and compile_result.get("ok")
         )
-        if backend_issue is not None:
-            result["valid"] = False
-            result["issues"].append(backend_issue)
-            result["errors"].append(backend_issue["message"])
-            result["error_codes"] = sorted(
-                {*result.get("error_codes", []), str(backend_issue["code"])}
-            )
+        compile_errors = (
+            compile_result.get("errors", [])
+            if isinstance(compile_result, dict)
+            else []
+        )
+        compile_warnings = (
+            compile_result.get("warnings", [])
+            if isinstance(compile_result, dict)
+            else []
+        )
 
         return {
-            "ok": result["valid"],
-            "valid": result["valid"],
-            "errors": result["errors"],
-            "warnings": result["warnings"],
-            "error_codes": result.get("error_codes", []),
-            "warning_codes": result.get("warning_codes", []),
-            "issues": result.get("issues", []),
-            "schedule": payload,
+            "ok": compile_ok,
+            "valid": compile_ok,
+            "errors": compile_errors,
+            "warnings": compile_warnings,
+            "scenario_package": package_payload,
+            "compile": compile_result,
             "summary": {
-                "setup_step_count": len(payload.get("setup_steps", [])),
-                "plan_step_count": len(payload.get("plan_steps", [])),
+                "filename": file.filename or "scenario.package.msgpack",
+                "runner": str(
+                    (package_payload.get("runner") or {}).get("kind", "unknown")
+                ),
             },
         }
 
-    @router.put("/fermenters/{fermenter_id}/schedule/import")
-    async def import_schedule(
-        fermenter_id: str, request: Request, file: Annotated[UploadFile, File(...)]
+    @router.put("/fermenters/{fermenter_id}/scenario/import")
+    async def import_scenario(
+        fermenter_id: str,
+        request: Request,
+        file: Annotated[UploadFile, File(...)],
     ):
         registry = request.app.state.registry
         proxy = request.app.state.proxy
@@ -736,46 +791,49 @@ def build_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Fermenter not found")
 
         file_bytes = await file.read()
-        payload = parse_schedule_workbook(
-            file_bytes, filename=file.filename or "schedule.xlsx"
+        package_payload = _parse_uploaded_scenario_package(
+            file_bytes,
+            file.filename or "scenario.package.msgpack",
         )
-        refs = collect_workbook_parameter_references(file_bytes)
-        available_parameters, backend_issue = _get_available_backend_parameters(
-            proxy, node
-        )
-        result = validate_schedule_payload(
-            payload,
-            available_parameters=available_parameters,
-            extra_parameter_references=refs,
-        )
-        if backend_issue is not None:
-            result["valid"] = False
-            result["issues"].append(backend_issue)
-            result["errors"].append(backend_issue["message"])
-            result["error_codes"] = sorted(
-                {*result.get("error_codes", []), str(backend_issue["code"])}
-            )
 
-        if not result["valid"]:
+        compile_status, compile_result = _read_json_response(
+            proxy,
+            method="POST",
+            url=_build_service_proxy_url(node, "scenario_service", "scenario/compile"),
+            json_body=package_payload,
+        )
+
+        compile_ok = bool(
+            compile_status and 200 <= compile_status < 300 and isinstance(compile_result, dict)
+            and compile_result.get("ok")
+        )
+
+        if not compile_ok:
             return JSONResponse(
                 status_code=422,
                 content={
                     "ok": False,
                     "valid": False,
-                    "errors": result["errors"],
-                    "warnings": result["warnings"],
-                    "error_codes": result.get("error_codes", []),
-                    "warning_codes": result.get("warning_codes", []),
-                    "issues": result.get("issues", []),
-                    "schedule": payload,
+                    "errors": (
+                        compile_result.get("errors", [])
+                        if isinstance(compile_result, dict)
+                        else [{"code": "compile_failed", "message": "Compile failed"}]
+                    ),
+                    "warnings": (
+                        compile_result.get("warnings", [])
+                        if isinstance(compile_result, dict)
+                        else []
+                    ),
+                    "scenario_package": package_payload,
+                    "compile": compile_result,
                 },
             )
 
         status_code, forwarded = _read_json_response(
             proxy,
             method="PUT",
-            url=_build_service_proxy_url(node, "schedule_service", "schedule"),
-            json_body=payload,
+            url=_build_service_proxy_url(node, "scenario_service", "scenario/package"),
+            json_body=package_payload,
         )
         return JSONResponse(
             status_code=status_code,
@@ -783,15 +841,13 @@ def build_router() -> APIRouter:
                 "ok": 200 <= status_code < 300,
                 "valid": True,
                 "errors": [],
-                "warnings": result["warnings"],
-                "error_codes": [],
-                "warning_codes": result.get("warning_codes", []),
-                "issues": [
-                    item
-                    for item in result.get("issues", [])
-                    if item.get("level") == "warning"
-                ],
-                "schedule": payload,
+                "warnings": (
+                    compile_result.get("warnings", [])
+                    if isinstance(compile_result, dict)
+                    else []
+                ),
+                "scenario_package": package_payload,
+                "compile": compile_result,
                 "forwarded": forwarded,
             },
         )
@@ -807,28 +863,35 @@ def build_router() -> APIRouter:
         status_code, schedule_status = _read_best_effort(
             proxy,
             method="GET",
-            url=_build_service_proxy_url(node, "schedule_service", "schedule/status"),
+            url=_build_service_proxy_url(node, "scenario_service", "scenario/run/status"),
         )
-        schedule = (
-            schedule_status
-            if status_code
+        runner_status = None
+        if (
+            status_code
             and 200 <= status_code < 300
             and isinstance(schedule_status, dict)
-            else None
-        )
+        ):
+            runner_status = schedule_status.get("runner_status")
+        schedule = runner_status if isinstance(runner_status, dict) else None
 
         schedule_definition: Any = None
+        scenario_package: Any = None
         status_code, schedule_payload = _read_best_effort(
             proxy,
             method="GET",
-            url=_build_service_proxy_url(node, "schedule_service", "schedule"),
+            url=_build_service_proxy_url(node, "scenario_service", "scenario/package"),
         )
         if (
             status_code
             and 200 <= status_code < 300
             and isinstance(schedule_payload, dict)
         ):
-            schedule_definition = schedule_payload.get("schedule")
+            package = schedule_payload.get("package")
+            if isinstance(package, dict):
+                scenario_package = package
+                candidate = package.get("program")
+                if isinstance(candidate, dict):
+                    schedule_definition = candidate
 
         owned_target_values: list[dict[str, Any]] = []
         for target in (
@@ -873,6 +936,7 @@ def build_router() -> APIRouter:
         return {
             "fermenter": _to_view(node).model_dump(),
             "schedule": schedule,
+            "scenario_package": scenario_package,
             "schedule_definition": schedule_definition,
             "owned_target_values": owned_target_values,
         }
@@ -983,20 +1047,20 @@ def build_router() -> APIRouter:
         return await _proxy_via_agent(request, fermenter_id, service_name, service_path)
 
     @router.api_route(
-        "/fermenters/{fermenter_id}/schedule/{service_path:path}",
+        "/fermenters/{fermenter_id}/scenario/{service_path:path}",
         methods=["GET", "POST", "PUT", "DELETE"],
     )
     @router.api_route(
-        "/fermenters/{fermenter_id}/schedule", methods=["GET", "POST", "PUT", "DELETE"]
+        "/fermenters/{fermenter_id}/scenario", methods=["GET", "POST", "PUT", "DELETE"]
     )
-    async def proxy_schedule(
+    async def proxy_scenario(
         fermenter_id: str, request: Request, service_path: str = ""
     ):
         return await _proxy_via_agent(
             request,
             fermenter_id,
-            "schedule_service",
-            f"schedule/{service_path}".rstrip("/"),
+            "scenario_service",
+            f"scenario/{service_path}".rstrip("/"),
         )
 
     @router.api_route(

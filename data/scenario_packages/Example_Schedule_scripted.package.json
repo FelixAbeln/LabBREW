@@ -1,0 +1,516 @@
+{
+  "id": "lager-1h-test-plan",
+  "name": "Lager 1 hour sped-up fermentation",
+  "version": "0.1.0",
+  "description": "Scenario package generated from Example_Schedule.xlsx",
+  "interface": {
+    "kind": "labbrew.scenario-package",
+    "version": "1.0",
+    "status_endpoint": "/scenario/run/status"
+  },
+  "validation": {
+    "required_fields": [
+      "id",
+      "name",
+      "runner",
+      "interface",
+      "validation",
+      "editor_spec",
+      "endpoint_code",
+      "artifacts"
+    ],
+    "artifact": "validation/validation.json"
+  },
+  "editor_spec": {
+    "artifact": "editor/spec.json",
+    "version": "1.0"
+  },
+  "endpoint_code": {
+    "language": "python",
+    "entrypoint": "bin/excel_program_runner.py",
+    "interface_contract": "labbrew.scenario-package@1.0"
+  },
+  "runner": {
+    "kind": "scripted",
+    "entrypoint": "scripted.run",
+    "config": {}
+  },
+  "program": {
+    "id": "lager-1h-test-plan",
+    "name": "Lager 1 hour sped-up fermentation",
+    "measurement_config": {
+      "hz": 10.0,
+      "output_dir": "data/measurements",
+      "output_format": "parquet",
+      "session_name": null,
+      "loadstep_duration_seconds": 45.0
+    },
+    "setup_steps": [
+      {
+        "id": "setup-1",
+        "name": "Request control of all actuators",
+        "actions": [
+          {
+            "kind": "write",
+            "target": "set_temp_Fermentor",
+            "value": 10,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_pres_Fermentor",
+            "value": 0.2,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_spd_Agitator",
+            "value": 15,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_allow_Gas",
+            "value": 1,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          }
+        ],
+        "wait": {
+          "kind": "elapsed",
+          "duration_s": 30.0
+        },
+        "enabled": true
+      }
+    ],
+    "plan_steps": [
+      {
+        "id": "plan-1",
+        "name": "Chill wort to lager pitch temp",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_temp_Fermentor",
+            "value": 10,
+            "duration_s": 300.0,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_spd_Agitator",
+            "value": 20,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          }
+        ],
+        "wait": {
+          "kind": "all_of",
+          "children": [
+            {
+              "kind": "elapsed",
+              "duration_s": 300.0
+            },
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "temp",
+                "operator": "<=",
+                "threshold": 14.1,
+                "for_s": 30.0
+              }
+            }
+          ]
+        },
+        "enabled": true
+      },
+      {
+        "id": "plan-2",
+        "name": "Hold at pitch temp and allow pressure to stay low",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_pres_Fermentor",
+            "value": 0.3,
+            "duration_s": 120.0,
+            "owner": null,
+            "params": {}
+          }
+        ],
+        "wait": {
+          "kind": "all_of",
+          "children": [
+            {
+              "kind": "elapsed",
+              "duration_s": 600.0
+            },
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "pressure",
+                "operator": "<=",
+                "threshold": 0.5,
+                "for_s": 60.0
+              }
+            }
+          ]
+        },
+        "enabled": true
+      },
+      {
+        "id": "plan-3",
+        "name": "Primary fermentation hold",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_temp_Fermentor",
+            "value": 11,
+            "duration_s": 300.0,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_spd_Agitator",
+            "value": 18,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "take_loadstep",
+            "target": null,
+            "value": null,
+            "duration_s": 45.0,
+            "owner": null,
+            "params": {
+              "timing": "on_trigger",
+              "trigger_wait": {
+                "kind": "rising",
+                "child": {
+                  "kind": "any_of",
+                  "children": [
+                    {
+                      "kind": "condition",
+                      "condition": {
+                        "source": "brewcan.density.0",
+                        "operator": "<=",
+                        "threshold": 1.04
+                      }
+                    },
+                    {
+                      "kind": "condition",
+                      "condition": {
+                        "source": "pressure",
+                        "operator": ">=",
+                        "threshold": 0.8
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "wait": {
+          "kind": "any_of",
+          "children": [
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "brewcan.density.0",
+                "operator": "<=",
+                "threshold": 1.04,
+                "for_s": 60.0
+              }
+            },
+            {
+              "kind": "elapsed",
+              "duration_s": 900.0
+            }
+          ]
+        },
+        "enabled": true
+      },
+      {
+        "id": "plan-4",
+        "name": "Raise spunding pressure during active fermentation",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_pres_Fermentor",
+            "value": 1,
+            "duration_s": 300.0,
+            "owner": null,
+            "params": {}
+          }
+        ],
+        "wait": {
+          "kind": "all_of",
+          "children": [
+            {
+              "kind": "elapsed",
+              "duration_s": 600.0
+            },
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "pressure",
+                "operator": ">=",
+                "threshold": 0.9,
+                "for_s": 60.0
+              }
+            }
+          ]
+        },
+        "enabled": true
+      },
+      {
+        "id": "plan-5",
+        "name": "Diacetyl rest",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_temp_Fermentor",
+            "value": 15,
+            "duration_s": 600.0,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_spd_Agitator",
+            "value": 10,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "take_loadstep",
+            "target": null,
+            "value": null,
+            "duration_s": 45.0,
+            "owner": null,
+            "params": {
+              "timing": "on_trigger",
+              "trigger_wait": {
+                "kind": "falling",
+                "child": {
+                  "kind": "condition",
+                  "condition": {
+                    "source": "set_allow_Gas",
+                    "operator": "==",
+                    "threshold": 1
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "wait": {
+          "kind": "any_of",
+          "children": [
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "brewcan.density.0",
+                "operator": "<=",
+                "threshold": 1.018,
+                "for_s": 120.0
+              }
+            },
+            {
+              "kind": "elapsed",
+              "duration_s": 900.0
+            }
+          ]
+        },
+        "enabled": true
+      },
+      {
+        "id": "plan-6",
+        "name": "Stabilize before crash",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_pres_Fermentor",
+            "value": 1.2,
+            "duration_s": 180.0,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_allow_Gas",
+            "value": 1,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          }
+        ],
+        "wait": {
+          "kind": "all_of",
+          "children": [
+            {
+              "kind": "elapsed",
+              "duration_s": 300.0
+            },
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "pressure",
+                "operator": ">=",
+                "threshold": 1.1,
+                "for_s": 60.0
+              }
+            }
+          ]
+        },
+        "enabled": true
+      },
+      {
+        "id": "plan-7",
+        "name": "Cold crash ramp",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_temp_Fermentor",
+            "value": 2,
+            "duration_s": 900.0,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_spd_Agitator",
+            "value": 5,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "take_loadstep",
+            "target": null,
+            "value": null,
+            "duration_s": 45.0,
+            "owner": null,
+            "params": {
+              "timing": "on_trigger",
+              "trigger_wait": {
+                "kind": "pulse",
+                "child": {
+                  "kind": "condition",
+                  "condition": {
+                    "source": "temp",
+                    "operator": "<=",
+                    "threshold": 5
+                  }
+                },
+                "hold_s": 30.0
+              }
+            }
+          }
+        ],
+        "wait": {
+          "kind": "all_of",
+          "children": [
+            {
+              "kind": "elapsed",
+              "duration_s": 1200.0
+            },
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "temp",
+                "operator": "<=",
+                "threshold": 14.1,
+                "for_s": 120.0
+              }
+            }
+          ]
+        },
+        "enabled": true
+      },
+      {
+        "id": "plan-8",
+        "name": "Final cold crash hold",
+        "actions": [
+          {
+            "kind": "ramp",
+            "target": "set_pres_Fermentor",
+            "value": 0.8,
+            "duration_s": 120.0,
+            "owner": null,
+            "params": {}
+          },
+          {
+            "kind": "write",
+            "target": "set_spd_Agitator",
+            "value": 0,
+            "duration_s": null,
+            "owner": null,
+            "params": {}
+          }
+        ],
+        "wait": {
+          "kind": "all_of",
+          "children": [
+            {
+              "kind": "elapsed",
+              "duration_s": 900.0
+            },
+            {
+              "kind": "condition",
+              "condition": {
+                "source": "brewcan.density.0",
+                "operator": "<=",
+                "threshold": 1.012,
+                "for_s": 120.0
+              }
+            }
+          ]
+        },
+        "enabled": true
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "bin/excel_program_runner.py",
+      "encoding": "base64",
+      "content_b64": "IiIiZXhjZWxfcHJvZ3JhbV9ydW5uZXIucHkKCkdlbmVyaWMgc2NyaXB0ZWQgcnVubmVyIGZvciBFeGNlbC1pbXBvcnRlZCBzY2VuYXJpbyBwcm9ncmFtcy4KClRoZSBydW5uZXIgcmVhZHMgYGBkYXRhL3Byb2dyYW0uanNvbmBgIGZyb20gcGFja2FnZSBhcnRpZmFjdHMgYW5kIGV4ZWN1dGVzCnNldHVwICsgcGxhbiBzdGVwcyBzZXF1ZW50aWFsbHkuIFN1cHBvcnRlZCB3YWl0IGtpbmRzIGFyZToKLSBub25lCi0gZWxhcHNlZAotIGNvbmRpdGlvbgotIGFsbF9vZgotIGFueV9vZgoiIiIKZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IGpzb24KaW1wb3J0IHRpbWUKClBPTExfUyA9IDAuMQoKCk9QUyA9IHsKICAgICI9PSI6IGxhbWJkYSBhLCBiOiBhID09IGIsCiAgICAiPSI6IGxhbWJkYSBhLCBiOiBhID09IGIsCiAgICAiZXEiOiBsYW1iZGEgYSwgYjogYSA9PSBiLAogICAgIiE9IjogbGFtYmRhIGEsIGI6IGEgIT0gYiwKICAgICJuZXEiOiBsYW1iZGEgYSwgYjogYSAhPSBiLAogICAgIj4iOiBsYW1iZGEgYSwgYjogYSA+IGIsCiAgICAiZ3QiOiBsYW1iZGEgYSwgYjogYSA+IGIsCiAgICAiPj0iOiBsYW1iZGEgYSwgYjogYSA+PSBiLAogICAgImd0ZSI6IGxhbWJkYSBhLCBiOiBhID49IGIsCiAgICAiPCI6IGxhbWJkYSBhLCBiOiBhIDwgYiwKICAgICJsdCI6IGxhbWJkYSBhLCBiOiBhIDwgYiwKICAgICI8PSI6IGxhbWJkYSBhLCBiOiBhIDw9IGIsCiAgICAibHRlIjogbGFtYmRhIGEsIGI6IGEgPD0gYiwKfQoKCmRlZiBfdG9fZmxvYXQodmFsdWUsIGRlZmF1bHQ9MC4wKToKICAgIHRyeToKICAgICAgICByZXR1cm4gZmxvYXQodmFsdWUpCiAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgIHJldHVybiBmbG9hdChkZWZhdWx0KQoKCmRlZiBfaXRlcl9zdGVwcyhwcm9ncmFtKToKICAgIGZvciBrZXkgaW4gKCJzZXR1cF9zdGVwcyIsICJwbGFuX3N0ZXBzIik6CiAgICAgICAgZm9yIHN0ZXAgaW4gKHByb2dyYW0uZ2V0KGtleSkgb3IgW10pOgogICAgICAgICAgICBpZiBub3QgaXNpbnN0YW5jZShzdGVwLCBkaWN0KToKICAgICAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgICAgIGlmIHN0ZXAuZ2V0KCJlbmFibGVkIiwgVHJ1ZSkgaXMgRmFsc2U6CiAgICAgICAgICAgICAgICBjb250aW51ZQogICAgICAgICAgICB5aWVsZCBzdGVwCgoKZGVmIF9ldmFsX2NvbmRpdGlvbihjdHgsIGNvbmRpdGlvbik6CiAgICBzb3VyY2UgPSBzdHIoY29uZGl0aW9uLmdldCgic291cmNlIikgb3IgIiIpLnN0cmlwKCkKICAgIG9wID0gc3RyKGNvbmRpdGlvbi5nZXQoIm9wZXJhdG9yIikgb3IgIj09Iikuc3RyaXAoKS5sb3dlcigpCiAgICB0aHJlc2hvbGQgPSBjb25kaXRpb24uZ2V0KCJ0aHJlc2hvbGQiKQogICAgaWYgbm90IHNvdXJjZToKICAgICAgICByZXR1cm4gRmFsc2UKCiAgICB2YWx1ZSA9IGN0eC5yZWFkX3ZhbHVlKHNvdXJjZSkKICAgIGlmIHZhbHVlIGlzIE5vbmU6CiAgICAgICAgcmV0dXJuIEZhbHNlCgogICAgdHJ5OgogICAgICAgIGxocyA9IGZsb2F0KHZhbHVlKQogICAgICAgIHJocyA9IGZsb2F0KHRocmVzaG9sZCkKICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgbGhzID0gdmFsdWUKICAgICAgICByaHMgPSB0aHJlc2hvbGQKCiAgICBmbiA9IE9QUy5nZXQob3ApCiAgICBpZiBmbiBpcyBOb25lOgogICAgICAgIHJldHVybiBGYWxzZQogICAgcmV0dXJuIGJvb2woZm4obGhzLCByaHMpKQoKCmRlZiBfd2FpdF9lbGFwc2VkKGN0eCwgd2FpdCk6CiAgICBjdHguc2xlZXAoX3RvX2Zsb2F0KHdhaXQuZ2V0KCJkdXJhdGlvbl9zIiksIDAuMCkpCiAgICByZXR1cm4gbm90IGN0eC5pc19zdG9wcGVkKCkKCgpkZWYgX3dhaXRfY29uZGl0aW9uKGN0eCwgd2FpdCk6CiAgICBjb25kaXRpb24gPSB3YWl0LmdldCgiY29uZGl0aW9uIikgb3Ige30KICAgIHdoaWxlIG5vdCBjdHguaXNfc3RvcHBlZCgpOgogICAgICAgIGlmIF9ldmFsX2NvbmRpdGlvbihjdHgsIGNvbmRpdGlvbik6CiAgICAgICAgICAgIHJldHVybiBUcnVlCiAgICAgICAgY3R4LnNsZWVwKFBPTExfUykKICAgIHJldHVybiBGYWxzZQoKCmRlZiBfd2FpdF9hbnlfb2YoY3R4LCB3YWl0KToKICAgIGNoaWxkcmVuID0gW2MgZm9yIGMgaW4gKHdhaXQuZ2V0KCJjaGlsZHJlbiIpIG9yIFtdKSBpZiBpc2luc3RhbmNlKGMsIGRpY3QpXQogICAgZWxhcHNlZF9jaGlsZHJlbiA9IFtdCiAgICBhYnNvbHV0ZV9kZWFkbGluZXMgPSBbXQogICAgc3RhcnRlZCA9IHRpbWUubW9ub3RvbmljKCkKICAgIGZvciBjaGlsZCBpbiBjaGlsZHJlbjoKICAgICAgICBpZiBzdHIoY2hpbGQuZ2V0KCJraW5kIikgb3IgIiIpLnN0cmlwKCkubG93ZXIoKSA9PSAiZWxhcHNlZCI6CiAgICAgICAgICAgIGVsYXBzZWRfY2hpbGRyZW4uYXBwZW5kKG1heCgwLjAsIF90b19mbG9hdChjaGlsZC5nZXQoImR1cmF0aW9uX3MiKSwgMC4wKSkpCiAgICBpZiBlbGFwc2VkX2NoaWxkcmVuOgogICAgICAgIGFic29sdXRlX2RlYWRsaW5lcyA9IFtzdGFydGVkICsgcyBmb3IgcyBpbiBlbGFwc2VkX2NoaWxkcmVuXQoKICAgIHdoaWxlIG5vdCBjdHguaXNfc3RvcHBlZCgpOgogICAgICAgIG5vdyA9IHRpbWUubW9ub3RvbmljKCkKICAgICAgICBpZiBhYnNvbHV0ZV9kZWFkbGluZXMgYW5kIGFueShub3cgPj0gZGVhZGxpbmUgZm9yIGRlYWRsaW5lIGluIGFic29sdXRlX2RlYWRsaW5lcyk6CiAgICAgICAgICAgIHJldHVybiBUcnVlCgogICAgICAgIGZvciBjaGlsZCBpbiBjaGlsZHJlbjoKICAgICAgICAgICAga2luZCA9IHN0cihjaGlsZC5nZXQoImtpbmQiKSBvciAiIikuc3RyaXAoKS5sb3dlcigpCiAgICAgICAgICAgIGlmIGtpbmQgPT0gImNvbmRpdGlvbiIgYW5kIF9ldmFsX2NvbmRpdGlvbihjdHgsIGNoaWxkLmdldCgiY29uZGl0aW9uIikgb3Ige30pOgogICAgICAgICAgICAgICAgcmV0dXJuIFRydWUKICAgICAgICAgICAgaWYga2luZCBpbiAoIm5vbmUiLCAiIik6CiAgICAgICAgICAgICAgICByZXR1cm4gVHJ1ZQogICAgICAgIGN0eC5zbGVlcChQT0xMX1MpCiAgICByZXR1cm4gRmFsc2UKCgpkZWYgX3J1bl93YWl0KGN0eCwgd2FpdCk6CiAgICBpZiBub3QgaXNpbnN0YW5jZSh3YWl0LCBkaWN0KToKICAgICAgICByZXR1cm4gVHJ1ZQoKICAgIGtpbmQgPSBzdHIod2FpdC5nZXQoImtpbmQiKSBvciAibm9uZSIpLnN0cmlwKCkubG93ZXIoKQogICAgaWYga2luZCBpbiAoIm5vbmUiLCAiIik6CiAgICAgICAgcmV0dXJuIFRydWUKICAgIGlmIGtpbmQgPT0gImVsYXBzZWQiOgogICAgICAgIHJldHVybiBfd2FpdF9lbGFwc2VkKGN0eCwgd2FpdCkKICAgIGlmIGtpbmQgPT0gImNvbmRpdGlvbiI6CiAgICAgICAgcmV0dXJuIF93YWl0X2NvbmRpdGlvbihjdHgsIHdhaXQpCiAgICBpZiBraW5kID09ICJhbGxfb2YiOgogICAgICAgIGZvciBjaGlsZCBpbiAod2FpdC5nZXQoImNoaWxkcmVuIikgb3IgW10pOgogICAgICAgICAgICBpZiBpc2luc3RhbmNlKGNoaWxkLCBkaWN0KSBhbmQgbm90IF9ydW5fd2FpdChjdHgsIGNoaWxkKToKICAgICAgICAgICAgICAgIHJldHVybiBGYWxzZQogICAgICAgIHJldHVybiBUcnVlCiAgICBpZiBraW5kID09ICJhbnlfb2YiOgogICAgICAgIHJldHVybiBfd2FpdF9hbnlfb2YoY3R4LCB3YWl0KQoKICAgICMgRmFsbGJhY2sgZm9yIHVuc3VwcG9ydGVkIHdhaXQga2luZHMuCiAgICBjdHgubG9nKGYiVW5zdXBwb3J0ZWQgd2FpdC5raW5kICd7a2luZH0nLCBjb250aW51aW5nIikKICAgIHJldHVybiBUcnVlCgoKZGVmIF9ydW5fYWN0aW9ucyhjdHgsIGFjdGlvbnMpOgogICAgZm9yIGFjdGlvbiBpbiBhY3Rpb25zIG9yIFtdOgogICAgICAgIGlmIGN0eC5pc19zdG9wcGVkKCk6CiAgICAgICAgICAgIHJldHVybiBGYWxzZQogICAgICAgIGlmIG5vdCBpc2luc3RhbmNlKGFjdGlvbiwgZGljdCk6CiAgICAgICAgICAgIGNvbnRpbnVlCgogICAgICAgIGtpbmQgPSBzdHIoYWN0aW9uLmdldCgia2luZCIpIG9yICJ3cml0ZSIpLnN0cmlwKCkubG93ZXIoKQogICAgICAgIHRhcmdldCA9IHN0cihhY3Rpb24uZ2V0KCJ0YXJnZXQiKSBvciAiIikuc3RyaXAoKQogICAgICAgIHZhbHVlID0gYWN0aW9uLmdldCgidmFsdWUiKQoKICAgICAgICBpZiBraW5kID09ICJ3cml0ZSI6CiAgICAgICAgICAgIGlmIG5vdCB0YXJnZXQ6CiAgICAgICAgICAgICAgICBjb250aW51ZQogICAgICAgICAgICBjdHgucmVxdWVzdF9jb250cm9sKHRhcmdldCkKICAgICAgICAgICAgY3R4LndyaXRlX3NldHBvaW50KHRhcmdldCwgdmFsdWUpCiAgICAgICAgICAgIGNvbnRpbnVlCgogICAgICAgIGlmIGtpbmQgPT0gInJhbXAiOgogICAgICAgICAgICBpZiBub3QgdGFyZ2V0OgogICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgY3R4LnJlcXVlc3RfY29udHJvbCh0YXJnZXQpCiAgICAgICAgICAgIGR1cmF0aW9uX3MgPSBtYXgoMC4wLCBfdG9fZmxvYXQoYWN0aW9uLmdldCgiZHVyYXRpb25fcyIpLCAwLjApKQogICAgICAgICAgICBpZiBkdXJhdGlvbl9zIDw9IDAuMDoKICAgICAgICAgICAgICAgIGN0eC53cml0ZV9zZXRwb2ludCh0YXJnZXQsIHZhbHVlKQogICAgICAgICAgICAgICAgY29udGludWUKCiAgICAgICAgICAgIHN0YXJ0X3ZhbHVlID0gY3R4LnJlYWRfdmFsdWUodGFyZ2V0KQogICAgICAgICAgICBpZiBzdGFydF92YWx1ZSBpcyBOb25lOgogICAgICAgICAgICAgICAgc3RhcnRfdmFsdWUgPSB2YWx1ZQogICAgICAgICAgICBzdGFydF9mID0gX3RvX2Zsb2F0KHN0YXJ0X3ZhbHVlLCB2YWx1ZSkKICAgICAgICAgICAgZW5kX2YgPSBfdG9fZmxvYXQodmFsdWUsIHN0YXJ0X3ZhbHVlKQogICAgICAgICAgICBzbGljZXMgPSBtYXgoMSwgaW50KGR1cmF0aW9uX3MgLyBQT0xMX1MpKQogICAgICAgICAgICBmb3IgaSBpbiByYW5nZSgxLCBzbGljZXMgKyAxKToKICAgICAgICAgICAgICAgIGlmIGN0eC5pc19zdG9wcGVkKCk6CiAgICAgICAgICAgICAgICAgICAgcmV0dXJuIEZhbHNlCiAgICAgICAgICAgICAgICBmcmFjdGlvbiA9IGZsb2F0KGkpIC8gZmxvYXQoc2xpY2VzKQogICAgICAgICAgICAgICAgY3R4LndyaXRlX3NldHBvaW50KHRhcmdldCwgc3RhcnRfZiArICgoZW5kX2YgLSBzdGFydF9mKSAqIGZyYWN0aW9uKSkKICAgICAgICAgICAgICAgIGN0eC5zbGVlcChkdXJhdGlvbl9zIC8gZmxvYXQoc2xpY2VzKSkKICAgICAgICAgICAgY29udGludWUKCiAgICAgICAgaWYga2luZCA9PSAidGFrZV9sb2Fkc3RlcCI6CiAgICAgICAgICAgICMgVHJpZ2dlci1vbmx5IGFjdGlvbiBpbiBzY2hlZHVsZSBydW50aW1lOyBuby1vcCBpbiBzY3JpcHRlZCBtb2RlLgogICAgICAgICAgICBjb250aW51ZQoKICAgICAgICBjdHgubG9nKGYiVW5zdXBwb3J0ZWQgYWN0aW9uLmtpbmQgJ3traW5kfScsIHNraXBwaW5nIikKICAgIHJldHVybiBUcnVlCgoKZGVmIHJ1bihjdHgpOgogICAgcHJvZ3JhbSA9IGpzb24ubG9hZHMoY3R4LmdldF9hcnRpZmFjdCgiZGF0YS9wcm9ncmFtLmpzb24iKS5kZWNvZGUoInV0Zi04IikpCiAgICBmb3Igc3RlcCBpbiBfaXRlcl9zdGVwcyhwcm9ncmFtKToKICAgICAgICBpZiBub3QgX3J1bl9hY3Rpb25zKGN0eCwgc3RlcC5nZXQoImFjdGlvbnMiKSBvciBbXSk6CiAgICAgICAgICAgIHJldHVybgogICAgICAgIGlmIG5vdCBfcnVuX3dhaXQoY3R4LCBzdGVwLmdldCgid2FpdCIpIG9yIHsia2luZCI6ICJub25lIn0pOgogICAgICAgICAgICByZXR1cm4K",
+      "size": 5700
+    },
+    {
+      "path": "data/program.json",
+      "encoding": "base64",
+      "content_b64": "ewogICJpZCI6ICJsYWdlci0xaC10ZXN0LXBsYW4iLAogICJuYW1lIjogIkxhZ2VyIDEgaG91ciBzcGVkLXVwIGZlcm1lbnRhdGlvbiIsCiAgIm1lYXN1cmVtZW50X2NvbmZpZyI6IHsKICAgICJoeiI6IDEwLjAsCiAgICAib3V0cHV0X2RpciI6ICJkYXRhL21lYXN1cmVtZW50cyIsCiAgICAib3V0cHV0X2Zvcm1hdCI6ICJwYXJxdWV0IiwKICAgICJzZXNzaW9uX25hbWUiOiBudWxsLAogICAgImxvYWRzdGVwX2R1cmF0aW9uX3NlY29uZHMiOiA0NS4wCiAgfSwKICAic2V0dXBfc3RlcHMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJzZXR1cC0xIiwKICAgICAgIm5hbWUiOiAiUmVxdWVzdCBjb250cm9sIG9mIGFsbCBhY3R1YXRvcnMiLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ3cml0ZSIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF90ZW1wX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAxMCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3ByZXNfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDAuMiwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3NwZF9BZ2l0YXRvciIsCiAgICAgICAgICAidmFsdWUiOiAxNSwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X2FsbG93X0dhcyIsCiAgICAgICAgICAidmFsdWUiOiAxLAogICAgICAgICAgImR1cmF0aW9uX3MiOiBudWxsLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiZWxhcHNlZCIsCiAgICAgICAgImR1cmF0aW9uX3MiOiAzMC4wCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfQogIF0sCiAgInBsYW5fc3RlcHMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTEiLAogICAgICAibmFtZSI6ICJDaGlsbCB3b3J0IHRvIGxhZ2VyIHBpdGNoIHRlbXAiLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJyYW1wIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3RlbXBfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDEwLAogICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3NwZF9BZ2l0YXRvciIsCiAgICAgICAgICAidmFsdWUiOiAyMCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogInRlbXAiLAogICAgICAgICAgICAgICJvcGVyYXRvciI6ICI8PSIsCiAgICAgICAgICAgICAgInRocmVzaG9sZCI6IDE0LjEsCiAgICAgICAgICAgICAgImZvcl9zIjogMzAuMAogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9LAogICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTIiLAogICAgICAibmFtZSI6ICJIb2xkIGF0IHBpdGNoIHRlbXAgYW5kIGFsbG93IHByZXNzdXJlIHRvIHN0YXkgbG93IiwKICAgICAgImFjdGlvbnMiOiBbCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAicmFtcCIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9wcmVzX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAwLjMsCiAgICAgICAgICAiZHVyYXRpb25fcyI6IDEyMC4wLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiYWxsX29mIiwKICAgICAgICAiY2hpbGRyZW4iOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJraW5kIjogImVsYXBzZWQiLAogICAgICAgICAgICAiZHVyYXRpb25fcyI6IDYwMC4wCiAgICAgICAgICB9LAogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJjb25kaXRpb24iLAogICAgICAgICAgICAiY29uZGl0aW9uIjogewogICAgICAgICAgICAgICJzb3VyY2UiOiAicHJlc3N1cmUiLAogICAgICAgICAgICAgICJvcGVyYXRvciI6ICI8PSIsCiAgICAgICAgICAgICAgInRocmVzaG9sZCI6IDAuNSwKICAgICAgICAgICAgICAiZm9yX3MiOiA2MC4wCiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfSwKICAgIHsKICAgICAgImlkIjogInBsYW4tMyIsCiAgICAgICJuYW1lIjogIlByaW1hcnkgZmVybWVudGF0aW9uIGhvbGQiLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJyYW1wIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3RlbXBfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDExLAogICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3NwZF9BZ2l0YXRvciIsCiAgICAgICAgICAidmFsdWUiOiAxOCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogInRha2VfbG9hZHN0ZXAiLAogICAgICAgICAgInRhcmdldCI6IG51bGwsCiAgICAgICAgICAidmFsdWUiOiBudWxsLAogICAgICAgICAgImR1cmF0aW9uX3MiOiA0NS4wLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgICAgICJ0aW1pbmciOiAib25fdHJpZ2dlciIsCiAgICAgICAgICAgICJ0cmlnZ2VyX3dhaXQiOiB7CiAgICAgICAgICAgICAgImtpbmQiOiAicmlzaW5nIiwKICAgICAgICAgICAgICAiY2hpbGQiOiB7CiAgICAgICAgICAgICAgICAia2luZCI6ICJhbnlfb2YiLAogICAgICAgICAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgICAgICAgICB7CiAgICAgICAgICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgICAgICAgICAiY29uZGl0aW9uIjogewogICAgICAgICAgICAgICAgICAgICAgInNvdXJjZSI6ICJicmV3Y2FuLmRlbnNpdHkuMCIsCiAgICAgICAgICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPD0iLAogICAgICAgICAgICAgICAgICAgICAgInRocmVzaG9sZCI6IDEuMDQKICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgIH0sCiAgICAgICAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgICAgICAia2luZCI6ICJjb25kaXRpb24iLAogICAgICAgICAgICAgICAgICAgICJjb25kaXRpb24iOiB7CiAgICAgICAgICAgICAgICAgICAgICAic291cmNlIjogInByZXNzdXJlIiwKICAgICAgICAgICAgICAgICAgICAgICJvcGVyYXRvciI6ICI+PSIsCiAgICAgICAgICAgICAgICAgICAgICAidGhyZXNob2xkIjogMC44CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBdCiAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgfQogICAgICBdLAogICAgICAid2FpdCI6IHsKICAgICAgICAia2luZCI6ICJhbnlfb2YiLAogICAgICAgICJjaGlsZHJlbiI6IFsKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogImJyZXdjYW4uZGVuc2l0eS4wIiwKICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPD0iLAogICAgICAgICAgICAgICJ0aHJlc2hvbGQiOiAxLjA0LAogICAgICAgICAgICAgICJmb3JfcyI6IDYwLjAKICAgICAgICAgICAgfQogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiZWxhcHNlZCIsCiAgICAgICAgICAgICJkdXJhdGlvbl9zIjogOTAwLjAKICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfSwKICAgIHsKICAgICAgImlkIjogInBsYW4tNCIsCiAgICAgICJuYW1lIjogIlJhaXNlIHNwdW5kaW5nIHByZXNzdXJlIGR1cmluZyBhY3RpdmUgZmVybWVudGF0aW9uIiwKICAgICAgImFjdGlvbnMiOiBbCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAicmFtcCIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9wcmVzX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAxLAogICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiA2MDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogInByZXNzdXJlIiwKICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPj0iLAogICAgICAgICAgICAgICJ0aHJlc2hvbGQiOiAwLjksCiAgICAgICAgICAgICAgImZvcl9zIjogNjAuMAogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9LAogICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTUiLAogICAgICAibmFtZSI6ICJEaWFjZXR5bCByZXN0IiwKICAgICAgImFjdGlvbnMiOiBbCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAicmFtcCIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF90ZW1wX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAxNSwKICAgICAgICAgICJkdXJhdGlvbl9zIjogNjAwLjAsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ3cml0ZSIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9zcGRfQWdpdGF0b3IiLAogICAgICAgICAgInZhbHVlIjogMTAsCiAgICAgICAgICAiZHVyYXRpb25fcyI6IG51bGwsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ0YWtlX2xvYWRzdGVwIiwKICAgICAgICAgICJ0YXJnZXQiOiBudWxsLAogICAgICAgICAgInZhbHVlIjogbnVsbCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogNDUuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjogewogICAgICAgICAgICAidGltaW5nIjogIm9uX3RyaWdnZXIiLAogICAgICAgICAgICAidHJpZ2dlcl93YWl0IjogewogICAgICAgICAgICAgICJraW5kIjogImZhbGxpbmciLAogICAgICAgICAgICAgICJjaGlsZCI6IHsKICAgICAgICAgICAgICAgICJraW5kIjogImNvbmRpdGlvbiIsCiAgICAgICAgICAgICAgICAiY29uZGl0aW9uIjogewogICAgICAgICAgICAgICAgICAic291cmNlIjogInNldF9hbGxvd19HYXMiLAogICAgICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPT0iLAogICAgICAgICAgICAgICAgICAidGhyZXNob2xkIjogMQogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgfQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiYW55X29mIiwKICAgICAgICAiY2hpbGRyZW4iOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJraW5kIjogImNvbmRpdGlvbiIsCiAgICAgICAgICAgICJjb25kaXRpb24iOiB7CiAgICAgICAgICAgICAgInNvdXJjZSI6ICJicmV3Y2FuLmRlbnNpdHkuMCIsCiAgICAgICAgICAgICAgIm9wZXJhdG9yIjogIjw9IiwKICAgICAgICAgICAgICAidGhyZXNob2xkIjogMS4wMTgsCiAgICAgICAgICAgICAgImZvcl9zIjogMTIwLjAKICAgICAgICAgICAgfQogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiZWxhcHNlZCIsCiAgICAgICAgICAgICJkdXJhdGlvbl9zIjogOTAwLjAKICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfSwKICAgIHsKICAgICAgImlkIjogInBsYW4tNiIsCiAgICAgICJuYW1lIjogIlN0YWJpbGl6ZSBiZWZvcmUgY3Jhc2giLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJyYW1wIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3ByZXNfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDEuMiwKICAgICAgICAgICJkdXJhdGlvbl9zIjogMTgwLjAsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ3cml0ZSIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9hbGxvd19HYXMiLAogICAgICAgICAgInZhbHVlIjogMSwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogInByZXNzdXJlIiwKICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPj0iLAogICAgICAgICAgICAgICJ0aHJlc2hvbGQiOiAxLjEsCiAgICAgICAgICAgICAgImZvcl9zIjogNjAuMAogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9LAogICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTciLAogICAgICAibmFtZSI6ICJDb2xkIGNyYXNoIHJhbXAiLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJyYW1wIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3RlbXBfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDIsCiAgICAgICAgICAiZHVyYXRpb25fcyI6IDkwMC4wLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAid3JpdGUiLAogICAgICAgICAgInRhcmdldCI6ICJzZXRfc3BkX0FnaXRhdG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDUsCiAgICAgICAgICAiZHVyYXRpb25fcyI6IG51bGwsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ0YWtlX2xvYWRzdGVwIiwKICAgICAgICAgICJ0YXJnZXQiOiBudWxsLAogICAgICAgICAgInZhbHVlIjogbnVsbCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogNDUuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjogewogICAgICAgICAgICAidGltaW5nIjogIm9uX3RyaWdnZXIiLAogICAgICAgICAgICAidHJpZ2dlcl93YWl0IjogewogICAgICAgICAgICAgICJraW5kIjogInB1bHNlIiwKICAgICAgICAgICAgICAiY2hpbGQiOiB7CiAgICAgICAgICAgICAgICAia2luZCI6ICJjb25kaXRpb24iLAogICAgICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAgICAgInNvdXJjZSI6ICJ0ZW1wIiwKICAgICAgICAgICAgICAgICAgIm9wZXJhdG9yIjogIjw9IiwKICAgICAgICAgICAgICAgICAgInRocmVzaG9sZCI6IDUKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICB9LAogICAgICAgICAgICAgICJob2xkX3MiOiAzMC4wCiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiAxMjAwLjAKICAgICAgICAgIH0sCiAgICAgICAgICB7CiAgICAgICAgICAgICJraW5kIjogImNvbmRpdGlvbiIsCiAgICAgICAgICAgICJjb25kaXRpb24iOiB7CiAgICAgICAgICAgICAgInNvdXJjZSI6ICJ0ZW1wIiwKICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPD0iLAogICAgICAgICAgICAgICJ0aHJlc2hvbGQiOiAxNC4xLAogICAgICAgICAgICAgICJmb3JfcyI6IDEyMC4wCiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfSwKICAgIHsKICAgICAgImlkIjogInBsYW4tOCIsCiAgICAgICJuYW1lIjogIkZpbmFsIGNvbGQgY3Jhc2ggaG9sZCIsCiAgICAgICJhY3Rpb25zIjogWwogICAgICAgIHsKICAgICAgICAgICJraW5kIjogInJhbXAiLAogICAgICAgICAgInRhcmdldCI6ICJzZXRfcHJlc19GZXJtZW50b3IiLAogICAgICAgICAgInZhbHVlIjogMC44LAogICAgICAgICAgImR1cmF0aW9uX3MiOiAxMjAuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3NwZF9BZ2l0YXRvciIsCiAgICAgICAgICAidmFsdWUiOiAwLAogICAgICAgICAgImR1cmF0aW9uX3MiOiBudWxsLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiYWxsX29mIiwKICAgICAgICAiY2hpbGRyZW4iOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJraW5kIjogImVsYXBzZWQiLAogICAgICAgICAgICAiZHVyYXRpb25fcyI6IDkwMC4wCiAgICAgICAgICB9LAogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJjb25kaXRpb24iLAogICAgICAgICAgICAiY29uZGl0aW9uIjogewogICAgICAgICAgICAgICJzb3VyY2UiOiAiYnJld2Nhbi5kZW5zaXR5LjAiLAogICAgICAgICAgICAgICJvcGVyYXRvciI6ICI8PSIsCiAgICAgICAgICAgICAgInRocmVzaG9sZCI6IDEuMDEyLAogICAgICAgICAgICAgICJmb3JfcyI6IDEyMC4wCiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfQogIF0KfQ==",
+      "size": 10264
+    },
+    {
+      "path": "validation/validation.json",
+      "encoding": "base64",
+      "content_b64": "ewogICJ0eXBlIjogImxhYmJyZXcudmFsaWRhdGlvbi1zcGVjIiwKICAidmVyc2lvbiI6ICIxLjAiCn0=",
+      "size": 59
+    },
+    {
+      "path": "editor/spec.json",
+      "encoding": "base64",
+      "content_b64": "ewogICJ0eXBlIjogImxhYmJyZXcuZWRpdG9yLXNwZWMiLAogICJ2ZXJzaW9uIjogIjEuMCIKfQ==",
+      "size": 55
+    }
+  ],
+  "metadata": {
+    "created_by": "tools.convert_excel_to_scenario_package",
+    "import_source": "excel",
+    "source_filename": "Example_Schedule.xlsx"
+  }
+}

@@ -101,7 +101,7 @@ export function CustomLayoutTab({
   selected,
   customTab,
   editMode,
-  scheduleProps,
+  scenarioProps,
   dataProps,
   controlProps,
   archiveProps,
@@ -135,7 +135,7 @@ export function CustomLayoutTab({
   );
 
   const moduleContext = {
-    scheduleProps,
+    scenarioProps,
     dataProps,
     controlProps,
     archiveProps,
@@ -146,7 +146,7 @@ export function CustomLayoutTab({
 
   const availableModules = useMemo(
     () => getWorkspaceModules(moduleContext),
-    [scheduleProps, dataProps, controlProps, archiveProps, rulesProps, systemProps, selected],
+    [scenarioProps, dataProps, controlProps, archiveProps, rulesProps, systemProps, selected],
   );
 
   const categories = useMemo(

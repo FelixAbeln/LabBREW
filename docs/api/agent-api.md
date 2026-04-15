@@ -40,10 +40,10 @@ Returns static node metadata and the current service map.
       "base_url": "http://127.0.0.1:8767",
       "docs": "docs/api/control-service-api.md"
     },
-    "schedule_service": {
+    "scenario_service": {
       "healthy": true,
-      "base_url": "http://127.0.0.1:8768",
-      "docs": "docs/api/schedule-service-api.md"
+      "base_url": "http://127.0.0.1:8770",
+      "docs": "docs/implementation/scenario-service-integration.md"
     },
     "data_service": {
       "healthy": true,
@@ -106,12 +106,12 @@ Returns a high-level availability summary computed by the Supervisor.
       "table_prefix": "control_rules"
     }
   },
-  "schedule_available": true,
+  "scenario_available": true,
   "control_available": true,
   "data_available": true,
   "services": {
-    "schedule_service": {
-      "name": "schedule_service",
+    "scenario_service": {
+      "name": "scenario_service",
       "healthy": true,
       "outdated": false
     },
@@ -325,7 +325,7 @@ Transparently proxies the request to the named service.
 
 | Parameter | Description |
 |---|---|
-| `service_name` | Registered service name, e.g. `control_service`, `schedule_service` |
+| `service_name` | Registered service name, e.g. `control_service`, `scenario_service` |
 | `service_path` | Path on the target service, e.g. `control/read/reactor.temp` |
 
 The Agent looks up `service_name` in its service map. If the service is not present or not healthy it returns `404`. Otherwise it forwards the request (method, headers, body, query parameters) and returns the JSON response verbatim.
@@ -353,12 +353,12 @@ These are intended for multi-device topologies where one service on node A must 
 | `/rules[/{path}]` | `control_service` at `rules/{path}` |
 | `/system[/{path}]` | `control_service` at `system/{path}` |
 | `/ws[/{path}]` | `control_service` at `ws/{path}` |
-| `/schedule[/{path}]` | `schedule_service` at `schedule/{path}` |
+| `/scenario[/{path}]` | `scenario_service` at `scenario/{path}` |
 | `/data[/{path}]` | `data_service` at `{path}` |
 
 ### Example
 
-If schedule service on node A is configured with `--data-backend-host <node-b-agent>` and `--data-backend-port 8780`, calls to `http://<node-b-agent>:8780/data/...` are forwarded by node B's Agent to node B's `data_service`.
+If scenario service on node A is configured with `--data-backend-host <node-b-agent>` and `--data-backend-port 8780`, calls to `http://<node-b-agent>:8780/data/...` are forwarded by node B's Agent to node B's `data_service`.
 
 This gives a service-to-agent-to-service hop for cross-node HTTP dependencies.
 

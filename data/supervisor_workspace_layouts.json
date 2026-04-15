@@ -1,6 +1,6 @@
 {
   "01": {
-    "active_tab": "custom-tab-fo65jvll",
+    "active_tab": "custom-tab-m9vyyzj5",
     "control_card_order": [],
     "fermenter_name": "Test",
     "tabs": [
@@ -54,7 +54,7 @@
             "id": "widget-f9fc6vhe",
             "rows": 2,
             "type": "control-field:manual%3Acustom-map:manual_set_pres_Fermentor",
-            "x": 9,
+            "x": 5,
             "y": 2
           },
           {
@@ -62,7 +62,7 @@
             "id": "widget-t928g3qj",
             "rows": 2,
             "type": "control-field:manual%3Acustom-map:manual_set_temp_Fermentor",
-            "x": 5,
+            "x": 9,
             "y": 2
           },
           {
@@ -72,6 +72,14 @@
             "type": "control-field:source%3ABrewtools:auto%3Abrewcan.pressure.0.calibrate",
             "x": 9,
             "y": 4
+          },
+          {
+            "cols": 6,
+            "id": "widget-fptzsdag",
+            "rows": 1,
+            "type": "scenario-controls",
+            "x": 7,
+            "y": 1
           }
         ]
       },
@@ -110,10 +118,42 @@
             "type": "schedule-events",
             "x": 1,
             "y": 9
+          },
+          {
+            "cols": 12,
+            "id": "widget-o6stwkgb",
+            "rows": 1,
+            "type": "scenario-controls",
+            "x": 1,
+            "y": 4
+          },
+          {
+            "cols": 12,
+            "id": "widget-zhc2e9d1",
+            "rows": 3,
+            "type": "scenario-summary",
+            "x": 1,
+            "y": 1
+          },
+          {
+            "cols": 12,
+            "id": "widget-wa0c4oyq",
+            "rows": 4,
+            "type": "scenario-package",
+            "x": 1,
+            "y": 5
+          },
+          {
+            "cols": 12,
+            "id": "widget-4s01q5j5",
+            "rows": 11,
+            "type": "scenario-events",
+            "x": 1,
+            "y": 9
           }
         ]
       }
     ],
-    "updated_at": "2026-04-14T19:57:55.320712+00:00"
+    "updated_at": "2026-04-15T19:29:27.804778+00:00"
   }
 }
