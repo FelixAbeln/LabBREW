@@ -317,3 +317,14 @@ def test_parquet_writer_write_batch_exception_branch(tmp_path, monkeypatch: pyte
     assert writer._sample_buffer == []
     assert writer._fallback_writer is not None
     assert writer._fallback_writer.sample_count == 1
+
+
+def test_parquet_writer_normalizes_numeric_variants_to_float(tmp_path) -> None:
+    writer = ParquetWriter(str(tmp_path), "session", ["temp"])
+
+    assert writer._normalize_value_for_parquet(True) == 1.0
+    assert writer._normalize_value_for_parquet(False) == 0.0
+    assert writer._normalize_value_for_parquet(5) == 5.0
+    assert writer._normalize_value_for_parquet(5.25) == 5.25
+    assert writer._normalize_value_for_parquet("12.5") == 12.5
+    assert writer._normalize_value_for_parquet("not-a-number") == "not-a-number"

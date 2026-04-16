@@ -9,6 +9,7 @@ RunnerContext instance before blocking.
 from __future__ import annotations
 
 import base64
+import json
 import threading
 import time
 import zipfile
@@ -235,6 +236,13 @@ class TestRunnerContext:
             output_format="jsonl",
             session_name="s1",
             include_files=None,
+            include_payloads=[
+                {
+                    "name": "scenario-package.lbpkg",
+                    "content_b64": base64.b64encode(b"test-bytes").decode("ascii"),
+                    "media_type": "application/octet-stream",
+                }
+            ],
         ).get("ok") is True
         assert ctx.start_measurement().get("ok") is True
         assert ctx.take_loadstep(duration_seconds=10.0, loadstep_name="ls1", parameters=None).get("ok") is True
@@ -242,6 +250,8 @@ class TestRunnerContext:
 
         assert any(call == "start" for call in calls)
         assert any(call == "stop" for call in calls)
+        setup_call = next(call for call in calls if isinstance(call, tuple) and call[0] == "setup")
+        assert "include_payloads" in setup_call[1]
 
 
 # ---------------------------------------------------------------------------
@@ -471,13 +481,13 @@ class TestScenarioRuntimeScriptedRunner:
         assert result["ok"] is False
         assert any(e["code"] == "entrypoint_missing" for e in result["errors"])
 
-    def test_compile_package_unknown_runner_kind_is_ignored(self):
+    def test_compile_package_unknown_runner_kind_is_rejected(self):
         rt = _make_runtime()
         payload = _make_package_payload("scripted", TRIVIAL_RUNNER)
         payload["runner"]["kind"] = "does_not_exist"
         result = rt.compile_package(payload)
-        assert result["ok"] is True
-        assert any(w["code"] == "runner_kind_ignored" for w in result["warnings"])
+        assert result["ok"] is False
+        assert any(e["code"] == "runner_kind_unsupported" for e in result["errors"])
 
     def test_load_package_sets_active_runner_kind(self):
         rt = _make_runtime()
@@ -604,12 +614,12 @@ class TestScenarioRuntimeScriptedRunner:
         st = rt.status()
         assert st["runner_status"]["state"] == "completed"
 
-    def test_non_scripted_runner_kind_is_ignored(self):
+    def test_non_scripted_runner_kind_is_rejected(self):
         rt = _make_runtime()
         payload = _make_package_payload("declarative", TRIVIAL_RUNNER)
         result = rt.compile_package(payload)
-        assert result["ok"] is True
-        assert any(w["code"] == "runner_kind_ignored" for w in result["warnings"])
+        assert result["ok"] is False
+        assert any(e["code"] == "runner_kind_unsupported" for e in result["errors"])
 
     def test_scripted_package_is_restored_after_restart(self, tmp_path: Path):
         state_store = JsonScenarioStateStore(path=tmp_path / "scenario_state.json")
@@ -625,6 +635,115 @@ class TestScenarioRuntimeScriptedRunner:
         assert status["runner_status"]["state"] == "idle"
         assert rt2.start_run()["ok"] is True
         rt2.stop_run()
+
+    def test_measurement_auto_start_for_non_excel_custom_script(self, tmp_path: Path):
+        custom_script = "def run(ctx):\n    ctx.log('custom runner active')\n"
+        payload = _make_package_payload("scripted", custom_script)
+        payload["id"] = "custom-script-pkg"
+        payload["program"] = {
+            "id": "custom-script-program",
+            "measurement_config": {
+                "hz": 7.5,
+                "output_dir": "data/measurements",
+                "output_format": "jsonl",
+                "session_name": "custom-session",
+                "parameters": ["temp", "pressure"],
+            },
+        }
+
+        class _CC:
+            def __init__(self):
+                self.snapshots = 0
+
+            def write(self, t, v, o):
+                _ = (t, v, o)
+
+            def request_control(self, t, o):
+                _ = (t, o)
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+            def read(self, target):
+                _ = target
+                return {"value": 0.0}
+
+            def snapshot(self, targets=None):
+                _ = targets
+                self.snapshots += 1
+                return {"values": {"temp": 20.0, "pressure": 1.0}}
+
+        class _DC:
+            def __init__(self):
+                self.recording = False
+                self.calls = []
+
+            def status(self):
+                return {"ok": True, "recording": self.recording}
+
+            def setup_measurement(self, **payload):
+                self.calls.append(("setup", payload))
+                return {"ok": True}
+
+            def measure_start(self):
+                self.calls.append(("start", {}))
+                self.recording = True
+                return {"ok": True}
+
+            def measure_stop(self):
+                self.calls.append(("stop", {}))
+                self.recording = False
+                return {"ok": True, "archive_file": str(tmp_path / "x.zip")}
+
+            def take_loadstep(self, **payload):
+                self.calls.append(("loadstep", payload))
+                return {"ok": True}
+
+        rt = ScenarioRuntime(
+            control_client=_CC(),
+            data_client=_DC(),
+            state_store=JsonScenarioStateStore(path=tmp_path / "scenario_state.json"),
+        )
+        assert rt.load_package(payload)["ok"] is True
+        assert rt.start_run()["ok"] is True
+        runner = rt._scripted_runner
+        assert runner is not None
+        runner._thread.join(timeout=3.0)
+        status = rt.status()
+        assert status["runner_status"]["state"] == "completed"
+
+        calls = rt._data_client.calls
+        assert any(name == "setup" for name, _ in calls)
+        assert any(name == "start" for name, _ in calls)
+        assert any(name == "stop" for name, _ in calls)
+        setup_payload = next(payload for name, payload in calls if name == "setup")
+        include_files = list(setup_payload.get("include_files") or [])
+        include_payloads = list(setup_payload.get("include_payloads") or [])
+
+        assert any(
+            item.endswith("custom-session.run.log")
+            or (item.endswith(".run.log") and "custom-session_" in item)
+            for item in include_files
+        )
+        package_payload = next(
+            item for item in include_payloads
+            if str(item.get("name", "")).endswith(".lbpkg")
+        )
+        package_blob = base64.b64decode(package_payload["content_b64"])
+        with zipfile.ZipFile(io.BytesIO(package_blob), "r") as archive:
+            manifest = msgpack.unpackb(
+                archive.read("scenario.package.msgpack"),
+                raw=False,
+            )
+            assert manifest.get("id") == "custom-script-pkg"
+            assert manifest.get("runner", {}).get("kind") == "scripted"
+            assert manifest.get("endpoint_code", {}).get("entrypoint") == "bin/runner.py"
+            assert manifest.get("validation", {}).get("artifact") == "validation/validation.json"
+            assert manifest.get("editor_spec", {}).get("artifact") == "editor/spec.json"
+            assert manifest.get("program", {}).get("id") == "custom-script-program"
+            assert "bin/runner.py" in archive.namelist()
+            assert "validation/validation.json" in archive.namelist()
+            assert "editor/spec.json" in archive.namelist()
 
 
 # ---------------------------------------------------------------------------

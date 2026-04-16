@@ -79,6 +79,9 @@ def test_parse_schedule_workbook_builds_steps_and_measurement_defaults() -> None
             ("id", "sched-42"),
             ("name", "Lager"),
             ("measurement_hz", "12.5"),
+            ("package_version", "1.2.3"),
+            ("package_description", "Imported from Excel meta"),
+            ("package_tags", "lager, test"),
             ("measurement_output_format", "jsonl"),
             ("measurement_name", "batch-a"),
             ("loadstep_duration_seconds", "45"),
@@ -109,6 +112,13 @@ def test_parse_schedule_workbook_builds_steps_and_measurement_defaults() -> None
 
     assert payload["id"] == "sched-42"
     assert payload["name"] == "Lager"
+    assert payload["package_defaults"] == {
+        "id": "sched-42",
+        "name": "Lager",
+        "version": "1.2.3",
+        "description": "Imported from Excel meta",
+        "tags": ["lager", "test"],
+    }
     assert payload["measurement_config"] == {
         "hz": 12.5,
         "loadstep_duration_seconds": 45.0,
@@ -133,7 +143,7 @@ def test_parse_schedule_workbook_builds_steps_and_measurement_defaults() -> None
 
 
 def test_parse_schedule_workbook_uses_filename_and_hz_fallbacks() -> None:
-    workbook = _workbook_bytes(meta_rows=[("measurement_hz", "not-a-number")])
+    workbook = _workbook_bytes(meta_rows=[("measurement hz", "not-a-number")])
 
     payload = parser.parse_schedule_workbook(workbook, filename="default-name.xlsx")
 

@@ -31,6 +31,8 @@ from .storage.writer import FileWriter, FileWriterFactory
 # Sleep durations for the recording loop
 _IDLE_SLEEP_INTERVAL = 0.1  # 100ms when not recording (reduces idle CPU usage)
 _MIN_SAMPLE_SLEEP = 0.0005  # 0.5ms minimum sleep floor to prevent busy-waiting
+_PARQUET_VALIDATION_ATTEMPTS = 4
+_PARQUET_VALIDATION_RETRY_SLEEP_S = 0.02
 DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
 
 
@@ -196,9 +198,26 @@ class DataRecordingRuntime:
                     "but samples may be null until values appear."
                 )
 
-            # Generate session name if not provided
-            if not session_name:
-                session_name = f"measurement_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Always add a run stamp so repeated runs never collide on filenames.
+            requested_session_name = Path(str(session_name or "").strip()).name
+            if not requested_session_name:
+                requested_session_name = "measurement"
+            run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            session_name = f"{requested_session_name}_{run_stamp}"
+
+            normalized_include_files = [
+                str(item) for item in (include_files or []) if str(item).strip()
+            ]
+            remapped_include_files: list[str] = []
+            for item in normalized_include_files:
+                candidate = Path(str(item)).resolve()
+                if (
+                    requested_session_name
+                    and candidate.name.startswith(f"{requested_session_name}.")
+                ):
+                    suffix = candidate.name[len(requested_session_name) :]
+                    candidate = candidate.with_name(f"{session_name}{suffix}")
+                remapped_include_files.append(str(candidate))
 
             selected_format = str(output_format or "parquet").lower()
             if (
@@ -217,9 +236,7 @@ class DataRecordingRuntime:
                 output_dir=output_dir,
                 output_format=selected_format,
                 session_name=session_name,
-                include_files=[
-                    str(item) for item in (include_files or []) if str(item).strip()
-                ],
+                include_files=remapped_include_files,
                 include_payloads=self._normalize_include_payloads(include_payloads),
             )
             self._loadsteps_archive_format = selected_format
@@ -352,17 +369,23 @@ class DataRecordingRuntime:
         path = Path(raw_path).resolve()
         if not path.is_file():
             return False
-        try:
-            size = path.stat().st_size
-            if size < 8:
-                return False
-            with path.open("rb") as handle:
-                head = handle.read(4)
-                handle.seek(-4, os.SEEK_END)
-                tail = handle.read(4)
-            return head == b"PAR1" and tail == b"PAR1"
-        except OSError:
-            return False
+        delay_s = _PARQUET_VALIDATION_RETRY_SLEEP_S
+        for attempt in range(_PARQUET_VALIDATION_ATTEMPTS):
+            try:
+                size = path.stat().st_size
+                if size < 8:
+                    return False
+                with path.open("rb") as handle:
+                    head = handle.read(4)
+                    handle.seek(-4, os.SEEK_END)
+                    tail = handle.read(4)
+                return head == b"PAR1" and tail == b"PAR1"
+            except OSError:
+                if attempt >= _PARQUET_VALIDATION_ATTEMPTS - 1:
+                    return False
+                time.sleep(delay_s)
+                delay_s *= 2
+        return False
 
     def _quarantine_corrupt_file(self, file_path: str, reason: str) -> str:
         raw_path = str(file_path or "").strip()
@@ -795,9 +818,13 @@ class DataRecordingRuntime:
 
             entry = sessions.setdefault(session_name, {})
             if measurement_file:
-                entry["measurement"] = measurement_file
+                measurement_path = str(Path(measurement_file).resolve())
+                if Path(measurement_path).is_file() or "measurement" not in entry:
+                    entry["measurement"] = measurement_path
             if loadsteps_file:
-                entry["loadsteps"] = loadsteps_file
+                loadsteps_path = str(Path(loadsteps_file).resolve())
+                if Path(loadsteps_path).is_file() or "loadsteps" not in entry:
+                    entry["loadsteps"] = loadsteps_path
             entry.setdefault("run_log", str(target_dir / f"{session_name}.run.log"))
             entry.setdefault(
                 "schedule", str(target_dir / f"{session_name}.schedule.json")
@@ -868,14 +895,23 @@ class DataRecordingRuntime:
                 and not self._is_probably_valid_parquet_file(str(path))
             ):
                 # Try sibling fallbacks created by resilient writers/recovery.
+                original_parquet = path
                 sibling_jsonl = path.with_suffix(".jsonl")
                 sibling_csv = path.with_suffix(".csv")
                 if sibling_jsonl.is_file():
+                    self._quarantine_corrupt_file(
+                        str(original_parquet),
+                        "invalid parquet footer/header (repaired using sibling jsonl)",
+                    )
                     repaired.append(
                         f"{path.name} -> {sibling_jsonl.name}"
                     )
                     path = sibling_jsonl
                 elif sibling_csv.is_file():
+                    self._quarantine_corrupt_file(
+                        str(original_parquet),
+                        "invalid parquet footer/header (repaired using sibling csv)",
+                    )
                     repaired.append(
                         f"{path.name} -> {sibling_csv.name}"
                     )

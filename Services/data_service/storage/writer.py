@@ -95,8 +95,20 @@ class ParquetWriter(FileWriter):
 
     def _normalize_value_for_parquet(self, value: Any) -> Any:
         """Coerce complex values into stable scalar types for parquet serialization."""
-        if value is None or isinstance(value, (bool, int, float, str)):
+        if value is None:
             return value
+        if isinstance(value, bool):
+            return float(value)
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return ""
+            try:
+                return float(text)
+            except Exception:
+                return text
         if isinstance(value, datetime):
             return value.isoformat()
         if isinstance(value, set):

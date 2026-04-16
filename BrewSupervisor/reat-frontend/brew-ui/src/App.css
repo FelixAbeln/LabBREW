@@ -1829,6 +1829,12 @@ input {
 }
 
 .workbook-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.scenario-builder-content {
   display: grid;
   gap: 14px;
 }
@@ -1837,8 +1843,29 @@ input {
   width: min(1080px, 97vw);
 }
 
+.scenario-repo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scenario-repo-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scenario-repo-search {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.scenario-repo-tag {
+  width: 140px;
+}
+
 .scenario-editor-overlay {
-  background: rgba(7, 10, 16, 0.82);
+  background: rgba(0, 0, 0, 0.62);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   isolation: isolate;
@@ -1911,6 +1938,61 @@ body.modal-open .info-card {
 .scenario-artifact-controls {
   display: grid;
   gap: 10px;
+}
+
+.package-studio-section {
+  margin-top: 4px;
+}
+
+.package-repo-list {
+  display: grid;
+  gap: 8px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding: 2px 8px 2px 0;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  background: #0f172a;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+.package-repo-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.package-repo-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.package-repo-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+}
+
+.package-repo-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.42);
+}
+
+.package-repo-item {
+  border-bottom: 1px solid #1e293b;
+  border-radius: 0;
+  background: transparent;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.package-repo-item:last-child {
+  border-bottom: none;
+}
+
+.package-repo-meta {
+  display: grid;
+  gap: 4px;
 }
 
 .log-jump-button {

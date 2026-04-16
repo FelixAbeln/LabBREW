@@ -177,6 +177,29 @@ def test_atomic_write_text_file_fsync_dir_and_cleanup_unlink_oserror(tmp_path: P
         runtime._atomic_write_text_file(str(tmp_path / "boom.txt"), "x")
 
 
+def test_is_probably_valid_parquet_file_retries_transient_open_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _runtime(tmp_path)
+    parquet_path = tmp_path / "sess.parquet"
+    parquet_path.write_bytes(b"PAR1abcdPAR1")
+
+    real_open = Path.open
+    calls = {"count": 0}
+
+    def _flaky_open(self: Path, *args, **kwargs):
+        if self == parquet_path and calls["count"] < 2:
+            calls["count"] += 1
+            raise OSError("sharing violation")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", _flaky_open)
+    monkeypatch.setattr("Services.data_service.runtime.time.sleep", lambda _s: None)
+
+    assert runtime._is_probably_valid_parquet_file(str(parquet_path)) is True
+    assert calls["count"] == 2
+
+
 def test_build_session_archive_helpers_and_delete_error_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runtime = _runtime(tmp_path)
 

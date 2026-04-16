@@ -61,6 +61,7 @@ def test_runtime_records_samples_tracks_missing_parameters_and_finalizes_archive
         include_files=[str(extra_file)],
     )
     assert setup["ok"] is True
+    effective_session = setup["session_name"]
     assert runtime.measure_start()["ok"] is True
     assert runtime.take_loadstep(duration_seconds=0.5, loadstep_name="ls1")["ok"] is True
 
@@ -78,9 +79,9 @@ def test_runtime_records_samples_tracks_missing_parameters_and_finalizes_archive
 
     with zipfile.ZipFile(archive_path) as zf:
         names = sorted(zf.namelist())
-    assert names == ["archive-session.jsonl", "archive-session.loadsteps.jsonl", "notes.txt"]
-    assert not (tmp_path / "archive-session.jsonl").exists()
-    assert not (tmp_path / "archive-session.loadsteps.jsonl").exists()
+    assert names == [f"{effective_session}.jsonl", f"{effective_session}.loadsteps.jsonl", "notes.txt"]
+    assert not (tmp_path / f"{effective_session}.jsonl").exists()
+    assert not (tmp_path / f"{effective_session}.loadsteps.jsonl").exists()
 
 
 def test_archive_includes_inline_payload_members(tmp_path: Path) -> None:
@@ -102,6 +103,7 @@ def test_archive_includes_inline_payload_members(tmp_path: Path) -> None:
     )
 
     assert setup["ok"] is True
+    effective_session = setup["session_name"]
     assert runtime.measure_start()["ok"] is True
     runtime._record_sample()
     result = runtime.measure_stop()
@@ -112,10 +114,44 @@ def test_archive_includes_inline_payload_members(tmp_path: Path) -> None:
         names = sorted(zf.namelist())
         payload = zf.read("scenario.package.snapshot.json").decode("utf-8")
 
-    assert "inline-payload.jsonl" in names
-    assert "inline-payload.loadsteps.jsonl" in names
+    assert f"{effective_session}.jsonl" in names
+    assert f"{effective_session}.loadsteps.jsonl" in names
     assert "scenario.package.snapshot.json" in names
     assert payload == package_json
+
+
+def test_setup_measurement_remaps_session_scoped_include_file_to_stamped_name(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}, values={"temp": 21.0}))
+    requested_log = tmp_path / "lager-1h-test-plan.run.log"
+
+    setup = runtime.setup_measurement(
+        parameters=["temp"],
+        hz=5.0,
+        output_dir=str(tmp_path),
+        output_format="jsonl",
+        session_name="lager-1h-test-plan",
+        include_files=[str(requested_log)],
+    )
+
+    assert setup["ok"] is True
+    effective_session = setup["session_name"]
+    effective_log = tmp_path / f"{effective_session}.run.log"
+    assert setup["include_files"] == [str(effective_log)]
+
+    effective_log.write_text("line1\n", encoding="utf-8")
+    assert runtime.measure_start()["ok"] is True
+    runtime._record_sample()
+    stopped = runtime.measure_stop()
+
+    archive_path = Path(stopped["archive_file"])
+    assert stopped["ok"] is True
+    with zipfile.ZipFile(archive_path) as zf:
+        names = sorted(zf.namelist())
+
+    assert f"{effective_session}.run.log" in names
+    assert not effective_log.exists()
 
 
 def test_archive_list_resolve_and_delete_cycle(tmp_path: Path) -> None:
@@ -341,6 +377,7 @@ def test_measure_stop_recovers_corrupt_parquet_to_jsonl_archive(tmp_path: Path) 
         session_name="repair-session",
     )
     assert setup["ok"] is True
+    effective_session = setup["session_name"]
     assert runtime.measure_start()["ok"] is True
 
     runtime._record_sample()
@@ -356,7 +393,7 @@ def test_measure_stop_recovers_corrupt_parquet_to_jsonl_archive(tmp_path: Path) 
     with zipfile.ZipFile(archive_path) as zf:
         names = sorted(zf.namelist())
 
-    assert "repair-session.jsonl" in names
+    assert f"{effective_session}.jsonl" in names
     assert any("Recovered measurement by writing JSONL fallback" in warning for warning in stopped["warnings"])
     assert list(tmp_path.glob("repair-session.parquet.corrupt.*"))
 
@@ -373,3 +410,30 @@ def test_recovery_sweep_quarantines_unrepairable_corrupt_parquet(tmp_path: Path)
     assert not (tmp_path / "broken-session.archive.zip").exists()
     assert not broken.exists()
     assert list(tmp_path.glob("broken-session.parquet.corrupt.*"))
+
+
+def test_recovery_sweep_repairs_corrupt_parquet_using_sibling_jsonl(tmp_path: Path) -> None:
+    runtime = _runtime(FakeBackend())
+    broken = tmp_path / "repaired-session.parquet"
+    sibling = tmp_path / "repaired-session.jsonl"
+    loadsteps = tmp_path / "repaired-session.loadsteps.jsonl"
+
+    broken.write_bytes(b"PAR1BROKEN")
+    sibling.write_text('{"timestamp": 1, "data": {"temp": 20.0}}\n', encoding="utf-8")
+    loadsteps.write_text('{"name": "ls1", "average": {"temp": 20.0}}\n', encoding="utf-8")
+
+    result = runtime._recover_unarchived_outputs(output_dir=str(tmp_path))
+
+    archive_path = tmp_path / "repaired-session.archive.zip"
+    assert result["ok"] is True
+    assert str(archive_path) in result["recovered_archives"]
+    assert archive_path.exists()
+    assert not broken.exists()
+    assert not sibling.exists()
+    assert list(tmp_path.glob("repaired-session.parquet.corrupt.*"))
+
+    with zipfile.ZipFile(archive_path) as zf:
+        assert sorted(zf.namelist()) == [
+            "repaired-session.jsonl",
+            "repaired-session.loadsteps.jsonl",
+        ]

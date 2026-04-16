@@ -47,28 +47,6 @@ function encodeTextToBase64(text) {
   return window.btoa(binary)
 }
 
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result
-      if (typeof result !== 'string') {
-        reject(new Error('Could not read selected file'))
-        return
-      }
-      const marker = 'base64,'
-      const idx = result.indexOf(marker)
-      if (idx < 0) {
-        reject(new Error('Unexpected file encoding result'))
-        return
-      }
-      resolve(result.slice(idx + marker.length))
-    }
-    reader.onerror = () => reject(new Error('Failed to read selected file'))
-    reader.readAsDataURL(file)
-  })
-}
-
 function moveListItem(items, fromIndex, toIndex) {
   if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return items
   const next = [...items]
@@ -1081,11 +1059,11 @@ function App() {
     return data
   }, [brewApi, selectedId])
 
-  const loadDetails = useCallback(async (id) => {
+  const loadDetails = useCallback(async (id, options = {}) => {
     const requestId = dashboardRequestRef.current + 1
     dashboardRequestRef.current = requestId
 
-    const payload = await loadDashboardData(brewApi, id)
+    const payload = await loadDashboardData(brewApi, id, options)
     if (dashboardRequestRef.current !== requestId) return
 
     if (payload?.fermenter) {
@@ -1246,74 +1224,6 @@ function App() {
     }
   }
 
-  async function tunePackageArtifact({ path, file }) {
-    if (!selected?.id || !path || !file) return
-    try {
-      setLoadingAction(true)
-      setError('')
-      const contentB64 = await readFileAsBase64(file)
-      const response = await api(`/fermenters/${selected.id}/scenario/package/tune`, {
-        method: 'POST',
-        body: JSON.stringify({
-          artifact_updates: [
-            {
-              path,
-              content_b64: contentB64,
-              media_type: file.type || undefined,
-            },
-          ],
-        }),
-      })
-      if (!response?.ok) {
-        const detail = response?.error || 'Failed to apply artifact update'
-        throw new Error(String(detail))
-      }
-      brewApi.invalidateFermenter(selected.id)
-      await loadDetails(selected.id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoadingAction(false)
-    }
-  }
-
-  async function tuneEditorSpec(editorSpecText) {
-    if (!selected?.id || !editorSpecText) return
-    let patch
-    try {
-      patch = JSON.parse(editorSpecText)
-    } catch {
-      setError('Editor spec must be valid JSON')
-      return
-    }
-
-    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
-      setError('Editor spec must be a JSON object')
-      return
-    }
-
-    try {
-      setLoadingAction(true)
-      setError('')
-      const response = await api(`/fermenters/${selected.id}/scenario/package/tune`, {
-        method: 'POST',
-        body: JSON.stringify({
-          editor_spec_patch: patch,
-        }),
-      })
-      if (!response?.ok) {
-        const detail = response?.error || 'Failed to apply editor spec update'
-        throw new Error(String(detail))
-      }
-      brewApi.invalidateFermenter(selected.id)
-      await loadDetails(selected.id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoadingAction(false)
-    }
-  }
-
   async function tunePackagePatch(packagePatch) {
     if (!selected?.id || !packagePatch || typeof packagePatch !== 'object') return
     try {
@@ -1336,6 +1246,171 @@ function App() {
     } finally {
       setLoadingAction(false)
     }
+  }
+
+  async function listScenarioRepositoryPackages() {
+    if (!selected?.id) return { ok: false, packages: [] }
+    return api(`/fermenters/${selected.id}/scenario/repository`)
+  }
+
+  async function saveScenarioRepositoryPackage({ filename, packagePayload, tags, versionNotes, notes }) {
+    if (!selected?.id) return { ok: false }
+    const result = await api(`/fermenters/${selected.id}/scenario/repository/save`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filename,
+        package: packagePayload || scenarioPackage || undefined,
+        tags: Array.isArray(tags) ? tags : undefined,
+        version_notes: typeof versionNotes === 'string' ? versionNotes : undefined,
+        notes: typeof notes === 'string' ? notes : undefined,
+      }),
+    })
+    brewApi.invalidateFermenter(selected.id)
+    await loadDetails(selected.id)
+    return result
+  }
+
+  async function importScenarioRepositoryPackage(filename) {
+    if (!selected?.id) return { ok: false }
+    const result = await api(`/fermenters/${selected.id}/scenario/repository/import`, {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    })
+    setImportResult(result)
+    if (result && typeof result === 'object' && result.ok === false) {
+      const firstError = Array.isArray(result.errors) ? result.errors[0] : null
+      const errorMessage =
+        (firstError && typeof firstError === 'object' && String(firstError.message || '').trim())
+        || String(result.error || '').trim()
+        || 'Failed to load package into scenario service'
+      throw new Error(errorMessage)
+    }
+    if (result && typeof result === 'object' && result.scenario_package && typeof result.scenario_package === 'object') {
+      setScenarioPackage(result.scenario_package)
+      const nextProgram = result.scenario_package?.program
+      if (nextProgram && typeof nextProgram === 'object') {
+        setScenario(nextProgram)
+      }
+    }
+    brewApi.invalidateFermenter(selected.id)
+    brewApi.invalidateFermenters()
+    await loadFermenters()
+    await loadDetails(selected.id, { force: true })
+    return result
+  }
+
+  async function readScenarioRepositoryPackage(filename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/read/${encodeURIComponent(filename)}`)
+  }
+
+  async function copyScenarioRepositoryPackage(sourceFilename, targetFilename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/copy`, {
+      method: 'POST',
+      body: JSON.stringify({
+        source_filename: sourceFilename,
+        target_filename: targetFilename,
+      }),
+    })
+  }
+
+  async function renameScenarioRepositoryPackage(sourceFilename, targetFilename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/rename`, {
+      method: 'POST',
+      body: JSON.stringify({
+        source_filename: sourceFilename,
+        target_filename: targetFilename,
+      }),
+    })
+  }
+
+  async function deleteScenarioRepositoryPackage(filename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async function updateScenarioRepositoryMetadata({ filename, tags, versionNotes, notes }) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/metadata`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filename,
+        tags: Array.isArray(tags) ? tags : [],
+        version_notes: versionNotes || '',
+        notes: notes || '',
+      }),
+    })
+  }
+
+  async function uploadScenarioRepositoryPackage({ file, filename }) {
+    if (!selected?.id || !file) return { ok: false }
+    return uploadFileToEndpoint('repository/upload-package', file, { filename })
+  }
+
+  function getScenarioRepositoryDownloadUrl(filename) {
+    if (!selected?.id || !filename) return ''
+    return `${window.location.origin}/fermenters/${selected.id}/scenario/repository/download/${encodeURIComponent(filename)}`
+  }
+
+  async function convertExcelToRepositoryPackage({ file, filename }) {
+    if (!selected?.id || !file) return { ok: false }
+    return uploadFileToEndpoint('repository/convert-excel', file, { filename })
+  }
+
+  /**
+   * Generic file upload action declared by a package's editor_spec.file_upload_actions.
+   * endpointSuffix is relative to /fermenters/{id}/scenario/, e.g. "repository/convert-excel".
+   */
+  async function uploadFileToEndpoint(endpointSuffix, file, extraParams = {}) {
+    if (!selected?.id || !file) return { ok: false }
+    const formData = new FormData()
+    formData.append('file', file)
+    const params = new URLSearchParams()
+    const normalizedParams = { ...extraParams }
+    if (String(endpointSuffix || '').trim() === 'repository/convert-excel' && normalizedParams.import_now == null) {
+      normalizedParams.import_now = 'true'
+    }
+    for (const [key, value] of Object.entries(normalizedParams)) {
+      if (value != null && value !== '') params.set(key, String(value))
+    }
+    const query = params.toString()
+    const result = await api(`/fermenters/${selected.id}/scenario/${endpointSuffix}${query ? `?${query}` : ''}`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    const importNowParam = String(normalizedParams?.import_now || '').toLowerCase()
+    const shouldRefreshImportedState =
+      importNowParam === '1' || importNowParam === 'true' || Boolean(result?.imported)
+
+    if (result && typeof result === 'object' && result.imported && result.imported.ok === false) {
+      const importedForwarded = result.imported.forwarded
+      const importedMessage =
+        (importedForwarded && typeof importedForwarded === 'object' && String(importedForwarded.error || '').trim())
+        || 'Scenario service rejected imported package'
+      throw new Error(importedMessage)
+    }
+
+    if (shouldRefreshImportedState) {
+      setImportResult(result)
+      if (result && typeof result === 'object' && result.scenario_package && typeof result.scenario_package === 'object') {
+        setScenarioPackage(result.scenario_package)
+        const nextProgram = result.scenario_package?.program
+        if (nextProgram && typeof nextProgram === 'object') {
+          setScenario(nextProgram)
+        }
+      }
+      brewApi.invalidateFermenter(selected.id)
+      brewApi.invalidateFermenters()
+      await loadFermenters()
+      await loadDetails(selected.id, { force: true })
+    }
+
+    return result
   }
 
   useEffect(() => {
@@ -1564,12 +1639,22 @@ function App() {
     scenarioFile,
     setScenarioFile,
     uploadWorkbook,
-    tunePackageArtifact,
-    tuneEditorSpec,
     tunePackagePatch,
+    listScenarioRepositoryPackages,
+    saveScenarioRepositoryPackage,
+    readScenarioRepositoryPackage,
+    importScenarioRepositoryPackage,
+    copyScenarioRepositoryPackage,
+    renameScenarioRepositoryPackage,
+    deleteScenarioRepositoryPackage,
+    updateScenarioRepositoryMetadata,
+    uploadScenarioRepositoryPackage,
+    getScenarioRepositoryDownloadUrl,
+    uploadFileToEndpoint,
     importResult,
     importErrorIssues,
     importWarningIssues,
+    onOpenScenarioBuilder: () => setGlobalView('scenario-builder'),
   }
 
   const dataTabProps = {
@@ -1638,6 +1723,7 @@ function App() {
     onOpenParameterDB: () => setGlobalView('parameterdb'),
     onOpenStorageManager: () => setGlobalView('storage-manager'),
     onOpenRulesStudio: () => setGlobalView('rules-studio'),
+    onOpenScenarioBuilder: () => setGlobalView('scenario-builder'),
     persistenceStatus,
     persistenceLoading,
     datasourcePersistenceStatus,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import base64
 import json
 import zipfile
 from pathlib import Path
@@ -618,14 +619,24 @@ def test_helper_read_functions_raise_http_502_on_request_exception() -> None:
 
 
 def _make_scenario_lbpkg(manifest_override: dict | None = None) -> bytes:
-    """Build minimal .lbpkg bytes with a MessagePack manifest for use in tests."""
+    """Build self-contained .lbpkg bytes with a MessagePack manifest for use in tests."""
     manifest: dict = {
         "id": "test-pkg",
         "name": "Test Package",
         "version": "0.1.0",
-        "runner": {"kind": "scripted"},
+        "runner": {"kind": "scripted", "entrypoint": "scripted.run", "config": {}},
         "interface": {"kind": "labbrew.scenario-package", "version": "1"},
+        "validation": {
+            "artifact": "validation/validation.json",
+            "required_fields": ["id", "name", "runner", "interface", "validation", "editor_spec", "endpoint_code", "artifacts"],
+        },
+        "editor_spec": {"artifact": "editor/spec.json", "version": "1.0"},
         "endpoint_code": {"language": "python", "entrypoint": "bin/runner.py"},
+        "program": {
+            "setup_steps": [],
+            "plan_steps": [],
+            "measurement_config": {"hz": 10, "output_format": "parquet", "output_dir": "data/measurements"},
+        },
     }
     if manifest_override:
         manifest.update(manifest_override)
@@ -633,6 +644,9 @@ def _make_scenario_lbpkg(manifest_override: dict | None = None) -> bytes:
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("scenario.package.msgpack", msgpack.packb(manifest, use_bin_type=True))
         zf.writestr("bin/runner.py", b"# runner stub")
+        zf.writestr("data/program.json", b"{}")
+        zf.writestr("validation/validation.json", b"{}")
+        zf.writestr("editor/spec.json", b"{}")
     return buf.getvalue()
 
 
@@ -721,3 +735,36 @@ def test_scenario_import_returns_422_on_compile_failure() -> None:
     body = response.json()
     assert body["ok"] is False
     assert any(e["code"] == "package_id_missing" for e in body["errors"])
+
+
+def test_excel_package_builder_embeds_converter_assets() -> None:
+    package_payload = supervisor_routes._build_package_payload_from_program(
+        package_id="excel-pkg",
+        package_name="Excel Package",
+        version="1.0.0",
+        description="excel build",
+        tags=["excel"],
+        version_notes="v1",
+        source="excel",
+        program_payload={
+            "id": "excel-prog",
+            "name": "Excel Program",
+            "measurement_config": {"hz": 7.5},
+            "setup_steps": [],
+            "plan_steps": [],
+        },
+        source_workbook_bytes=b"excel-bytes",
+        source_workbook_name="brew.xlsx",
+    )
+
+    artifacts = package_payload.get("artifacts") or []
+    artifact_map = {str(item.get("path")): item for item in artifacts if isinstance(item, dict)}
+
+    assert "source/brew.xlsx" in artifact_map
+    assert "source/conversion_manifest.json" in artifact_map
+    assert "tools/convert_excel_to_scenario_package.py" in artifact_map
+
+    manifest_b64 = str(artifact_map["source/conversion_manifest.json"].get("content_b64") or "")
+    manifest_payload = json.loads(base64.b64decode(manifest_b64).decode("utf-8"))
+    assert manifest_payload["source_workbook_artifact"] == "source/brew.xlsx"
+    assert manifest_payload["converter_script_artifact"] == "tools/convert_excel_to_scenario_package.py"

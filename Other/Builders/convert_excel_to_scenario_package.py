@@ -48,7 +48,41 @@ def build_package(program: dict, source_name: str, package_id: str | None, packa
     _validate_runner_source(runner_source, source_path=runner_source_path)
     program_json = json.dumps(program, indent=2)
     validation_json = json.dumps({"type": "labbrew.validation-spec", "version": "1.0"}, indent=2)
-    editor_json = json.dumps({"type": "labbrew.editor-spec", "version": "1.0"}, indent=2)
+    editor_json = json.dumps({
+        "type": "labbrew.editor-spec",
+        "version": "1.0",
+        "sections": [
+            {
+                "id": "identity",
+                "title": "Identity",
+                "fields": ["id", "name", "version", "description"],
+            },
+            {
+                "id": "metadata",
+                "title": "Metadata",
+                "fields": ["metadata"],
+            },
+        ],
+        "file_upload_actions": [
+            {
+                "id": "replace_excel",
+                "label": "Replace Excel source",
+                "description": "Upload a new Excel workbook to rebuild this package.",
+                "accept": ".xlsx",
+                "endpoint": "repository/convert-excel",
+                "query": {
+                    "filename": "${package.id}.lbpkg",
+                    "import_now": "true",
+                },
+            }
+        ],
+        "repository_save": {
+            "filename_template": "${package.id}.lbpkg",
+            "tags_path": "metadata.tags",
+            "version_notes_path": "metadata.version_notes",
+            "notes_path": "metadata.notes",
+        },
+    }, indent=2)
 
     artifacts = [
         {

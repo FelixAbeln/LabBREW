@@ -192,21 +192,30 @@ def build_package_archive(
                 "fields": ["id", "name", "version", "description"],
             },
             {
-                "id": "runner",
-                "title": "Runner",
-                "fields": ["runner.kind", "runner.entrypoint", "endpoint_code.entrypoint"],
-            },
-            {
-                "id": "artifacts",
-                "title": "Artifacts",
-                "fields": ["validation.artifact", "editor_spec.artifact", "endpoint_code.entrypoint", "artifacts"],
-            },
-            {
-                "id": "program",
-                "title": "Program",
-                "fields": ["program.setup_steps", "program.plan_steps", "program.measurement_config"],
+                "id": "metadata",
+                "title": "Metadata",
+                "fields": ["metadata"],
             },
         ],
+        "file_upload_actions": [
+            {
+                "id": "replace_excel",
+                "label": "Replace Excel source",
+                "description": "Upload a new Excel workbook to rebuild this package.",
+                "accept": ".xlsx",
+                "endpoint": "repository/convert-excel",
+                "query": {
+                    "filename": "${package.id}.lbpkg",
+                    "import_now": "true",
+                },
+            }
+        ],
+        "repository_save": {
+            "filename_template": "${package.id}.lbpkg",
+            "tags_path": "metadata.tags",
+            "version_notes_path": "metadata.version_notes",
+            "notes_path": "metadata.notes",
+        },
     }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

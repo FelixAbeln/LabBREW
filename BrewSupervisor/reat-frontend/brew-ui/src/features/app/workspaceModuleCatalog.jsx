@@ -1,7 +1,7 @@
 import { ArchiveFilesCard, ArchiveSummaryCard } from '../archive/ArchiveTab';
 import BackendControlCard from '../control/BackendControlCard.jsx';
 import { DataLoadstepStatusCard, DataRecordingCard, DataSnapshotBrowserCard } from '../data/DataTab';
-import { ScenarioControlsBar, ScenarioEventLogCard, ScenarioPackageCard, ScenarioSummaryCard } from '../schedule/ScheduleTab';
+import { ScenarioControlsBar, ScenarioEventLogCard, ScenarioSummaryCard } from '../schedule/ScheduleTab';
 import { PersistenceStatusCard, SystemLauncherPanel } from '../system/SystemTab';
 
 function SystemNodeWidget({ systemProps }) {
@@ -65,6 +65,7 @@ function SystemActionsWidget({ systemProps }) {
       onOpenStorageManager={systemProps?.onOpenStorageManager}
       onOpenParameterDB={systemProps?.onOpenParameterDB}
       onOpenRulesStudio={systemProps?.onOpenRulesStudio}
+      onOpenScenarioBuilder={systemProps?.onOpenScenarioBuilder}
       className="workspace-module-panel system-launcher-card"
     />
   );
@@ -350,16 +351,6 @@ const BASE_WORKSPACE_MODULES = [
     defaultCols: 4,
     defaultRows: 1,
     render: (props) => <ScenarioSummaryCard scenario={props.scenarioProps?.scenario} scenarioPackage={props.scenarioProps?.scenarioPackage} />,
-  },
-  {
-    type: 'scenario-package',
-    label: 'Package Import',
-    description: 'Validate and import a scenario package workbook.',
-    category: 'Scenario',
-    sortOrder: 30,
-    defaultCols: 8,
-    defaultRows: 2,
-    render: (props) => <ScenarioPackageCard {...props.scenarioProps} />,
   },
   {
     type: 'scenario-events',

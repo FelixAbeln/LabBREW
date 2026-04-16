@@ -123,10 +123,19 @@ class ScenarioRuntime:
             or (package.editor_spec or {}).get("schema_artifact")
             or ""
         ).strip()
-        if editor_artifact and editor_artifact not in artifact_by_path:
+        if not editor_artifact:
             issues.append(
                 ScenarioCompileIssue(
-                    level="warning",
+                    level="error",
+                    code="editor_spec_artifact_missing",
+                    message="Package editor_spec.artifact is required",
+                    path="editor_spec.artifact",
+                )
+            )
+        elif editor_artifact not in artifact_by_path:
+            issues.append(
+                ScenarioCompileIssue(
+                    level="error",
                     code="editor_spec_artifact_not_found",
                     message=(
                         f"editor spec artifact '{editor_artifact}' was not found "
@@ -141,18 +150,18 @@ class ScenarioRuntime:
         if not interface_kind:
             issues.append(
                 ScenarioCompileIssue(
-                    level="warning",
+                    level="error",
                     code="interface_kind_missing",
-                    message="Package interface.kind is missing",
+                    message="Package interface.kind is required",
                     path="interface.kind",
                 )
             )
         if not interface_version:
             issues.append(
                 ScenarioCompileIssue(
-                    level="warning",
+                    level="error",
                     code="interface_version_missing",
-                    message="Package interface.version is missing",
+                    message="Package interface.version is required",
                     path="interface.version",
                 )
             )
@@ -162,9 +171,18 @@ class ScenarioRuntime:
         if not endpoint_language:
             issues.append(
                 ScenarioCompileIssue(
-                    level="warning",
+                    level="error",
                     code="endpoint_language_missing",
-                    message="Package endpoint_code.language is missing",
+                    message="Package endpoint_code.language is required",
+                    path="endpoint_code.language",
+                )
+            )
+        elif endpoint_language.lower() != "python":
+            issues.append(
+                ScenarioCompileIssue(
+                    level="error",
+                    code="endpoint_language_unsupported",
+                    message="Package endpoint_code.language must be 'python'",
                     path="endpoint_code.language",
                 )
             )
@@ -207,11 +225,11 @@ class ScenarioRuntime:
         if incoming_runner_kind and incoming_runner_kind != "scripted":
             issues.append(
                 ScenarioCompileIssue(
-                    level="warning",
-                    code="runner_kind_ignored",
+                    level="error",
+                    code="runner_kind_unsupported",
                     message=(
-                        f"runner.kind='{incoming_runner_kind}' ignored; "
-                        "scenario_service uses scripted runner path only"
+                        f"runner.kind='{incoming_runner_kind}' is unsupported; "
+                        "scenario_service requires runner.kind='scripted'"
                     ),
                     path="runner.kind",
                 )
@@ -299,6 +317,9 @@ class ScenarioRuntime:
                 control_client=self._control_client,
                 data_client=self._data_client,
                 owner=self._owner,
+                package_id=package.id,
+                package_program=package.program,
+                package_snapshot=package.to_dict(),
             )
             self._active_runner_kind = "scripted"
 
@@ -703,6 +724,9 @@ class ScenarioRuntime:
                         control_client=self._control_client,
                         data_client=self._data_client,
                         owner=self._owner,
+                        package_id=package.id,
+                        package_program=package.program,
+                        package_snapshot=package.to_dict(),
                     )
                 except Exception as exc:  # noqa: BLE001
                     self._append_event(f"Failed to restore scripted runner: {exc}")

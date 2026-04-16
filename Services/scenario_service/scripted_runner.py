@@ -13,10 +13,17 @@ from __future__ import annotations
 
 import base64
 from collections import deque
+from datetime import datetime
+import io
+import json
+from pathlib import Path
 import threading
 import time
 import types
 from typing import Any
+import zipfile
+
+import msgpack
 
 
 # ---------------------------------------------------------------------------
@@ -272,12 +279,20 @@ class ScriptedRunner:
         control_client: Any,
         data_client: Any | None = None,
         owner: str,
+        package_id: str = "",
+        package_program: dict[str, Any] | None = None,
+        package_snapshot: dict[str, Any] | None = None,
     ) -> None:
         self._entrypoint_code = entrypoint_code
         self._artifacts = artifacts
         self._cc = control_client
         self._dc = data_client
         self._owner = owner
+        self._package_id = str(package_id or "").strip()
+        self._package_program = dict(package_program or {})
+        self._package_snapshot = dict(package_snapshot or {})
+        self._run_log_path: str | None = None
+        self._capture_log_to_file = False
 
         self._lock = threading.RLock()
         self._state = "idle"
@@ -413,10 +428,25 @@ class ScriptedRunner:
     # -- internals -----------------------------------------------------------
 
     def _log(self, message: str) -> None:
+        line = str(message)
         with self._lock:
-            self._event_log.append(str(message))
+            self._event_log.append(line)
             if len(self._event_log) > 100:
                 self._event_log = self._event_log[-100:]
+        self._append_run_log_line(line)
+
+    def _append_run_log_line(self, line: str) -> None:
+        with self._lock:
+            if not self._capture_log_to_file or not self._run_log_path:
+                return
+            target_path = self._run_log_path
+        try:
+            timestamp = datetime.now().isoformat(timespec="milliseconds")
+            with Path(target_path).open("a", encoding="utf-8") as handle:
+                handle.write(f"{timestamp} {line}\n")
+        except Exception:
+            # Logging should never interrupt scenario execution.
+            return
 
     def _set_progress(
         self,
@@ -465,7 +495,10 @@ class ScriptedRunner:
         )
         with self._lock:
             self._ctx = ctx
+
+        measurement_started = False
         try:
+            measurement_started = self._auto_start_measurement(ctx)
             module = types.ModuleType("_labbrew_runner")
             exec(  # noqa: S102
                 compile(self._entrypoint_code, "<package_entrypoint>", "exec"),
@@ -488,9 +521,144 @@ class ScriptedRunner:
                 self._phase = "faulted"
             self._log(f"Runner faulted: {exc}")
         finally:
+            if measurement_started:
+                with self._lock:
+                    self._capture_log_to_file = False
+                try:
+                    stop_result = ctx.stop_measurement()
+                    if stop_result.get("ok", False):
+                        self._log("Measurement stopped and archived")
+                    else:
+                        self._log(f"Measurement stop failed: {stop_result}")
+                except Exception as exc:  # noqa: BLE001
+                    self._log(f"Measurement stop failed: {exc}")
             try:
                 ctx.release_all()
             except Exception:  # noqa: BLE001
                 pass
             with self._lock:
                 self._ctx = None
+
+    def _auto_start_measurement(self, ctx: RunnerContext) -> bool:
+        """Best-effort global measurement auto-start for all scripted packages."""
+        if self._dc is None:
+            return False
+
+        status = ctx.measurement_status()
+        if bool((status or {}).get("recording")):
+            self._log("Measurement already recording; skipped auto-start")
+            return False
+
+        program = dict(self._package_program or {})
+        if not program:
+            try:
+                program_blob = ctx.get_artifact("data/program.json")
+                if program_blob:
+                    parsed = json.loads(program_blob.decode("utf-8"))
+                    if isinstance(parsed, dict):
+                        program = parsed
+            except Exception:
+                program = {}
+
+        measurement_cfg = dict(program.get("measurement_config") or {})
+
+        configured_parameters = measurement_cfg.get("parameters")
+        if isinstance(configured_parameters, list) and configured_parameters:
+            parameters = [
+                str(item).strip()
+                for item in configured_parameters
+                if str(item).strip()
+            ]
+        else:
+            parameters = sorted(ctx.snapshot_values().keys())
+
+        if not parameters:
+            self._log("Measurement auto-start skipped: no parameters found")
+            return False
+
+        hz = float(measurement_cfg.get("hz") or 10.0)
+        output_dir = str(measurement_cfg.get("output_dir") or "data/measurements")
+        output_format = str(measurement_cfg.get("output_format") or "parquet")
+        session_name = str(
+            measurement_cfg.get("session_name")
+            or measurement_cfg.get("name")
+            or program.get("id")
+            or self._package_id
+            or f"scenario-{int(time.time())}"
+        )
+
+        output_dir_path = Path(output_dir)
+        run_log_path = output_dir_path / f"{session_name}.run.log"
+        package_payload_name = f"{session_name}.lbpkg"
+        package_payload_b64 = base64.b64encode(
+            self._build_export_package_archive_bytes()
+        ).decode("ascii")
+
+        setup_result = ctx.setup_measurement(
+            parameters=parameters,
+            hz=hz,
+            output_dir=output_dir,
+            output_format=output_format,
+            session_name=session_name,
+            include_files=[str(run_log_path)],
+            include_payloads=[
+                {
+                    "name": package_payload_name,
+                    "content_b64": package_payload_b64,
+                    "media_type": "application/octet-stream",
+                }
+            ],
+        )
+        if not setup_result.get("ok", False):
+            self._log(f"Measurement setup failed: {setup_result}")
+            return False
+
+        configured_session_name = str(setup_result.get("session_name") or session_name)
+        configured_output_dir = Path(str(setup_result.get("output_dir") or output_dir))
+        configured_log_path = configured_output_dir / f"{configured_session_name}.run.log"
+        configured_output_dir.mkdir(parents=True, exist_ok=True)
+        configured_log_path.write_text("", encoding="utf-8")
+        with self._lock:
+            self._run_log_path = str(configured_log_path)
+            self._capture_log_to_file = True
+
+        start_result = ctx.start_measurement()
+        if not start_result.get("ok", False):
+            self._log(f"Measurement start failed: {start_result}")
+            with self._lock:
+                self._capture_log_to_file = False
+            return False
+
+        self._log(
+            f"Measurement started ({session_name}); "
+            f"parameters={len(parameters)} hz={hz:.3f}"
+        )
+        return True
+
+    def _build_export_package_archive_bytes(self) -> bytes:
+        package_payload = dict(self._package_snapshot or {})
+        if not package_payload:
+            package_payload = {
+                "id": self._package_id,
+                "program": dict(self._package_program or {}),
+                "artifacts": list(self._artifacts),
+            }
+
+        manifest = dict(package_payload)
+        artifact_items = list(manifest.pop("artifacts", []) or [])
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(
+                "scenario.package.msgpack",
+                msgpack.packb(manifest, use_bin_type=True),
+            )
+            for item in artifact_items:
+                if not isinstance(item, dict):
+                    continue
+                path = str(item.get("path") or "").strip()
+                content_b64 = str(item.get("content_b64") or "").strip()
+                if not path or not content_b64:
+                    continue
+                archive.writestr(path, base64.b64decode(content_b64))
+        return buf.getvalue()

@@ -351,7 +351,7 @@ export function ArchiveViewerPage({ archiveName, archiveViewPayload, archiveView
       <div className="pdb-page-header">
         <div className="archive-viewer-title-stack">
           <div className="pdb-page-title">
-            <span className="pdb-page-icon">◫</span>
+            <span className="pdb-page-icon pdb-page-icon-archive">◫</span>
             <span>Data Viewer</span>
           </div>
           <div className="archive-viewer-subheader">

@@ -23,11 +23,11 @@
         "size": 477
       },
       {
-        "content_b64": "ewogICJ0eXBlIjogImxhYmJyZXcuZWRpdG9yLXNwZWMiLAogICJ2ZXJzaW9uIjogIjEuMCIsCiAgInNlY3Rpb25zIjogWwogICAgewogICAgICAiaWQiOiAiaWRlbnRpdHkiLAogICAgICAidGl0bGUiOiAiSWRlbnRpdHkiLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJpZCIsCiAgICAgICAgIm5hbWUiLAogICAgICAgICJ2ZXJzaW9uIiwKICAgICAgICAiZGVzY3JpcHRpb24iCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJydW5uZXIiLAogICAgICAidGl0bGUiOiAiUnVubmVyIiwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAicnVubmVyLmtpbmQiLAogICAgICAgICJydW5uZXIuZW50cnlwb2ludCIsCiAgICAgICAgImVuZHBvaW50X2NvZGUuZW50cnlwb2ludCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImlkIjogImFydGlmYWN0cyIsCiAgICAgICJ0aXRsZSI6ICJBcnRpZmFjdHMiLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJ2YWxpZGF0aW9uLmFydGlmYWN0IiwKICAgICAgICAiZWRpdG9yX3NwZWMuYXJ0aWZhY3QiLAogICAgICAgICJlbmRwb2ludF9jb2RlLmVudHJ5cG9pbnQiLAogICAgICAgICJhcnRpZmFjdHMiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJwcm9ncmFtIiwKICAgICAgInRpdGxlIjogIlByb2dyYW0iLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJwcm9ncmFtLnNldHVwX3N0ZXBzIiwKICAgICAgICAicHJvZ3JhbS5wbGFuX3N0ZXBzIiwKICAgICAgICAicHJvZ3JhbS5tZWFzdXJlbWVudF9jb25maWciCiAgICAgIF0KICAgIH0KICBdCn0=",
+        "content_b64": "ewogICJ0eXBlIjogImxhYmJyZXcuZWRpdG9yLXNwZWMiLAogICJ2ZXJzaW9uIjogIjEuMCIsCiAgInNlY3Rpb25zIjogWwogICAgewogICAgICAiaWQiOiAiaWRlbnRpdHkiLAogICAgICAidGl0bGUiOiAiSWRlbnRpdHkiLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJpZCIsCiAgICAgICAgIm5hbWUiLAogICAgICAgICJ2ZXJzaW9uIiwKICAgICAgICAiZGVzY3JpcHRpb24iCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJtZXRhZGF0YSIsCiAgICAgICJ0aXRsZSI6ICJNZXRhZGF0YSIsCiAgICAgICJmaWVsZHMiOiBbCiAgICAgICAgIm1ldGFkYXRhIgogICAgICBdCiAgICB9CiAgXSwKICAiZmlsZV91cGxvYWRfYWN0aW9ucyI6IFsKICAgIHsKICAgICAgImlkIjogInJlcGxhY2VfZXhjZWwiLAogICAgICAibGFiZWwiOiAiUmVwbGFjZSBFeGNlbCBzb3VyY2UiLAogICAgICAiZGVzY3JpcHRpb24iOiAiVXBsb2FkIGEgbmV3IEV4Y2VsIHdvcmtib29rIHRvIHJlYnVpbGQgdGhpcyBwYWNrYWdlLiIsCiAgICAgICJhY2NlcHQiOiAiLnhsc3giLAogICAgICAiZW5kcG9pbnQiOiAicmVwb3NpdG9yeS9jb252ZXJ0LWV4Y2VsIiwKICAgICAgInF1ZXJ5IjogewogICAgICAgICJmaWxlbmFtZSI6ICIke3BhY2thZ2UuaWR9LmxicGtnIiwKICAgICAgICAiaW1wb3J0X25vdyI6ICJ0cnVlIgogICAgICB9CiAgICB9CiAgXSwKICAicmVwb3NpdG9yeV9zYXZlIjogewogICAgImZpbGVuYW1lX3RlbXBsYXRlIjogIiR7cGFja2FnZS5pZH0ubGJwa2ciLAogICAgInRhZ3NfcGF0aCI6ICJtZXRhZGF0YS50YWdzIiwKICAgICJ2ZXJzaW9uX25vdGVzX3BhdGgiOiAibWV0YWRhdGEudmVyc2lvbl9ub3RlcyIsCiAgICAibm90ZXNfcGF0aCI6ICJtZXRhZGF0YS5ub3RlcyIKICB9Cn0=",
         "encoding": "base64",
         "media_type": "application/json",
         "path": "editor/spec.json",
-        "size": 806
+        "size": 899
       }
     ],
     "description": "Self-contained scenario package with packaged runner, validation, and editor specs",
@@ -40,7 +40,7 @@
       "interface_contract": "labbrew.scenario-package@1.0",
       "language": "python"
     },
-    "id": "lager-1h-test-plan",
+    "id": "example_schedule-7-(2)",
     "interface": {
       "kind": "labbrew.scenario-package",
       "run_endpoints": {
@@ -55,17 +55,18 @@
       "version": "1.0"
     },
     "metadata": {
-      "archive_filename": "Example_Schedule_7_2_newpaths.lbpkg",
+      "archive_filename": "Example_Schedule 7 (2).lbpkg",
       "created_by": "Other.Builders.build_selfcontained_excel_package",
       "import_source": "excel",
+      "normalized_at": "2026-04-16T21:08:52.264535Z",
       "packaging": "self-contained"
     },
-    "name": "Lager 1 hour sped-up fermentation",
+    "name": "Example_Schedule 7 (2) Scenario Package",
     "program": {
       "id": "lager-1h-test-plan",
       "measurement_config": {
-        "hz": 10.0,
-        "loadstep_duration_seconds": 45.0,
+        "hz": 10,
+        "loadstep_duration_seconds": 45,
         "output_dir": "data/measurements",
         "output_format": "parquet",
         "session_name": null
@@ -75,7 +76,7 @@
         {
           "actions": [
             {
-              "duration_s": 300.0,
+              "duration_s": 300,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -91,7 +92,7 @@
               "value": 20
             },
             {
-              "duration_s": 45.0,
+              "duration_s": 45,
               "kind": "take_loadstep",
               "owner": null,
               "params": {
@@ -99,7 +100,7 @@
                 "trigger_wait": {
                   "child": {
                     "condition": {
-                      "for_s": 130.0,
+                      "for_s": 130,
                       "operator": "<=",
                       "source": "brewcan.temperature.0",
                       "threshold": 14.1
@@ -119,12 +120,12 @@
           "wait": {
             "children": [
               {
-                "duration_s": 300.0,
+                "duration_s": 300,
                 "kind": "elapsed"
               },
               {
                 "condition": {
-                  "for_s": 130.0,
+                  "for_s": 130,
                   "operator": "<=",
                   "source": "brewcan.temperature.0",
                   "threshold": 14.1
@@ -138,7 +139,7 @@
         {
           "actions": [
             {
-              "duration_s": 120.0,
+              "duration_s": 120,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -152,12 +153,12 @@
           "wait": {
             "children": [
               {
-                "duration_s": 600.0,
+                "duration_s": 600,
                 "kind": "elapsed"
               },
               {
                 "condition": {
-                  "for_s": 60.0,
+                  "for_s": 60,
                   "operator": "<=",
                   "source": "brewcan.pressure.0",
                   "threshold": 0.5
@@ -171,7 +172,7 @@
         {
           "actions": [
             {
-              "duration_s": 300.0,
+              "duration_s": 300,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -194,7 +195,7 @@
             "children": [
               {
                 "condition": {
-                  "for_s": 60.0,
+                  "for_s": 60,
                   "operator": "<=",
                   "source": "brewcan.density.0",
                   "threshold": 1.04
@@ -202,7 +203,7 @@
                 "kind": "condition"
               },
               {
-                "duration_s": 900.0,
+                "duration_s": 900,
                 "kind": "elapsed"
               }
             ],
@@ -212,7 +213,7 @@
         {
           "actions": [
             {
-              "duration_s": 300.0,
+              "duration_s": 300,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -226,12 +227,12 @@
           "wait": {
             "children": [
               {
-                "duration_s": 600.0,
+                "duration_s": 600,
                 "kind": "elapsed"
               },
               {
                 "condition": {
-                  "for_s": 60.0,
+                  "for_s": 60,
                   "operator": ">=",
                   "source": "brewcan.pressure.0",
                   "threshold": 0.9
@@ -245,7 +246,7 @@
         {
           "actions": [
             {
-              "duration_s": 600.0,
+              "duration_s": 600,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -268,7 +269,7 @@
             "children": [
               {
                 "condition": {
-                  "for_s": 120.0,
+                  "for_s": 120,
                   "operator": "<=",
                   "source": "brewcan.density.0",
                   "threshold": 1.018
@@ -276,7 +277,7 @@
                 "kind": "condition"
               },
               {
-                "duration_s": 900.0,
+                "duration_s": 900,
                 "kind": "elapsed"
               }
             ],
@@ -286,7 +287,7 @@
         {
           "actions": [
             {
-              "duration_s": 180.0,
+              "duration_s": 180,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -308,12 +309,12 @@
           "wait": {
             "children": [
               {
-                "duration_s": 300.0,
+                "duration_s": 300,
                 "kind": "elapsed"
               },
               {
                 "condition": {
-                  "for_s": 60.0,
+                  "for_s": 60,
                   "operator": ">=",
                   "source": "brewcan.pressure.0",
                   "threshold": 1.1
@@ -327,7 +328,7 @@
         {
           "actions": [
             {
-              "duration_s": 900.0,
+              "duration_s": 900,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -349,12 +350,12 @@
           "wait": {
             "children": [
               {
-                "duration_s": 1200.0,
+                "duration_s": 1200,
                 "kind": "elapsed"
               },
               {
                 "condition": {
-                  "for_s": 120.0,
+                  "for_s": 120,
                   "operator": "<=",
                   "source": "brewcan.temperature.0",
                   "threshold": 14.1
@@ -368,7 +369,7 @@
         {
           "actions": [
             {
-              "duration_s": 120.0,
+              "duration_s": 120,
               "kind": "ramp",
               "owner": null,
               "params": {},
@@ -390,12 +391,12 @@
           "wait": {
             "children": [
               {
-                "duration_s": 900.0,
+                "duration_s": 900,
                 "kind": "elapsed"
               },
               {
                 "condition": {
-                  "for_s": 120.0,
+                  "for_s": 120,
                   "operator": "<=",
                   "source": "brewcan.density.0",
                   "threshold": 1.012
@@ -447,7 +448,7 @@
           "id": "setup-1",
           "name": "Request control of all actuators",
           "wait": {
-            "duration_s": 30.0,
+            "duration_s": 30,
             "kind": "elapsed"
           }
         }
@@ -475,8 +476,8 @@
   },
   "status": {
     "details": {
-      "current_step_index": 0,
-      "current_step_name": "Request control of all actuators",
+      "current_step_index": null,
+      "current_step_name": null,
       "description": "Self-contained scenario package with packaged runner, validation, and editor specs",
       "editor_spec": {
         "artifact": "editor/spec.json",
@@ -500,12 +501,13 @@
         "version": "1.0"
       },
       "metadata": {
-        "archive_filename": "Example_Schedule_7_2_newpaths.lbpkg",
+        "archive_filename": "Example_Schedule 7 (2).lbpkg",
         "created_by": "Other.Builders.build_selfcontained_excel_package",
         "import_source": "excel",
+        "normalized_at": "2026-04-16T21:08:52.264535Z",
         "packaging": "self-contained"
       },
-      "phase": "setup",
+      "phase": null,
       "validation": {
         "artifact": "validation/validation.json",
         "required_fields": [
@@ -540,19 +542,56 @@
       "Scripted package restored; run reset to idle",
       "Loaded package Test Package",
       "Scripted package restored; run reset to idle",
-      "Loaded package Lager 1 hour sped-up fermentation"
+      "Loaded package Sine Wave Agitator Demo",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Sine Wave Agitator Demo",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Demo ramp import schedule",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Demo ramp import schedule",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package test",
+      "Loaded package Demo ramp import schedule",
+      "Loaded package test",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Demo ramp import schedule",
+      "Loaded package test",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package test",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package"
     ],
-    "owned_targets": [
-      "set_temp_Fermentor",
-      "set_pres_Fermentor",
-      "set_allow_Gas",
-      "set_spd_Agitator"
-    ],
-    "package_id": "lager-1h-test-plan",
-    "package_name": "Lager 1 hour sped-up fermentation",
+    "owned_targets": [],
+    "package_id": "example_schedule-7-(2)",
+    "package_name": "Example_Schedule 7 (2) Scenario Package",
     "pause_reason": null,
     "runner_kind": "scripted",
-    "state": "running",
-    "wait_message": "Waiting elapsed 3.0/30.0s (remaining 27.0s)"
+    "state": "idle",
+    "wait_message": "Idle"
   }
 }

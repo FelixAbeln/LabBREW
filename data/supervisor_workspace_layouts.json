@@ -93,7 +93,7 @@
             "rows": 1,
             "type": "schedule-controls",
             "x": 1,
-            "y": 4
+            "y": 1
           },
           {
             "cols": 12,
@@ -101,7 +101,7 @@
             "rows": 3,
             "type": "schedule-summary",
             "x": 1,
-            "y": 1
+            "y": 2
           },
           {
             "cols": 12,
@@ -138,22 +138,22 @@
           {
             "cols": 12,
             "id": "widget-wa0c4oyq",
-            "rows": 4,
+            "rows": 19,
             "type": "scenario-package",
             "x": 1,
-            "y": 5
+            "y": 1
           },
           {
             "cols": 12,
-            "id": "widget-4s01q5j5",
-            "rows": 11,
+            "id": "widget-lgcvk08t",
+            "rows": 7,
             "type": "scenario-events",
             "x": 1,
-            "y": 9
+            "y": 5
           }
         ]
       }
     ],
-    "updated_at": "2026-04-15T19:29:27.804778+00:00"
+    "updated_at": "2026-04-16T21:17:48.325249+00:00"
   }
 }

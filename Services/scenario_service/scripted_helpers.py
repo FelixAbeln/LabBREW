@@ -390,104 +390,50 @@ def apply_navigation(index, total_steps, nav):
 
 
 def run_program(ctx, program: dict[str, Any]) -> None:
-    measurement_started = False
-    measurement_cfg = dict(program.get("measurement_config") or {})
-
-    # Auto-start global measurement for scenario package runs.
-    status = ctx.measurement_status()
-    already_recording = bool(status.get("recording")) if isinstance(status, dict) else False
-    if not already_recording:
-        configured_parameters = measurement_cfg.get("parameters")
-        if isinstance(configured_parameters, list) and configured_parameters:
-            parameters = [str(item).strip() for item in configured_parameters if str(item).strip()]
-        else:
-            parameters = sorted(ctx.snapshot_values().keys())
-
-        if parameters:
-            hz = to_float(measurement_cfg.get("hz"), 10.0)
-            output_dir = str(measurement_cfg.get("output_dir") or "data/measurements")
-            output_format = str(measurement_cfg.get("output_format") or "parquet")
-            session_name = str(
-                measurement_cfg.get("session_name")
-                or measurement_cfg.get("name")
-                or program.get("id")
-                or f"scenario-{int(time.time())}"
-            )
-            setup_result = ctx.setup_measurement(
-                parameters=parameters,
-                hz=hz,
-                output_dir=output_dir,
-                output_format=output_format,
-                session_name=session_name,
-                include_files=None,
-            )
-            if setup_result.get("ok", False):
-                start_result = ctx.start_measurement()
-                if start_result.get("ok", False):
-                    measurement_started = True
-                    ctx.log(
-                        f"Measurement started ({session_name}); "
-                        f"parameters={len(parameters)} hz={hz:.3f}"
-                    )
-                else:
-                    ctx.log(f"Measurement start failed: {start_result}")
-            else:
-                ctx.log(f"Measurement setup failed: {setup_result}")
-        else:
-            ctx.log("Measurement auto-start skipped: no parameters found")
-
     steps = list(iter_program_steps(program))
     total_steps = len(steps)
     step_index = 0
 
-    try:
-        while step_index < total_steps:
-            phase_name, step = steps[step_index]
-            step_name = str(step.get("name") or f"Step {step_index + 1}")
+    while step_index < total_steps:
+        phase_name, step = steps[step_index]
+        step_name = str(step.get("name") or f"Step {step_index + 1}")
 
-            paused_nav = wait_for_navigation_if_paused(ctx, step_name=step_name)
-            if paused_nav in {"next", "previous"}:
-                step_index = apply_navigation(step_index, total_steps, paused_nav)
-                continue
+        paused_nav = wait_for_navigation_if_paused(ctx, step_name=step_name)
+        if paused_nav in {"next", "previous"}:
+            step_index = apply_navigation(step_index, total_steps, paused_nav)
+            continue
 
-            ctx.log(f"Starting {phase_name} step {step_index + 1}/{total_steps}: {step_name}")
-            set_progress_safe(
-                ctx,
-                phase="setup" if phase_name == "setup_steps" else "plan",
-                step_index=step_index,
-                step_name=step_name,
-                wait_message="Running",
-            )
+        ctx.log(f"Starting {phase_name} step {step_index + 1}/{total_steps}: {step_name}")
+        set_progress_safe(
+            ctx,
+            phase="setup" if phase_name == "setup_steps" else "plan",
+            step_index=step_index,
+            step_name=step_name,
+            wait_message="Running",
+        )
 
-            action_result = run_actions(ctx, step.get("actions") or [])
-            if action_result == "stop":
-                ctx.log("Run stopped during action execution")
-                return
-            if action_result in {"next", "previous"}:
-                ctx.log(f"Navigation command during actions: {action_result}")
-                step_index = apply_navigation(step_index, total_steps, action_result)
-                continue
+        action_result = run_actions(ctx, step.get("actions") or [])
+        if action_result == "stop":
+            ctx.log("Run stopped during action execution")
+            return
+        if action_result in {"next", "previous"}:
+            ctx.log(f"Navigation command during actions: {action_result}")
+            step_index = apply_navigation(step_index, total_steps, action_result)
+            continue
 
-            wait_result = run_wait(ctx, step.get("wait") or {"kind": "none"})
-            if wait_result == "stop":
-                ctx.log("Run stopped during wait")
-                return
-            if wait_result in {"next", "previous"}:
-                ctx.log(f"Navigation command during wait: {wait_result}")
-                step_index = apply_navigation(step_index, total_steps, wait_result)
-                continue
+        wait_result = run_wait(ctx, step.get("wait") or {"kind": "none"})
+        if wait_result == "stop":
+            ctx.log("Run stopped during wait")
+            return
+        if wait_result in {"next", "previous"}:
+            ctx.log(f"Navigation command during wait: {wait_result}")
+            step_index = apply_navigation(step_index, total_steps, wait_result)
+            continue
 
-            ctx.log(f"Completed step {step_index + 1}/{total_steps}: {step_name}")
-            step_index += 1
+        ctx.log(f"Completed step {step_index + 1}/{total_steps}: {step_name}")
+        step_index += 1
 
-        set_progress_safe(ctx, phase="done", wait_message="Completed")
-    finally:
-        if measurement_started:
-            stop_result = ctx.stop_measurement()
-            if stop_result.get("ok", False):
-                ctx.log("Measurement stopped and archived")
-            else:
-                ctx.log(f"Measurement stop failed: {stop_result}")
+    set_progress_safe(ctx, phase="done", wait_message="Completed")
 
 
 def load_program_artifact(ctx, path: str = "data/program.json") -> dict[str, Any]:
