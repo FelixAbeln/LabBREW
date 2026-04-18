@@ -242,7 +242,14 @@ def build_agent_app(
 
         persistence = dict(stats.get("source_persistence") or {})
         persistence["available"] = bool(persistence.get("available", True))
-        persistence["healthy"] = bool(persistence.get("healthy", True))
+        source_errors = dict(stats.get("source_errors") or {})
+        if source_errors:
+            persistence["healthy"] = False
+            names = ", ".join(sorted(source_errors.keys()))
+            first_error = next(iter(source_errors.values()), "")
+            persistence["reason"] = f"{len(source_errors)} source(s) failed to start: {names}. {first_error}".strip(". ")
+        else:
+            persistence["healthy"] = bool(persistence.get("healthy", True))
         return persistence
 
     def _rules_persistence_status() -> dict[str, Any]:

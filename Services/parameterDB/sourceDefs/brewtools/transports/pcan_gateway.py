@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import select
@@ -43,16 +44,51 @@ DLC_TO_FD_LEN = {v: k for k, v in FD_LEN_TO_DLC.items()}
 
 def _local_ipv4_addresses() -> list[str]:
     hosts: list[str] = []
+
+    def _add(addr: str) -> None:
+        text = addr.strip()
+        if text and not text.startswith("127.") and text not in hosts:
+            hosts.append(text)
+
+    # Most reliable cross-platform method: UDP connect to an external address.
+    # No packet is actually sent; the OS picks the outbound interface IP.
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(0)
+        sock.connect(("8.8.8.8", 80))
+        _add(sock.getsockname()[0])
+        sock.close()
+    except Exception:
+        pass
+
+    # Fallback: hostname resolution (may fail on Pi if hostname isn't in /etc/hosts)
     try:
         infos = socket.getaddrinfo(socket.gethostname(), None, family=socket.AF_INET)
     except Exception:
         infos = []
     for info in infos:
-        addr = str(info[4][0] or "").strip()
-        if not addr or addr.startswith("127."):
-            continue
-        if addr not in hosts:
-            hosts.append(addr)
+        _add(str(info[4][0] or ""))
+
+    # Linux fallback: iterate /sys/class/net and read each interface IP via SIOCGIFADDR.
+    try:
+        import fcntl
+        SIOCGIFADDR = 0x8915
+        ifaces_path = "/sys/class/net"
+        if os.path.isdir(ifaces_path):
+            for iface in os.listdir(ifaces_path):
+                if iface == "lo":
+                    continue
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    packed = fcntl.ioctl(s.fileno(), SIOCGIFADDR,
+                                        struct.pack("256s", iface[:15].encode()))
+                    s.close()
+                    _add(socket.inet_ntoa(packed[20:24]))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     return hosts
 
 
