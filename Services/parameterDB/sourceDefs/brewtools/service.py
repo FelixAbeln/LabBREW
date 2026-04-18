@@ -404,7 +404,7 @@ class BrewtoolsSource(DataSourceBase):
         elif cls_name == "MaxValue":
             self._publish_measurement("max", int(obj.node_id), float(obj.value))
         elif cls_name == "CalibrationAck":
-            from .brewtools_can.enums import AckType
+            from .brewtools_can import AckType, NodeType
 
             ack_map = {
                 int(AckType.ACK_TYPE_CALIBRATING): "calibrating",
@@ -413,12 +413,23 @@ class BrewtoolsSource(DataSourceBase):
             }
             cal_node_id = int(obj.node_id)
             status = ack_map.get(int(obj.ack_type), "unknown")
-            density_status_param = self._density_calibrate_status_param(cal_node_id)
-            pressure_status_param = self._pressure_calibrate_status_param(cal_node_id)
-            if density_status_param in self._known_parameters:
-                self.client.set_value(density_status_param, status)
-            if pressure_status_param in self._known_parameters:
-                self.client.set_value(pressure_status_param, status)
+            sender_node_type = int(getattr(frame.can_id, "sender_node_type", 0))
+
+            if sender_node_type == int(NodeType.NODE_TYPE_DENSITY_SENSOR):
+                density_status_param = self._density_calibrate_status_param(cal_node_id)
+                if density_status_param in self._known_parameters:
+                    self.client.set_value(density_status_param, status)
+            elif sender_node_type == int(NodeType.NODE_TYPE_PRESSURE_SENSOR):
+                pressure_status_param = self._pressure_calibrate_status_param(cal_node_id)
+                if pressure_status_param in self._known_parameters:
+                    self.client.set_value(pressure_status_param, status)
+            else:
+                density_status_param = self._density_calibrate_status_param(cal_node_id)
+                pressure_status_param = self._pressure_calibrate_status_param(cal_node_id)
+                if density_status_param in self._known_parameters:
+                    self.client.set_value(density_status_param, status)
+                if pressure_status_param in self._known_parameters:
+                    self.client.set_value(pressure_status_param, status)
 
     def _apply_outputs(self, transport: Any) -> None:
         for node_id in sorted(self._seen_agitator_nodes):
