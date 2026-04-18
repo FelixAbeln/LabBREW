@@ -4,7 +4,7 @@
 This script builds a fingerprint for a known gateway host (default: 192.168.5.31)
 and compares nearby hosts against it using:
 - TCP service availability (80/443/8080)
-- HTTP headers/title text
+- HTTP status/server/title from an HTTP probe on port 80 (http://)
 - UDP probe behavior on candidate PCAN ports (55001/55002 by default)
 - ARP table MAC address lookup (Windows `arp -a`)
 

@@ -60,7 +60,7 @@ services:
     docs: docs/implementation/scenario-service-integration.md
     listen:
       host: 127.0.0.1
-      port: 8775
+      port: 8770
       proto: http
       path: /
     backends:
@@ -79,7 +79,7 @@ services:
     docs: docs/api/data-service-api.md
     listen:
       host: 127.0.0.1
-      port: 8764
+      port: 8769
       proto: http
       path: /
     backend: ParameterDB

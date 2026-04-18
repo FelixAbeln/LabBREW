@@ -1,7 +1,7 @@
 import { ArchiveFilesCard, ArchiveSummaryCard } from '../archive/ArchiveTab';
 import BackendControlCard from '../control/BackendControlCard.jsx';
 import { DataLoadstepStatusCard, DataRecordingCard, DataSnapshotBrowserCard } from '../data/DataTab';
-import { ScenarioControlsBar, ScenarioEventLogCard, ScenarioSummaryCard } from '../schedule/ScheduleTab';
+import { ScenarioControlsBar, ScenarioEventLogCard, ScenarioPackageCard, ScenarioSummaryCard } from '../schedule/ScheduleTab';
 import { PersistenceStatusCard, SystemLauncherPanel } from '../system/SystemTab';
 
 function SystemNodeWidget({ systemProps }) {
@@ -363,6 +363,16 @@ const BASE_WORKSPACE_MODULES = [
     render: (props) => <ScenarioEventLogCard scenario={props.scenarioProps?.scenario} />,
   },
   {
+    type: 'scenario-package',
+    label: 'Package Editor',
+    description: 'Import, edit, and manage scenario packages.',
+    category: 'Scenario',
+    sortOrder: 30,
+    defaultCols: 8,
+    defaultRows: 2,
+    render: (props) => <ScenarioPackageCard {...props.scenarioProps} />,
+  },
+  {
     type: 'archive-summary',
     label: 'Archive Summary',
     description: 'Disk and bundle totals.',
@@ -473,7 +483,14 @@ export function getWorkspaceModules(props = {}) {
 
 export function getWorkspaceModule(type, props = {}) {
   const rawType = String(type || '');
-  const found = getWorkspaceModules(props).find((item) => item.type === rawType);
+  const legacyTypeMap = {
+    'schedule-controls': 'scenario-controls',
+    'schedule-summary': 'scenario-summary',
+    'schedule-events': 'scenario-events',
+    'schedule-workbook': 'scenario-package',
+  };
+  const resolvedType = legacyTypeMap[rawType] || rawType;
+  const found = getWorkspaceModules(props).find((item) => item.type === resolvedType);
   if (found) return found;
   if (rawType.startsWith('control-card:')) {
     return {

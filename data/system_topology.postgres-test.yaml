@@ -79,12 +79,12 @@ services:
     advertise_as:
       - control_service
 
-  schedule_service:
-    module: Services.schedule_service.service
-    docs: docs/api/schedule-service-api.md
+  scenario_service:
+    module: Services.scenario_service.service
+    docs: docs/implementation/scenario-service-integration.md
     listen:
       host: 127.0.0.1
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
@@ -96,14 +96,14 @@ services:
         port_flag: --data-backend-port
     static_args: []
     advertise_as:
-      - schedule_service
+      - scenario_service
 
   data_service:
     module: Services.data_service.service
     docs: docs/api/data-service-api.md
     listen:
       host: 127.0.0.1
-      port: 8764
+      port: 8769
       proto: http
       path: /
     backend: ParameterDB

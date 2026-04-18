@@ -339,6 +339,35 @@ def test_stop_setup_measurement_and_loadstep_remaining_branches(tmp_path: Path) 
     assert taken["loadstep_name"].startswith("loadstep_")
 
 
+def test_setup_measurement_keeps_explicit_session_name_when_no_collision(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+
+    setup = runtime.setup_measurement(
+        parameters=["x"],
+        hz=2.0,
+        output_dir=str(tmp_path),
+        session_name="explicit-name",
+    )
+
+    assert setup["ok"] is True
+    assert setup["session_name"] == "explicit-name"
+
+
+def test_setup_measurement_stamps_explicit_session_name_on_collision(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    (tmp_path / "explicit-name.jsonl").write_text("existing", encoding="utf-8")
+
+    setup = runtime.setup_measurement(
+        parameters=["x"],
+        hz=2.0,
+        output_dir=str(tmp_path),
+        session_name="explicit-name",
+    )
+
+    assert setup["ok"] is True
+    assert setup["session_name"].startswith("explicit-name_")
+
+
 def test_measure_stop_archive_error_and_finalize_active_loadstep(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runtime = _runtime(tmp_path)
     runtime.setup_measurement(parameters=["x"], hz=2.0, output_dir=str(tmp_path), session_name="s")

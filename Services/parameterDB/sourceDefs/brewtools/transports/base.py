@@ -52,7 +52,14 @@ class TransportDiscoveryCandidate:
             "error": self.error,
         }
         if self.extra:
-            payload.update(self.extra)
+            conflicting_extra: dict[str, Any] = {}
+            for key, value in self.extra.items():
+                if key in payload:
+                    conflicting_extra[key] = value
+                    continue
+                payload[key] = value
+            if conflicting_extra:
+                payload["extra"] = conflicting_extra
         return payload
 
 

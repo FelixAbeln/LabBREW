@@ -198,12 +198,19 @@ class DataRecordingRuntime:
                     "but samples may be null until values appear."
                 )
 
-            # Always add a run stamp so repeated runs never collide on filenames.
+            # Keep explicit session names stable unless collisions require disambiguation.
             requested_session_name = Path(str(session_name or "").strip()).name
             if not requested_session_name:
                 requested_session_name = "measurement"
+            output_dir_path = Path(output_dir)
             run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            session_name = f"{requested_session_name}_{run_stamp}"
+            if str(session_name or "").strip():
+                session_name = requested_session_name
+                collision_pattern = f"{requested_session_name}.*"
+                if output_dir_path.exists() and any(output_dir_path.glob(collision_pattern)):
+                    session_name = f"{requested_session_name}_{run_stamp}"
+            else:
+                session_name = f"{requested_session_name}_{run_stamp}"
 
             normalized_include_files = [
                 str(item) for item in (include_files or []) if str(item).strip()
@@ -240,7 +247,6 @@ class DataRecordingRuntime:
                 include_payloads=self._normalize_include_payloads(include_payloads),
             )
             self._loadsteps_archive_format = selected_format
-            output_dir_path = Path(output_dir)
             self._loadsteps_archive_path = str(
                 output_dir_path
                 / f"{session_name}.loadsteps.{self._loadsteps_archive_format}"
