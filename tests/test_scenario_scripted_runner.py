@@ -180,8 +180,7 @@ class TestRunnerContext:
 
         thread = threading.Thread(target=lambda: ctx.request_control("agitator.speed"))
         thread.start()
-        time.sleep(0.05)
-        assert pause.is_set()
+        assert pause.wait(1.0)
         assert pause_reason and "current owner: operator" in pause_reason[0]
         pause.clear()
         thread.join(timeout=1.0)
