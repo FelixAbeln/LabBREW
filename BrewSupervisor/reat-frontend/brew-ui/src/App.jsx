@@ -1213,7 +1213,12 @@ function App() {
             `Some scenario controls are currently owned by operator:\n\n${preview}${remainder}\n\nPress OK to release manual ownership and continue.\nPress Cancel to continue without takeover. If ownership is still blocked, the scenario will pause.`,
           )
           if (shouldRelease) {
-            await releaseManualControl(operatorOwned.map((item) => item.target))
+            await api(`/fermenters/${selected.id}/control/release-manual`, {
+              method: 'POST',
+              body: JSON.stringify({
+                targets: operatorOwned.map((item) => item.target),
+              }),
+            })
           }
         }
       }
