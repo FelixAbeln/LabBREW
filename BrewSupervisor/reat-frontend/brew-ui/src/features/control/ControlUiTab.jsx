@@ -266,7 +266,7 @@ export function ControlUiTab({
                           && writeKind !== 'pulse'
                           && !isSafetyControlled
                         )
-                        const requiresTakeover = isServiceOwned && !isSafetyControlled
+                        const requiresTakeover = isServiceOwned
                         const controlLabel = friendlyControlLabel(control, target)
                         const actionLabel = friendlyActionLabel(control, target)
                         const isStackedLayout = widget === 'number_button' || widget === 'button' || writeKind === 'pulse' || widget === 'toggle' || writeKind === 'bool' || widget === 'number' || writeKind === 'number'
