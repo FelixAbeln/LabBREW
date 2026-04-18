@@ -259,6 +259,9 @@ web_modules/
 
 # Optional npm cache directory
 
+# LabBREW runtime state (generated at runtime)
+data/scenario_state.json
+
 # Runtime-generated/local topology overrides
 data/system_topology.yaml
 data/scenario_packages/repository_index.json
