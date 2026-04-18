@@ -404,7 +404,7 @@ class BrewtoolsSource(DataSourceBase):
         elif cls_name == "MaxValue":
             self._publish_measurement("max", int(obj.node_id), float(obj.value))
         elif cls_name == "CalibrationAck":
-            from .brewtools_can.enums import AckType, NodeType
+            from .brewtools_can import AckType, NodeType
 
             ack_map = {
                 int(AckType.ACK_TYPE_CALIBRATING): "calibrating",
