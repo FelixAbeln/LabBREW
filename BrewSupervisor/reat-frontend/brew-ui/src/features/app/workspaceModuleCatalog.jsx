@@ -293,7 +293,15 @@ function ControlFieldWidget({ type, controlProps }) {
               {isWriting ? 'Taking…' : 'Take control'}
             </button>
           ) : null}
-          {requiresTakeover && !canTakeControl ? <div className="small-text warning">{safetyLocked ? 'Safety lock active; takeover disabled.' : 'This control is owned and cannot be taken over from this widget.'}</div> : null}
+          {requiresTakeover && !canTakeControl ? (
+            <div className="small-text warning">
+              {control?.safety_locked
+                ? 'Safety lock active; takeover disabled.'
+                : currentOwner === 'safety'
+                  ? 'This control is owned by safety and cannot be taken over from this widget.'
+                  : 'This control is owned and cannot be taken over from this widget.'}
+            </div>
+          ) : null}
           {inlineError ? <div className="small-text warning">Write failed: {inlineError}</div> : null}
         </div>
       </div>

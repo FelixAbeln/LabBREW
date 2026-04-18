@@ -262,15 +262,21 @@ class RunnerContext:
     def sleep(self, seconds: float) -> None:
         """Sleep for *seconds*, honouring pause and stop signals."""
         deadline = time.monotonic() + max(0.0, float(seconds))
+        _ownership_check_interval = 0.5
+        _next_ownership_check = 0.0
         while time.monotonic() < deadline:
             if self._stop.is_set():
                 return
-            conflict_reason = self._ownership_conflict_reason()
-            if conflict_reason:
-                self._log(conflict_reason)
-                self._pause_until_control_available(conflict_reason)
-                if self._stop.is_set():
-                    return
+            now = time.monotonic()
+            if now >= _next_ownership_check:
+                conflict_reason = self._ownership_conflict_reason()
+                _next_ownership_check = now + _ownership_check_interval
+                if conflict_reason:
+                    self._log(conflict_reason)
+                    self._pause_until_control_available(conflict_reason)
+                    if self._stop.is_set():
+                        return
+                    _next_ownership_check = 0.0
             # Block while paused (stop still unblocks us)
             while self._pause.is_set() and not self._stop.is_set():
                 time.sleep(0.05)

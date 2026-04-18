@@ -235,17 +235,18 @@ class TestRunnerContext:
 
         def _sleep_worker() -> None:
             sleep_started.set()
-            ctx.sleep(0.6)
+            ctx.sleep(5.0)
 
         thread = threading.Thread(target=_sleep_worker)
         thread.start()
-        assert sleep_started.wait(0.5)
+        assert sleep_started.wait(1.0)
         cc.taken = True
-        assert pause.wait(1.5)
+        assert pause.wait(3.0)
         assert pause_reason and "ownership lost for x" in pause_reason[0]
         cc.taken = False
         pause.clear()
-        thread.join(timeout=1.0)
+        stop.set()  # unblock the remaining sleep so the thread exits promptly
+        thread.join(timeout=3.0)
         assert not thread.is_alive()
 
     def test_write_setpoint_non_retryable_failure_raises(self):
