@@ -40,7 +40,7 @@
       "interface_contract": "labbrew.scenario-package@1.0",
       "language": "python"
     },
-    "id": "example_schedule-7-(2)",
+    "id": "test",
     "interface": {
       "kind": "labbrew.scenario-package",
       "run_endpoints": {
@@ -55,13 +55,13 @@
       "version": "1.0"
     },
     "metadata": {
-      "archive_filename": "Example_Schedule 7 (2).lbpkg",
+      "archive_filename": "TestPKG.lbpkg",
       "created_by": "Other.Builders.build_selfcontained_excel_package",
       "import_source": "excel",
       "normalized_at": "2026-04-16T21:08:52.264535Z",
       "packaging": "self-contained"
     },
-    "name": "Example_Schedule 7 (2) Scenario Package",
+    "name": "test pkg",
     "program": {
       "id": "lager-1h-test-plan",
       "measurement_config": {
@@ -501,13 +501,13 @@
         "version": "1.0"
       },
       "metadata": {
-        "archive_filename": "Example_Schedule 7 (2).lbpkg",
+        "archive_filename": "TestPKG.lbpkg",
         "created_by": "Other.Builders.build_selfcontained_excel_package",
         "import_source": "excel",
         "normalized_at": "2026-04-16T21:08:52.264535Z",
         "packaging": "self-contained"
       },
-      "phase": null,
+      "phase": "run",
       "validation": {
         "artifact": "validation/validation.json",
         "required_fields": [
@@ -584,14 +584,16 @@
       "Loaded package Lager 1 hour sped-up fermentation",
       "Loaded package Example_Schedule 7 (2) Scenario Package",
       "Loaded package Example_Schedule 7 (2) Scenario Package",
-      "Loaded package Example_Schedule 7 (2) Scenario Package"
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package test pkg"
     ],
     "owned_targets": [],
-    "package_id": "example_schedule-7-(2)",
-    "package_name": "Example_Schedule 7 (2) Scenario Package",
+    "package_id": "test",
+    "package_name": "test pkg",
     "pause_reason": null,
     "runner_kind": "scripted",
-    "state": "idle",
-    "wait_message": "Idle"
+    "state": "running",
+    "wait_message": "Running"
   }
 }

@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import json
+import re
+import subprocess
 import select
 import socket
 import struct
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from ipaddress import ip_network
+from typing import Any
+from urllib.parse import quote
+from urllib.request import urlopen
 
-from .base import CanTransport, RawCanFrame
+from .base import CanTransport, RawCanFrame, TransportDiscoveryCandidate
 
 TYPE_CLASSIC = 0x0080
 TYPE_CLASSIC_CRC = 0x0081
@@ -31,6 +39,172 @@ FD_LEN_TO_DLC = {
     64: 15,
 }
 DLC_TO_FD_LEN = {v: k for k, v in FD_LEN_TO_DLC.items()}
+
+
+def _local_ipv4_addresses() -> list[str]:
+    hosts: list[str] = []
+    try:
+        infos = socket.getaddrinfo(socket.gethostname(), None, family=socket.AF_INET)
+    except Exception:
+        infos = []
+    for info in infos:
+        addr = str(info[4][0] or "").strip()
+        if not addr or addr.startswith("127."):
+            continue
+        if addr not in hosts:
+            hosts.append(addr)
+    return hosts
+
+
+def _gateway_hosts(payload: dict[str, Any], record: dict[str, Any] | None) -> list[str]:
+    out: list[str] = []
+
+    def _add(host: Any) -> None:
+        text = str(host or "").strip()
+        if text and text not in out:
+            out.append(text)
+
+    raw_hosts = payload.get("gateway_hosts")
+    if isinstance(raw_hosts, list):
+        for host in raw_hosts:
+            _add(host)
+
+    _add(payload.get("gateway_host"))
+    if isinstance(record, dict):
+        cfg = record.get("config")
+        if isinstance(cfg, dict):
+            _add(cfg.get("gateway_host"))
+
+    max_hosts = max(1, min(256, int(payload.get("max_gateway_hosts") or 128)))
+    for local in _local_ipv4_addresses():
+        parts = local.split(".")
+        if len(parts) == 4:
+            try:
+                subnet = ip_network(f"{local}/24", strict=False)
+            except Exception:
+                continue
+            for host in subnet.hosts():
+                text = str(host)
+                if text == local:
+                    continue
+                _add(text)
+                if len(out) >= max_hosts:
+                    return out
+    return out
+
+
+def _arp_mac_table() -> dict[str, str]:
+    out: dict[str, str] = {}
+    try:
+        proc = subprocess.run(["arp", "-a"], capture_output=True, text=True, timeout=5, check=False)
+        for raw in (proc.stdout or "").splitlines():
+            line = raw.strip()
+            match = re.match(r"^(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F\-]{17})\s+\w+", line)
+            if match:
+                out[match.group(1)] = match.group(2).lower()
+    except Exception:
+        return out
+    return out
+
+
+def _mac_oui(mac: str) -> str:
+    parts = str(mac or "").strip().lower().split("-")
+    if len(parts) < 3:
+        return ""
+    return "-".join(parts[:3])
+
+
+def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, dict[str, str]]:
+    request_payload = {"command": "get", "element": "device"}
+    encoded = quote(json.dumps(request_payload, separators=(",", ":")))
+    url = f"http://{host}/json.php?jcmd={encoded}"
+    try:
+        with urlopen(url, timeout=timeout_s) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    except Exception:
+        return False, "", {}
+
+    if not isinstance(payload, dict) or not bool(payload.get("valid")):
+        return False, "", {}
+
+    product_name = str(payload.get("product_name") or "").strip()
+    order_no = str(payload.get("order_no") or "").strip()
+    serial_no = str(payload.get("serial_no") or "").strip()
+    identity = f"{product_name} {order_no}".lower()
+    if "pcan" not in identity and "ipeh-" not in identity:
+        return False, "", {}
+
+    id_text = ""
+    if serial_no:
+        id_text = f"SN:{serial_no}"
+    elif order_no:
+        id_text = f"ID:{order_no}"
+    label = product_name or "PCAN Gateway"
+    subtitle_identity = f"{label} ({id_text})" if id_text else label
+    return True, subtitle_identity, {
+        "identity_product_name": product_name,
+        "identity_order_no": order_no,
+        "identity_serial_no": serial_no,
+        "identity_source": "json_device",
+    }
+
+
+def discover_peak_gateways(
+    payload: dict[str, Any],
+    record: dict[str, Any] | None,
+) -> tuple[list[TransportDiscoveryCandidate], str]:
+    tx_port = int(payload.get("gateway_tx_port") or 55002)
+    rx_port = int(payload.get("gateway_rx_port") or 55001)
+    bind_host = str(payload.get("gateway_bind_host") or "0.0.0.0").strip() or "0.0.0.0"
+    timeout_s = float(payload.get("probe_timeout_s") or 0.5)
+    worker_count = max(1, min(64, int(payload.get("probe_workers") or 32)))
+    include_unmatched_hosts = bool(payload.get("include_unmatched_hosts", False))
+
+    hosts = _gateway_hosts(payload, record)
+    arp_table = _arp_mac_table()
+    out: list[TransportDiscoveryCandidate] = []
+
+    def _probe_host(host: str) -> TransportDiscoveryCandidate:
+        is_json_match, json_msg, json_identity = _json_device_identity(host, timeout_s=min(timeout_s, 0.8))
+        if is_json_match:
+            return TransportDiscoveryCandidate(
+                title=f"pcan:{host}",
+                subtitle=f"UDP {tx_port}/{rx_port} · {json_msg}",
+                source="pcan_gateway_udp",
+                transport="pcan_gateway_udp",
+                gateway_host=host,
+                gateway_tx_port=tx_port,
+                gateway_rx_port=rx_port,
+                gateway_bind_host=bind_host,
+                selectable=True,
+                extra={"identity_mac_oui": _mac_oui(arp_table.get(host, "")), **json_identity},
+            )
+
+        return TransportDiscoveryCandidate(
+            title=f"pcan:{host}",
+            subtitle=f"UDP {tx_port}/{rx_port}",
+            source="pcan_gateway_udp",
+            transport="pcan_gateway_udp",
+            gateway_host=host,
+            gateway_tx_port=tx_port,
+            gateway_rx_port=rx_port,
+            gateway_bind_host=bind_host,
+            selectable=False,
+            error="JSON device identity is not PCAN/PEAK",
+            extra={"identity_mac_oui": _mac_oui(arp_table.get(host, ""))},
+        )
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [executor.submit(_probe_host, host) for host in hosts]
+        for future in as_completed(futures):
+            try:
+                item = future.result()
+                if item is not None and (item.selectable or include_unmatched_hosts):
+                    out.append(item)
+            except Exception:
+                pass
+
+    return out, ""
 
 
 def _payload_len_from_dlc(dlc: int, is_fd: bool) -> int:

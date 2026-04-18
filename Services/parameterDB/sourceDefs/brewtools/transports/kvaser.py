@@ -1,8 +1,66 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
-from .base import CanTransport, RawCanFrame
+from .base import CanTransport, RawCanFrame, TransportDiscoveryCandidate
+
+
+def discover_kvaser_channels(
+    payload: dict[str, Any] | None = None,
+    record: dict[str, Any] | None = None,
+) -> tuple[list[TransportDiscoveryCandidate], str]:
+    _ = payload, record
+    try:
+        import can
+    except ModuleNotFoundError:
+        return [], "python-can is not installed"
+    except Exception as exc:
+        return [], str(exc)
+
+    try:
+        configs = can.detect_available_configs(interfaces=["kvaser"])
+    except TypeError:
+        try:
+            configs = [
+                cfg
+                for cfg in (can.detect_available_configs() or [])
+                if str((cfg or {}).get("interface", "")).strip().lower() == "kvaser"
+            ]
+        except Exception as exc:
+            return [], str(exc)
+    except Exception as exc:
+        return [], str(exc)
+
+    out: list[TransportDiscoveryCandidate] = []
+    seen: set[tuple[str, str]] = set()
+    for cfg in configs or []:
+        if not isinstance(cfg, dict):
+            continue
+        channel_value = cfg.get("channel", 0)
+        channel_text = str(channel_value).strip() or "0"
+        key = ("kvaser", channel_text)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            channel = int(channel_value)
+        except Exception:
+            channel = 0
+        bitrate = int(cfg.get("bitrate") or 500000)
+        out.append(
+            TransportDiscoveryCandidate(
+                title=f"kvaser:{channel_text}",
+                subtitle="Kvaser channel",
+                source="kvaser",
+                transport="kvaser",
+                interface="kvaser",
+                channel=channel,
+                bitrate=bitrate,
+                selectable=True,
+            )
+        )
+    return out, ""
 
 
 class KvaserTransport(CanTransport):
