@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createParam, fetchParamTypeUi, setParamValue, updateParamConfig, updateParamMetadata } from './loaders.js';
 import { SchemaForm } from './SchemaForm.jsx';
 import { buildFormData, buildSections, collectJsonFieldKeys, collectRequiredPaths, getByPath, setByPath } from './schemaUtils.js';
@@ -12,6 +12,9 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
   const [jsonDrafts, setJsonDrafts] = useState({});
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  // Snapshot the record at mount time so polling updates from the parent never
+  // reset the user's in-progress edits.
+  const initialRecord = useRef(record);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,7 +30,7 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
         if (cancelled) return;
         const ui = response?.ui ?? null;
         setSchemaUi(ui);
-        const nextDraft = buildFormData(ui, mode, record, 'parameter_type');
+        const nextDraft = buildFormData(ui, mode, initialRecord.current, 'parameter_type');
         setDraft(nextDraft);
         const nextJsonDrafts = {};
         collectJsonFieldKeys(buildSections(ui, mode)).forEach((key) => {
@@ -46,7 +49,7 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
 
     loadSchema();
     return () => { cancelled = true; };
-  }, [fermenterId, paramType, mode, record]);
+  }, [fermenterId, paramType, mode]);
 
   function handleFieldChange(field, rawValue) {
     setDraft((current) => {

@@ -137,10 +137,12 @@ export function ParameterList({
                       <button
                         className="pdb-btn-ghost pdb-btn-sm"
                         onClick={() => setEditTarget({ name, rec })}
+                        title="Edit parameter"
                       >Edit</button>
                       <button
                         className="pdb-btn-danger pdb-btn-sm"
                         onClick={() => { setDeleteTarget(name); setDeleteError(''); }}
+                        title="Delete parameter"
                       >Del</button>
                     </div>
                   </td>

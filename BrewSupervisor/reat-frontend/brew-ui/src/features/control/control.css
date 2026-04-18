@@ -39,6 +39,16 @@
   background: rgba(18, 25, 34, 0.68);
 }
 
+.control-item-row--scenario-owned {
+  border-color: rgba(190, 24, 93, 0.52);
+  background: rgba(63, 18, 31, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(244, 114, 182, 0.12);
+}
+
+.control-item-row--scenario-owned:hover {
+  background: rgba(75, 22, 37, 0.78);
+}
+
 .control-item-meta {
   min-width: 0;
 }

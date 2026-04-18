@@ -1177,6 +1177,47 @@ function App() {
     try {
       setLoadingAction(true)
       setError('')
+
+      if (path === '/scenario/run/start' || path === '/scenario/run/resume') {
+        const controlPayload = await loadControlUiSpec(selected.id, {
+          quiet: true,
+          includeEmptyCards: true,
+        })
+        const cards = Array.isArray(controlPayload?.cards) ? controlPayload.cards : []
+        const operatorOwned = []
+        const seenTargets = new Set()
+
+        cards.forEach((card) => {
+          const controls = Array.isArray(card?.controls) ? card.controls : []
+          controls.forEach((control) => {
+            const target = String(control?.target || '').trim()
+            const currentOwner = String(control?.current_owner || '').trim()
+            if (!target || currentOwner !== 'operator' || seenTargets.has(target)) return
+            seenTargets.add(target)
+            operatorOwned.push({
+              target,
+              label: String(control?.label || target).trim() || target,
+            })
+          })
+        })
+
+        if (operatorOwned.length) {
+          const preview = operatorOwned
+            .slice(0, 6)
+            .map((item) => `- ${item.label} (${item.target})`)
+            .join('\n')
+          const remainder = operatorOwned.length > 6
+            ? `\n- and ${operatorOwned.length - 6} more`
+            : ''
+          const shouldRelease = window.confirm(
+            `Some scenario controls are currently owned by operator:\n\n${preview}${remainder}\n\nPress OK to release manual ownership and continue.\nPress Cancel to continue without takeover. If ownership is still blocked, the scenario will pause.`,
+          )
+          if (shouldRelease) {
+            await releaseManualControl(operatorOwned.map((item) => item.target))
+          }
+        }
+      }
+
       await api(`/fermenters/${selected.id}${path}`, {
         method: 'POST',
         body: JSON.stringify({}),

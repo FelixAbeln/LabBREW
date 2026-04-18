@@ -735,6 +735,8 @@ class ControlRuntime:
                         "current_value": param.get("value")
                         if isinstance(param, dict)
                         else None,
+                        "current_owner": map_item.get("current_owner"),
+                        "safety_locked": bool(map_item.get("safety_locked")),
                         "source": "sourcedef",
                         "mapped": bool(map_item),
                     }
@@ -808,6 +810,8 @@ class ControlRuntime:
                             "write": write,
                             "role": parameter.get("role"),
                             "current_value": value,
+                            "current_owner": map_item.get("current_owner"),
+                            "safety_locked": bool(map_item.get("safety_locked")),
                             "source": "discovered",
                             "mapped": bool(map_item),
                             **extra,
@@ -835,6 +839,8 @@ class ControlRuntime:
                             "current_value": param.get("value")
                             if isinstance(param, dict)
                             else None,
+                            "current_owner": map_item.get("current_owner"),
+                            "safety_locked": bool(map_item.get("safety_locked")),
                             "source": "manual_map",
                             "mapped": True,
                         }

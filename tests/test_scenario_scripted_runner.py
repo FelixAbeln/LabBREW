@@ -143,6 +143,51 @@ class TestRunnerContext:
         ctx.release_control("agitator.speed")
         assert "agitator.speed" not in ctx._owned
 
+    def test_request_control_pauses_until_available(self):
+        class _CC:
+            def __init__(self):
+                self.calls = 0
+
+            def write(self, t, v, o):
+                _ = (t, v, o)
+
+            def request_control(self, t, o):
+                self.calls += 1
+                if self.calls == 1:
+                    return {"ok": False, "current_owner": "operator"}
+                return {"ok": True, "current_owner": o}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        pause_reason = []
+        cc = _CC()
+        stop = threading.Event()
+        pause = threading.Event()
+        ctx = RunnerContext(
+            control_client=cc,
+            data_client=None,
+            owner="test",
+            artifacts=[],
+            log_fn=lambda *_args: None,
+            progress_fn=lambda **_kwargs: None,
+            pause_for_reason_fn=lambda reason: (pause_reason.append(reason), pause.set()),
+            consume_nav_fn=lambda: None,
+            nav_pending_fn=lambda: False,
+            stop_event=stop,
+            pause_event=pause,
+        )
+
+        thread = threading.Thread(target=lambda: ctx.request_control("agitator.speed"))
+        thread.start()
+        time.sleep(0.05)
+        assert pause.is_set()
+        assert pause_reason and "current owner: operator" in pause_reason[0]
+        pause.clear()
+        thread.join(timeout=1.0)
+        assert not thread.is_alive()
+        assert "agitator.speed" in ctx._owned
+
     def test_release_all_clears_all_owned(self):
         ctx, _, _, _, _ = self._make_ctx()
         ctx.request_control("a")
@@ -414,6 +459,88 @@ class TestScriptedRunnerStateMachine:
         runner.start_run()
         runner._thread.join(timeout=3.0)
         assert "x" in releases
+
+    def test_runner_pauses_when_control_request_is_denied(self):
+        class _CC:
+            def request_control(self, t, o):
+                return {"ok": False, "current_owner": "operator"}
+
+            def write(self, t, v, o):
+                return {"ok": True}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        script = "def run(ctx):\n    ctx.request_control('x')\n    ctx.write_setpoint('x', 1.0)\n"
+        artifacts = _make_artifacts({"bin/runner.py": script})
+        runner = ScriptedRunner(
+            entrypoint_code=base64.b64decode(
+                next(a["content_b64"] for a in artifacts if a["path"] == "bin/runner.py")
+            ),
+            artifacts=artifacts,
+            control_client=_CC(),
+            owner="test",
+        )
+        runner.start_run()
+
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            status = runner.status()
+            if status["state"] == "paused":
+                break
+            time.sleep(0.01)
+
+        st = runner.status()
+        assert st["state"] == "paused"
+        assert st["pause_reason"].startswith("control_lost:")
+        assert "operator" in st["pause_reason"]
+        runner.stop_run()
+
+    def test_runner_pauses_on_blocked_write_until_resume(self):
+        writes = []
+
+        class _CC:
+            def __init__(self):
+                self.write_calls = 0
+
+            def request_control(self, t, o):
+                return {"ok": True, "current_owner": o}
+
+            def write(self, t, v, o):
+                self.write_calls += 1
+                if self.write_calls == 1:
+                    return {"ok": False, "blocked": True, "current_owner": "operator"}
+                writes.append((t, v, o))
+                return {"ok": True, "current_owner": o}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        script = "def run(ctx):\n    ctx.request_control('x')\n    ctx.write_setpoint('x', 1.0)\n"
+        artifacts = _make_artifacts({"bin/runner.py": script})
+        cc = _CC()
+        runner = ScriptedRunner(
+            entrypoint_code=base64.b64decode(
+                next(a["content_b64"] for a in artifacts if a["path"] == "bin/runner.py")
+            ),
+            artifacts=artifacts,
+            control_client=cc,
+            owner="test",
+        )
+        runner.start_run()
+
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            if runner.status()["state"] == "paused":
+                break
+            time.sleep(0.01)
+
+        assert runner.status()["state"] == "paused"
+        result = runner.resume_run()
+        assert result["ok"] is True
+        runner._thread.join(timeout=2.0)
+        assert runner.status()["state"] == "completed"
+        assert writes == [("x", 1.0, "test")]
 
     def test_get_artifact_accessible_from_script(self):
         received = []

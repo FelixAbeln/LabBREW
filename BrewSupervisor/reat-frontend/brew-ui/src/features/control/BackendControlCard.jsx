@@ -98,6 +98,8 @@ function ControlAppItem({
   const actionLabel = String(itemSpec?.action_label || (widget === 'button' || writeKind === 'pulse' ? 'Run' : 'Apply'))
   const title = String(itemSpec?.title || control?.label || target || '-').trim() || '-'
   const description = String(itemSpec?.description || control?.hint || '').trim()
+  const currentOwner = String(control?.current_owner || '').trim()
+  const isScenarioOwned = currentOwner === 'scenario_service'
 
   let inputs = null
   if (widget === 'number_button') {
@@ -182,7 +184,7 @@ function ControlAppItem({
   }
 
   return (
-    <div className="control-item-row control-item-row--stacked">
+    <div className={`control-item-row control-item-row--stacked${isScenarioOwned ? ' control-item-row--scenario-owned' : ''}`}>
       <div className="control-item-meta">
         <strong>{title}</strong>
         <div className="small-text control-item-target">{target || '-'}</div>
@@ -191,7 +193,8 @@ function ControlAppItem({
           {control?.unit ? ` ${control.unit}` : ''}
         </div>
         {description ? <div className="small-text">{description}</div> : null}
-        {control?.current_owner ? <div className="small-text">Owner: {String(control.current_owner)}</div> : null}
+        {control?.current_owner ? <div className={`small-text${isScenarioOwned ? ' warning' : ''}`}>Owner: {String(control.current_owner)}</div> : null}
+        {isScenarioOwned ? <div className="small-text warning">Scenario currently owns this target; manual writes can take ownership.</div> : null}
         {control?.safety_locked ? <div className="small-text warning">Safety locked</div> : null}
       </div>
       <div className="control-item-inputs">
