@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 import threading
 from pathlib import Path
 from typing import Any
+
+LOGGER = logging.getLogger(__name__)
 
 try:
     from ..parameterdb_core.client import SignalClient, SignalSession
@@ -43,6 +46,7 @@ class SourceRunner:
         self._lock = threading.RLock()
         self.records: dict[str, SourceRecord] = {}
         self.instances: dict[str, SourceInstance] = {}
+        self._source_errors: dict[str, str] = {}
 
     def _record_from_payload(
         self, payload: dict[str, Any], *, storage_ref: str
@@ -99,26 +103,46 @@ class SourceRunner:
         inst.session.close()
 
     def load_config_dir(self) -> list[SourceRecord]:
-        loaded = [
-            self._record_from_payload(
-                {
-                    "name": record.name,
-                    "source_type": record.source_type,
-                    "config": record.config,
-                },
-                storage_ref=record.storage_ref,
-            )
-            for record in self.repository.load_records()
-        ]
+        loaded: list[SourceRecord] = []
+        for repo_record in self.repository.load_records():
+            try:
+                record = self._record_from_payload(
+                    {
+                        "name": repo_record.name,
+                        "source_type": repo_record.source_type,
+                        "config": repo_record.config,
+                    },
+                    storage_ref=repo_record.storage_ref,
+                )
+                loaded.append(record)
+            except Exception as exc:
+                LOGGER.warning(
+                    "Skipping source config '%s' (type '%s') due to load error: %s",
+                    repo_record.name,
+                    repo_record.source_type,
+                    exc,
+                )
+                with self._lock:
+                    self._source_errors[repo_record.name] = str(exc)
         with self._lock:
             for record in loaded:
                 self.records[record.name] = record
+                self._source_errors.pop(record.name, None)
         return loaded
 
     def start_all(self) -> None:
         with self._lock:
             for record in sorted(self.records.values(), key=lambda item: item.name):
-                self._start_instance_locked(record)
+                try:
+                    self._start_instance_locked(record)
+                    self._source_errors.pop(record.name, None)
+                except Exception as exc:
+                    LOGGER.warning(
+                        "Failed to start source '%s': %s; skipping",
+                        record.name,
+                        exc,
+                    )
+                    self._source_errors[record.name] = str(exc)
 
     def stop_all(self) -> None:
         with self._lock:
@@ -137,7 +161,18 @@ class SourceRunner:
                     "config": dict(record.config),
                     "running": name in self.instances and self.instances[name].thread.is_alive(),
                     "config_path": record.storage_ref,
+                    "error": self._source_errors.get(name),
                 }
+            for name, error in self._source_errors.items():
+                if name not in result:
+                    result[name] = {
+                        "name": name,
+                        "source_type": None,
+                        "config": {},
+                        "running": False,
+                        "config_path": None,
+                        "error": error,
+                    }
             return result
 
     def stats(self) -> dict[str, Any]:
@@ -145,10 +180,13 @@ class SourceRunner:
             running_count = sum(
                 1 for item in self.instances.values() if item.thread.is_alive()
             )
+            error_names = list(self._source_errors.keys())
             return {
                 "source_persistence": dict(self.repository.stats()),
                 "source_count": len(self.records),
                 "running_count": running_count,
+                "source_errors": dict(self._source_errors),
+                "error_count": len(error_names),
             }
 
     def get_source_record(self, name: str) -> dict[str, Any]:
