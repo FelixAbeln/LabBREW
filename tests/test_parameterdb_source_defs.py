@@ -157,6 +157,70 @@ def test_system_time_source_modes_error_path_and_defaults(monkeypatch) -> None:
     assert defaults["parameter_prefix"] == "system.time"
 
 
+@pytest.mark.parametrize(
+    ("sender_node_type", "expected_status", "other_status"),
+    [
+        ("NODE_TYPE_DENSITY_SENSOR", "brewcan.density.1.calibrate_status", "brewcan.pressure.1.calibrate_status"),
+        ("NODE_TYPE_PRESSURE_SENSOR", "brewcan.pressure.1.calibrate_status", "brewcan.density.1.calibrate_status"),
+    ],
+)
+def test_brewtools_calibration_ack_updates_only_matching_sensor_status(
+    sender_node_type: str,
+    expected_status: str,
+    other_status: str,
+) -> None:
+    from Services.parameterDB.sourceDefs.brewtools.brewtools_can import BrewtoolsCanId, Priority
+    from Services.parameterDB.sourceDefs.brewtools.brewtools_can.enums import AckType, MsgType, NodeType
+    from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsSource
+
+    class FakeClient:
+        def __init__(self):
+            self.values: dict[str, object] = {}
+
+        def create_parameter(self, name: str, *_args, value=None, **_kwargs):
+            self.values.setdefault(name, value)
+            return None
+
+        def update_metadata(self, _name: str, **_changes):
+            return True
+
+        def set_value(self, name: str, value):
+            self.values[name] = value
+
+        def get_value(self, name: str, default=None):
+            return self.values.get(name, default)
+
+    class CalibrationAck:
+        def __init__(self, node_id: int, ack_type: int):
+            self.node_id = node_id
+            self.ack_type = ack_type
+
+    client = FakeClient()
+    source = BrewtoolsSource("brewcan", client, config={"parameter_prefix": "brewcan"})
+    source._ensure_density_calibrate_params(1)
+    source._ensure_pressure_calibrate_params(1)
+
+    frame = SimpleNamespace(
+        can_id=BrewtoolsCanId(
+            priority=int(Priority.MEDIUM),
+            sender_node_type=int(getattr(NodeType, sender_node_type)),
+            receiver_node_type=int(NodeType.NODE_TYPE_PLC),
+            secondary_node_id=1,
+            msg_type=int(MsgType.MSG_TYPE_CALIBRATION_ACK),
+        )
+    )
+
+    source._handle_event(
+        arbitration_id=frame.can_id.to_arbitration_id(),
+        data=b"",
+        frame=frame,
+        obj=CalibrationAck(node_id=1, ack_type=int(AckType.ACK_TYPE_OK)),
+    )
+
+    assert client.values[expected_status] == "ok"
+    assert client.values[other_status] == ""
+
+
 def test_system_time_source_ui_has_parameter_prefix_field() -> None:
     from Services.parameterDB.sourceDefs.system_time.ui import get_ui_spec
 
