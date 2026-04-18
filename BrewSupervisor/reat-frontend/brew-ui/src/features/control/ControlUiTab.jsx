@@ -255,9 +255,18 @@ export function ControlUiTab({
                         const widget = control?.widget || ''
                         const currentValue = control?.current_value
                         const currentOwner = String(control?.current_owner || '').trim()
+                        const isSafetyOwned = currentOwner === 'safety'
+                        const isSafetyLocked = Boolean(control?.safety_locked)
+                        const isSafetyControlled = isSafetyOwned || isSafetyLocked
                         const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator')
-                        const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse')
-                        const requiresTakeover = isServiceOwned
+                        const canTakeControl = Boolean(
+                          target
+                          && widget !== 'button'
+                          && widget !== 'number_button'
+                          && writeKind !== 'pulse'
+                          && !isSafetyControlled
+                        )
+                        const requiresTakeover = isServiceOwned && !isSafetyControlled
                         const controlLabel = friendlyControlLabel(control, target)
                         const actionLabel = friendlyActionLabel(control, target)
                         const isStackedLayout = widget === 'number_button' || widget === 'button' || writeKind === 'pulse' || widget === 'toggle' || writeKind === 'bool' || widget === 'number' || writeKind === 'number'
