@@ -78,13 +78,17 @@ class RunnerContext:
 
     def _extract_block_reason(self, result: Any, fallback: str) -> str:
         if isinstance(result, dict):
+            parts: list[str] = []
             current_owner = str(result.get("current_owner") or "").strip()
             if current_owner:
-                return f"{fallback}; current owner: {current_owner}"
+                parts.append(f"current owner: {current_owner}")
             for key in ("reason", "error", "message", "detail"):
                 detail = str(result.get(key) or "").strip()
                 if detail:
-                    return f"{fallback}; {detail}"
+                    parts.append(detail)
+                    break
+            if parts:
+                return f"{fallback}; {'; '.join(parts)}"
         return fallback
 
     def _is_retryable_control_conflict(self, result: Any) -> bool:
