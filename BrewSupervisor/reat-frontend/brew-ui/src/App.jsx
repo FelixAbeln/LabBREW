@@ -1179,10 +1179,7 @@ function App() {
       setError('')
 
       if (path === '/scenario/run/start' || path === '/scenario/run/resume') {
-        const controlPayload = await loadControlUiSpec(selected.id, {
-          quiet: true,
-          includeEmptyCards: true,
-        })
+        const controlPayload = await api(`/fermenters/${selected.id}/control/ui-spec`)
         const cards = Array.isArray(controlPayload?.cards) ? controlPayload.cards : []
         const operatorOwned = []
         const seenTargets = new Set()
