@@ -154,7 +154,11 @@ class TestRunnerContext:
             def request_control(self, t, o):
                 self.calls += 1
                 if self.calls == 1:
-                    return {"ok": False, "current_owner": "operator"}
+                    return {
+                        "ok": False,
+                        "current_owner": "operator",
+                        "reason": "target owned by safety",
+                    }
                 return {"ok": True, "current_owner": o}
 
             def release_control(self, t, o):
@@ -182,6 +186,7 @@ class TestRunnerContext:
         thread.start()
         assert pause.wait(1.0)
         assert pause_reason and "current owner: operator" in pause_reason[0]
+        assert "target owned by safety" in pause_reason[0]
         pause.clear()
         thread.join(timeout=1.0)
         assert not thread.is_alive()
