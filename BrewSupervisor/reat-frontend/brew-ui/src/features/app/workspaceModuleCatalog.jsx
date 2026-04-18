@@ -202,6 +202,10 @@ function ControlFieldWidget({ type, controlProps }) {
   const valueDraft = valueTarget && controlHasDraft(controlProps?.controlDrafts, valueTarget)
     ? controlProps.controlDrafts[valueTarget]
     : control?.value_target_current_value;
+  const currentOwner = String(control?.current_owner || '').trim();
+  const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator');
+  const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse');
+  const requiresTakeover = isServiceOwned;
   const actionLabel = widget === 'number_button'
     ? 'Calibrate'
     : widget === 'button' || writeKind === 'pulse'
@@ -212,7 +216,7 @@ function ControlFieldWidget({ type, controlProps }) {
 
   return (
     <div className="workspace-module-panel workspace-module-panel-control control-device-card">
-      <div className="control-item-row control-item-row--stacked">
+      <div className={`control-item-row control-item-row--stacked${isServiceOwned ? ' control-item-row--service-owned' : ''}`}>
         <div className="control-item-meta">
           <strong>{String(control?.label || target || 'Control')}</strong>
           <div className="small-text control-item-target">{target || '-'}</div>
@@ -220,9 +224,14 @@ function ControlFieldWidget({ type, controlProps }) {
             Current: {controlTextValue(widget === 'number_button' ? (control?.value_target_current_value ?? control?.current_value) : control?.current_value)}
             {control?.unit ? ` ${control.unit}` : ''}
           </div>
+          {isServiceOwned ? (
+            <div className="control-owner-banner" role="status" aria-live="polite">
+              <strong>Owned: {currentOwner}</strong>
+            </div>
+          ) : null}
         </div>
         <div className="control-item-inputs">
-          {widget === 'number_button' ? (
+          {!requiresTakeover && (widget === 'number_button') ? (
             <>
               <input
                 className="data-control"
@@ -243,15 +252,15 @@ function ControlFieldWidget({ type, controlProps }) {
                 {isWriting ? 'Sending…' : actionLabel}
               </button>
             </>
-          ) : (widget === 'button' || writeKind === 'pulse') ? (
+          ) : !requiresTakeover && (widget === 'button' || writeKind === 'pulse') ? (
             <button className="warning-button" disabled={!target || isWriting || controlProps?.controlUiLoading} onClick={() => controlProps?.onWrite?.(control, true)}>
               {isWriting ? 'Sending…' : actionLabel}
             </button>
-          ) : (widget === 'toggle' || writeKind === 'bool') ? (
+          ) : !requiresTakeover && (widget === 'toggle' || writeKind === 'bool') ? (
             <button className={`toggle-button ${controlBoolValue(control?.current_value) ? 'is-resume' : 'is-pause'}`} disabled={!target || isWriting || controlProps?.controlUiLoading} onClick={() => controlProps?.onWrite?.(control, !controlBoolValue(control?.current_value))}>
               {isWriting ? 'Writing…' : actionLabel}
             </button>
-          ) : (
+          ) : !requiresTakeover ? (
             <>
               <input
                 className="data-control"
@@ -272,7 +281,17 @@ function ControlFieldWidget({ type, controlProps }) {
                 {isWriting ? 'Writing…' : actionLabel}
               </button>
             </>
-          )}
+          ) : null}
+          {requiresTakeover && canTakeControl ? (
+            <button
+              className="warning-button control-takeover-button"
+              disabled={!target || isWriting || controlProps?.controlUiLoading}
+              onClick={() => controlProps?.onWrite?.(control, draftValue)}
+            >
+              {isWriting ? 'Taking…' : 'Take control'}
+            </button>
+          ) : null}
+          {requiresTakeover && !canTakeControl ? <div className="small-text warning">This control is owned and cannot be taken over from this widget.</div> : null}
           {inlineError ? <div className="small-text warning">Write failed: {inlineError}</div> : null}
         </div>
       </div>

@@ -6,6 +6,7 @@ export function FermenterTabsHeader({
   layoutEditMode = false,
   onToggleLayoutEdit,
   onOpenSystemStudio,
+  onOpenSystemDebug,
 }) {
   const visibleTabs = customTabs.map((tab) => ({
     id: tab.id,
@@ -34,6 +35,9 @@ export function FermenterTabsHeader({
         <div className="control-button-group">
           <button className="secondary-button" type="button" onClick={() => onOpenSystemStudio?.()} title="Open system tools" aria-label="Open system tools">
             System
+          </button>
+          <button className="secondary-button" type="button" onClick={() => onOpenSystemDebug?.()} title="Open system debug" aria-label="Open system debug">
+            Debug
           </button>
           <button
             className={`${layoutEditMode ? 'primary-button' : 'secondary-button'} icon-only-button`}

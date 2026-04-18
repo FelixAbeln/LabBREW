@@ -765,11 +765,19 @@ input {
   box-shadow: none;
 }
 
+.custom-layout-card-body--bare .workspace-module-panel-control {
+  overflow: hidden;
+}
+
 .custom-layout-card-body--bare .workspace-module-panel-control .control-item-row {
   border: none;
   background: transparent;
   border-radius: 0;
-  padding: 0;
+  padding: 0 10px;
+}
+
+.custom-layout-card-body--bare .workspace-module-panel-control .control-item-row .control-item-inputs {
+  margin-top: 0;
 }
 
 .custom-layout-card-body--bare .card-header-row {

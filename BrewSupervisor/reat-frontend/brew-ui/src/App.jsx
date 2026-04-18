@@ -1815,6 +1815,7 @@ function App() {
       layoutEditMode={layoutEditMode}
       onToggleLayoutEdit={() => setLayoutEditMode((current) => !current)}
       onOpenSystemStudio={() => setGlobalView('system-studio')}
+      onOpenSystemDebug={() => setGlobalView('system-debug')}
     >
       <FermenterTabContent
         selected={selected}

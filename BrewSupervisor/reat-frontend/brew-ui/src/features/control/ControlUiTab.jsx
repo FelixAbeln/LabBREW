@@ -256,6 +256,8 @@ export function ControlUiTab({
                         const currentValue = control?.current_value
                         const currentOwner = String(control?.current_owner || '').trim()
                         const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator')
+                        const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse')
+                        const requiresTakeover = isServiceOwned
                         const controlLabel = friendlyControlLabel(control, target)
                         const actionLabel = friendlyActionLabel(control, target)
                         const isStackedLayout = widget === 'number_button' || widget === 'button' || writeKind === 'pulse' || widget === 'toggle' || writeKind === 'bool' || widget === 'number' || writeKind === 'number'
@@ -286,12 +288,15 @@ export function ControlUiTab({
                                 Current: {formatCurrentValue(currentValue)}
                                 {control.unit ? ` ${control.unit}` : ''}
                               </div>
-                              {currentOwner ? <div className={`small-text${isServiceOwned ? ' warning' : ''}`}>Owner: {currentOwner}</div> : null}
-                              {isServiceOwned ? <div className="small-text warning">This target is owned by another service; manual writes may be blocked or take ownership depending on policy.</div> : null}
+                              {isServiceOwned ? (
+                                <div className="control-owner-banner" role="status" aria-live="polite">
+                                  <strong>Owned: {currentOwner}</strong>
+                                </div>
+                              ) : null}
                             </div>
 
                             <div className="control-item-inputs">
-                              {widget === 'number_button' ? (
+                              {!requiresTakeover && (widget === 'number_button') ? (
                                 <>
                                   <input
                                     className="data-control"
@@ -311,7 +316,7 @@ export function ControlUiTab({
                                     {isWriting ? 'Sending…' : actionLabel}
                                   </button>
                                 </>
-                              ) : (widget === 'button' || writeKind === 'pulse') ? (
+                              ) : !requiresTakeover && (widget === 'button' || writeKind === 'pulse') ? (
                                 <button
                                   className="warning-button"
                                   disabled={!target || isWriting || controlUiLoading}
@@ -319,7 +324,7 @@ export function ControlUiTab({
                                 >
                                   {isWriting ? 'Sending…' : actionLabel}
                                 </button>
-                              ) : (widget === 'toggle' || writeKind === 'bool') ? (
+                              ) : !requiresTakeover && (widget === 'toggle' || writeKind === 'bool') ? (
                                 <button
                                   className={`toggle-button ${toggleValue ? 'is-resume' : 'is-pause'}`}
                                   disabled={!target || isWriting || controlUiLoading}
@@ -330,7 +335,7 @@ export function ControlUiTab({
                                 >
                                   {isWriting ? 'Writing…' : (toggleValue ? 'On' : 'Off')}
                                 </button>
-                              ) : widget === 'number' || writeKind === 'number' ? (
+                              ) : !requiresTakeover && (widget === 'number' || writeKind === 'number') ? (
                                 <>
                                   <input
                                     className="data-control"
@@ -350,7 +355,7 @@ export function ControlUiTab({
                                     {isWriting ? 'Writing…' : 'Apply'}
                                   </button>
                                 </>
-                              ) : (
+                              ) : !requiresTakeover ? (
                                 <>
                                   <input
                                     className="data-control"
@@ -367,7 +372,19 @@ export function ControlUiTab({
                                     {isWriting ? 'Writing…' : 'Apply'}
                                   </button>
                                 </>
-                              )}
+                              ) : null}
+                              {requiresTakeover && canTakeControl ? (
+                                <button
+                                  className="warning-button control-takeover-button"
+                                  disabled={!target || isWriting || controlUiLoading}
+                                  onClick={() => onWrite(control, draftValue)}
+                                >
+                                  {isWriting ? 'Taking…' : 'Take control'}
+                                </button>
+                              ) : null}
+                              {requiresTakeover && !canTakeControl ? (
+                                <div className="small-text warning">This control is owned and cannot be taken over from this widget.</div>
+                              ) : null}
                               {inlineOverwriteNotice ? (
                                 <div className="small-text control-inline-notice">
                                   <span
