@@ -386,7 +386,7 @@ export function ControlUiTab({
                                 <button
                                   className="warning-button control-takeover-button"
                                   disabled={!target || isWriting || controlUiLoading}
-                                  onClick={() => onWrite(control, draftValue)}
+                                  onClick={() => onWrite(control, currentValue)}
                                 >
                                   {isWriting ? 'Taking…' : 'Take control'}
                                 </button>

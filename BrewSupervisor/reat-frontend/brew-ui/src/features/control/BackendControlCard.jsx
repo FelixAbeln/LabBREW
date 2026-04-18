@@ -210,7 +210,7 @@ function ControlAppItem({
           <button
             className="warning-button control-takeover-button"
             disabled={controlUiLoading || isWriting}
-            onClick={() => onWrite(control, draftValue)}
+            onClick={() => onWrite(control, control?.current_value)}
           >
             {isWriting ? 'Taking…' : 'Take control'}
           </button>

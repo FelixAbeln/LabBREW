@@ -288,7 +288,7 @@ function ControlFieldWidget({ type, controlProps }) {
             <button
               className="warning-button control-takeover-button"
               disabled={!target || isWriting || controlProps?.controlUiLoading}
-              onClick={() => controlProps?.onWrite?.(control, draftValue)}
+              onClick={() => controlProps?.onWrite?.(control, control?.current_value)}
             >
               {isWriting ? 'Taking…' : 'Take control'}
             </button>
