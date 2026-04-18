@@ -38,6 +38,7 @@ class DataClient:
         output_format: str = "parquet",
         session_name: str = "",
         include_files: list[str] | None = None,
+        include_payloads: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "parameters": parameters,
@@ -48,6 +49,8 @@ class DataClient:
         }
         if include_files is not None:
             payload["include_files"] = include_files
+        if include_payloads is not None:
+            payload["include_payloads"] = include_payloads
         return self._post("/measurement/setup", payload)
 
     def measure_start(self) -> dict[str, Any]:

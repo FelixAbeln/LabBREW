@@ -67,7 +67,7 @@ function UpdateConfirmModal({ onConfirm, onCancel }) {
           Applying the update will <strong>restart all services</strong> on this node.
         </p>
         <ul style={{ marginBottom: '1rem', paddingLeft: '1.25rem' }}>
-          <li>Any running schedule will be <strong>aborted</strong>.</li>
+          <li>Any running scenario will be <strong>aborted</strong>.</li>
           <li>All active setpoints will be <strong>released</strong>.</li>
           <li>The node will be unreachable for a few seconds during the restart.</li>
         </ul>
@@ -85,6 +85,7 @@ export function SystemLauncherPanel({
   onOpenParameterDB,
   onOpenStorageManager,
   onOpenRulesStudio,
+  onOpenScenarioBuilder,
   className = 'info-card system-launcher-card',
 }) {
   const actions = [
@@ -113,6 +114,15 @@ export function SystemLauncherPanel({
           description: 'Open the dedicated automation rules workspace.',
           cta: 'Open Rules',
           onClick: onOpenRulesStudio,
+        }
+      : null,
+    onOpenScenarioBuilder
+      ? {
+          key: 'scenario-builder',
+          title: 'Scenario Builder',
+          description: 'Open package upload, edit, import, and repository tools.',
+          cta: 'Open Builder',
+          onClick: onOpenScenarioBuilder,
         }
       : null,
   ].filter(Boolean)
@@ -144,6 +154,7 @@ export function SystemTab({
   onOpenParameterDB,
   onOpenStorageManager,
   onOpenRulesStudio,
+  onOpenScenarioBuilder,
   persistenceStatus,
   persistenceLoading,
   datasourcePersistenceStatus,
@@ -180,6 +191,7 @@ export function SystemTab({
         onOpenStorageManager={onOpenStorageManager}
         onOpenParameterDB={onOpenParameterDB}
         onOpenRulesStudio={onOpenRulesStudio}
+        onOpenScenarioBuilder={onOpenScenarioBuilder}
       />
 
       <div className="system-left-column">

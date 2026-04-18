@@ -761,7 +761,7 @@ export function StorageManagerPage({ fermenterId, fermenterName, onClose }) {
     <div className="pdb-page">
       <div className="pdb-page-header">
         <div className="pdb-page-title">
-          <span className="pdb-page-icon">▣</span>
+          <span className="pdb-page-icon pdb-page-icon-storage">▣</span>
           <span>Storage Manager</span>
           {fermenterName && <span className="pdb-page-mode">{fermenterName}</span>}
         </div>

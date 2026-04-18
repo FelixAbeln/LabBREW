@@ -6,6 +6,7 @@ import pytest
 
 from Services.parameterDB.sourceDefs.brewtools.ui import get_ui_spec as get_brewtools_ui_spec
 from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsSourceSpec
+from Services.parameterDB.sourceDefs.brewtools.transports.base import TransportDiscoveryCandidate
 from Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway import (
     TYPE_CLASSIC_CRC,
     parse_gateway_packet,
@@ -109,50 +110,29 @@ def test_brewtools_run_ui_action_scans_kvaser_and_peak(monkeypatch) -> None:
 
     monkeypatch.setattr(
         brewtools_ui,
-        "_scan_kvaser_channels",
-        lambda payload: (
-            [
-                {
-                    "title": "kvaser:0",
-                    "subtitle": "Kvaser channel",
-                    "source": "kvaser",
-                    "transport": "kvaser",
-                    "interface": "kvaser",
-                    "channel": 0,
-                    "bitrate": 500000,
-                    "gateway_host": "",
-                    "gateway_tx_port": 55002,
-                    "gateway_rx_port": 55001,
-                    "gateway_bind_host": "0.0.0.0",
-                    "selectable": True,
-                    "error": "",
-                }
-            ],
-            "",
-        ),
-    )
-    monkeypatch.setattr(
-        brewtools_ui,
-        "_scan_peak_gateways",
+        "discover_transport_candidates",
         lambda payload, record: (
             [
-                {
-                    "title": "pcan:192.168.0.30",
-                    "subtitle": "UDP 55002/55001",
-                    "source": "pcan_gateway_udp",
-                    "transport": "pcan_gateway_udp",
-                    "interface": "",
-                    "channel": 0,
-                    "bitrate": 500000,
-                    "gateway_host": "192.168.0.30",
-                    "gateway_tx_port": 55002,
-                    "gateway_rx_port": 55001,
-                    "gateway_bind_host": "0.0.0.0",
-                    "selectable": True,
-                    "error": "",
-                }
+                TransportDiscoveryCandidate(
+                    title="kvaser:0",
+                    subtitle="Kvaser channel",
+                    source="kvaser",
+                    transport="kvaser",
+                    interface="kvaser",
+                    channel=0,
+                    bitrate=500000,
+                    selectable=True,
+                ).as_dict(),
+                TransportDiscoveryCandidate(
+                    title="pcan:192.168.0.30",
+                    subtitle="UDP 55002/55001",
+                    source="pcan_gateway_udp",
+                    transport="pcan_gateway_udp",
+                    gateway_host="192.168.0.30",
+                    selectable=True,
+                ).as_dict(),
             ],
-            "",
+            [],
         ),
     )
 
@@ -167,17 +147,29 @@ def test_brewtools_run_ui_action_scans_kvaser_and_peak(monkeypatch) -> None:
 def test_brewtools_run_ui_action_filters_unreachable_peak_candidates(monkeypatch) -> None:
     from Services.parameterDB.sourceDefs.brewtools import ui as brewtools_ui
 
-    monkeypatch.setattr(brewtools_ui, "_scan_kvaser_channels", lambda payload: ([], ""))
-    monkeypatch.setattr(
-        brewtools_ui,
-        "_scan_peak_gateways",
-        lambda payload, record: ([], ""),
-    )
+    monkeypatch.setattr(brewtools_ui, "discover_transport_candidates", lambda payload, record: ([], []))
 
     result = brewtools_ui.run_ui_action("scan_channels", payload={})
 
     assert result["ok"] is True
     assert result["channels"] == []
+
+
+def test_transport_discovery_candidate_as_dict_preserves_extra_fields() -> None:
+    candidate = TransportDiscoveryCandidate(
+        title="pcan:192.168.5.31",
+        subtitle="UDP 55002/55001 · PCAN-Ethernet Gateway DR (SN:26869)",
+        source="pcan_gateway_udp",
+        transport="pcan_gateway_udp",
+        gateway_host="192.168.5.31",
+        selectable=True,
+        extra={"identity_serial_no": "26869"},
+    )
+
+    result = candidate.as_dict()
+
+    assert result["title"] == "pcan:192.168.5.31"
+    assert result["identity_serial_no"] == "26869"
 
 
 def test_parse_gateway_packet_rejects_crc_frame_shorter_than_header_plus_crc() -> None:

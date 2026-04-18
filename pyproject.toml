@@ -21,7 +21,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     # Binary serialisation (ParameterDB protocol)
     "msgpack>=1.0",
-    # Excel schedule import
+    # Excel scenario package import
     "openpyxl",
     # CAN-bus hardware interface (BrewTools Kvaser source)
     "python-can",
@@ -34,14 +34,14 @@ dependencies = [
 ]
 
 [project.scripts]
-# Node supervisor (starts ParameterDB, Control, Schedule services + Supervisor Agent)
+# Node supervisor (starts ParameterDB, Control, Scenario, Data services + Supervisor Agent)
 labbrew-supervisor          = "Supervisor.supervisor:main"
 # Central API gateway + React frontend
 labbrew-brew-supervisor     = "BrewSupervisor.run_api:main"
 # Control service (ownership, ramp, rules)
 labbrew-control             = "Services.control_service.service:main"
-# Schedule execution engine
-labbrew-scheduler           = "Services.schedule_service.service:main"
+# Scenario execution engine
+labbrew-scenario            = "Services.scenario_service.service:main"
 # ParameterDB parameter-store service
 labbrew-parameterdb         = "Services.parameterDB.serviceDB:main"
 # ParameterDB data-source runner

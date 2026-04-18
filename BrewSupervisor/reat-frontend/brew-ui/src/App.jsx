@@ -21,14 +21,31 @@ import { FermenterTabContent } from './features/app/FermenterTabContent'
 import { useAdaptivePolling } from './hooks/useAdaptivePolling'
 import { ArchiveViewerPage } from './features/archive/ArchiveViewerPage'
 import { getWorkspaceModule } from './features/app/workspaceModuleCatalog'
+import {
+  GRID_CONTRACT,
+  WORKSPACE_RESIZE_PRESETS,
+  autoPackWidgets,
+  clampInt,
+  normalizeGridInt,
+  normalizeWidgetPlacement,
+  normalizeWidgetSize,
+  resolveAutoPlacedWidget,
+} from './features/app/workspaceGridContract'
 
 function createUiId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-const WORKSPACE_GRID_COLUMNS = 12
-const WORKSPACE_MIN_COLS = 3
-const WORKSPACE_MIN_ROWS = 1
+function encodeTextToBase64(text) {
+  const bytes = new TextEncoder().encode(String(text || ''))
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  return window.btoa(binary)
+}
 
 function moveListItem(items, fromIndex, toIndex) {
   if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return items
@@ -38,138 +55,23 @@ function moveListItem(items, fromIndex, toIndex) {
   return next
 }
 
-function clampToRange(value, min, max) {
-  return Math.min(max, Math.max(min, value))
-}
-
-function normalizeGridValue(value, fallback) {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : fallback
-}
-
 function defaultWidgetLayout(type) {
   const moduleDef = getWorkspaceModule(type)
   if (moduleDef) {
-    return {
+    return normalizeWidgetSize({
       cols: Number(moduleDef.defaultCols || 6),
       rows: Number(moduleDef.defaultRows || 1),
-    }
+    })
   }
-  return { cols: 6, rows: 1 }
-}
-
-function widgetsOverlap(left, right) {
-  return !(
-    left.x + left.cols - 1 < right.x ||
-    right.x + right.cols - 1 < left.x ||
-    left.y + left.rows - 1 < right.y ||
-    right.y + right.rows - 1 < left.y
-  )
-}
-
-function normalizePlacedWidgets(widgets) {
-  return (Array.isArray(widgets) ? widgets : []).map((widget) => ({
-    x: normalizeGridValue(widget?.x, 1),
-    y: normalizeGridValue(widget?.y, 1),
-    cols: clampToRange(normalizeGridValue(widget?.cols, 6), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
-    rows: clampToRange(normalizeGridValue(widget?.rows, 1), WORKSPACE_MIN_ROWS, 12),
-  }))
-}
-
-function nextWidgetPosition(widgets, layout) {
-  const placed = normalizePlacedWidgets(widgets)
-
-  for (let y = 1; y <= 48; y += 1) {
-    for (let x = 1; x <= Math.max(1, WORKSPACE_GRID_COLUMNS - layout.cols + 1); x += 1) {
-      const candidate = { x, y, cols: layout.cols, rows: layout.rows }
-      if (!placed.some((widget) => widgetsOverlap(candidate, widget))) {
-        return { x, y }
-      }
-    }
-  }
-
-  const maxRow = placed.reduce((max, widget) => Math.max(max, widget.y + widget.rows), 1)
-  return { x: 1, y: maxRow }
-}
-
-function getAutoSizeCandidates(type, layout) {
-  const rawType = String(type || '')
-  const preferred = []
-  const add = (cols, rows) => {
-    const nextCols = clampToRange(normalizeGridValue(cols, layout.cols), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS)
-    const nextRows = clampToRange(normalizeGridValue(rows, layout.rows), WORKSPACE_MIN_ROWS, 12)
-    if (!preferred.some((item) => item.cols === nextCols && item.rows === nextRows)) {
-      preferred.push({ cols: nextCols, rows: nextRows })
-    }
-  }
-
-  if (rawType.endsWith('-full') || rawType === 'data-snapshot' || rawType === 'archive-files' || rawType === 'schedule-events') {
-    add(12, Math.max(3, layout.rows))
-    add(9, Math.max(3, layout.rows))
-  } else if (rawType === 'data-recording' || rawType === 'system-actions' || rawType === 'schedule-controls') {
-    add(8, 1)
-    add(6, 1)
-    add(12, 1)
-  } else if (rawType === 'schedule-workbook' || rawType === 'system-persistence' || rawType === 'system-services') {
-    add(8, 2)
-    add(6, 2)
-  } else if (rawType === 'schedule-summary' || rawType === 'data-loadstep' || rawType === 'archive-summary' || rawType === 'system-node') {
-    add(4, 1)
-    add(3, 1)
-    add(6, 1)
-  } else if (rawType.startsWith('control-card:')) {
-    add(layout.cols >= 8 ? 8 : 6, Math.max(2, layout.rows))
-    add(12, Math.max(2, layout.rows))
-  } else if (rawType.startsWith('control-field:')) {
-    add(layout.cols >= 6 ? 6 : 4, 1)
-    add(4, 1)
-  }
-
-  add(layout.cols, layout.rows)
-  return preferred
-}
-
-function resolveAutoPlacedWidget(widgets, type, preferredPosition = null, layoutOverride = null) {
-  const baseLayout = defaultWidgetLayout(type)
-  const desiredLayout = {
-    cols: clampToRange(normalizeGridValue(layoutOverride?.cols, baseLayout.cols), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
-    rows: clampToRange(normalizeGridValue(layoutOverride?.rows, baseLayout.rows), WORKSPACE_MIN_ROWS, 12),
-  }
-  const placed = normalizePlacedWidgets(widgets)
-  const sizeCandidates = getAutoSizeCandidates(type, desiredLayout)
-
-  if (preferredPosition && typeof preferredPosition === 'object') {
-    for (const candidate of sizeCandidates) {
-      const positioned = {
-        x: clampToRange(normalizeGridValue(preferredPosition.x, 1), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - candidate.cols + 1)),
-        y: normalizeGridValue(preferredPosition.y, 1),
-        cols: candidate.cols,
-        rows: candidate.rows,
-      }
-      if (!placed.some((widget) => widgetsOverlap(positioned, widget))) {
-        return positioned
-      }
-    }
-  }
-
-  for (const candidate of sizeCandidates) {
-    const nextPosition = nextWidgetPosition(widgets, candidate)
-    const positioned = { ...nextPosition, cols: candidate.cols, rows: candidate.rows }
-    if (!placed.some((widget) => widgetsOverlap(positioned, widget))) {
-      return positioned
-    }
-  }
-
-  return {
-    x: 1,
-    y: 1,
-    cols: desiredLayout.cols,
-    rows: desiredLayout.rows,
-  }
+  return normalizeWidgetSize({ cols: 6, rows: 1 })
 }
 
 function buildCustomWidget(type, position = null, layoutOverride = null) {
-  const resolved = resolveAutoPlacedWidget([], type, position, layoutOverride)
+  const resolved = resolveAutoPlacedWidget([], type, {
+    preferredPosition: position,
+    layoutOverride,
+    getDefaultLayout: defaultWidgetLayout,
+  })
   return {
     id: createUiId('widget'),
     type,
@@ -201,13 +103,13 @@ function App() {
 
   const [fermenters, setFermenters] = useState([])
   const [selectedId, setSelectedId] = useState(null)
-  const [schedule, setSchedule] = useState(null)
+  const [scenario, setScenario] = useState(null)
   const [ownedTargetValues, setOwnedTargetValues] = useState([])
   const [error, setError] = useState('')
   const [loadingAction, setLoadingAction] = useState(false)
-  const [scheduleFile, setScheduleFile] = useState(null)
+  const [scenarioFile, setScenarioFile] = useState(null)
   const [importResult, setImportResult] = useState(null)
-  const [scheduleDefinition, setScheduleDefinition] = useState(null)
+  const [scenarioPackage, setScenarioPackage] = useState(null)
   const dashboardRequestRef = useRef(0)
   const sharedWorkspaceSignatureRef = useRef('')
   const [activeTab, setActiveTab] = useState('')
@@ -402,6 +304,15 @@ function App() {
             hz: Number(dataHz),
             output_format: 'parquet',
             session_name: buildMeasurementSessionName(selected),
+            include_payloads: scenarioPackage
+              ? [
+                {
+                  name: 'scenario.package.snapshot.json',
+                  media_type: 'application/json',
+                  content_b64: encodeTextToBase64(JSON.stringify(scenarioPackage, null, 2)),
+                },
+              ]
+              : [],
           }),
         })
 
@@ -848,7 +759,11 @@ function App() {
     setCustomTabs((current) => current.map((tab) => {
       if (tab.id !== tabId) return tab
       const widgets = Array.isArray(tab.widgets) ? [...tab.widgets] : []
-      const resolved = resolveAutoPlacedWidget(widgets, type, placement, layoutOverride)
+      const resolved = resolveAutoPlacedWidget(widgets, type, {
+        preferredPosition: placement,
+        layoutOverride,
+        getDefaultLayout: defaultWidgetLayout,
+      })
       const nextWidget = {
         id: createUiId('widget'),
         type,
@@ -869,9 +784,10 @@ function App() {
     if (!tabId || !widgetId) return
     setCustomTabs((current) => current.map((tab) => {
       if (tab.id !== tabId) return tab
+      const remainingWidgets = (Array.isArray(tab.widgets) ? tab.widgets : []).filter((widget) => widget?.id !== widgetId)
       return {
         ...tab,
-        widgets: (Array.isArray(tab.widgets) ? tab.widgets : []).filter((widget) => widget?.id !== widgetId),
+        widgets: GRID_CONTRACT.collision.autoPackOnDelete ? autoPackWidgets(remainingWidgets) : remainingWidgets,
       }
     }))
   }
@@ -887,11 +803,20 @@ function App() {
           ...tab,
           widgets: widgets.map((widget) => {
             if (widget?.id !== draggedId) return widget
-            const cols = normalizeGridValue(widget?.cols, 6)
+            const size = normalizeWidgetSize(widget)
+            const currentPosition = normalizeWidgetPlacement(widget, 0, size)
+            const nextPosition = normalizeWidgetPlacement(
+              {
+                x: normalizeGridInt(target.x, currentPosition.x),
+                y: normalizeGridInt(target.y, currentPosition.y),
+              },
+              0,
+              size,
+            )
             return {
               ...widget,
-              x: clampToRange(normalizeGridValue(target.x, normalizeGridValue(widget?.x, 1)), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - cols + 1)),
-              y: normalizeGridValue(target.y, normalizeGridValue(widget?.y, 1)),
+              x: nextPosition.x,
+              y: nextPosition.y,
             }
           }),
         }
@@ -910,18 +835,9 @@ function App() {
   }
 
   function resizeCustomWidget(tabId, widgetId, preset) {
-    const presetLayouts = {
-      compact: { cols: 4, rows: 1 },
-      medium: { cols: 6, rows: 1 },
-      wide: { cols: 12, rows: 1 },
-      tall: { cols: 6, rows: 2 },
-      hero: { cols: 12, rows: 2 },
-    }
+    const presetLayouts = WORKSPACE_RESIZE_PRESETS
     const nextLayout = preset && typeof preset === 'object'
-      ? {
-          cols: clampToRange(normalizeGridValue(preset.cols, 6), WORKSPACE_MIN_COLS, WORKSPACE_GRID_COLUMNS),
-          rows: clampToRange(normalizeGridValue(preset.rows, 1), WORKSPACE_MIN_ROWS, 12),
-        }
+      ? normalizeWidgetSize(preset)
       : presetLayouts[String(preset || '')]
     if (!tabId || !widgetId || !nextLayout) return
     setCustomTabs((current) => current.map((tab) => {
@@ -930,8 +846,15 @@ function App() {
         ...tab,
         widgets: (Array.isArray(tab.widgets) ? tab.widgets : []).map((widget) => {
           if (widget?.id !== widgetId) return widget
-          const nextX = clampToRange(normalizeGridValue(widget?.x, 1), 1, Math.max(1, WORKSPACE_GRID_COLUMNS - nextLayout.cols + 1))
-          return { ...widget, cols: nextLayout.cols, rows: nextLayout.rows, x: nextX }
+          const normalizedLayout = normalizeWidgetSize(nextLayout, widget)
+          const normalizedPosition = normalizeWidgetPlacement(widget, 0, normalizedLayout)
+          return {
+            ...widget,
+            cols: normalizedLayout.cols,
+            rows: normalizedLayout.rows,
+            x: normalizedPosition.x,
+            y: normalizedPosition.y,
+          }
         }),
       }
     }))
@@ -1047,7 +970,7 @@ function App() {
   const showRulesTab = globalView === 'rules-studio' || hasCustomModulePrefix('rules')
   const showSystemTab = globalView === 'system-studio' || hasCustomModulePrefix('system')
 
-  const runToggle = useMemo(() => getRunToggle(schedule?.state || null), [schedule?.state])
+  const runToggle = useMemo(() => getRunToggle(scenario?.state || null), [scenario?.state])
   const importErrorIssues = useMemo(() => collectIssues(importResult, 'error'), [importResult])
   const importWarningIssues = useMemo(() => collectIssues(importResult, 'warning'), [importResult])
 
@@ -1136,11 +1059,11 @@ function App() {
     return data
   }, [brewApi, selectedId])
 
-  const loadDetails = useCallback(async (id) => {
+  const loadDetails = useCallback(async (id, options = {}) => {
     const requestId = dashboardRequestRef.current + 1
     dashboardRequestRef.current = requestId
 
-    const payload = await loadDashboardData(brewApi, id)
+    const payload = await loadDashboardData(brewApi, id, options)
     if (dashboardRequestRef.current !== requestId) return
 
     if (payload?.fermenter) {
@@ -1149,8 +1072,8 @@ function App() {
       )
     }
 
-    setSchedule(payload?.schedule || null)
-    setScheduleDefinition(payload?.schedule_definition || null)
+    setScenario(payload?.schedule || null)
+    setScenarioPackage(payload?.scenario_package || payload?.schedule_definition || null)
     setOwnedTargetValues(Array.isArray(payload?.owned_target_values) ? payload.owned_target_values : [])
   }, [brewApi])
 
@@ -1232,7 +1155,7 @@ function App() {
 
       if (!data.length) {
         setSelectedId(null)
-        setSchedule(null)
+        setScenario(null)
         setOwnedTargetValues([])
         return
       }
@@ -1270,7 +1193,7 @@ function App() {
   }
 
   async function uploadWorkbook(path) {
-    if (!selected || !scheduleFile) return
+    if (!selected || !scenarioFile) return
 
     try {
       setLoadingAction(true)
@@ -1278,7 +1201,7 @@ function App() {
       setImportResult(null)
 
       const formData = new FormData()
-      formData.append('file', scheduleFile)
+      formData.append('file', scenarioFile)
 
       const result = await api(`/fermenters/${selected.id}${path}`, {
         method: 'PUT',
@@ -1299,6 +1222,195 @@ function App() {
     } finally {
       setLoadingAction(false)
     }
+  }
+
+  async function tunePackagePatch(packagePatch) {
+    if (!selected?.id || !packagePatch || typeof packagePatch !== 'object') return
+    try {
+      setLoadingAction(true)
+      setError('')
+      const response = await api(`/fermenters/${selected.id}/scenario/package/tune`, {
+        method: 'POST',
+        body: JSON.stringify({
+          package_patch: packagePatch,
+        }),
+      })
+      if (!response?.ok) {
+        const detail = response?.error || 'Failed to apply package patch'
+        throw new Error(String(detail))
+      }
+      brewApi.invalidateFermenter(selected.id)
+      await loadDetails(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function listScenarioRepositoryPackages() {
+    if (!selected?.id) return { ok: false, packages: [] }
+    return api(`/fermenters/${selected.id}/scenario/repository`)
+  }
+
+  async function saveScenarioRepositoryPackage({ filename, packagePayload, tags, versionNotes, notes }) {
+    if (!selected?.id) return { ok: false }
+    const result = await api(`/fermenters/${selected.id}/scenario/repository/save`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filename,
+        package: packagePayload || scenarioPackage || undefined,
+        tags: Array.isArray(tags) ? tags : undefined,
+        version_notes: typeof versionNotes === 'string' ? versionNotes : undefined,
+        notes: typeof notes === 'string' ? notes : undefined,
+      }),
+    })
+    brewApi.invalidateFermenter(selected.id)
+    await loadDetails(selected.id)
+    return result
+  }
+
+  async function importScenarioRepositoryPackage(filename) {
+    if (!selected?.id) return { ok: false }
+    const result = await api(`/fermenters/${selected.id}/scenario/repository/import`, {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    })
+    setImportResult(result)
+    if (result && typeof result === 'object' && result.ok === false) {
+      const firstError = Array.isArray(result.errors) ? result.errors[0] : null
+      const errorMessage =
+        (firstError && typeof firstError === 'object' && String(firstError.message || '').trim())
+        || String(result.error || '').trim()
+        || 'Failed to load package into scenario service'
+      throw new Error(errorMessage)
+    }
+    if (result && typeof result === 'object' && result.scenario_package && typeof result.scenario_package === 'object') {
+      setScenarioPackage(result.scenario_package)
+      const nextProgram = result.scenario_package?.program
+      if (nextProgram && typeof nextProgram === 'object') {
+        setScenario(nextProgram)
+      }
+    }
+    brewApi.invalidateFermenter(selected.id)
+    brewApi.invalidateFermenters()
+    await loadFermenters()
+    await loadDetails(selected.id, { force: true })
+    return result
+  }
+
+  async function readScenarioRepositoryPackage(filename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/read/${encodeURIComponent(filename)}`)
+  }
+
+  async function copyScenarioRepositoryPackage(sourceFilename, targetFilename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/copy`, {
+      method: 'POST',
+      body: JSON.stringify({
+        source_filename: sourceFilename,
+        target_filename: targetFilename,
+      }),
+    })
+  }
+
+  async function renameScenarioRepositoryPackage(sourceFilename, targetFilename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/rename`, {
+      method: 'POST',
+      body: JSON.stringify({
+        source_filename: sourceFilename,
+        target_filename: targetFilename,
+      }),
+    })
+  }
+
+  async function deleteScenarioRepositoryPackage(filename) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async function updateScenarioRepositoryMetadata({ filename, tags, versionNotes, notes }) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/metadata`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filename,
+        tags: Array.isArray(tags) ? tags : [],
+        version_notes: versionNotes || '',
+        notes: notes || '',
+      }),
+    })
+  }
+
+  async function uploadScenarioRepositoryPackage({ file, filename }) {
+    if (!selected?.id || !file) return { ok: false }
+    return uploadFileToEndpoint('repository/upload-package', file, { filename })
+  }
+
+  function getScenarioRepositoryDownloadUrl(filename) {
+    if (!selected?.id || !filename) return ''
+    return `${window.location.origin}/fermenters/${selected.id}/scenario/repository/download/${encodeURIComponent(filename)}`
+  }
+
+  async function convertExcelToRepositoryPackage({ file, filename }) {
+    if (!selected?.id || !file) return { ok: false }
+    return uploadFileToEndpoint('repository/convert-excel', file, { filename })
+  }
+
+  /**
+   * Generic file upload action declared by a package's editor_spec.file_upload_actions.
+   * endpointSuffix is relative to /fermenters/{id}/scenario/, e.g. "repository/convert-excel".
+   */
+  async function uploadFileToEndpoint(endpointSuffix, file, extraParams = {}) {
+    if (!selected?.id || !file) return { ok: false }
+    const formData = new FormData()
+    formData.append('file', file)
+    const params = new URLSearchParams()
+    const normalizedParams = { ...extraParams }
+    if (String(endpointSuffix || '').trim() === 'repository/convert-excel' && normalizedParams.import_now == null) {
+      normalizedParams.import_now = 'true'
+    }
+    for (const [key, value] of Object.entries(normalizedParams)) {
+      if (value != null && value !== '') params.set(key, String(value))
+    }
+    const query = params.toString()
+    const result = await api(`/fermenters/${selected.id}/scenario/${endpointSuffix}${query ? `?${query}` : ''}`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    const importNowParam = String(normalizedParams?.import_now || '').toLowerCase()
+    const shouldRefreshImportedState =
+      importNowParam === '1' || importNowParam === 'true' || Boolean(result?.imported)
+
+    if (result && typeof result === 'object' && result.imported && result.imported.ok === false) {
+      const importedForwarded = result.imported.forwarded
+      const importedMessage =
+        (importedForwarded && typeof importedForwarded === 'object' && String(importedForwarded.error || '').trim())
+        || 'Scenario service rejected imported package'
+      throw new Error(importedMessage)
+    }
+
+    if (shouldRefreshImportedState) {
+      setImportResult(result)
+      if (result && typeof result === 'object' && result.scenario_package && typeof result.scenario_package === 'object') {
+        setScenarioPackage(result.scenario_package)
+        const nextProgram = result.scenario_package?.program
+        if (nextProgram && typeof nextProgram === 'object') {
+          setScenario(nextProgram)
+        }
+      }
+      brewApi.invalidateFermenter(selected.id)
+      brewApi.invalidateFermenters()
+      await loadFermenters()
+      await loadDetails(selected.id, { force: true })
+    }
+
+    return result
   }
 
   useEffect(() => {
@@ -1358,7 +1470,7 @@ function App() {
       }
     },
     getDelay: () => {
-      if (hasCustomModulePrefix('schedule')) return 1000
+      if (hasCustomModulePrefix('scenario') || hasCustomModulePrefix('schedule')) return 1000
       if (hasCustomModulePrefix('control')) return 2000
       if (hasCustomModulePrefix('rules') || hasCustomModulePrefix('data')) return 2500
       return 2000
@@ -1516,20 +1628,33 @@ function App() {
     )
   }
 
-  const scheduleTabProps = {
-    schedule,
-    scheduleDefinition,
+  const scenarioTabProps = {
+    scenario,
+    scenarioPackage,
     runToggle,
     loadingAction,
     selected,
     runAction,
     ownedTargetValues,
-    scheduleFile,
-    setScheduleFile,
+    scenarioFile,
+    setScenarioFile,
     uploadWorkbook,
+    tunePackagePatch,
+    listScenarioRepositoryPackages,
+    saveScenarioRepositoryPackage,
+    readScenarioRepositoryPackage,
+    importScenarioRepositoryPackage,
+    copyScenarioRepositoryPackage,
+    renameScenarioRepositoryPackage,
+    deleteScenarioRepositoryPackage,
+    updateScenarioRepositoryMetadata,
+    uploadScenarioRepositoryPackage,
+    getScenarioRepositoryDownloadUrl,
+    uploadFileToEndpoint,
     importResult,
     importErrorIssues,
     importWarningIssues,
+    onOpenScenarioBuilder: () => setGlobalView('scenario-builder'),
   }
 
   const dataTabProps = {
@@ -1598,6 +1723,7 @@ function App() {
     onOpenParameterDB: () => setGlobalView('parameterdb'),
     onOpenStorageManager: () => setGlobalView('storage-manager'),
     onOpenRulesStudio: () => setGlobalView('rules-studio'),
+    onOpenScenarioBuilder: () => setGlobalView('scenario-builder'),
     persistenceStatus,
     persistenceLoading,
     datasourcePersistenceStatus,
@@ -1645,7 +1771,7 @@ function App() {
         activeTab={activeTab}
         onSaveSharedWorkspaceLayouts={() => saveWorkspaceLayoutsToSupervisor(selected?.id)}
         workspaceSaveLoading={workspaceSaveLoading}
-        scheduleProps={scheduleTabProps}
+        scenarioProps={scenarioTabProps}
         dataProps={dataTabProps}
         controlProps={controlTabProps}
         archiveProps={archiveTabProps}

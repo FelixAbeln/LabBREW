@@ -2,20 +2,20 @@ export function getRunToggle(state) {
   if (state === 'paused') {
     return {
       label: 'Resume',
-      path: '/schedule/resume',
+      path: '/scenario/run/resume',
       className: 'toggle-button is-resume is-paused',
       disabled: false,
-      hint: 'Schedule is paused',
+      hint: 'Scenario run is paused',
     }
   }
 
   if (state === 'running') {
     return {
       label: 'Pause',
-      path: '/schedule/pause',
+      path: '/scenario/run/pause',
       className: 'toggle-button is-pause',
       disabled: false,
-      hint: 'Schedule is running',
+      hint: 'Scenario run is active',
     }
   }
 
@@ -24,6 +24,6 @@ export function getRunToggle(state) {
     path: null,
     className: 'toggle-button',
     disabled: true,
-    hint: 'Schedule not running',
+    hint: 'No active scenario run',
   }
 }

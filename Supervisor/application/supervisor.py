@@ -93,6 +93,19 @@ class TopologySupervisor:
             if service.enabled
         }
 
+    def _cached_repo_status(self) -> dict[str, Any]:
+        cached = self._repo_status_cache.get("status")
+        status = dict(cached) if isinstance(cached, dict) else {}
+        status.setdefault("repo_url", "https://github.com/FelixAbeln/LabBREW.git")
+        status.setdefault("local_revision", None)
+        status.setdefault("remote_revision", None)
+        status.setdefault("branch", None)
+        status.setdefault("outdated", False)
+        status.setdefault("dirty", False)
+        status.setdefault("error", "not_checked")
+        status["restart_requested"] = bool(self._restart_requested)
+        return status
+
     def _log(self, service_name: str, message: str) -> None:
         line = f"[SUPERVISOR] {message}"
         print(f"[{service_name}] {line}")
@@ -384,7 +397,7 @@ class TopologySupervisor:
 
     def service_map(self) -> dict[str, dict[str, Any]]:
         mapped: dict[str, dict[str, Any]] = {}
-        repo_status = self.repo_update_status(force=False)
+        repo_status = self._cached_repo_status()
         update_info = {
             "outdated": bool(repo_status.get("outdated")),
             "local_revision": repo_status.get("local_revision"),
@@ -407,9 +420,9 @@ class TopologySupervisor:
         return mapped
 
     def summary(self) -> dict[str, Any]:
-        repo_status = self.repo_update_status(force=False)
+        repo_status = self._cached_repo_status()
         services = self.service_map()
-        schedule = services.get("schedule_service")
+        scenario = services.get("scenario_service")
         control = services.get("control_service")
         data = services.get("data_service")
         return {
@@ -417,7 +430,7 @@ class TopologySupervisor:
             "node_name": self.node_name,
             "services": services,
             "repo_update": repo_status,
-            "schedule_available": bool(schedule and schedule["healthy"]),
+            "scenario_available": bool(scenario and scenario["healthy"]),
             "control_available": bool(control and control["healthy"]),
             "data_available": bool(data and data["healthy"]),
         }

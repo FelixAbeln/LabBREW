@@ -12,7 +12,7 @@
 
 > LabBREW is a test-cell-inspired fermentation control and execution platform designed to make fermentation processes observable, repeatable, and programmable. Instead of treating brewing as a collection of timers and setpoints, LabBREW treats it as a controlled process: plans are executed, conditions are evaluated in real time, and every action, signal, and outcome is recorded. The result is a system where fermentation can be run, analyzed, and reproduced with the same rigor as an engineering experiment.
 
-A microservices-based fermentation management and control platform for laboratory bioreactor hardware. LabBREW connects multiple fermenter nodes through a central gateway, providing real-time parameter monitoring, automated schedule execution, rule-driven control, and a React web interface — all exposed through clean REST and binary-protocol APIs.
+A microservices-based fermentation management and control platform for laboratory bioreactor hardware. LabBREW connects multiple fermenter nodes through a central gateway, providing real-time parameter monitoring, automated scenario execution, rule-driven control, and a React web interface — all exposed through clean REST and binary-protocol APIs.
 
 ---
 
@@ -40,14 +40,14 @@ All signals are logged:
 
 ### 🔁 Reproducibility
 A run consists of:
-- schedule (intent)
+- scenario package (intent)
 - event log (execution)
 - time-series data (result)
 
 Runs can be replayed and compared.
 
 ### ⚠️ Safety First
-Schedules do not have final authority. Rules and safety logic can override control and enforce safe states.
+Scenario runs do not have final authority. Rules and safety logic can override control and enforce safe states.
 
 ---
 
@@ -65,11 +65,11 @@ LabBREW is not just a controller or dashboard.
 |---|---|
 | **BrewSupervisor** | Central API gateway + React frontend. Aggregates all fermenter nodes, proxies service requests, and serves the browser UI. |
 | **Control Service** | Handles parameter ownership, write protection, linear ramping, and a condition-based rules engine. |
-| **Schedule Service** | Loads and executes multi-step fermentation schedules with setup and plan phases, pause/resume, and complex wait conditions. |
+| **Scenario Service** | Loads and executes scenario packages with setup and plan phases, pause/resume, and complex wait conditions. |
 | **Data Service** | Records parameter values to files at configurable rates and computes loadstep averages for timed capture windows. |
 | **ParameterDB** | High-performance binary TCP parameter store with a real-time scan engine, plugin system, and snapshot persistence. |
 | **Supervisor Agent** | Per-node process supervisor that advertises services over mDNS and proxies requests to local services. |
-| **Excel Schedule Import** | Upload a `.xlsx` workbook to BrewSupervisor; it is validated and forwarded as canonical JSON to the schedule service. |
+| **Scenario Package Import** | Upload a `.xlsx` workbook to BrewSupervisor; it is validated and forwarded to scenario service as a package payload. |
 | **Service Discovery** | Automatic node registration and discovery via mDNS (`_fcs._tcp.local.`) — no manual configuration needed. |
 
 ---
@@ -87,8 +87,8 @@ LabBREW is not just a controller or dashboard.
 - Synchronous reads and writes via REST
 - **Linear ramps** — smoothly move a setpoint from current value to target over a specified duration
 
-### 📋 Fermentation Schedule Execution
-- Schedules consist of a **setup phase** (run once) and a **plan phase** (repeating sequence of steps)
+### 📋 Scenario Run Execution
+- Scenario runs consist of a **setup phase** (run once) and a **plan phase** (repeating sequence of steps)
 - Each step carries **actions** (`set`, `ramp`) and a **wait condition**
 - Wait types: elapsed time, parameter condition, composite (`all`, `any`, `not`), with optional hold duration (`for_seconds`) and timeout
 - Full playback control: start · pause · resume · stop · next · previous
@@ -102,7 +102,7 @@ LabBREW is not just a controller or dashboard.
 - Conditions use standard comparison operators (`>`, `>=`, `<`, `<=`, `==`, `!=`)
 - Rules evaluated continuously against the live parameter snapshot
 
-### 📥 Excel Schedule Import
+### 📥 Scenario Package Import
 - Upload a `.xlsx` workbook directly to the gateway
 - Dry-run validation endpoint returns any errors before committing
 - Workbook format: `meta`, `setup_steps`, and `plan_steps` sheets with simple column syntax
@@ -128,7 +128,7 @@ LabBREW is not just a controller or dashboard.
 ### 🌐 React Frontend
 - Browser UI backed by the BrewSupervisor gateway at port 8782
 - Connects over standard HTTP REST and WebSocket
-- **Schedule tab** — upload an Excel workbook, validate it, and drive step-by-step execution (play · pause · next · previous · stop)
+- **Scenario tab** — upload an Excel workbook, validate/package it, and drive step-by-step execution (play · pause · next · previous · stop)
 - **Control tab** — render datasource and custom manual controls from backend control UI spec, including manual write/release actions
 - **System tab** — at-a-glance health and service-status overview for the selected fermenter node
 - **Data tab** — configure recording rate (Hz), start/stop parameter logging, and trigger loadstep captures
@@ -150,14 +150,15 @@ LabBREW is not just a controller or dashboard.
 | [ParameterDB Source Definitions](./docs/implementation/parameterdb-source-definitions.md) | Built-in datasource types, hardware/protocol coverage, and Tilt BLE notes |
 | [ParameterDB + Relationship Setup Guide](./docs/frontend/parameterdb-relationship-setup.md) | Frontend workflow to set up ParameterDB entities and graph relationships |
 | [PostgreSQL Persistence Testing Guide](./docs/POSTGRES_PERSISTENCE_TESTING.md) | Set up and test PostgreSQL backends for parameter snapshots, datasource configs, and control rules |
-| [BrewSupervisor Gateway API](./docs/api/brewsupervisor-api.md) | Central gateway: fermenter discovery, dashboard, schedule import — **start here for frontend work** |
+| [BrewSupervisor Gateway API](./docs/api/brewsupervisor-api.md) | Central gateway: fermenter discovery, dashboard, scenario package import — **start here for frontend work** |
 | [Supervisor Agent API](./docs/api/agent-api.md) | Per-node agent: health, service proxy, mDNS registration |
 | [Control Service API](./docs/api/control-service-api.md) | Ownership, read/write/ramp, rules engine, WebSocket streaming |
 | [Manual Control Map Setup](./docs/api/manual-control-map.md) | Configure `data/control_variable_map.json` for custom manual controls |
-| [Schedule Service API](./docs/api/schedule-service-api.md) | Schedule load, execution control, status |
+| [Scenario Service Integration](./docs/implementation/scenario-service-integration.md) | Scenario package load, run control, migration status |
+| [Writing a Scenario Runner](./docs/implementation/writing-a-scenario-runner.md) | End-to-end guide for scripted runner module contract, context API, packaging, and troubleshooting |
 | [Data Service API](./docs/api/data-service-api.md) | Measurement setup/start/stop, file logging, loadstep capture |
 | [ParameterDB Binary Protocol](./docs/api/parameterdb-api.md) | Low-level TCP binary protocol and Python client |
-| [Schedule Excel Import Guide](./docs/api/schedule-excel-import.md) | Workbook sheet layout, column syntax, wait expressions, validation rules |
+| [Schedule Excel Import Guide](./docs/api/schedule-excel-import.md) | Workbook sheet layout, column syntax, wait expressions, validation rules for scenario package generation |
 
 ---
 
@@ -168,7 +169,7 @@ LabBREW is not just a controller or dashboard.
 | BrewSupervisor Gateway | 8782 | HTTP REST |
 | Supervisor Agent | 8780 | HTTP REST |
 | Control Service | 8767 | HTTP REST + WebSocket |
-| Schedule Service | 8768 | HTTP REST |
+| Scenario Service | 8770 | HTTP REST |
 | Data Service | 8769 | HTTP REST |
 | ParameterDB | 8765 | Binary TCP (MessagePack) |
 | ParameterDB DataSource | 8766 | Binary TCP |
@@ -180,9 +181,14 @@ LabBREW is not just a controller or dashboard.
 All launch scripts are run from the **project root**.
 
 ```bash
+# Create your local runtime topology from the sample (first run only)
+cp data/system_topology.sample.yaml data/system_topology.yaml
+```
+
+```bash
 # 1. Start the backend node supervisor
 #    Reads data/system_topology.yaml, starts ParameterDB, Control Service,
-#    Schedule Service, Data Service, and the Supervisor Agent (port 8780).
+#    Scenario Service, Data Service, and the Supervisor Agent (port 8780).
 python run_supervisor.py
 
 # 2. Start the frontend API supervisor (BrewSupervisor gateway on port 8782)
@@ -191,7 +197,7 @@ python run_FrontEndsupervisor.py
 
 > **React frontend** — the browser UI source lives in `BrewSupervisor/reat-frontend/` but does not yet have a dedicated launch script. Start it manually with your preferred dev server (e.g. `npm start` inside that directory) or build it and serve the static output.
 
-Node topology is configured in [`data/system_topology.yaml`](./data/system_topology.yaml). An example fermentation schedule is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
+Node topology is loaded from your local [`data/system_topology.yaml`](./data/system_topology.yaml), typically created from [`data/system_topology.sample.yaml`](./data/system_topology.sample.yaml). An example scenario workbook is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
 
 ### Global Storage / Topology Override
 
@@ -310,12 +316,13 @@ LabBREW/
 ├── Services/
 │   ├── parameterDB/      # Parameter store & scan engine
 │   ├── control_service/  # Ownership, ramp, rules
-│   ├── schedule_service/ # Schedule execution engine
+│   ├── scenario_service/ # Scenario execution engine
+│   ├── schedule_service/ # Legacy schedule runtime (migration reference)
 │   ├── data_service/     # Parameter recording and loadstep capture
 │   └── _shared/          # Shared operator & wait engines
 ├── Supervisor/           # Per-node process supervisor
 ├── Other/Sims/           # Hardware simulators / test harnesses
-├── data/                 # Topology config, example schedule, rule definitions
+├── data/                 # Topology config, scenario examples, rule definitions
 └── docs/api/             # Full API reference
 ```
 ## Philosophy

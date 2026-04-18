@@ -4,27 +4,27 @@ Multi-device split-topology simulation tests.
 Simulates a LabBREW deployment where services are spread across two physical
 devices (Device A and Device B), without any real network connections:
 
-    BrewSupervisor   (gateway layer)
-         │   _MultiAgentProxy — dispatches by URL prefix
-         ├──► Agent A  http://10.0.0.10:8780
-         │        service_map: {control_service: http://127.0.0.1:8767}
-         │        proxy_session → _StubServiceSession (control stub)
-         └──► Agent B  http://10.0.0.11:8780
-                  service_map: {schedule_service: ...:8768, data_service: ...:8769}
-                  proxy_session → _StubServiceSession (schedule/data stubs)
+        BrewSupervisor   (gateway layer)
+            |   _MultiAgentProxy -- dispatches by URL prefix
+            +--> Agent A  http://10.0.0.10:8780
+            |        service_map: {control_service: http://127.0.0.1:8767}
+            |        proxy_session -> _StubServiceSession (control stub)
+            +--> Agent B  http://10.0.0.11:8780
+                   service_map: {scenario_service: ...:8770, data_service: ...:8769}
+                   proxy_session -> _StubServiceSession (scenario/data stubs)
 
 Gateway-to-gateway bridge (service on B calling a service on A):
-    Agent B bridge /control/... ─► (Agent B proxy_session) ─► Agent A
+    Agent B bridge /control/... -> (Agent B proxy_session) -> Agent A
     Verified by calling Agent A's bridge path directly, as any service
     on Device B would do when using Agent A as its backend URL.
 
 Groups
 ------
-1. Snapshot cache  — TTL deduplication, expiry, force-refresh, zero-TTL, close
-2. Agent bridge    — bridge routes forward to the right service stub
-3. Multi-device routing — BrewSupervisor routes each service to the correct agent
-4. Full end-to-end — 3-layer chain: Supervisor → real Agent TestClient → service stub
-5. Regression guards — agent_port param in topology validation
+1. Snapshot cache  -- TTL deduplication, expiry, force-refresh, zero-TTL, close
+2. Agent bridge    -- bridge routes forward to the right service stub
+3. Multi-device routing -- BrewSupervisor routes each service to the correct agent
+4. Full end-to-end -- 3-layer chain: Supervisor -> real Agent TestClient -> service stub
+5. Regression guards -- agent_port param in topology validation
 """
 from __future__ import annotations
 
@@ -277,7 +277,7 @@ class _CountingBrowser:
 
 
 # ===========================================================================
-# GROUP 1 — Snapshot cache behaviour
+# GROUP 1 -- Snapshot cache behaviour
 # ===========================================================================
 
 def test_snapshot_cache_deduplicates_within_ttl() -> None:
@@ -357,11 +357,11 @@ def test_snapshot_close_invalidates_cache() -> None:
     registry._session = _StubServiceSession({})
 
     registry.snapshot()
-    assert browser.call_count == 2, "cache cleared by close() — must re-fetch"
+    assert browser.call_count == 2, "cache cleared by close() -- must re-fetch"
 
 
 # ===========================================================================
-# GROUP 2 — Agent bridge routes (real Agent TestClient + service stubs)
+# GROUP 2 -- Agent bridge routes (real Agent TestClient + service stubs)
 # ===========================================================================
 
 def test_agent_bridge_control_route_calls_control_service(monkeypatch: Any) -> None:
@@ -385,17 +385,17 @@ def test_agent_bridge_control_route_calls_control_service(monkeypatch: Any) -> N
     assert "control/read/reactor.temp" in paths_seen[0]
 
 
-def test_agent_bridge_schedule_route_calls_schedule_service(monkeypatch: Any) -> None:
-    """/schedule/status proxies to schedule_service."""
+def test_agent_bridge_schedule_route_calls_scenario_service(monkeypatch: Any) -> None:
+    """/scenario/status proxies to scenario_service."""
     paths_seen: list[str] = []
 
     client, _ = _make_agent_client(
         monkeypatch,
-        service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: paths_seen.append(p) or {"ok": True}},
+        service_map={"scenario_service": {"healthy": True, "base_url": "http://127.0.0.1:8770"}},
+        service_sessions={"http://127.0.0.1:8770": lambda _m, p, _: paths_seen.append(p) or {"ok": True}},
     )
 
-    resp = client.get("/schedule/status")
+    resp = client.get("/scenario/status")
 
     assert resp.status_code == 200
     assert paths_seen
@@ -485,11 +485,11 @@ def test_agent_bridge_query_params_forwarded_to_service(monkeypatch: Any) -> Non
 
     client, _ = _make_agent_client(
         monkeypatch,
-        service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": _handler},
+        service_map={"scenario_service": {"healthy": True, "base_url": "http://127.0.0.1:8770"}},
+        service_sessions={"http://127.0.0.1:8770": _handler},
     )
 
-    resp = client.get("/schedule/status", params={"verbose": "1", "page": "2"})
+    resp = client.get("/scenario/status", params={"verbose": "1", "page": "2"})
 
     assert resp.status_code == 200
     assert params_seen
@@ -536,13 +536,13 @@ def test_agent_bridge_returns_404_when_service_absent(monkeypatch: Any) -> None:
         service_sessions={},
     )
 
-    resp = client.get("/schedule/status")
+    resp = client.get("/scenario/status")
 
     assert resp.status_code == 404
 
 
 # ===========================================================================
-# GROUP 3 — Multi-device routing (BrewSupervisor with two real Agent clients)
+# GROUP 3 -- Multi-device routing (BrewSupervisor with two real Agent clients)
 # ===========================================================================
 
 def test_supervisor_routes_control_to_device_a_not_device_b(monkeypatch: Any) -> None:
@@ -557,15 +557,15 @@ def test_supervisor_routes_control_to_device_a_not_device_b(monkeypatch: Any) ->
     )
     agent_b, _ = _make_agent_client(
         monkeypatch,
-        service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
+        service_map={"scenario_service": {"healthy": True, "base_url": "http://127.0.0.1:8770"}},
+        service_sessions={"http://127.0.0.1:8770": lambda _m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
     )
 
     node = _make_node(
         "01",
         service_agents={
             "control_service": "http://10.0.0.10:8780",
-            "schedule_service": "http://10.0.0.11:8780",
+            "scenario_service": "http://10.0.0.11:8780",
         },
     )
     proxy = _MultiAgentProxy({"http://10.0.0.10:8780": agent_a, "http://10.0.0.11:8780": agent_b})
@@ -576,11 +576,11 @@ def test_supervisor_routes_control_to_device_a_not_device_b(monkeypatch: Any) ->
     assert resp.status_code == 200
     assert resp.json().get("device") == "A"
     assert a_calls, "control_service stub (Device A) must be called"
-    assert not b_calls, "schedule_service stub (Device B) must NOT be called"
+    assert not b_calls, "scenario_service stub (Device B) must NOT be called"
 
 
 def test_supervisor_routes_schedule_to_device_b_not_device_a(monkeypatch: Any) -> None:
-    """BrewSupervisor sends /schedule/* to Device B's agent; Device A is not touched."""
+    """BrewSupervisor sends /scenario/* to Device B's agent; Device A is not touched."""
     a_calls: list[str] = []
     b_calls: list[str] = []
 
@@ -591,25 +591,25 @@ def test_supervisor_routes_schedule_to_device_b_not_device_a(monkeypatch: Any) -
     )
     agent_b, _ = _make_agent_client(
         monkeypatch,
-        service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
+        service_map={"scenario_service": {"healthy": True, "base_url": "http://127.0.0.1:8770"}},
+        service_sessions={"http://127.0.0.1:8770": lambda _m, p, _: b_calls.append(p) or {"ok": True, "device": "B"}},
     )
 
     node = _make_node(
         "01",
         service_agents={
             "control_service": "http://10.0.0.10:8780",
-            "schedule_service": "http://10.0.0.11:8780",
+            "scenario_service": "http://10.0.0.11:8780",
         },
     )
     proxy = _MultiAgentProxy({"http://10.0.0.10:8780": agent_a, "http://10.0.0.11:8780": agent_b})
     client = _supervisor_client([node], proxy)
 
-    resp = client.get("/fermenters/01/schedule/status")
+    resp = client.get("/fermenters/01/scenario/status")
 
     assert resp.status_code == 200
     assert resp.json().get("device") == "B"
-    assert b_calls, "schedule_service stub (Device B) must be called"
+    assert b_calls, "scenario_service stub (Device B) must be called"
     assert not a_calls, "control_service stub (Device A) must NOT be called"
 
 
@@ -633,8 +633,8 @@ def test_supervisor_three_services_three_devices_no_cross_routing(monkeypatch: A
     )
     agent_b, _ = _make_agent_client(
         monkeypatch,
-        service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": _device_handler("B")},
+        service_map={"scenario_service": {"healthy": True, "base_url": "http://127.0.0.1:8770"}},
+        service_sessions={"http://127.0.0.1:8770": _device_handler("B")},
     )
     agent_c, _ = _make_agent_client(
         monkeypatch,
@@ -647,7 +647,7 @@ def test_supervisor_three_services_three_devices_no_cross_routing(monkeypatch: A
         agent_base_url="http://10.0.0.10:8780",
         service_agents={
             "control_service": "http://10.0.0.10:8780",
-            "schedule_service": "http://10.0.0.11:8780",
+            "scenario_service": "http://10.0.0.11:8780",
             "data_service": "http://10.0.0.12:8780",
         },
     )
@@ -659,11 +659,11 @@ def test_supervisor_three_services_three_devices_no_cross_routing(monkeypatch: A
     client = _supervisor_client([node], proxy)
 
     client.get("/fermenters/01/control/read/reactor.temp")
-    client.get("/fermenters/01/schedule/status")
+    client.get("/fermenters/01/scenario/status")
     client.get("/fermenters/01/data/archives")
 
     assert hits == {"A": 1, "B": 1, "C": 1}, (
-        "each service must be routed to exactly its own device — no cross-routing"
+        "each service must be routed to exactly its own device -- no cross-routing"
     )
 
 
@@ -683,12 +683,12 @@ def test_supervisor_returns_404_for_unknown_fermenter(monkeypatch: Any) -> None:
 
 
 # ===========================================================================
-# GROUP 4 — Full end-to-end chain simulation
+# GROUP 4 -- Full end-to-end chain simulation
 # ===========================================================================
 
 def test_full_chain_response_body_propagates_through_all_layers(monkeypatch: Any) -> None:
     """
-    Full 3-layer chain:  BrewSupervisor → Agent A → control_service stub.
+    Full 3-layer chain:  BrewSupervisor -> Agent A -> control_service stub.
     The exact response body from the stub must reach the BrewSupervisor caller.
     """
     agent_a, _ = _make_agent_client(
@@ -721,11 +721,11 @@ def test_full_chain_all_services_two_devices(monkeypatch: Any) -> None:
     agent_b, _ = _make_agent_client(
         monkeypatch,
         service_map={
-            "schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"},
+            "scenario_service": {"healthy": True, "base_url": "http://127.0.0.1:8770"},
             "data_service": {"healthy": True, "base_url": "http://127.0.0.1:8769"},
         },
         service_sessions={
-            "http://127.0.0.1:8768": {"ok": True, "service": "schedule", "device": "B"},
+            "http://127.0.0.1:8770": {"ok": True, "service": "scenario", "device": "B"},
             "http://127.0.0.1:8769": {"ok": True, "service": "data", "device": "B"},
         },
     )
@@ -735,7 +735,7 @@ def test_full_chain_all_services_two_devices(monkeypatch: Any) -> None:
         agent_base_url="http://10.0.0.10:8780",
         service_agents={
             "control_service": "http://10.0.0.10:8780",
-            "schedule_service": "http://10.0.0.11:8780",
+            "scenario_service": "http://10.0.0.11:8780",
             "data_service": "http://10.0.0.11:8780",
         },
     )
@@ -743,11 +743,11 @@ def test_full_chain_all_services_two_devices(monkeypatch: Any) -> None:
     client = _supervisor_client([node], proxy)
 
     ctrl = client.get("/fermenters/01/control/read/reactor.temp")
-    sched = client.get("/fermenters/01/schedule/status")
+    sched = client.get("/fermenters/01/scenario/status")
     data = client.get("/fermenters/01/data/archives")
 
     assert ctrl.json() == {"ok": True, "service": "control", "device": "A"}
-    assert sched.json() == {"ok": True, "service": "schedule", "device": "B"}
+    assert sched.json() == {"ok": True, "service": "scenario", "device": "B"}
     assert data.json() == {"ok": True, "service": "data", "device": "B"}
 
 
@@ -758,7 +758,7 @@ def test_gateway_to_gateway_agent_bridge_path(monkeypatch: Any) -> None:
     Tests the path that a service on Device B would use when it has
     Agent A's URL injected as its backend URL (the url_flag pattern):
 
-        service on B → (HTTP) → Agent A /control/read/x → control_service stub
+        service on B -> (HTTP) -> Agent A /control/read/x -> control_service stub
 
     Agent A's bridge endpoint is called directly, verifying the full
     bridge-to-service forwarding works end-to-end.
@@ -783,7 +783,7 @@ def test_full_supervisor_plus_gateway_to_gateway_bridge(monkeypatch: Any) -> Non
     """
     Complete gateway-to-gateway simulation covering all three layers.
 
-    Layer 1: BrewSupervisor routes /control/... to Agent A and /schedule/... to Agent B.
+    Layer 1: BrewSupervisor routes /control/... to Agent A and /scenario/... to Agent B.
     Layer 2: Both agents bridge correctly to their respective service stubs.
     Layer 3: A direct call to Agent A's bridge path verifies the cross-device
              backend URL pattern (the path any service on Device B would call when
@@ -802,8 +802,8 @@ def test_full_supervisor_plus_gateway_to_gateway_bridge(monkeypatch: Any) -> Non
     )
     agent_b, _ = _make_agent_client(
         monkeypatch,
-        service_map={"schedule_service": {"healthy": True, "base_url": "http://127.0.0.1:8768"}},
-        service_sessions={"http://127.0.0.1:8768": lambda _m, p, _: b_calls.append(p) or {"ok": True, "layer": "schedule", "device": "B"}},
+        service_map={"scenario_service": {"healthy": True, "base_url": "http://127.0.0.1:8770"}},
+        service_sessions={"http://127.0.0.1:8770": lambda _m, p, _: b_calls.append(p) or {"ok": True, "layer": "scenario", "device": "B"}},
     )
 
     node = _make_node(
@@ -811,7 +811,7 @@ def test_full_supervisor_plus_gateway_to_gateway_bridge(monkeypatch: Any) -> Non
         agent_base_url="http://10.0.0.10:8780",
         service_agents={
             "control_service": "http://10.0.0.10:8780",
-            "schedule_service": "http://10.0.0.11:8780",
+            "scenario_service": "http://10.0.0.11:8780",
         },
     )
     proxy = _MultiAgentProxy({"http://10.0.0.10:8780": agent_a, "http://10.0.0.11:8780": agent_b})
@@ -823,10 +823,10 @@ def test_full_supervisor_plus_gateway_to_gateway_bridge(monkeypatch: Any) -> Non
     assert ctrl_resp.json()["device"] == "A"
     assert a_calls, "control_service must be reached via Agent A"
 
-    sched_resp = supervisor.get("/fermenters/01/schedule/status")
+    sched_resp = supervisor.get("/fermenters/01/scenario/status")
     assert sched_resp.status_code == 200
     assert sched_resp.json()["device"] == "B"
-    assert b_calls, "schedule_service must be reached via Agent B"
+    assert b_calls, "scenario_service must be reached via Agent B"
 
     # --- Layer 3: gateway-to-gateway bridge ---
     # Simulates a service on Device B calling Agent A's bridge URL as its control backend.
@@ -839,7 +839,7 @@ def test_full_supervisor_plus_gateway_to_gateway_bridge(monkeypatch: Any) -> Non
 
 def test_full_chain_post_request_body_survives_all_layers(monkeypatch: Any) -> None:
     """
-    POST from BrewSupervisor → Agent → service stub:
+    POST from BrewSupervisor -> Agent -> service stub:
     the request body must arrive at the stub intact.
     """
     bodies_at_service: list[dict] = []
@@ -859,7 +859,7 @@ def test_full_chain_post_request_body_survives_all_layers(monkeypatch: Any) -> N
     proxy = _MultiAgentProxy({"http://10.0.0.10:8780": agent_a})
     client = _supervisor_client([node], proxy)
 
-    payload = {"target": "reactor.temp.setpoint", "value": 30.0, "owner": "schedule"}
+    payload = {"target": "reactor.temp.setpoint", "value": 30.0, "owner": "scenario_service"}
     resp = client.post(
         "/fermenters/01/control/write",
         json=payload,
@@ -872,7 +872,7 @@ def test_full_chain_post_request_body_survives_all_layers(monkeypatch: Any) -> N
 
 
 # ===========================================================================
-# GROUP 5 — Regression guards
+# GROUP 5 -- Regression guards
 # ===========================================================================
 
 def test_topology_agent_port_used_in_url_flag_validation() -> None:
@@ -895,11 +895,11 @@ external_capabilities:
       proto: http
       path: /data
 services:
-  schedule_service:
-    module: Services.schedule_service.service
+  scenario_service:
+    module: Services.scenario_service.service
     listen:
       host: 0.0.0.0
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
@@ -911,15 +911,15 @@ services:
         cfg = pathlib.Path(tmp) / "topology.yaml"
         cfg.write_text(yaml_text, encoding="utf-8")
 
-        # Default agent_port=8780 — endpoint is on 9999 — must raise.
+        # Default agent_port=8780 -- endpoint is on 9999 -- must raise.
         with pytest.raises(ValueError) as exc_default:
             YamlTopologyLoader().load(cfg)
         assert "9999" not in str(exc_default.value)  # message reports 8780
 
-        # Custom agent_port=9999 matching the endpoint — must NOT raise.
+        # Custom agent_port=9999 matching the endpoint -- must NOT raise.
         YamlTopologyLoader().load(cfg, agent_port=9999)  # no exception
 
-        # Custom agent_port=7777 still doesn't match — must raise with 7777 in msg.
+        # Custom agent_port=7777 still doesn't match -- must raise with 7777 in msg.
         with pytest.raises(ValueError) as exc_custom:
             YamlTopologyLoader().load(cfg, agent_port=7777)
         assert "7777" in str(exc_custom.value)
@@ -950,7 +950,7 @@ def test_multi_node_same_id_service_routing_is_deterministic(monkeypatch: Any) -
         )
 
     agent_ctrl = _make_agent("control_service", "10.0.0.10", "ctrl-host")
-    agent_sched = _make_agent("schedule_service", "10.0.0.11", "sched-host")
+    agent_sched = _make_agent("scenario_service", "10.0.0.11", "sched-host")
 
     browser = SimpleNamespace(snapshot=lambda: [agent_ctrl, agent_sched])
     registry = FermenterRegistry(browser, snapshot_cache_ttl_s=0.0)
@@ -972,9 +972,9 @@ def test_multi_node_same_id_service_routing_is_deterministic(monkeypatch: Any) -
         # agent_sched: info + summary
         SimpleNamespace(
             raise_for_status=lambda: None,
-            json=lambda: {"services": {"schedule_service": {"healthy": True}}},
+            json=lambda: {"services": {"scenario_service": {"healthy": True}}},
         ),
-        SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"schedule_available": True}),
+        SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"scenario_available": True}),
     ]
     fake_session.get = lambda _url, _timeout: responses.pop(0)
     registry._session = fake_session
@@ -983,18 +983,19 @@ def test_multi_node_same_id_service_routing_is_deterministic(monkeypatch: Any) -
     assert len(snap) == 1, "two agents with same node_id must merge into one node"
     merged = snap[0]
     assert "control_service" in merged.service_agents
-    assert "schedule_service" in merged.service_agents
+    assert "scenario_service" in merged.service_agents
     assert merged.service_agents["control_service"] == "http://10.0.0.10:8780"
-    assert merged.service_agents["schedule_service"] == "http://10.0.0.11:8780"
+    assert merged.service_agents["scenario_service"] == "http://10.0.0.11:8780"
 
     # get_node_for_service must return the correct agent base URL.
     # (uses a fresh snapshot; repopulate response queue)
     responses.extend([
         SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"services": {"control_service": {"healthy": True}}}),
         SimpleNamespace(raise_for_status=lambda: None, json=lambda: {}),
-        SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"services": {"schedule_service": {"healthy": True}}}),
+        SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"services": {"scenario_service": {"healthy": True}}}),
         SimpleNamespace(raise_for_status=lambda: None, json=lambda: {}),
     ])
-    svc_node = registry.get_node_for_service("01", "schedule_service")
+    svc_node = registry.get_node_for_service("01", "scenario_service")
     assert svc_node is not None
-    assert svc_node.service_agents.get("schedule_service") == "http://10.0.0.11:8780"
+    assert svc_node.service_agents.get("scenario_service") == "http://10.0.0.11:8780"
+

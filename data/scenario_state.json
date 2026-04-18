@@ -1,0 +1,599 @@
+{
+  "package": {
+    "artifacts": [
+      {
+        "content_b64": "IiIiZXhjZWxfcHJvZ3JhbV9ydW5uZXIucHkKCkJ1aWxkZXItb3duZWQgZW50cnlwb2ludCBmb3IgRXhjZWwtaW1wb3J0ZWQgcGFja2FnZXMuCgpFeGVjdXRpb24gYmVoYXZpb3IgaXMgc2hhcmVkIGFuZCBzdXBwbGllZCBieSBzY2VuYXJpbyBzZXJ2aWNlIGhlbHBlcnMgc28KcGFja2FnZXMgZm9sbG93IGEgc2luZ2xlIHNjcmlwdGVkIHJ1bnRpbWUgcGF0aC4KIiIiCmZyb20gX19mdXR1cmVfXyBpbXBvcnQgYW5ub3RhdGlvbnMKCmZyb20gU2VydmljZXMuc2NlbmFyaW9fc2VydmljZS5zY3JpcHRlZF9oZWxwZXJzIGltcG9ydCBsb2FkX3Byb2dyYW1fYXJ0aWZhY3QsIHJ1bl9wcm9ncmFtCgoKZGVmIHJ1bihjdHgpOgogICAgY3R4LmxvZygiRXhjZWwgcHJvZ3JhbSBydW5uZXIgc3RhcnRlZCIpCiAgICBydW5fcHJvZ3JhbShjdHgsIGxvYWRfcHJvZ3JhbV9hcnRpZmFjdChjdHgpKQogICAgY3R4LmxvZygiRXhjZWwgcHJvZ3JhbSBydW5uZXIgY29tcGxldGVkIikK",
+        "encoding": "base64",
+        "media_type": "text/x-python",
+        "path": "bin/excel_program_runner.py",
+        "size": 489
+      },
+      {
+        "content_b64": "ewogICJpZCI6ICJsYWdlci0xaC10ZXN0LXBsYW4iLAogICJuYW1lIjogIkxhZ2VyIDEgaG91ciBzcGVkLXVwIGZlcm1lbnRhdGlvbiIsCiAgIm1lYXN1cmVtZW50X2NvbmZpZyI6IHsKICAgICJoeiI6IDEwLjAsCiAgICAib3V0cHV0X2RpciI6ICJkYXRhL21lYXN1cmVtZW50cyIsCiAgICAib3V0cHV0X2Zvcm1hdCI6ICJwYXJxdWV0IiwKICAgICJzZXNzaW9uX25hbWUiOiBudWxsLAogICAgImxvYWRzdGVwX2R1cmF0aW9uX3NlY29uZHMiOiA0NS4wCiAgfSwKICAic2V0dXBfc3RlcHMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJzZXR1cC0xIiwKICAgICAgIm5hbWUiOiAiUmVxdWVzdCBjb250cm9sIG9mIGFsbCBhY3R1YXRvcnMiLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ3cml0ZSIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF90ZW1wX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAxMCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3ByZXNfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDAuMiwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3NwZF9BZ2l0YXRvciIsCiAgICAgICAgICAidmFsdWUiOiAxNSwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X2FsbG93X0dhcyIsCiAgICAgICAgICAidmFsdWUiOiAxLAogICAgICAgICAgImR1cmF0aW9uX3MiOiBudWxsLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiZWxhcHNlZCIsCiAgICAgICAgImR1cmF0aW9uX3MiOiAzMC4wCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfQogIF0sCiAgInBsYW5fc3RlcHMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTEiLAogICAgICAibmFtZSI6ICJDaGlsbCB3b3J0IHRvIGxhZ2VyIHBpdGNoIHRlbXAiLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJyYW1wIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3RlbXBfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDEwLAogICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3NwZF9BZ2l0YXRvciIsCiAgICAgICAgICAidmFsdWUiOiAyMCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogInRha2VfbG9hZHN0ZXAiLAogICAgICAgICAgInRhcmdldCI6IG51bGwsCiAgICAgICAgICAidmFsdWUiOiBudWxsLAogICAgICAgICAgImR1cmF0aW9uX3MiOiA0NS4wLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgICAgICJ0aW1pbmciOiAib25fdHJpZ2dlciIsCiAgICAgICAgICAgICJ0cmlnZ2VyX3dhaXQiOiB7CiAgICAgICAgICAgICAgImtpbmQiOiAicmlzaW5nIiwKICAgICAgICAgICAgICAiY2hpbGQiOiB7CiAgICAgICAgICAgICAgICAia2luZCI6ICJjb25kaXRpb24iLAogICAgICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAgICAgInNvdXJjZSI6ICJicmV3Y2FuLnRlbXBlcmF0dXJlLjAiLAogICAgICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPD0iLAogICAgICAgICAgICAgICAgICAidGhyZXNob2xkIjogMTQuMSwKICAgICAgICAgICAgICAgICAgImZvcl9zIjogMTMwLjAKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogImJyZXdjYW4udGVtcGVyYXR1cmUuMCIsCiAgICAgICAgICAgICAgIm9wZXJhdG9yIjogIjw9IiwKICAgICAgICAgICAgICAidGhyZXNob2xkIjogMTQuMSwKICAgICAgICAgICAgICAiZm9yX3MiOiAxMzAuMAogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9LAogICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTIiLAogICAgICAibmFtZSI6ICJIb2xkIGF0IHBpdGNoIHRlbXAgYW5kIGFsbG93IHByZXNzdXJlIHRvIHN0YXkgbG93IiwKICAgICAgImFjdGlvbnMiOiBbCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAicmFtcCIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9wcmVzX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAwLjMsCiAgICAgICAgICAiZHVyYXRpb25fcyI6IDEyMC4wLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiYWxsX29mIiwKICAgICAgICAiY2hpbGRyZW4iOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJraW5kIjogImVsYXBzZWQiLAogICAgICAgICAgICAiZHVyYXRpb25fcyI6IDYwMC4wCiAgICAgICAgICB9LAogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJjb25kaXRpb24iLAogICAgICAgICAgICAiY29uZGl0aW9uIjogewogICAgICAgICAgICAgICJzb3VyY2UiOiAiYnJld2Nhbi5wcmVzc3VyZS4wIiwKICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPD0iLAogICAgICAgICAgICAgICJ0aHJlc2hvbGQiOiAwLjUsCiAgICAgICAgICAgICAgImZvcl9zIjogNjAuMAogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9LAogICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTMiLAogICAgICAibmFtZSI6ICJQcmltYXJ5IGZlcm1lbnRhdGlvbiBob2xkIiwKICAgICAgImFjdGlvbnMiOiBbCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAicmFtcCIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF90ZW1wX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAxMSwKICAgICAgICAgICJkdXJhdGlvbl9zIjogMzAwLjAsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ3cml0ZSIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9zcGRfQWdpdGF0b3IiLAogICAgICAgICAgInZhbHVlIjogMTgsCiAgICAgICAgICAiZHVyYXRpb25fcyI6IG51bGwsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfQogICAgICBdLAogICAgICAid2FpdCI6IHsKICAgICAgICAia2luZCI6ICJhbnlfb2YiLAogICAgICAgICJjaGlsZHJlbiI6IFsKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogImJyZXdjYW4uZGVuc2l0eS4wIiwKICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPD0iLAogICAgICAgICAgICAgICJ0aHJlc2hvbGQiOiAxLjA0LAogICAgICAgICAgICAgICJmb3JfcyI6IDYwLjAKICAgICAgICAgICAgfQogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiZWxhcHNlZCIsCiAgICAgICAgICAgICJkdXJhdGlvbl9zIjogOTAwLjAKICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfSwKICAgIHsKICAgICAgImlkIjogInBsYW4tNCIsCiAgICAgICJuYW1lIjogIlJhaXNlIHNwdW5kaW5nIHByZXNzdXJlIGR1cmluZyBhY3RpdmUgZmVybWVudGF0aW9uIiwKICAgICAgImFjdGlvbnMiOiBbCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAicmFtcCIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9wcmVzX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAxLAogICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiA2MDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogImJyZXdjYW4ucHJlc3N1cmUuMCIsCiAgICAgICAgICAgICAgIm9wZXJhdG9yIjogIj49IiwKICAgICAgICAgICAgICAidGhyZXNob2xkIjogMC45LAogICAgICAgICAgICAgICJmb3JfcyI6IDYwLjAKICAgICAgICAgICAgfQogICAgICAgICAgfQogICAgICAgIF0KICAgICAgfSwKICAgICAgImVuYWJsZWQiOiB0cnVlCiAgICB9LAogICAgewogICAgICAiaWQiOiAicGxhbi01IiwKICAgICAgIm5hbWUiOiAiRGlhY2V0eWwgcmVzdCIsCiAgICAgICJhY3Rpb25zIjogWwogICAgICAgIHsKICAgICAgICAgICJraW5kIjogInJhbXAiLAogICAgICAgICAgInRhcmdldCI6ICJzZXRfdGVtcF9GZXJtZW50b3IiLAogICAgICAgICAgInZhbHVlIjogMTUsCiAgICAgICAgICAiZHVyYXRpb25fcyI6IDYwMC4wLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAid3JpdGUiLAogICAgICAgICAgInRhcmdldCI6ICJzZXRfc3BkX0FnaXRhdG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDEwLAogICAgICAgICAgImR1cmF0aW9uX3MiOiBudWxsLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiYW55X29mIiwKICAgICAgICAiY2hpbGRyZW4iOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJraW5kIjogImNvbmRpdGlvbiIsCiAgICAgICAgICAgICJjb25kaXRpb24iOiB7CiAgICAgICAgICAgICAgInNvdXJjZSI6ICJicmV3Y2FuLmRlbnNpdHkuMCIsCiAgICAgICAgICAgICAgIm9wZXJhdG9yIjogIjw9IiwKICAgICAgICAgICAgICAidGhyZXNob2xkIjogMS4wMTgsCiAgICAgICAgICAgICAgImZvcl9zIjogMTIwLjAKICAgICAgICAgICAgfQogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiZWxhcHNlZCIsCiAgICAgICAgICAgICJkdXJhdGlvbl9zIjogOTAwLjAKICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0sCiAgICAgICJlbmFibGVkIjogdHJ1ZQogICAgfSwKICAgIHsKICAgICAgImlkIjogInBsYW4tNiIsCiAgICAgICJuYW1lIjogIlN0YWJpbGl6ZSBiZWZvcmUgY3Jhc2giLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJyYW1wIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3ByZXNfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDEuMiwKICAgICAgICAgICJkdXJhdGlvbl9zIjogMTgwLjAsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ3cml0ZSIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9hbGxvd19HYXMiLAogICAgICAgICAgInZhbHVlIjogMSwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiAzMDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogImJyZXdjYW4ucHJlc3N1cmUuMCIsCiAgICAgICAgICAgICAgIm9wZXJhdG9yIjogIj49IiwKICAgICAgICAgICAgICAidGhyZXNob2xkIjogMS4xLAogICAgICAgICAgICAgICJmb3JfcyI6IDYwLjAKICAgICAgICAgICAgfQogICAgICAgICAgfQogICAgICAgIF0KICAgICAgfSwKICAgICAgImVuYWJsZWQiOiB0cnVlCiAgICB9LAogICAgewogICAgICAiaWQiOiAicGxhbi03IiwKICAgICAgIm5hbWUiOiAiQ29sZCBjcmFzaCByYW1wIiwKICAgICAgImFjdGlvbnMiOiBbCiAgICAgICAgewogICAgICAgICAgImtpbmQiOiAicmFtcCIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF90ZW1wX0Zlcm1lbnRvciIsCiAgICAgICAgICAidmFsdWUiOiAyLAogICAgICAgICAgImR1cmF0aW9uX3MiOiA5MDAuMCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJraW5kIjogIndyaXRlIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3NwZF9BZ2l0YXRvciIsCiAgICAgICAgICAidmFsdWUiOiA1LAogICAgICAgICAgImR1cmF0aW9uX3MiOiBudWxsLAogICAgICAgICAgIm93bmVyIjogbnVsbCwKICAgICAgICAgICJwYXJhbXMiOiB7fQogICAgICAgIH0KICAgICAgXSwKICAgICAgIndhaXQiOiB7CiAgICAgICAgImtpbmQiOiAiYWxsX29mIiwKICAgICAgICAiY2hpbGRyZW4iOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJraW5kIjogImVsYXBzZWQiLAogICAgICAgICAgICAiZHVyYXRpb25fcyI6IDEyMDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogImJyZXdjYW4udGVtcGVyYXR1cmUuMCIsCiAgICAgICAgICAgICAgIm9wZXJhdG9yIjogIjw9IiwKICAgICAgICAgICAgICAidGhyZXNob2xkIjogMTQuMSwKICAgICAgICAgICAgICAiZm9yX3MiOiAxMjAuMAogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9LAogICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJwbGFuLTgiLAogICAgICAibmFtZSI6ICJGaW5hbCBjb2xkIGNyYXNoIGhvbGQiLAogICAgICAiYWN0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJyYW1wIiwKICAgICAgICAgICJ0YXJnZXQiOiAic2V0X3ByZXNfRmVybWVudG9yIiwKICAgICAgICAgICJ2YWx1ZSI6IDAuOCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogMTIwLjAsCiAgICAgICAgICAib3duZXIiOiBudWxsLAogICAgICAgICAgInBhcmFtcyI6IHt9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAia2luZCI6ICJ3cml0ZSIsCiAgICAgICAgICAidGFyZ2V0IjogInNldF9zcGRfQWdpdGF0b3IiLAogICAgICAgICAgInZhbHVlIjogMCwKICAgICAgICAgICJkdXJhdGlvbl9zIjogbnVsbCwKICAgICAgICAgICJvd25lciI6IG51bGwsCiAgICAgICAgICAicGFyYW1zIjoge30KICAgICAgICB9CiAgICAgIF0sCiAgICAgICJ3YWl0IjogewogICAgICAgICJraW5kIjogImFsbF9vZiIsCiAgICAgICAgImNoaWxkcmVuIjogWwogICAgICAgICAgewogICAgICAgICAgICAia2luZCI6ICJlbGFwc2VkIiwKICAgICAgICAgICAgImR1cmF0aW9uX3MiOiA5MDAuMAogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgImtpbmQiOiAiY29uZGl0aW9uIiwKICAgICAgICAgICAgImNvbmRpdGlvbiI6IHsKICAgICAgICAgICAgICAic291cmNlIjogImJyZXdjYW4uZGVuc2l0eS4wIiwKICAgICAgICAgICAgICAib3BlcmF0b3IiOiAiPD0iLAogICAgICAgICAgICAgICJ0aHJlc2hvbGQiOiAxLjAxMiwKICAgICAgICAgICAgICAiZm9yX3MiOiAxMjAuMAogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9LAogICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KICBdCn0=",
+        "encoding": "base64",
+        "media_type": "application/json",
+        "path": "data/program.json",
+        "size": 8840
+      },
+      {
+        "content_b64": "ewogICJ0eXBlIjogImxhYmJyZXcudmFsaWRhdGlvbi1zcGVjIiwKICAidmVyc2lvbiI6ICIxLjAiLAogICJyZXF1aXJlZF9maWVsZHMiOiBbCiAgICAiaWQiLAogICAgIm5hbWUiLAogICAgInJ1bm5lciIsCiAgICAiaW50ZXJmYWNlIiwKICAgICJ2YWxpZGF0aW9uIiwKICAgICJlZGl0b3Jfc3BlYyIsCiAgICAiZW5kcG9pbnRfY29kZSIsCiAgICAiYXJ0aWZhY3RzIgogIF0sCiAgInJ1bGVzIjogWwogICAgewogICAgICAiY29kZSI6ICJlbnRyeXBvaW50X3ByZXNlbnQiLAogICAgICAibWVzc2FnZSI6ICJlbmRwb2ludF9jb2RlLmVudHJ5cG9pbnQgbXVzdCBleGlzdCBpbiBwYWNrYWdlIGFydGlmYWN0cyIKICAgIH0sCiAgICB7CiAgICAgICJjb2RlIjogInByb2dyYW1fcHJlc2VudCIsCiAgICAgICJtZXNzYWdlIjogImRhdGEvcHJvZ3JhbS5qc29uIG11c3QgYmUgaW5jbHVkZWQgaW4gcGFja2FnZSBhcnRpZmFjdHMiCiAgICB9CiAgXQp9",
+        "encoding": "base64",
+        "media_type": "application/json",
+        "path": "validation/validation.json",
+        "size": 477
+      },
+      {
+        "content_b64": "ewogICJ0eXBlIjogImxhYmJyZXcuZWRpdG9yLXNwZWMiLAogICJ2ZXJzaW9uIjogIjEuMCIsCiAgInNlY3Rpb25zIjogWwogICAgewogICAgICAiaWQiOiAiaWRlbnRpdHkiLAogICAgICAidGl0bGUiOiAiSWRlbnRpdHkiLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJpZCIsCiAgICAgICAgIm5hbWUiLAogICAgICAgICJ2ZXJzaW9uIiwKICAgICAgICAiZGVzY3JpcHRpb24iCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJtZXRhZGF0YSIsCiAgICAgICJ0aXRsZSI6ICJNZXRhZGF0YSIsCiAgICAgICJmaWVsZHMiOiBbCiAgICAgICAgIm1ldGFkYXRhIgogICAgICBdCiAgICB9CiAgXSwKICAiZmlsZV91cGxvYWRfYWN0aW9ucyI6IFsKICAgIHsKICAgICAgImlkIjogInJlcGxhY2VfZXhjZWwiLAogICAgICAibGFiZWwiOiAiUmVwbGFjZSBFeGNlbCBzb3VyY2UiLAogICAgICAiZGVzY3JpcHRpb24iOiAiVXBsb2FkIGEgbmV3IEV4Y2VsIHdvcmtib29rIHRvIHJlYnVpbGQgdGhpcyBwYWNrYWdlLiIsCiAgICAgICJhY2NlcHQiOiAiLnhsc3giLAogICAgICAiZW5kcG9pbnQiOiAicmVwb3NpdG9yeS9jb252ZXJ0LWV4Y2VsIiwKICAgICAgInF1ZXJ5IjogewogICAgICAgICJmaWxlbmFtZSI6ICIke3BhY2thZ2UuaWR9LmxicGtnIiwKICAgICAgICAiaW1wb3J0X25vdyI6ICJ0cnVlIgogICAgICB9CiAgICB9CiAgXSwKICAicmVwb3NpdG9yeV9zYXZlIjogewogICAgImZpbGVuYW1lX3RlbXBsYXRlIjogIiR7cGFja2FnZS5pZH0ubGJwa2ciLAogICAgInRhZ3NfcGF0aCI6ICJtZXRhZGF0YS50YWdzIiwKICAgICJ2ZXJzaW9uX25vdGVzX3BhdGgiOiAibWV0YWRhdGEudmVyc2lvbl9ub3RlcyIsCiAgICAibm90ZXNfcGF0aCI6ICJtZXRhZGF0YS5ub3RlcyIKICB9Cn0=",
+        "encoding": "base64",
+        "media_type": "application/json",
+        "path": "editor/spec.json",
+        "size": 899
+      }
+    ],
+    "description": "Self-contained scenario package with packaged runner, validation, and editor specs",
+    "editor_spec": {
+      "artifact": "editor/spec.json",
+      "version": "1.0"
+    },
+    "endpoint_code": {
+      "entrypoint": "bin/excel_program_runner.py",
+      "interface_contract": "labbrew.scenario-package@1.0",
+      "language": "python"
+    },
+    "id": "test",
+    "interface": {
+      "kind": "labbrew.scenario-package",
+      "run_endpoints": {
+        "next": "/scenario/run/next",
+        "pause": "/scenario/run/pause",
+        "previous": "/scenario/run/previous",
+        "resume": "/scenario/run/resume",
+        "start": "/scenario/run/start",
+        "stop": "/scenario/run/stop"
+      },
+      "status_endpoint": "/scenario/run/status",
+      "version": "1.0"
+    },
+    "metadata": {
+      "archive_filename": "TestPKG.lbpkg",
+      "created_by": "Other.Builders.build_selfcontained_excel_package",
+      "import_source": "excel",
+      "normalized_at": "2026-04-16T21:08:52.264535Z",
+      "packaging": "self-contained"
+    },
+    "name": "test pkg",
+    "program": {
+      "id": "lager-1h-test-plan",
+      "measurement_config": {
+        "hz": 10,
+        "loadstep_duration_seconds": 45,
+        "output_dir": "data/measurements",
+        "output_format": "parquet",
+        "session_name": null
+      },
+      "name": "Lager 1 hour sped-up fermentation",
+      "plan_steps": [
+        {
+          "actions": [
+            {
+              "duration_s": 300,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_temp_Fermentor",
+              "value": 10
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_spd_Agitator",
+              "value": 20
+            },
+            {
+              "duration_s": 45,
+              "kind": "take_loadstep",
+              "owner": null,
+              "params": {
+                "timing": "on_trigger",
+                "trigger_wait": {
+                  "child": {
+                    "condition": {
+                      "for_s": 130,
+                      "operator": "<=",
+                      "source": "brewcan.temperature.0",
+                      "threshold": 14.1
+                    },
+                    "kind": "condition"
+                  },
+                  "kind": "rising"
+                }
+              },
+              "target": null,
+              "value": null
+            }
+          ],
+          "enabled": true,
+          "id": "plan-1",
+          "name": "Chill wort to lager pitch temp",
+          "wait": {
+            "children": [
+              {
+                "duration_s": 300,
+                "kind": "elapsed"
+              },
+              {
+                "condition": {
+                  "for_s": 130,
+                  "operator": "<=",
+                  "source": "brewcan.temperature.0",
+                  "threshold": 14.1
+                },
+                "kind": "condition"
+              }
+            ],
+            "kind": "all_of"
+          }
+        },
+        {
+          "actions": [
+            {
+              "duration_s": 120,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_pres_Fermentor",
+              "value": 0.3
+            }
+          ],
+          "enabled": true,
+          "id": "plan-2",
+          "name": "Hold at pitch temp and allow pressure to stay low",
+          "wait": {
+            "children": [
+              {
+                "duration_s": 600,
+                "kind": "elapsed"
+              },
+              {
+                "condition": {
+                  "for_s": 60,
+                  "operator": "<=",
+                  "source": "brewcan.pressure.0",
+                  "threshold": 0.5
+                },
+                "kind": "condition"
+              }
+            ],
+            "kind": "all_of"
+          }
+        },
+        {
+          "actions": [
+            {
+              "duration_s": 300,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_temp_Fermentor",
+              "value": 11
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_spd_Agitator",
+              "value": 18
+            }
+          ],
+          "enabled": true,
+          "id": "plan-3",
+          "name": "Primary fermentation hold",
+          "wait": {
+            "children": [
+              {
+                "condition": {
+                  "for_s": 60,
+                  "operator": "<=",
+                  "source": "brewcan.density.0",
+                  "threshold": 1.04
+                },
+                "kind": "condition"
+              },
+              {
+                "duration_s": 900,
+                "kind": "elapsed"
+              }
+            ],
+            "kind": "any_of"
+          }
+        },
+        {
+          "actions": [
+            {
+              "duration_s": 300,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_pres_Fermentor",
+              "value": 1
+            }
+          ],
+          "enabled": true,
+          "id": "plan-4",
+          "name": "Raise spunding pressure during active fermentation",
+          "wait": {
+            "children": [
+              {
+                "duration_s": 600,
+                "kind": "elapsed"
+              },
+              {
+                "condition": {
+                  "for_s": 60,
+                  "operator": ">=",
+                  "source": "brewcan.pressure.0",
+                  "threshold": 0.9
+                },
+                "kind": "condition"
+              }
+            ],
+            "kind": "all_of"
+          }
+        },
+        {
+          "actions": [
+            {
+              "duration_s": 600,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_temp_Fermentor",
+              "value": 15
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_spd_Agitator",
+              "value": 10
+            }
+          ],
+          "enabled": true,
+          "id": "plan-5",
+          "name": "Diacetyl rest",
+          "wait": {
+            "children": [
+              {
+                "condition": {
+                  "for_s": 120,
+                  "operator": "<=",
+                  "source": "brewcan.density.0",
+                  "threshold": 1.018
+                },
+                "kind": "condition"
+              },
+              {
+                "duration_s": 900,
+                "kind": "elapsed"
+              }
+            ],
+            "kind": "any_of"
+          }
+        },
+        {
+          "actions": [
+            {
+              "duration_s": 180,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_pres_Fermentor",
+              "value": 1.2
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_allow_Gas",
+              "value": 1
+            }
+          ],
+          "enabled": true,
+          "id": "plan-6",
+          "name": "Stabilize before crash",
+          "wait": {
+            "children": [
+              {
+                "duration_s": 300,
+                "kind": "elapsed"
+              },
+              {
+                "condition": {
+                  "for_s": 60,
+                  "operator": ">=",
+                  "source": "brewcan.pressure.0",
+                  "threshold": 1.1
+                },
+                "kind": "condition"
+              }
+            ],
+            "kind": "all_of"
+          }
+        },
+        {
+          "actions": [
+            {
+              "duration_s": 900,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_temp_Fermentor",
+              "value": 2
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_spd_Agitator",
+              "value": 5
+            }
+          ],
+          "enabled": true,
+          "id": "plan-7",
+          "name": "Cold crash ramp",
+          "wait": {
+            "children": [
+              {
+                "duration_s": 1200,
+                "kind": "elapsed"
+              },
+              {
+                "condition": {
+                  "for_s": 120,
+                  "operator": "<=",
+                  "source": "brewcan.temperature.0",
+                  "threshold": 14.1
+                },
+                "kind": "condition"
+              }
+            ],
+            "kind": "all_of"
+          }
+        },
+        {
+          "actions": [
+            {
+              "duration_s": 120,
+              "kind": "ramp",
+              "owner": null,
+              "params": {},
+              "target": "set_pres_Fermentor",
+              "value": 0.8
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_spd_Agitator",
+              "value": 0
+            }
+          ],
+          "enabled": true,
+          "id": "plan-8",
+          "name": "Final cold crash hold",
+          "wait": {
+            "children": [
+              {
+                "duration_s": 900,
+                "kind": "elapsed"
+              },
+              {
+                "condition": {
+                  "for_s": 120,
+                  "operator": "<=",
+                  "source": "brewcan.density.0",
+                  "threshold": 1.012
+                },
+                "kind": "condition"
+              }
+            ],
+            "kind": "all_of"
+          }
+        }
+      ],
+      "setup_steps": [
+        {
+          "actions": [
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_temp_Fermentor",
+              "value": 10
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_pres_Fermentor",
+              "value": 0.2
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_spd_Agitator",
+              "value": 15
+            },
+            {
+              "duration_s": null,
+              "kind": "write",
+              "owner": null,
+              "params": {},
+              "target": "set_allow_Gas",
+              "value": 1
+            }
+          ],
+          "enabled": true,
+          "id": "setup-1",
+          "name": "Request control of all actuators",
+          "wait": {
+            "duration_s": 30,
+            "kind": "elapsed"
+          }
+        }
+      ]
+    },
+    "runner": {
+      "config": {},
+      "entrypoint": "scripted.run",
+      "kind": "scripted"
+    },
+    "validation": {
+      "artifact": "validation/validation.json",
+      "required_fields": [
+        "id",
+        "name",
+        "runner",
+        "interface",
+        "validation",
+        "editor_spec",
+        "endpoint_code",
+        "artifacts"
+      ]
+    },
+    "version": "0.1.0"
+  },
+  "status": {
+    "details": {
+      "current_step_index": null,
+      "current_step_name": null,
+      "description": "Self-contained scenario package with packaged runner, validation, and editor specs",
+      "editor_spec": {
+        "artifact": "editor/spec.json",
+        "version": "1.0"
+      },
+      "endpoint_code": {
+        "entrypoint": "bin/excel_program_runner.py",
+        "language": "python"
+      },
+      "interface": {
+        "kind": "labbrew.scenario-package",
+        "run_endpoints": {
+          "next": "/scenario/run/next",
+          "pause": "/scenario/run/pause",
+          "previous": "/scenario/run/previous",
+          "resume": "/scenario/run/resume",
+          "start": "/scenario/run/start",
+          "stop": "/scenario/run/stop"
+        },
+        "status_endpoint": "/scenario/run/status",
+        "version": "1.0"
+      },
+      "metadata": {
+        "archive_filename": "TestPKG.lbpkg",
+        "created_by": "Other.Builders.build_selfcontained_excel_package",
+        "import_source": "excel",
+        "normalized_at": "2026-04-16T21:08:52.264535Z",
+        "packaging": "self-contained"
+      },
+      "phase": "run",
+      "validation": {
+        "artifact": "validation/validation.json",
+        "required_fields": [
+          "id",
+          "name",
+          "runner",
+          "interface",
+          "validation",
+          "editor_spec",
+          "endpoint_code",
+          "artifacts"
+        ]
+      },
+      "version": "0.1.0"
+    },
+    "event_log": [
+      "Package cleared",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Test Package",
+      "Loaded package Test Package",
+      "Package tuned (1 update(s))",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Test Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Test Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Test Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Test Package",
+      "Loaded package Patched package",
+      "Package tuned (0 update(s))",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Test Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Sine Wave Agitator Demo",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Sine Wave Agitator Demo",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Demo ramp import schedule",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Demo ramp import schedule",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package test",
+      "Loaded package Demo ramp import schedule",
+      "Loaded package test",
+      "Scripted package restored; run reset to idle",
+      "Loaded package Demo ramp import schedule",
+      "Loaded package test",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package test",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Lager 1 hour sped-up fermentation",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Loaded package Example_Schedule 7 (2) Scenario Package",
+      "Scripted package restored; run reset to idle",
+      "Loaded package test pkg"
+    ],
+    "owned_targets": [],
+    "package_id": "test",
+    "package_name": "test pkg",
+    "pause_reason": null,
+    "runner_kind": "scripted",
+    "state": "running",
+    "wait_message": "Running"
+  }
+}

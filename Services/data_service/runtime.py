@@ -6,6 +6,7 @@ saves to files, and supports loadstep averaging.
 
 from __future__ import annotations
 
+import base64
 import csv
 import importlib.util
 import io
@@ -30,6 +31,8 @@ from .storage.writer import FileWriter, FileWriterFactory
 # Sleep durations for the recording loop
 _IDLE_SLEEP_INTERVAL = 0.1  # 100ms when not recording (reduces idle CPU usage)
 _MIN_SAMPLE_SLEEP = 0.0005  # 0.5ms minimum sleep floor to prevent busy-waiting
+_PARQUET_VALIDATION_ATTEMPTS = 4
+_PARQUET_VALIDATION_RETRY_SLEEP_S = 0.02
 DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
 
 
@@ -43,6 +46,7 @@ class MeasurementConfig:
     output_format: str = "parquet"  # "parquet", "csv", or "jsonl"
     session_name: str = ""  # Auto-generated if empty
     include_files: list[str] = field(default_factory=list)
+    include_payloads: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -145,6 +149,7 @@ class DataRecordingRuntime:
         output_format: str = "parquet",
         session_name: str = "",
         include_files: list[str] | None = None,
+        include_payloads: list[dict[str, Any]] | None = None,
     ) -> dict:
         """Configure a measurement session.
 
@@ -193,9 +198,33 @@ class DataRecordingRuntime:
                     "but samples may be null until values appear."
                 )
 
-            # Generate session name if not provided
-            if not session_name:
-                session_name = f"measurement_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Keep explicit session names stable unless collisions require disambiguation.
+            requested_session_name = Path(str(session_name or "").strip()).name
+            if not requested_session_name:
+                requested_session_name = "measurement"
+            output_dir_path = Path(output_dir)
+            run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            if str(session_name or "").strip():
+                session_name = requested_session_name
+                collision_pattern = f"{requested_session_name}.*"
+                if output_dir_path.exists() and any(output_dir_path.glob(collision_pattern)):
+                    session_name = f"{requested_session_name}_{run_stamp}"
+            else:
+                session_name = f"{requested_session_name}_{run_stamp}"
+
+            normalized_include_files = [
+                str(item) for item in (include_files or []) if str(item).strip()
+            ]
+            remapped_include_files: list[str] = []
+            for item in normalized_include_files:
+                candidate = Path(str(item)).resolve()
+                if (
+                    requested_session_name
+                    and candidate.name.startswith(f"{requested_session_name}.")
+                ):
+                    suffix = candidate.name[len(requested_session_name) :]
+                    candidate = candidate.with_name(f"{session_name}{suffix}")
+                remapped_include_files.append(str(candidate))
 
             selected_format = str(output_format or "parquet").lower()
             if (
@@ -214,12 +243,10 @@ class DataRecordingRuntime:
                 output_dir=output_dir,
                 output_format=selected_format,
                 session_name=session_name,
-                include_files=[
-                    str(item) for item in (include_files or []) if str(item).strip()
-                ],
+                include_files=remapped_include_files,
+                include_payloads=self._normalize_include_payloads(include_payloads),
             )
             self._loadsteps_archive_format = selected_format
-            output_dir_path = Path(output_dir)
             self._loadsteps_archive_path = str(
                 output_dir_path
                 / f"{session_name}.loadsteps.{self._loadsteps_archive_format}"
@@ -247,6 +274,14 @@ class DataRecordingRuntime:
                 "output_format": selected_format,
                 "output_dir": output_dir,
                 "include_files": list(self.config.include_files),
+                "include_payloads": [
+                    {
+                        "name": item.get("name", ""),
+                        "size": int(item.get("size", 0)),
+                        "media_type": item.get("media_type"),
+                    }
+                    for item in self.config.include_payloads
+                ],
                 "warnings": list(self._setup_warnings),
             }
 
@@ -310,6 +345,7 @@ class DataRecordingRuntime:
                         measurement_file=filepath,
                         loadsteps_file=self._loadsteps_archive_path,
                         extra_files=self.config.include_files if self.config else [],
+                        extra_payloads=self.config.include_payloads if self.config else [],
                     )
                 except Exception as exc:
                     archive = {"archive_path": None, "members": [], "missing": []}
@@ -339,17 +375,23 @@ class DataRecordingRuntime:
         path = Path(raw_path).resolve()
         if not path.is_file():
             return False
-        try:
-            size = path.stat().st_size
-            if size < 8:
-                return False
-            with path.open("rb") as handle:
-                head = handle.read(4)
-                handle.seek(-4, os.SEEK_END)
-                tail = handle.read(4)
-            return head == b"PAR1" and tail == b"PAR1"
-        except OSError:
-            return False
+        delay_s = _PARQUET_VALIDATION_RETRY_SLEEP_S
+        for attempt in range(_PARQUET_VALIDATION_ATTEMPTS):
+            try:
+                size = path.stat().st_size
+                if size < 8:
+                    return False
+                with path.open("rb") as handle:
+                    head = handle.read(4)
+                    handle.seek(-4, os.SEEK_END)
+                    tail = handle.read(4)
+                return head == b"PAR1" and tail == b"PAR1"
+            except OSError:
+                if attempt >= _PARQUET_VALIDATION_ATTEMPTS - 1:
+                    return False
+                time.sleep(delay_s)
+                delay_s *= 2
+        return False
 
     def _quarantine_corrupt_file(self, file_path: str, reason: str) -> str:
         raw_path = str(file_path or "").strip()
@@ -689,7 +731,12 @@ class DataRecordingRuntime:
         return value
 
     def _build_session_archive(
-        self, *, measurement_file: str, loadsteps_file: str, extra_files: list[str]
+        self,
+        *,
+        measurement_file: str,
+        loadsteps_file: str,
+        extra_files: list[str],
+        extra_payloads: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Create a session archive for measurement outputs and sidecar files."""
         if not self.config:
@@ -699,8 +746,36 @@ class DataRecordingRuntime:
         archive_path = output_dir / f"{self.config.session_name}.archive.zip"
         candidates = [measurement_file, loadsteps_file, *list(extra_files or [])]
         return self._build_archive_from_sources(
-            archive_path=str(archive_path), source_files=candidates
+            archive_path=str(archive_path),
+            source_files=candidates,
+            inline_payloads=list(extra_payloads or []),
         )
+
+    def _normalize_include_payloads(
+        self, include_payloads: list[dict[str, Any]] | None
+    ) -> list[dict[str, Any]]:
+        payloads: list[dict[str, Any]] = []
+        for item in include_payloads or []:
+            if not isinstance(item, dict):
+                continue
+            name = Path(str(item.get("name") or "").strip()).name
+            content_b64 = str(item.get("content_b64") or "").strip()
+            if not name or not content_b64:
+                continue
+            try:
+                raw = base64.b64decode(content_b64, validate=True)
+            except Exception:
+                continue
+            payloads.append(
+                {
+                    "name": name,
+                    "content_b64": content_b64,
+                    "size": len(raw),
+                    "media_type": str(item.get("media_type") or "").strip()
+                    or "application/octet-stream",
+                }
+            )
+        return payloads
 
     def _recover_unarchived_outputs(self, *, output_dir: str) -> dict[str, Any]:
         """Archive leftover measurement outputs that were not zipped due to crashes."""
@@ -749,9 +824,13 @@ class DataRecordingRuntime:
 
             entry = sessions.setdefault(session_name, {})
             if measurement_file:
-                entry["measurement"] = measurement_file
+                measurement_path = str(Path(measurement_file).resolve())
+                if Path(measurement_path).is_file() or "measurement" not in entry:
+                    entry["measurement"] = measurement_path
             if loadsteps_file:
-                entry["loadsteps"] = loadsteps_file
+                loadsteps_path = str(Path(loadsteps_file).resolve())
+                if Path(loadsteps_path).is_file() or "loadsteps" not in entry:
+                    entry["loadsteps"] = loadsteps_path
             entry.setdefault("run_log", str(target_dir / f"{session_name}.run.log"))
             entry.setdefault(
                 "schedule", str(target_dir / f"{session_name}.schedule.json")
@@ -788,7 +867,11 @@ class DataRecordingRuntime:
         }
 
     def _build_archive_from_sources(
-        self, *, archive_path: str, source_files: list[str]
+        self,
+        *,
+        archive_path: str,
+        source_files: list[str],
+        inline_payloads: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Build archive from source file paths and remove archived sources."""
         raw_archive_path = str(archive_path or "").strip()
@@ -818,14 +901,23 @@ class DataRecordingRuntime:
                 and not self._is_probably_valid_parquet_file(str(path))
             ):
                 # Try sibling fallbacks created by resilient writers/recovery.
+                original_parquet = path
                 sibling_jsonl = path.with_suffix(".jsonl")
                 sibling_csv = path.with_suffix(".csv")
                 if sibling_jsonl.is_file():
+                    self._quarantine_corrupt_file(
+                        str(original_parquet),
+                        "invalid parquet footer/header (repaired using sibling jsonl)",
+                    )
                     repaired.append(
                         f"{path.name} -> {sibling_jsonl.name}"
                     )
                     path = sibling_jsonl
                 elif sibling_csv.is_file():
+                    self._quarantine_corrupt_file(
+                        str(original_parquet),
+                        "invalid parquet footer/header (repaired using sibling csv)",
+                    )
                     repaired.append(
                         f"{path.name} -> {sibling_csv.name}"
                     )
@@ -842,7 +934,26 @@ class DataRecordingRuntime:
             else:
                 missing.append(str(path))
 
-        if not existing:
+        payload_members: list[dict[str, Any]] = []
+        payload_names: set[str] = {Path(path).name for path in existing}
+        for item in inline_payloads or []:
+            if not isinstance(item, dict):
+                continue
+            member_name = Path(str(item.get("name") or "").strip()).name
+            content_b64 = str(item.get("content_b64") or "").strip()
+            if not member_name or not content_b64:
+                continue
+            if member_name in payload_names:
+                continue
+            try:
+                payload_bytes = base64.b64decode(content_b64, validate=True)
+            except Exception:
+                missing.append(f"inline:{member_name}")
+                continue
+            payload_members.append({"name": member_name, "bytes": payload_bytes})
+            payload_names.add(member_name)
+
+        if not existing and not payload_members:
             return {"archive_path": None, "members": [], "missing": missing}
 
         archive_path_obj.parent.mkdir(parents=True, exist_ok=True)
@@ -856,6 +967,9 @@ class DataRecordingRuntime:
                     arcname = Path(file_path).name
                     zf.write(file_path, arcname=arcname)
                     members.append(arcname)
+                for item in payload_members:
+                    zf.writestr(item["name"], item["bytes"])
+                    members.append(item["name"])
 
             tmp_archive_path.replace(archive_path_obj)
         except Exception:
@@ -1243,6 +1357,14 @@ class DataRecordingRuntime:
                     "include_files": list(self.config.include_files)
                     if self.config
                     else [],
+                    "include_payloads": [
+                        {
+                            "name": item.get("name", ""),
+                            "size": int(item.get("size", 0)),
+                            "media_type": item.get("media_type"),
+                        }
+                        for item in (self.config.include_payloads if self.config else [])
+                    ],
                 }
                 if self.config
                 else None,

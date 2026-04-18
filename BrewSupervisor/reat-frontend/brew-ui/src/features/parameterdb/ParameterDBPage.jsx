@@ -162,7 +162,7 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
       {/* Page Header */}
       <div className="pdb-page-header">
         <div className="pdb-page-title">
-          <span className="pdb-page-icon">⬡</span>
+          <span className="pdb-page-icon pdb-page-icon-parameterdb">⬡</span>
           <span>ParameterDB</span>
           {fermenterName && <span className="pdb-page-mode">{fermenterName}</span>}
           {modeLabel && <span className="pdb-page-mode">{modeLabel}</span>}

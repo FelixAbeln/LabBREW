@@ -1,11 +1,11 @@
-# BrewSupervisor schedule import patch
+# BrewSupervisor scenario package import patch
 
-Adds clean schedule import support to the UI backend.
+Adds scenario package import support to the UI backend.
 
 ## New routes
 
-- `PUT /fermenters/{id}/schedule/validate-import`
-- `PUT /fermenters/{id}/schedule/import`
+- `PUT /fermenters/{id}/scenario/validate-import`
+- `PUT /fermenters/{id}/scenario/import`
 
 Both accept `multipart/form-data` with a `file` field.
 
@@ -35,6 +35,6 @@ Supported columns:
 
 ## Notes
 
-- Scheduler remains JSON-only.
-- BrewSupervisor parses Excel, validates, and forwards canonical JSON to `PUT /schedule`.
+- Scenario runtime executes package-provided runner scripts via `runner.kind=scripted`.
+- BrewSupervisor parses Excel, validates, and forwards generated package payload to `PUT /scenario/package`.
 - This patch uses `openpyxl`; install it in the UI backend environment if needed.

@@ -23,6 +23,7 @@ class SetupMeasurementRequest(BaseModel):
     output_format: str = "parquet"
     session_name: str | None = None
     include_files: list[str] | None = None
+    include_payloads: list[dict] | None = None
 
 
 class TakeLoadstepRequest(BaseModel):
@@ -49,6 +50,7 @@ async def setup_measurement(request: SetupMeasurementRequest):
         output_format=request.output_format,
         session_name=request.session_name or "",
         include_files=request.include_files,
+        include_payloads=request.include_payloads,
     )
 
     if not result.get("ok"):

@@ -1,7 +1,7 @@
 import { ArchiveFilesCard, ArchiveSummaryCard } from '../archive/ArchiveTab';
 import BackendControlCard from '../control/BackendControlCard.jsx';
 import { DataLoadstepStatusCard, DataRecordingCard, DataSnapshotBrowserCard } from '../data/DataTab';
-import { ScheduleControlsBar, ScheduleEventLogCard, ScheduleSummaryCard, ScheduleWorkbookCard } from '../schedule/ScheduleTab';
+import { ScenarioControlsBar, ScenarioEventLogCard, ScenarioPackageCard, ScenarioSummaryCard } from '../schedule/ScheduleTab';
 import { PersistenceStatusCard, SystemLauncherPanel } from '../system/SystemTab';
 
 function SystemNodeWidget({ systemProps }) {
@@ -65,6 +65,7 @@ function SystemActionsWidget({ systemProps }) {
       onOpenStorageManager={systemProps?.onOpenStorageManager}
       onOpenParameterDB={systemProps?.onOpenParameterDB}
       onOpenRulesStudio={systemProps?.onOpenRulesStudio}
+      onOpenScenarioBuilder={systemProps?.onOpenScenarioBuilder}
       className="workspace-module-panel system-launcher-card"
     />
   );
@@ -279,7 +280,7 @@ function ControlFieldWidget({ type, controlProps }) {
   );
 }
 
-const MODULE_CATEGORY_ORDER = ['Control', 'Data', 'Schedule', 'Archive', 'System'];
+const MODULE_CATEGORY_ORDER = ['Control', 'Data', 'Scenario', 'Archive', 'System'];
 
 function moduleCategoryRank(category) {
   const index = MODULE_CATEGORY_ORDER.indexOf(String(category || ''));
@@ -328,48 +329,48 @@ const BASE_WORKSPACE_MODULES = [
     render: (props) => <DataSnapshotBrowserCard {...props.dataProps} />,
   },
   {
-    type: 'schedule-controls',
-    label: 'Schedule Controls',
-    description: 'Start, stop, pause, next, and previous.',
-    category: 'Schedule',
+    type: 'scenario-controls',
+    label: 'Run Controls',
+    description: 'Start, stop, pause, and step the active run.',
+    category: 'Scenario',
     sortOrder: 10,
     defaultCols: 8,
     defaultRows: 1,
     render: (props) => (
       <div className="workspace-module-panel">
-        <ScheduleControlsBar {...props.scheduleProps} />
+        <ScenarioControlsBar {...props.scenarioProps} />
       </div>
     ),
   },
   {
-    type: 'schedule-summary',
-    label: 'Schedule Summary',
-    description: 'Current step and state.',
-    category: 'Schedule',
+    type: 'scenario-summary',
+    label: 'Run Summary',
+    description: 'Current run phase, step, and package.',
+    category: 'Scenario',
     sortOrder: 20,
     defaultCols: 4,
     defaultRows: 1,
-    render: (props) => <ScheduleSummaryCard schedule={props.scheduleProps?.schedule} scheduleDefinition={props.scheduleProps?.scheduleDefinition} />,
+    render: (props) => <ScenarioSummaryCard scenario={props.scenarioProps?.scenario} scenarioPackage={props.scenarioProps?.scenarioPackage} />,
   },
   {
-    type: 'schedule-workbook',
-    label: 'Workbook Import',
-    description: 'Validate and import schedule workbook.',
-    category: 'Schedule',
-    sortOrder: 30,
-    defaultCols: 8,
-    defaultRows: 2,
-    render: (props) => <ScheduleWorkbookCard {...props.scheduleProps} />,
-  },
-  {
-    type: 'schedule-events',
+    type: 'scenario-events',
     label: 'Event Log',
-    description: 'Recent schedule event stream.',
-    category: 'Schedule',
+    description: 'Recent scenario run event stream.',
+    category: 'Scenario',
     sortOrder: 40,
     defaultCols: 12,
     defaultRows: 3,
-    render: (props) => <ScheduleEventLogCard schedule={props.scheduleProps?.schedule} />,
+    render: (props) => <ScenarioEventLogCard scenario={props.scenarioProps?.scenario} />,
+  },
+  {
+    type: 'scenario-package',
+    label: 'Package Editor',
+    description: 'Import, edit, and manage scenario packages.',
+    category: 'Scenario',
+    sortOrder: 30,
+    defaultCols: 8,
+    defaultRows: 2,
+    render: (props) => <ScenarioPackageCard {...props.scenarioProps} />,
   },
   {
     type: 'archive-summary',
@@ -482,7 +483,14 @@ export function getWorkspaceModules(props = {}) {
 
 export function getWorkspaceModule(type, props = {}) {
   const rawType = String(type || '');
-  const found = getWorkspaceModules(props).find((item) => item.type === rawType);
+  const legacyTypeMap = {
+    'schedule-controls': 'scenario-controls',
+    'schedule-summary': 'scenario-summary',
+    'schedule-events': 'scenario-events',
+    'schedule-workbook': 'scenario-package',
+  };
+  const resolvedType = legacyTypeMap[rawType] || rawType;
+  const found = getWorkspaceModules(props).find((item) => item.type === resolvedType);
   if (found) return found;
   if (rawType.startsWith('control-card:')) {
     return {

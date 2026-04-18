@@ -177,6 +177,29 @@ def test_atomic_write_text_file_fsync_dir_and_cleanup_unlink_oserror(tmp_path: P
         runtime._atomic_write_text_file(str(tmp_path / "boom.txt"), "x")
 
 
+def test_is_probably_valid_parquet_file_retries_transient_open_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _runtime(tmp_path)
+    parquet_path = tmp_path / "sess.parquet"
+    parquet_path.write_bytes(b"PAR1abcdPAR1")
+
+    real_open = Path.open
+    calls = {"count": 0}
+
+    def _flaky_open(self: Path, *args, **kwargs):
+        if self == parquet_path and calls["count"] < 2:
+            calls["count"] += 1
+            raise OSError("sharing violation")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", _flaky_open)
+    monkeypatch.setattr("Services.data_service.runtime.time.sleep", lambda _s: None)
+
+    assert runtime._is_probably_valid_parquet_file(str(parquet_path)) is True
+    assert calls["count"] == 2
+
+
 def test_build_session_archive_helpers_and_delete_error_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runtime = _runtime(tmp_path)
 
@@ -314,6 +337,35 @@ def test_stop_setup_measurement_and_loadstep_remaining_branches(tmp_path: Path) 
     taken = runtime.take_loadstep(duration_seconds=1.0, loadstep_name="")
     assert taken["ok"] is True
     assert taken["loadstep_name"].startswith("loadstep_")
+
+
+def test_setup_measurement_keeps_explicit_session_name_when_no_collision(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+
+    setup = runtime.setup_measurement(
+        parameters=["x"],
+        hz=2.0,
+        output_dir=str(tmp_path),
+        session_name="explicit-name",
+    )
+
+    assert setup["ok"] is True
+    assert setup["session_name"] == "explicit-name"
+
+
+def test_setup_measurement_stamps_explicit_session_name_on_collision(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    (tmp_path / "explicit-name.jsonl").write_text("existing", encoding="utf-8")
+
+    setup = runtime.setup_measurement(
+        parameters=["x"],
+        hz=2.0,
+        output_dir=str(tmp_path),
+        session_name="explicit-name",
+    )
+
+    assert setup["ok"] is True
+    assert setup["session_name"].startswith("explicit-name_")
 
 
 def test_measure_stop_archive_error_and_finalize_active_loadstep(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

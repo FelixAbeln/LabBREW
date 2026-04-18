@@ -1,9 +1,9 @@
 # Schedule Excel Import Format
 
 **Source:** `BrewSupervisor/api/schedule_import/parser.py`  
-**Related API:** [`PUT /fermenters/{id}/schedule/import`](./brewsupervisor-api.md#put-fermentersfermenteridfscheduleimport)
+**Related API:** [`PUT /fermenters/{id}/scenario/import`](./brewsupervisor-api.md#put-fermentersfermenteridscenarioimport)
 
-The BrewSupervisor Gateway accepts a `.xlsx` workbook and converts it to the JSON `ScheduleDefinition` expected by the [Schedule Service](./schedule-service-api.md). This page documents every sheet, column, and cell syntax the parser understands.
+The BrewSupervisor Gateway accepts a `.xlsx` workbook and converts it to the JSON `ScheduleDefinition` used by the scenario import flow. This page documents every sheet, column, and cell syntax the parser understands.
 
 ---
 
@@ -341,7 +341,7 @@ Measurement starts automatically when the run begins and records throughout all 
 
 ## Validation
 
-Before the JSON payload is forwarded to the Schedule Service the parser runs validation checks. Errors block import; warnings are informational only.
+Before the JSON payload is forwarded through scenario import, the parser runs validation checks. Errors block import; warnings are informational only.
 
 Validation is also checked against the live backend parameter namespace (via control snapshot). If a referenced parameter does not exist in backend values, the schedule is marked invalid.
 
@@ -363,7 +363,7 @@ Validation is also checked against the live backend parameter namespace (via con
 
 ## Validation Response Contract
 
-`PUT /fermenters/{id}/schedule/validate-import` and failed `PUT /fermenters/{id}/schedule/import` responses include machine-readable issue metadata for frontend display.
+`PUT /fermenters/{id}/scenario/validate-import` and failed `PUT /fermenters/{id}/scenario/import` responses include machine-readable issue metadata for frontend display.
 
 ### Response fields
 

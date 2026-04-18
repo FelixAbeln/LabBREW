@@ -109,7 +109,13 @@ def _meta_get(meta: dict[str, str], *keys: str) -> str | None:
 
 
 def _build_meta_defaults(meta: dict[str, str], wb=None) -> dict[str, Any]:
-    measurement_hz_text = _meta_get(meta, "measurement_hz", "measurement.hz")
+    measurement_hz_text = _meta_get(
+        meta,
+        "measurement_hz",
+        "measurement.hz",
+        "measurement hz",
+        "hz",
+    )
     try:
         measurement_hz = (
             float(measurement_hz_text) if measurement_hz_text is not None else 10.0
@@ -159,8 +165,22 @@ def _build_meta_defaults(meta: dict[str, str], wb=None) -> dict[str, Any]:
     if parameters:
         measurement_config["parameters"] = parameters
 
+    package_defaults = {
+        "id": _meta_get(meta, "package_id", "package.id", "id"),
+        "name": _meta_get(meta, "package_name", "package.name", "name"),
+        "version": _meta_get(meta, "package_version", "package.version", "version"),
+        "description": _meta_get(
+            meta,
+            "package_description",
+            "package.description",
+            "description",
+        ),
+        "tags": _cell_list(_meta_get(meta, "package_tags", "package.tags", "tags")),
+    }
+
     return {
         "measurement": measurement_config,
+        "package": package_defaults,
     }
 
 
@@ -311,6 +331,8 @@ def parse_schedule_workbook(
         "id": meta.get("id") or filename.rsplit(".", 1)[0],
         "name": meta.get("name") or meta.get("id") or filename,
         "measurement_config": defaults["measurement"],
+        "package_defaults": defaults.get("package", {}),
+        "workbook_meta": dict(meta),
         "setup_steps": [
             _build_step(
                 row,

@@ -178,19 +178,19 @@ def test_fermenter_registry_merges_split_service_advertisements(monkeypatch) -> 
 
     fake_session.queue(_FakeResponse(payload={"services": {"control_service": {"healthy": True}}}))
     fake_session.queue(_FakeResponse(payload={"control_available": True}))
-    fake_session.queue(_FakeResponse(payload={"services": {"schedule_service": {"healthy": True}}}))
-    fake_session.queue(_FakeResponse(payload={"schedule_available": True}))
+    fake_session.queue(_FakeResponse(payload={"services": {"scenario_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"scenario_available": True}))
 
     snapshot = registry.snapshot()
     assert len(snapshot) == 1
     node = snapshot[0]
-    assert sorted(node.services.keys()) == ["control_service", "schedule_service"]
+    assert sorted(node.services.keys()) == ["control_service", "scenario_service"]
     assert node.service_agents["control_service"] == "http://10.0.0.10:8780"
-    assert node.service_agents["schedule_service"] == "http://10.0.0.11:8780"
+    assert node.service_agents["scenario_service"] == "http://10.0.0.11:8780"
 
-    schedule_node = registry.get_node_for_service("01", "schedule_service")
+    schedule_node = registry.get_node_for_service("01", "scenario_service")
     assert schedule_node is not None
-    assert schedule_node.service_agents["schedule_service"] == "http://10.0.0.11:8780"
+    assert schedule_node.service_agents["scenario_service"] == "http://10.0.0.11:8780"
 
 
 def test_fermenter_registry_prefers_online_agent_when_merging(monkeypatch) -> None:
@@ -217,7 +217,7 @@ def test_fermenter_registry_prefers_online_agent_when_merging(monkeypatch) -> No
         proto="http",
         api_path="/agent/info",
         summary_path="/agent/summary",
-        services_hint=["schedule_service"],
+        services_hint=["scenario_service"],
     )
     browser = SimpleNamespace(snapshot=lambda: [agent_offline, agent_online])
     registry = FermenterRegistry(browser)
@@ -225,8 +225,8 @@ def test_fermenter_registry_prefers_online_agent_when_merging(monkeypatch) -> No
     registry._session = fake_session
 
     fake_session.queue(_FakeResponse(raises=True))
-    fake_session.queue(_FakeResponse(payload={"services": {"schedule_service": {"healthy": True}}}))
-    fake_session.queue(_FakeResponse(payload={"schedule_available": True}))
+    fake_session.queue(_FakeResponse(payload={"services": {"scenario_service": {"healthy": True}}}))
+    fake_session.queue(_FakeResponse(payload={"scenario_available": True}))
 
     snapshot = registry.snapshot()
     assert len(snapshot) == 1

@@ -88,8 +88,8 @@ export function FermenterSidebar({ fermenters, selectedId, onSelect }) {
                 <div className="small-text">{fermenter.address}</div>
                 <div className="tag-row">
                   <AvailabilityTag
-                    label="schedule"
-                    value={Boolean(fermenter.summary?.schedule_available)}
+                    label="scenario"
+                    value={Boolean(fermenter.summary?.scenario_available)}
                   />
                   <AvailabilityTag
                     label="control"

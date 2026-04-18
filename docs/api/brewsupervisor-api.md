@@ -39,11 +39,11 @@ When multiple Supervisor Agents advertise the same `node_id` (split deployment),
     "host": "192.168.1.10",
     "online": true,
     "agent_base_url": "http://192.168.1.10:8780",
-    "services_hint": ["control_service", "schedule_service", "ParameterDB"],
+    "services_hint": ["control_service", "scenario_service", "ParameterDB"],
     "services": {
       "control_service": {"healthy": true, "base_url": "http://127.0.0.1:8767"}
     },
-    "summary": {"schedule_available": true, "control_available": true},
+    "summary": {"scenario_available": true, "control_available": true},
     "last_error": null
   }
 ]
@@ -99,14 +99,14 @@ Aggregates data from multiple services into a single dashboard payload. Best-eff
 ```json
 {
   "fermenter": { /* FermenterView */ },
-  "schedule": { /* RunStatus from schedule_service/status */ },
-  "schedule_definition": { /* ScheduleDefinition from schedule_service */ },
+  "schedule": { /* RunnerStatus from scenario_service /scenario/run/status */ },
+  "schedule_definition": { /* Program payload from scenario_service /scenario/package */ },
   "owned_target_values": [
     {
       "target": "reactor.temp.setpoint",
       "ok": true,
       "value": 30.5,
-      "owner": "schedule"
+      "owner": "scenario_service"
     }
   ]
 }
@@ -114,18 +114,21 @@ Aggregates data from multiple services into a single dashboard payload. Best-eff
 
 ---
 
-## Schedule Import
+## Scenario Package Import
 
-These endpoints parse an Excel workbook and optionally push the result to the schedule service. See **[Schedule Excel Import Format](./schedule-excel-import.md)** for the full workbook syntax reference.
+These endpoints accept a scenario package file and perform compile-first validation against `scenario_service` before loading.
 
-### `PUT /fermenters/{fermenter_id}/schedule/validate-import`
+Supported file formats:
+- `.zip` / `.lbpkg` archive containing one of: `scenario.package.msgpack`, `scenario-package.msgpack`, or `package.msgpack`
 
-Validates an Excel schedule file without persisting anything.
+### `PUT /fermenters/{fermenter_id}/scenario/validate-import`
+
+Validates a scenario package file without persisting anything.
 
 **Request** — `multipart/form-data`
 | Field | Type | Description |
 |---|---|---|
-| `file` | binary | `.xlsx` schedule workbook |
+| `file` | binary | `.zip` or `.lbpkg` scenario package archive |
 
 **Response** `200 OK`
 ```json
@@ -134,19 +137,20 @@ Validates an Excel schedule file without persisting anything.
   "valid": true,
   "errors": [],
   "warnings": ["Sheet 'Plan' has no wait conditions"],
-  "schedule": { /* parsed ScheduleDefinition */ },
+  "scenario_package": { /* uploaded package payload */ },
+  "compile": { /* compile result from scenario_service */ },
   "summary": {
-    "setup_step_count": 2,
-    "plan_step_count": 10
+    "filename": "first_run_package.lbpkg",
+    "runner": "scripted"
   }
 }
 ```
 
 Returns `ok: false` and a list of `errors` if the workbook fails validation.
 
-### `PUT /fermenters/{fermenter_id}/schedule/import`
+### `PUT /fermenters/{fermenter_id}/scenario/import`
 
-Validates and imports an Excel schedule to the schedule service. Returns `422` if validation fails; otherwise forwards the parsed payload to `PUT /schedule` on the schedule service and mirrors its response.
+Validates and imports a scenario package. Returns `422` if compile validation fails; otherwise forwards to `PUT /scenario/package` on `scenario_service` and mirrors its response.
 
 **Request** — `multipart/form-data` (same as validate-import)
 
@@ -157,8 +161,9 @@ Validates and imports an Excel schedule to the schedule service. Returns `422` i
   "valid": true,
   "errors": [],
   "warnings": [],
-  "schedule": { /* ScheduleDefinition */ },
-  "forwarded": { /* response from schedule_service */ }
+  "scenario_package": { /* uploaded package */ },
+  "compile": { /* compile result */ },
+  "forwarded": { /* response from scenario_service */ }
 }
 ```
 
@@ -168,7 +173,7 @@ Validates and imports an Excel schedule to the schedule service. Returns `422` i
 
 The gateway provides convenience proxy routes that forward requests to named services through the Agent's `/proxy/*` mechanism. All HTTP methods (`GET`, `POST`, `PUT`, `DELETE`) are supported unless noted.
 
-In split deployments, these routes are service-aware: each request is routed to the agent currently associated with that specific service (`control_service`, `schedule_service`, `data_service`, and so on). This allows one fermenter to span several devices.
+In split deployments, these routes are service-aware: each request is routed to the agent currently associated with that specific service (`control_service`, `scenario_service`, `data_service`, and so on). This allows one fermenter to span several devices.
 
 | Gateway path | Forwarded to |
 |---|---|
@@ -177,11 +182,11 @@ In split deployments, these routes are service-aware: each request is routed to 
 | `/fermenters/{id}/rules[/{path}]` | `control_service` — `rules/{path}` |
 | `/fermenters/{id}/system[/{path}]` | `control_service` — `system/{path}` |
 | `/fermenters/{id}/ws[/{path}]` | `control_service` — `ws/{path}` |
-| `/fermenters/{id}/schedule[/{path}]` | `schedule_service` — `schedule/{path}` |
+| `/fermenters/{id}/scenario[/{path}]` | `scenario_service` — `scenario/{path}` |
 | `/fermenters/{id}/data[/{path}]` | `data_service` — `{path}` |
 | `/fermenters/{id}/services/{service}[/{path}]` | `{service}` — `{path}` |
 
-See [Control Service API](./control-service-api.md) and [Schedule Service API](./schedule-service-api.md) for the full endpoint reference.
+See [Control Service API](./control-service-api.md) and [Scenario Service integration notes](../implementation/scenario-service-integration.md) for the current scenario endpoint references.
 
 For Data Service endpoints, see [Data Service API](./data-service-api.md).
 

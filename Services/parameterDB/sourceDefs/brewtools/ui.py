@@ -1,198 +1,8 @@
 from __future__ import annotations
 
-import socket
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from ipaddress import ip_network
 from typing import Any
 
-from .transports import PeakGatewayUdpTransport, RawCanFrame
-
-
-def _local_ipv4_addresses() -> list[str]:
-    hosts: list[str] = []
-    try:
-        infos = socket.getaddrinfo(socket.gethostname(), None, family=socket.AF_INET)
-    except Exception:
-        infos = []
-    for info in infos:
-        addr = str(info[4][0] or "").strip()
-        if not addr or addr.startswith("127."):
-            continue
-        if addr not in hosts:
-            hosts.append(addr)
-    return hosts
-
-
-def _scan_kvaser_channels(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
-    _ = payload
-    try:
-        import can
-    except ModuleNotFoundError:
-        return [], "python-can is not installed"
-    except Exception as exc:
-        return [], str(exc)
-
-    try:
-        configs = can.detect_available_configs(interfaces=["kvaser"])
-    except TypeError:
-        try:
-            configs = [
-                cfg
-                for cfg in (can.detect_available_configs() or [])
-                if str((cfg or {}).get("interface", "")).strip().lower() == "kvaser"
-            ]
-        except Exception as exc:
-            return [], str(exc)
-    except Exception as exc:
-        return [], str(exc)
-
-    out: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
-    for cfg in configs or []:
-        if not isinstance(cfg, dict):
-            continue
-        channel_value = cfg.get("channel", 0)
-        channel_text = str(channel_value).strip() or "0"
-        key = ("kvaser", channel_text)
-        if key in seen:
-            continue
-        seen.add(key)
-        try:
-            channel = int(channel_value)
-        except Exception:
-            channel = 0
-        bitrate = int(cfg.get("bitrate") or 500000)
-        out.append(
-            {
-                "title": f"kvaser:{channel_text}",
-                "subtitle": "Kvaser channel",
-                "source": "kvaser",
-                "transport": "kvaser",
-                "interface": "kvaser",
-                "channel": channel,
-                "bitrate": bitrate,
-                "gateway_host": "",
-                "gateway_tx_port": 55002,
-                "gateway_rx_port": 55001,
-                "gateway_bind_host": "0.0.0.0",
-                "selectable": True,
-                "error": "",
-            }
-        )
-    return out, ""
-
-
-def _gateway_hosts(payload: dict[str, Any], record: dict[str, Any] | None) -> list[str]:
-    out: list[str] = []
-
-    def _add(host: Any) -> None:
-        text = str(host or "").strip()
-        if text and text not in out:
-            out.append(text)
-
-    raw_hosts = payload.get("gateway_hosts")
-    if isinstance(raw_hosts, list):
-        for host in raw_hosts:
-            _add(host)
-
-    _add(payload.get("gateway_host"))
-    if isinstance(record, dict):
-        cfg = record.get("config")
-        if isinstance(cfg, dict):
-            _add(cfg.get("gateway_host"))
-
-    _add("192.168.0.30")
-    max_hosts = max(1, min(256, int(payload.get("max_gateway_hosts") or 128)))
-    for local in _local_ipv4_addresses():
-        parts = local.split(".")
-        if len(parts) == 4:
-            _add(".".join(parts[:3] + ["30"]))
-        try:
-            subnet = ip_network(f"{local}/24", strict=False)
-        except Exception:
-            continue
-        for host in subnet.hosts():
-            text = str(host)
-            if text == local:
-                continue
-            _add(text)
-            if len(out) >= max_hosts:
-                return out
-    return out
-
-
-def _scan_peak_gateways(
-    payload: dict[str, Any],
-    record: dict[str, Any] | None,
-) -> tuple[list[dict[str, Any]], str]:
-    tx_port = int(payload.get("gateway_tx_port") or 55002)
-    rx_port = int(payload.get("gateway_rx_port") or 55001)
-    bind_host = str(payload.get("gateway_bind_host") or "0.0.0.0").strip() or "0.0.0.0"
-    timeout_s = float(payload.get("probe_timeout_s") or 0.08)
-    worker_count = max(1, min(64, int(payload.get("probe_workers") or 32)))
-
-    hosts = _gateway_hosts(payload, record)
-    out: list[dict[str, Any]] = []
-
-    def _probe_host(host: str) -> dict[str, Any] | None:
-        reachable = False
-        transport = None
-        try:
-            transport = PeakGatewayUdpTransport(
-                remote_host=host,
-                remote_port=tx_port,
-                local_host=bind_host,
-                local_port=0,
-                socket_timeout=timeout_s,
-            )
-            transport.send_frame(
-                RawCanFrame(
-                    arbitration_id=0x1FFFFFFF,
-                    data=b"",
-                    is_extended_id=True,
-                    is_remote_frame=True,
-                )
-            )
-            frames = transport.recv_frames(timeout=timeout_s)
-            reachable = bool(frames)
-        except Exception:
-            reachable = False
-        finally:
-            if transport is not None:
-                try:
-                    transport.close()
-                except Exception:
-                    pass
-        if not reachable:
-            return None
-
-        return {
-            "title": f"pcan:{host}",
-            "subtitle": f"UDP {tx_port}/{rx_port}",
-            "source": "pcan_gateway_udp",
-            "transport": "pcan_gateway_udp",
-            "interface": "",
-            "channel": 0,
-            "bitrate": 500000,
-            "gateway_host": host,
-            "gateway_tx_port": tx_port,
-            "gateway_rx_port": rx_port,
-            "gateway_bind_host": bind_host,
-            "selectable": True,
-            "error": "",
-        }
-
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = [executor.submit(_probe_host, host) for host in hosts]
-        for future in as_completed(futures):
-            try:
-                item = future.result()
-            except Exception:
-                item = None
-            if item is not None:
-                out.append(item)
-
-    return out, ""
+from .transports import discover_transport_candidates
 
 
 def _nodes(config: dict, key: str) -> list[int]:
@@ -405,10 +215,10 @@ def _transport_section() -> dict:
             {"key": "config.interface", "label": "Interface", "type": "enum", "required": False, "choices": ["kvaser"], "hint": "Used when transport = kvaser.", "visible_when": {"config.transport": "kvaser"}},
             {"key": "config.channel", "label": "Channel", "type": "int", "required": False, "hint": "Used when transport = kvaser.", "visible_when": {"config.transport": "kvaser"}},
             {"key": "config.bitrate", "label": "Bitrate", "type": "int", "required": False, "hint": "Used when transport = kvaser.", "visible_when": {"config.transport": "kvaser"}},
-            {"key": "config.gateway_host", "label": "PCAN Gateway Host", "type": "string", "required": False, "hint": "Used when transport = pcan_gateway_udp.", "visible_when": {"config.transport": "pcan_gateway_udp"}},
-            {"key": "config.gateway_tx_port", "label": "PCAN Gateway TX Port", "type": "int", "required": False, "visible_when": {"config.transport": "pcan_gateway_udp"}},
-            {"key": "config.gateway_rx_port", "label": "PCAN Gateway RX Port", "type": "int", "required": False, "visible_when": {"config.transport": "pcan_gateway_udp"}},
-            {"key": "config.gateway_bind_host", "label": "PCAN Bind Host", "type": "string", "required": False, "visible_when": {"config.transport": "pcan_gateway_udp"}},
+            {"key": "config.gateway_host", "label": "PCAN Gateway Host", "type": "string", "required": False, "hint": "IP address of PCAN gateway (used when transport = pcan_gateway_udp).", "visible_when": {"config.transport": "pcan_gateway_udp"}},
+            {"key": "config.gateway_tx_port", "label": "PCAN Gateway TX Port", "type": "int", "required": True, "hint": "TX port for sending commands (typically 55002, check gateway config).", "visible_when": {"config.transport": "pcan_gateway_udp"}},
+            {"key": "config.gateway_rx_port", "label": "PCAN Gateway RX Port", "type": "int", "required": True, "hint": "RX port for receiving data (typically 55001, check gateway config).", "visible_when": {"config.transport": "pcan_gateway_udp"}},
+            {"key": "config.gateway_bind_host", "label": "PCAN Bind Host", "type": "string", "required": False, "hint": "Local bind address (0.0.0.0 for all interfaces)", "visible_when": {"config.transport": "pcan_gateway_udp"}},
             {"key": "config.recv_timeout_s", "label": "Receive Timeout (s)", "type": "float", "required": True},
             {"key": "config.reconnect_delay_s", "label": "Reconnect Delay (s)", "type": "float", "required": True},
         ],
@@ -484,7 +294,7 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
                 "result": {
                     "list_key": "channels",
                     "title_key": "title",
-                    "subtitle_keys": ["subtitle", "source"],
+                    "subtitle_keys": ["subtitle"],
                     "status_key": "selectable",
                     "error_key": "error",
                     "apply_label": "Use This Channel",
@@ -545,18 +355,7 @@ def run_ui_action(
     if action_name not in {"scan_channels", "scan"}:
         raise ValueError(f"Unsupported brewtools UI action: {action}")
 
-    candidates: list[dict[str, Any]] = []
-    warnings: list[str] = []
-
-    kvaser_items, kvaser_error = _scan_kvaser_channels(request)
-    if kvaser_error:
-        warnings.append(f"kvaser: {kvaser_error}")
-    candidates.extend(kvaser_items)
-
-    pcan_items, pcan_error = _scan_peak_gateways(request, record)
-    if pcan_error:
-        warnings.append(f"pcan_gateway_udp: {pcan_error}")
-    candidates.extend(pcan_items)
+    candidates, warnings = discover_transport_candidates(request, record)
 
     return {
         "ok": True,

@@ -1,6 +1,6 @@
 {
   "01": {
-    "active_tab": "custom-tab-fo65jvll",
+    "active_tab": "custom-tab-m9vyyzj5",
     "control_card_order": [],
     "fermenter_name": "Test",
     "tabs": [
@@ -21,17 +21,9 @@
             "cols": 6,
             "id": "widget-byzkek35",
             "rows": 1,
-            "type": "schedule-controls",
+            "type": "scenario-controls",
             "x": 7,
             "y": 1
-          },
-          {
-            "cols": 12,
-            "id": "widget-jfrn2hw6",
-            "rows": 12,
-            "type": "data-snapshot",
-            "x": 1,
-            "y": 6
           },
           {
             "cols": 4,
@@ -54,7 +46,7 @@
             "id": "widget-f9fc6vhe",
             "rows": 2,
             "type": "control-field:manual%3Acustom-map:manual_set_pres_Fermentor",
-            "x": 9,
+            "x": 5,
             "y": 2
           },
           {
@@ -62,7 +54,7 @@
             "id": "widget-t928g3qj",
             "rows": 2,
             "type": "control-field:manual%3Acustom-map:manual_set_temp_Fermentor",
-            "x": 5,
+            "x": 9,
             "y": 2
           },
           {
@@ -72,6 +64,14 @@
             "type": "control-field:source%3ABrewtools:auto%3Abrewcan.pressure.0.calibrate",
             "x": 9,
             "y": 4
+          },
+          {
+            "cols": 12,
+            "id": "widget-fptzsdag",
+            "rows": 12,
+            "type": "data-snapshot",
+            "x": 1,
+            "y": 6
           }
         ]
       },
@@ -83,37 +83,37 @@
             "cols": 12,
             "id": "widget-oalnxste",
             "rows": 1,
-            "type": "schedule-controls",
-            "x": 1,
-            "y": 4
-          },
-          {
-            "cols": 12,
-            "id": "widget-950yw7ht",
-            "rows": 3,
-            "type": "schedule-summary",
+            "type": "scenario-controls",
             "x": 1,
             "y": 1
           },
           {
             "cols": 12,
-            "id": "widget-pegeasvc",
+            "id": "widget-zhc2e9d1",
             "rows": 4,
-            "type": "schedule-workbook",
+            "type": "scenario-package",
             "x": 1,
             "y": 5
           },
           {
             "cols": 12,
-            "id": "widget-gnx7n04j",
+            "id": "widget-wa0c4oyq",
             "rows": 12,
-            "type": "schedule-events",
+            "type": "scenario-events",
             "x": 1,
             "y": 9
+          },
+          {
+            "cols": 12,
+            "id": "widget-lgcvk08t",
+            "rows": 3,
+            "type": "scenario-summary",
+            "x": 1,
+            "y": 2
           }
         ]
       }
     ],
-    "updated_at": "2026-04-14T19:57:55.320712+00:00"
+    "updated_at": "2026-04-16T21:17:48.325249+00:00"
   }
 }

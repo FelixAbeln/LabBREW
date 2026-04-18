@@ -4,6 +4,7 @@ import { ArchiveViewerPage } from '../archive/ArchiveViewerPage';
 import { RuleEditorModal } from '../rules/RuleEditorModal';
 import { RulesStudioPage } from '../rules/RulesStudioPage';
 import { SystemStudioPage } from '../system/SystemStudioPage';
+import { ScenarioPackageCard } from '../schedule/ScheduleTab';
 import { CustomLayoutTab } from './CustomLayoutTab';
 import asleepBreweryIcon from '../../assets/brewery-asleep.svg';
 
@@ -12,7 +13,7 @@ export function FermenterTabContent({
   activeTab,
   onSaveSharedWorkspaceLayouts,
   workspaceSaveLoading,
-  scheduleProps,
+  scenarioProps,
   dataProps,
   controlProps,
   archiveProps,
@@ -58,7 +59,7 @@ export function FermenterTabContent({
           selected={selected}
           customTab={activeCustomTab}
           editMode={layoutEditMode}
-          scheduleProps={scheduleProps}
+          scenarioProps={scenarioProps}
           dataProps={dataProps}
           controlProps={controlProps}
           archiveProps={archiveProps}
@@ -173,6 +174,36 @@ export function FermenterTabContent({
             systemProps={systemProps}
             onClose={() => setGlobalView(null)}
           />
+        </div>
+      )}
+
+      {globalView === 'scenario-builder' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            background: '#11161c',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div className="pdb-page" style={{ minHeight: '100vh' }}>
+            <div className="pdb-page-header">
+              <div className="pdb-page-title">
+                <span className="pdb-page-icon pdb-page-icon-scenario">⬢</span>
+                <span>Scenario Builder</span>
+                {selected?.name && <span className="pdb-page-mode">{selected.name}</span>}
+              </div>
+              <div className="pdb-page-actions">
+                <button className="pdb-close-btn" onClick={closeToSystemStudio} title="Close">✕</button>
+              </div>
+            </div>
+
+            <div style={{ padding: 16, overflow: 'auto', flex: 1 }}>
+              <ScenarioPackageCard {...scenarioProps} />
+            </div>
+          </div>
         </div>
       )}
 

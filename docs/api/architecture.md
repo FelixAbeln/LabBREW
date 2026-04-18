@@ -129,10 +129,10 @@ services:
     docs: docs/api/control-service-api.md
     listen: {host: 127.0.0.1, port: 8767, proto: http, path: /}
     backend: ParameterDB
-  schedule_service:
-    module: Services.schedule_service.service
-    docs: docs/api/schedule-service-api.md
-    listen: {host: 127.0.0.1, port: 8768, proto: http, path: /}
+  scenario_service:
+    module: Services.scenario_service.service
+    docs: docs/implementation/scenario-service-integration.md
+    listen: {host: 127.0.0.1, port: 8770, proto: http, path: /}
     backend: control_service
   data_service:
     module: Services.data_service.service
