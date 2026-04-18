@@ -69,6 +69,10 @@ class RunnerContext:
 
     def _pause_until_control_available(self, reason: str) -> None:
         self._pause_for_reason(str(reason))
+        if not self._pause.is_set():
+            if not self._stop.is_set():
+                time.sleep(0.05)
+            return
         while self._pause.is_set() and not self._stop.is_set():
             time.sleep(0.05)
 
