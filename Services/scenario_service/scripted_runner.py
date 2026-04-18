@@ -77,9 +77,10 @@ class RunnerContext:
             current_owner = str(result.get("current_owner") or "").strip()
             if current_owner:
                 return f"{fallback}; current owner: {current_owner}"
-            detail = str(result.get("reason") or "").strip()
-            if detail:
-                return f"{fallback}; {detail}"
+            for key in ("reason", "error", "message", "detail"):
+                detail = str(result.get(key) or "").strip()
+                if detail:
+                    return f"{fallback}; {detail}"
         return fallback
 
     def write_setpoint(self, target: str, value: Any) -> None:
