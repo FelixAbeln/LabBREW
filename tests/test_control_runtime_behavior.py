@@ -1050,6 +1050,47 @@ def test_datasource_contract_snapshot_propagates_current_owner_to_datasource_con
     assert controls["src.temp"]["safety_locked"] is False
 
 
+def test_datasource_contract_snapshot_uses_live_ownership_for_unmapped_sourcedef_controls() -> None:
+    runtime = _make_runtime()
+    runtime.get_control_contract_snapshot = lambda: {
+        "source": "map.json",
+        "resolved_controls": [],
+    }
+    runtime.datasource_admin._sources = {
+        "src": {"source_type": "demo", "running": True, "config": {}}
+    }
+    runtime.datasource_admin.get_source_type_ui = lambda *_args, **_kwargs: {
+        "controls": [
+            {
+                "id": "set-temp",
+                "label": "Set Temp",
+                "target": "src.temp",
+                "widget": "number",
+                "write": {"kind": "number"},
+            },
+        ]
+    }
+    runtime.backend.describe = lambda: {
+        "src.temp": {
+            "parameter_type": "number",
+            "value": 10,
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "src",
+                "source_type": "demo",
+                "role": "control",
+                "unit": "C",
+            },
+        },
+    }
+    runtime.ownership.request("src.temp", "scenario_service")
+
+    snapshot = runtime.get_datasource_contract_snapshot()
+    controls = {item["target"]: item for item in snapshot["datasources"][0]["controls"]}
+    assert controls["src.temp"]["current_owner"] == "scenario_service"
+    assert controls["src.temp"]["safety_locked"] is False
+
+
 def test_pin_and_unpin_control_parameter_persists_map_and_forces_manual_card(monkeypatch, tmp_path: Path) -> None:
     runtime = _make_runtime({"src.setpoint": 12.5})
 

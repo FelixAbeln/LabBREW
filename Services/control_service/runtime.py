@@ -588,9 +588,25 @@ class ControlRuntime:
         self, include_empty_cards: bool = False
     ) -> dict[str, Any]:
         control_contract_snapshot = self.get_control_contract_snapshot()
+        ownership_snapshot = self.ownership.snapshot()
         resolved_controls = control_contract_snapshot.get("resolved_controls", [])
         controls_by_target: dict[str, list[dict[str, Any]]] = defaultdict(list)
         all_controls_by_target: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+        def _resolve_owner(target: str | None, map_item: dict[str, Any] | None) -> str | None:
+            owner_meta = ownership_snapshot.get(target) if target else None
+            owner = owner_meta.get("owner") if isinstance(owner_meta, dict) else None
+            if owner is None and isinstance(map_item, dict):
+                fallback = map_item.get("current_owner")
+                if fallback is not None:
+                    text = str(fallback).strip()
+                    owner = text or None
+            return owner
+
+        def _resolve_safety_locked(owner: str | None, map_item: dict[str, Any] | None) -> bool:
+            if owner == SAFETY_OWNER:
+                return True
+            return bool(map_item.get("safety_locked")) if isinstance(map_item, dict) else False
 
         for control in resolved_controls:
             if not isinstance(control, dict):
@@ -711,6 +727,7 @@ class ControlRuntime:
                     param = parameters_by_name.get(target)
                     map_hint = controls_by_target.get(target, [])
                     map_item = map_hint[0] if map_hint else {}
+                    current_owner = _resolve_owner(target, map_item)
                     value_target = _normalize_target(control.get("value_target"))
                     vt_param = (
                         parameters_by_name.get(value_target) if value_target else None
@@ -735,8 +752,8 @@ class ControlRuntime:
                         "current_value": param.get("value")
                         if isinstance(param, dict)
                         else None,
-                        "current_owner": map_item.get("current_owner"),
-                        "safety_locked": bool(map_item.get("safety_locked")),
+                        "current_owner": current_owner,
+                        "safety_locked": _resolve_safety_locked(current_owner, map_item),
                         "source": "sourcedef",
                         "mapped": bool(map_item),
                     }
@@ -800,6 +817,7 @@ class ControlRuntime:
                         write = {"kind": "string"}
                     map_hint = controls_by_target.get(target, [])
                     map_item = map_hint[0] if map_hint else {}
+                    current_owner = _resolve_owner(target, map_item)
                     control_items.append(
                         {
                             "id": map_item.get("id") or f"auto:{target}",
@@ -810,8 +828,8 @@ class ControlRuntime:
                             "write": write,
                             "role": parameter.get("role"),
                             "current_value": value,
-                            "current_owner": map_item.get("current_owner"),
-                            "safety_locked": bool(map_item.get("safety_locked")),
+                            "current_owner": current_owner,
+                            "safety_locked": _resolve_safety_locked(current_owner, map_item),
                             "source": "discovered",
                             "mapped": bool(map_item),
                             **extra,
@@ -822,6 +840,7 @@ class ControlRuntime:
                     if target not in parameters_by_name or target in seen_targets:
                         continue
                     map_item = map_items[0] if map_items else {}
+                    current_owner = _resolve_owner(target, map_item)
                     seen_targets.add(target)
                     param = parameters_by_name.get(target)
                     control_items.append(
@@ -839,8 +858,8 @@ class ControlRuntime:
                             "current_value": param.get("value")
                             if isinstance(param, dict)
                             else None,
-                            "current_owner": map_item.get("current_owner"),
-                            "safety_locked": bool(map_item.get("safety_locked")),
+                            "current_owner": current_owner,
+                            "safety_locked": _resolve_safety_locked(current_owner, map_item),
                             "source": "manual_map",
                             "mapped": True,
                         }
@@ -939,6 +958,7 @@ class ControlRuntime:
         manual_controls: list[dict[str, Any]] = []
         for target, map_items in all_controls_by_target.items():
             map_item = map_items[0] if map_items else {}
+            current_owner = _resolve_owner(target, map_item)
             pin_scope = str(map_item.get("pin_scope") or "").strip().lower()
             force_manual_card = pin_scope == "manual"
             if target in all_source_parameter_names and not force_manual_card:
@@ -980,8 +1000,8 @@ class ControlRuntime:
                     "unit": map_item.get("unit"),
                     "write": write,
                     "current_value": map_item.get("current_value"),
-                    "current_owner": map_item.get("current_owner"),
-                    "safety_locked": bool(map_item.get("safety_locked")),
+                    "current_owner": current_owner,
+                    "safety_locked": _resolve_safety_locked(current_owner, map_item),
                     "source": "manual_map",
                     "mapped": True,
                     "target_exists": bool(map_item.get("target_exists")),

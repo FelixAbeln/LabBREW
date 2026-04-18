@@ -255,7 +255,7 @@ export function ControlUiTab({
                         const widget = control?.widget || ''
                         const currentValue = control?.current_value
                         const currentOwner = String(control?.current_owner || '').trim()
-                        const isScenarioOwned = currentOwner === 'scenario_service'
+                        const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator')
                         const controlLabel = friendlyControlLabel(control, target)
                         const actionLabel = friendlyActionLabel(control, target)
                         const isStackedLayout = widget === 'number_button' || widget === 'button' || writeKind === 'pulse' || widget === 'toggle' || writeKind === 'bool' || widget === 'number' || writeKind === 'number'
@@ -278,7 +278,7 @@ export function ControlUiTab({
                         const vtDraftValue = vtDraftExists ? controlDrafts[vtTarget] : control?.value_target_current_value
 
                         return (
-                          <div key={`${control.id || target}-${target}`} className={`control-item-row${isStackedLayout ? ' control-item-row--stacked' : ''}${isScenarioOwned ? ' control-item-row--scenario-owned' : ''}`}>
+                          <div key={`${control.id || target}-${target}`} className={`control-item-row${isStackedLayout ? ' control-item-row--stacked' : ''}${isServiceOwned ? ' control-item-row--service-owned' : ''}`}>
                             <div className="control-item-meta">
                               <strong>{controlLabel}</strong>
                               <div className="small-text control-item-target">{target || '-'}</div>
@@ -286,8 +286,8 @@ export function ControlUiTab({
                                 Current: {formatCurrentValue(currentValue)}
                                 {control.unit ? ` ${control.unit}` : ''}
                               </div>
-                              {currentOwner ? <div className={`small-text${isScenarioOwned ? ' warning' : ''}`}>Owner: {currentOwner}</div> : null}
-                              {isScenarioOwned ? <div className="small-text warning">Scenario currently owns this target; manual writes can take ownership.</div> : null}
+                              {currentOwner ? <div className={`small-text${isServiceOwned ? ' warning' : ''}`}>Owner: {currentOwner}</div> : null}
+                              {isServiceOwned ? <div className="small-text warning">This target is owned by another service; manual writes may be blocked or take ownership depending on policy.</div> : null}
                             </div>
 
                             <div className="control-item-inputs">
