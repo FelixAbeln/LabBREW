@@ -21,6 +21,7 @@ export function AppShell({
   onToggleLayoutEdit,
   onOpenSystemStudio,
   onOpenSystemDebug,
+  showDebugLink,
   children,
 }) {
   const sidebarDockRef = useRef(null);
@@ -130,6 +131,7 @@ export function AppShell({
                 onToggleLayoutEdit={onToggleLayoutEdit}
                 onOpenSystemStudio={onOpenSystemStudio}
                 onOpenSystemDebug={onOpenSystemDebug}
+                showDebugLink={showDebugLink}
               />
               {children}
             </div>

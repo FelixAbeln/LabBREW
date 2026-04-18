@@ -1803,6 +1803,14 @@ function App() {
     saveRule,
   }
 
+  const showDebugLink = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).has('debug')
+    } catch {
+      return false
+    }
+  }, [])
+
   return (
     <AppShell
       fermenters={fermenters}
@@ -1816,6 +1824,7 @@ function App() {
       onToggleLayoutEdit={() => setLayoutEditMode((current) => !current)}
       onOpenSystemStudio={() => setGlobalView('system-studio')}
       onOpenSystemDebug={() => setGlobalView('system-debug')}
+      showDebugLink={showDebugLink}
     >
       <FermenterTabContent
         selected={selected}
@@ -1839,6 +1848,8 @@ function App() {
         onCreateCustomTab={addCustomTab}
         globalView={globalView}
         setGlobalView={setGlobalView}
+        onOpenSystemDebug={() => setGlobalView('system-debug')}
+        showDebugLink={showDebugLink}
         ruleEditorProps={ruleEditorProps}
         archiveViewPayload={archiveViewPayload}
         selectedArchiveName={selectedArchiveName}

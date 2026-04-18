@@ -31,6 +31,8 @@ export function FermenterTabContent({
   onCreateCustomTab,
   globalView,
   setGlobalView,
+  onOpenSystemDebug,
+  showDebugLink,
   ruleEditorProps,
   archiveViewPayload,
   selectedArchiveName,
@@ -173,6 +175,8 @@ export function FermenterTabContent({
             fermenterId={selected?.id || null}
             fermenterName={selected?.name || null}
             systemProps={systemProps}
+            onOpenDebug={onOpenSystemDebug}
+            showDebugLink={showDebugLink}
             onClose={() => setGlobalView(null)}
           />
         </div>

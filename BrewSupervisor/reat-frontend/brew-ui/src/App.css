@@ -1349,6 +1349,35 @@ input {
   background: #334155;
 }
 
+.debug-link-button {
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #93c5fd;
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.debug-link-button:hover:not(:disabled) {
+  transform: none;
+  filter: none;
+  color: #bfdbfe;
+}
+
+.debug-link-button:focus-visible {
+  outline: 2px solid rgba(147, 197, 253, 0.72);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.debug-link-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .warning-button {
   background: rgba(245, 158, 11, 0.18);
   color: #fcd34d;
