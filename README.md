@@ -181,6 +181,11 @@ LabBREW is not just a controller or dashboard.
 All launch scripts are run from the **project root**.
 
 ```bash
+# Create your local runtime topology from the sample (first run only)
+cp data/system_topology.sample.yaml data/system_topology.yaml
+```
+
+```bash
 # 1. Start the backend node supervisor
 #    Reads data/system_topology.yaml, starts ParameterDB, Control Service,
 #    Scenario Service, Data Service, and the Supervisor Agent (port 8780).
@@ -192,7 +197,7 @@ python run_FrontEndsupervisor.py
 
 > **React frontend** — the browser UI source lives in `BrewSupervisor/reat-frontend/` but does not yet have a dedicated launch script. Start it manually with your preferred dev server (e.g. `npm start` inside that directory) or build it and serve the static output.
 
-Node topology is configured in [`data/system_topology.yaml`](./data/system_topology.yaml). An example scenario workbook is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
+Node topology is loaded from your local [`data/system_topology.yaml`](./data/system_topology.yaml), typically created from [`data/system_topology.sample.yaml`](./data/system_topology.sample.yaml). An example scenario workbook is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
 
 ### Global Storage / Topology Override
 

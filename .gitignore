@@ -259,6 +259,9 @@ web_modules/
 
 # Optional npm cache directory
 
+# Runtime-generated/local topology overrides
+data/system_topology.yaml
+
 # LabBREW runtime state snapshots (volatile)
 data/schedule_state.json
 data/parameterdb_snapshot.json

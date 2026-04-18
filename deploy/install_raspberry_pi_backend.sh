@@ -545,6 +545,7 @@ LOG_DIR='/var/log/labbrew'
 WRAPPER_DIR="$INSTALL_DIR/bin"
 WRAPPER_PATH="$WRAPPER_DIR/run_${SERVICE_NAME}.sh"
 CONFIG_PATH="$INSTALL_DIR/data/system_topology.yaml"
+SAMPLE_CONFIG_PATH="$INSTALL_DIR/data/system_topology.sample.yaml"
 STORAGE_ROOT_PATH="$INSTALL_DIR/data"
 OPTIONAL_PYTHON_PACKAGES=(
   bleak
@@ -654,6 +655,16 @@ sync_repository() {
     --exclude 'htmlcov/' \
     --exclude 'logs/' \
     "$SOURCE_DIR/" "$INSTALL_DIR/"
+}
+
+prepare_topology_config() {
+  [[ -f "$SAMPLE_CONFIG_PATH" ]] || fail "No topology sample found at $SAMPLE_CONFIG_PATH"
+  if [[ -f "$CONFIG_PATH" ]]; then
+    log "Keeping existing topology config at $CONFIG_PATH"
+    return
+  fi
+  log "Creating runtime topology config from sample: $SAMPLE_CONFIG_PATH -> $CONFIG_PATH"
+  cp "$SAMPLE_CONFIG_PATH" "$CONFIG_PATH"
 }
 
 install_python_runtime() {
@@ -855,11 +866,12 @@ else
 fi
 
 [[ -f "$SOURCE_DIR/pyproject.toml" ]] || fail "No pyproject.toml found in source directory: $SOURCE_DIR"
-[[ -f "$SOURCE_DIR/data/system_topology.yaml" ]] || fail "No topology file found at $SOURCE_DIR/data/system_topology.yaml"
+[[ -f "$SOURCE_DIR/data/system_topology.sample.yaml" ]] || fail "No topology sample found at $SOURCE_DIR/data/system_topology.sample.yaml"
 
 apply_hostname
 ensure_run_user
 sync_repository
+prepare_topology_config
 install_python_runtime
 enable_optional_os_services
 write_environment_file
