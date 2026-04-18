@@ -915,6 +915,14 @@ class TestScenarioRuntimeScriptedRunner:
         assert rt.load_package(payload)["ok"] is True
         assert rt.start_run()["ok"] is True
 
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            owned_targets = rt.status()["runner_status"].get("owned_targets") or []
+            if "x" in owned_targets:
+                break
+            time.sleep(0.01)
+
+        assert "x" in (rt.status()["runner_status"].get("owned_targets") or [])
         cc.owner = "operator"
         deadline = time.monotonic() + 1.0
         while time.monotonic() < deadline:
