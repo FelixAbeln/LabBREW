@@ -297,7 +297,7 @@ function ControlFieldWidget({ type, controlProps }) {
             <div className="small-text warning">
               {control?.safety_locked
                 ? 'Safety lock active; takeover disabled.'
-                : currentOwner === 'safety'
+                : normalizedOwner === 'safety'
                   ? 'This control is owned by safety and cannot be taken over from this widget.'
                   : 'This control is owned and cannot be taken over from this widget.'}
             </div>
