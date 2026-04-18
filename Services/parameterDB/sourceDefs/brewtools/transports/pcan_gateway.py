@@ -53,11 +53,11 @@ def _local_ipv4_addresses() -> list[str]:
     # Most reliable cross-platform method: UDP connect to an external address.
     # No packet is actually sent; the OS picks the outbound interface IP.
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(0)
-        sock.connect(("8.8.8.8", 80))
-        _add(sock.getsockname()[0])
-        sock.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            # Use a short positive timeout to avoid non-blocking connect quirks.
+            sock.settimeout(0.5)
+            sock.connect(("8.8.8.8", 80))
+            _add(sock.getsockname()[0])
     except Exception:
         pass
 
@@ -79,10 +79,12 @@ def _local_ipv4_addresses() -> list[str]:
                 if iface == "lo":
                     continue
                 try:
-                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    packed = fcntl.ioctl(s.fileno(), SIOCGIFADDR,
-                                        struct.pack("256s", iface[:15].encode()))
-                    s.close()
+                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                        packed = fcntl.ioctl(
+                            s.fileno(),
+                            SIOCGIFADDR,
+                            struct.pack("256s", iface[:15].encode()),
+                        )
                     _add(socket.inet_ntoa(packed[20:24]))
                 except Exception:
                     pass

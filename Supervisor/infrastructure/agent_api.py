@@ -247,7 +247,14 @@ def build_agent_app(
             persistence["healthy"] = False
             names = ", ".join(sorted(source_errors.keys()))
             first_error = next(iter(source_errors.values()), "")
-            persistence["reason"] = f"{len(source_errors)} source(s) failed to start: {names}. {first_error}".strip(". ")
+            source_error_reason = (
+                f"{len(source_errors)} source(s) failed to start: {names}. {first_error}".strip(". ")
+            )
+            persistence_reason = str(persistence.get("reason") or "").strip()
+            if persistence_reason:
+                persistence["reason"] = f"{persistence_reason}; {source_error_reason}"
+            else:
+                persistence["reason"] = source_error_reason
         else:
             persistence["healthy"] = bool(persistence.get("healthy", True))
         return persistence

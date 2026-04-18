@@ -871,6 +871,8 @@ def test_datasource_contract_orphan_and_manual_widget_inference_paths() -> None:
 
     snapshot = runtime.get_datasource_contract_snapshot()
     assert snapshot["datasources"][0]["controls"][0]["target"] == "dev.state"
+    assert snapshot["datasources"][0]["controls"][0]["current_owner"] is None
+    assert snapshot["datasources"][0]["controls"][0]["safety_locked"] is False
     assert snapshot["orphan_sources"][0]["name"] == "ghost"
 
     manual = {item["target"]: item for item in snapshot["manual_controls"]}
@@ -996,8 +998,56 @@ def test_datasource_contract_snapshot_discovers_command_and_control_parameters()
     assert controls["src.flag"]["write"] == {"kind": "bool"}
     assert controls["src.count"]["widget"] == "slider"
     assert controls["src.count"]["write"] == {"kind": "number"}
+    assert controls["src.count"]["current_owner"] is None
+    assert controls["src.count"]["safety_locked"] is False
     assert controls["src.label"]["widget"] == "text"
     assert controls["src.label"]["write"] == {"kind": "string"}
+
+
+def test_datasource_contract_snapshot_propagates_current_owner_to_datasource_controls() -> None:
+    runtime = _make_runtime()
+    runtime.get_control_contract_snapshot = lambda: {
+        "source": "map.json",
+        "resolved_controls": [
+            {
+                "id": "mapped-temp",
+                "label": "Set Temp",
+                "group": "grp",
+                "target": "src.temp",
+                "widget": "number",
+                "unit": "C",
+                "step": 1,
+                "min": 0,
+                "max": 100,
+                "current_value": 10,
+                "current_owner": "scenario_service",
+                "safety_locked": False,
+                "target_exists": True,
+            },
+        ],
+    }
+    runtime.datasource_admin._sources = {
+        "src": {"source_type": "demo", "running": True, "config": {}}
+    }
+    runtime.datasource_admin.get_source_type_ui = lambda *_args, **_kwargs: {}
+    runtime.backend.describe = lambda: {
+        "src.temp": {
+            "parameter_type": "number",
+            "value": 10,
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "src",
+                "source_type": "demo",
+                "role": "control",
+                "unit": "C",
+            },
+        },
+    }
+
+    snapshot = runtime.get_datasource_contract_snapshot()
+    controls = {item["target"]: item for item in snapshot["datasources"][0]["controls"]}
+    assert controls["src.temp"]["current_owner"] == "scenario_service"
+    assert controls["src.temp"]["safety_locked"] is False
 
 
 def test_pin_and_unpin_control_parameter_persists_map_and_forces_manual_card(monkeypatch, tmp_path: Path) -> None:

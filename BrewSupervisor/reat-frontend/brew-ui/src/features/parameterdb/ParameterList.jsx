@@ -137,10 +137,12 @@ export function ParameterList({
                       <button
                         className="pdb-btn-ghost pdb-btn-sm"
                         onClick={() => setEditTarget({ name, rec })}
+                        title="Edit parameter"
                       >Edit</button>
                       <button
                         className="pdb-btn-danger pdb-btn-sm"
                         onClick={() => { setDeleteTarget(name); setDeleteError(''); }}
+                        title="Delete parameter"
                       >Del</button>
                     </div>
                   </td>
@@ -154,6 +156,7 @@ export function ParameterList({
       {/* Edit / Create modal */}
       {editTarget && (
         <ParameterEditModal
+          key={editTarget === 'create' ? `create:${fermenterId}` : `edit:${fermenterId}:${editTarget.name}`}
           fermenterId={fermenterId}
           mode={editTarget === 'create' ? 'create' : 'edit'}
           record={editTarget === 'create' ? null : { name: editTarget.name, ...editTarget.rec }}

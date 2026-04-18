@@ -86,21 +86,54 @@ class SourceRunner:
             record=record, source=source, session=session, thread=thread
         )
 
+    def _cleanup_instance_resources(self, inst: SourceInstance) -> None:
+        try:
+            inst.source.stop()
+        except Exception:
+            LOGGER.debug(
+                "Ignoring source stop failure during cleanup for '%s'",
+                inst.record.name,
+                exc_info=True,
+            )
+
+        try:
+            if inst.thread.is_alive():
+                inst.thread.join(timeout=2.0)
+        except Exception:
+            LOGGER.debug(
+                "Ignoring thread join failure during cleanup for '%s'",
+                inst.record.name,
+                exc_info=True,
+            )
+
+        try:
+            inst.session.close()
+        except Exception:
+            LOGGER.debug(
+                "Ignoring session close failure during cleanup for '%s'",
+                inst.record.name,
+                exc_info=True,
+            )
+
     def _start_instance_locked(self, record: SourceRecord) -> None:
         if record.name in self.instances:
             raise ValueError(f"Source '{record.name}' already running")
-        inst = self._build_instance(record)
-        inst.source.start()
-        inst.thread.start()
+        inst: SourceInstance | None = None
+        try:
+            inst = self._build_instance(record)
+            inst.source.start()
+            inst.thread.start()
+        except Exception:
+            if inst is not None:
+                self._cleanup_instance_resources(inst)
+            raise
         self.instances[record.name] = inst
 
     def _stop_instance_locked(self, name: str) -> None:
         inst = self.instances.pop(name, None)
         if inst is None:
             return
-        inst.source.stop()
-        inst.thread.join(timeout=2.0)
-        inst.session.close()
+        self._cleanup_instance_resources(inst)
 
     def load_config_dir(self) -> list[SourceRecord]:
         loaded: list[SourceRecord] = []
@@ -163,16 +196,6 @@ class SourceRunner:
                     "config_path": record.storage_ref,
                     "error": self._source_errors.get(name),
                 }
-            for name, error in self._source_errors.items():
-                if name not in result:
-                    result[name] = {
-                        "name": name,
-                        "source_type": None,
-                        "config": {},
-                        "running": False,
-                        "config_path": None,
-                        "error": error,
-                    }
             return result
 
     def stats(self) -> dict[str, Any]:

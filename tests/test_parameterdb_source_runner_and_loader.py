@@ -83,6 +83,11 @@ class FakeSource:
         return
 
 
+class BrokenStartSource(FakeSource):
+    def start(self) -> None:
+        raise RuntimeError("start failed")
+
+
 class FakeSpec:
     source_type = "fake"
     display_name = "Fake"
@@ -620,6 +625,54 @@ def test_source_runner_update_source_unknown_name_raises(tmp_path: Path, monkeyp
 
     with pytest.raises(KeyError):
         runner.update_source("missing-source", config={"x": 1})
+
+
+def test_source_runner_start_failure_cleans_session_and_reports_error(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(serviceDS.threading, "Thread", FakeThread)
+    registry = loader.DataSourceRegistry()
+
+    class BrokenSpec(FakeSpec):
+        source_type = "broken"
+
+        def create(self, name: str, client: FakeSession, *, config: dict[str, Any] | None = None) -> BrokenStartSource:
+            return BrokenStartSource(name, client, config=config)
+
+    registry.register(BrokenSpec())
+    runner = serviceDS.SourceRunner(FakeClient(), registry, config_dir=str(tmp_path / "sources"))
+    path = runner._config_path_for_name("alpha")
+    path.write_text(
+        json.dumps({"name": "alpha", "source_type": "broken", "config": {}}),
+        encoding="utf-8",
+    )
+
+    runner.load_config_dir()
+    runner.start_all()
+
+    listed = runner.list_sources()
+    assert listed["alpha"]["running"] is False
+    assert "start failed" in str(listed["alpha"]["error"])
+    stats = runner.stats()
+    assert stats["error_count"] == 1
+    assert "alpha" in stats["source_errors"]
+    assert runner.base_client.sessions
+    assert runner.base_client.sessions[0].closed is True
+
+
+def test_source_runner_load_failure_is_reported_in_stats_not_list(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    bad_path = runner._config_path_for_name("bad")
+    bad_path.write_text(
+        json.dumps({"name": "bad", "source_type": "missing", "config": {}}),
+        encoding="utf-8",
+    )
+
+    loaded = runner.load_config_dir()
+    assert loaded == []
+    listed = runner.list_sources()
+    assert "bad" not in listed
+    stats = runner.stats()
+    assert stats["error_count"] == 1
+    assert "bad" in stats["source_errors"]
 
 
 def test_service_ds_module_main_guard_executes_main(monkeypatch, tmp_path: Path) -> None:

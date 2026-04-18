@@ -42,6 +42,7 @@ class RunnerContext:
         artifacts: list[dict[str, Any]],
         log_fn,
         progress_fn,
+        pause_for_reason_fn=None,
         consume_nav_fn,
         nav_pending_fn,
         stop_event: threading.Event,
@@ -57,6 +58,7 @@ class RunnerContext:
         }
         self._log = log_fn
         self._progress = progress_fn
+        self._pause_for_reason = pause_for_reason_fn or (lambda _reason: None)
         self._consume_nav = consume_nav_fn
         self._nav_pending = nav_pending_fn
         self._stop = stop_event
@@ -65,11 +67,73 @@ class RunnerContext:
 
     # -- setpoint API --------------------------------------------------------
 
+    def _pause_until_control_available(self, reason: str) -> None:
+        self._pause_for_reason(str(reason))
+        if not self._pause.is_set():
+            if not self._stop.is_set():
+                time.sleep(0.05)
+            return
+        while self._pause.is_set() and not self._stop.is_set():
+            time.sleep(0.05)
+
+    def _extract_block_reason(self, result: Any, fallback: str) -> str:
+        if isinstance(result, dict):
+            parts: list[str] = []
+            current_owner = str(result.get("current_owner") or "").strip()
+            if current_owner:
+                parts.append(f"current owner: {current_owner}")
+            for key in ("reason", "error", "message", "detail"):
+                detail = str(result.get(key) or "").strip()
+                if detail:
+                    parts.append(detail)
+                    break
+            if parts:
+                return f"{fallback}; {'; '.join(parts)}"
+        return fallback
+
+    def _is_retryable_control_conflict(self, result: Any) -> bool:
+        if not isinstance(result, dict):
+            return False
+        if bool(result.get("blocked", False)):
+            return True
+        current_owner = str(result.get("current_owner") or "").strip()
+        return bool(current_owner and current_owner != self._owner)
+
+    def _extract_failure_reason(self, result: Any, fallback: str) -> str:
+        if isinstance(result, dict):
+            for key in ("reason", "error", "message", "detail"):
+                detail = str(result.get(key) or "").strip()
+                if detail:
+                    return f"{fallback}; {detail}"
+        return fallback
+
     def write_setpoint(self, target: str, value: Any) -> None:
-        try:
-            self._cc.write(target, value, self._owner)
-        except Exception as exc:  # noqa: BLE001
-            self._log(f"write_setpoint({target}={value!r}) failed: {exc}")
+        while not self._stop.is_set():
+            try:
+                result = self._cc.write(target, value, self._owner)
+            except Exception as exc:  # noqa: BLE001
+                reason = f"write_setpoint({target}={value!r}) failed: {exc}"
+                self._log(reason)
+                self._pause_until_control_available(reason)
+                continue
+
+            if not isinstance(result, dict) or bool(result.get("ok", False)):
+                return
+
+            if self._is_retryable_control_conflict(result):
+                reason = self._extract_block_reason(
+                    result,
+                    f"write_setpoint({target}={value!r}) blocked",
+                )
+                self._log(reason)
+                self._pause_until_control_available(reason)
+                continue
+
+            reason = self._extract_failure_reason(
+                result,
+                f"write_setpoint({target}={value!r}) failed",
+            )
+            raise RuntimeError(reason)
 
     def ramp_setpoint(self, target: str, value: Any, duration_s: float) -> None:
         """Delegate ramp execution to control service when supported.
@@ -78,17 +142,38 @@ class RunnerContext:
         """
         ramp_fn = getattr(self._cc, "ramp", None)
         if callable(ramp_fn):
-            try:
-                ramp_fn(
-                    target=target,
-                    value=value,
-                    duration_s=float(duration_s),
-                    owner=self._owner,
+            while not self._stop.is_set():
+                try:
+                    result = ramp_fn(
+                        target=target,
+                        value=value,
+                        duration_s=float(duration_s),
+                        owner=self._owner,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    reason = f"ramp_setpoint({target}={value!r}, {duration_s}s) failed: {exc}"
+                    self._log(reason)
+                    self._pause_until_control_available(reason)
+                    continue
+
+                if not isinstance(result, dict) or bool(result.get("ok", False)):
+                    return
+
+                if self._is_retryable_control_conflict(result):
+                    reason = self._extract_block_reason(
+                        result,
+                        f"ramp_setpoint({target}={value!r}, {duration_s}s) blocked",
+                    )
+                    self._log(reason)
+                    self._pause_until_control_available(reason)
+                    continue
+
+                reason = self._extract_failure_reason(
+                    result,
+                    f"ramp_setpoint({target}={value!r}, {duration_s}s) failed",
                 )
-                return
-            except Exception as exc:  # noqa: BLE001
-                self._log(f"ramp_setpoint({target}={value!r}, {duration_s}s) failed: {exc}")
-                return
+                raise RuntimeError(reason)
+            return
         self.write_setpoint(target, value)
 
     def read_value(self, target: str) -> Any:
@@ -109,11 +194,33 @@ class RunnerContext:
             return {}
 
     def request_control(self, target: str) -> None:
-        try:
-            self._cc.request_control(target, self._owner)
-            self._owned.add(target)
-        except Exception as exc:  # noqa: BLE001
-            self._log(f"request_control({target}) failed: {exc}")
+        while not self._stop.is_set():
+            try:
+                result = self._cc.request_control(target, self._owner)
+            except Exception as exc:  # noqa: BLE001
+                reason = f"request_control({target}) failed: {exc}"
+                self._log(reason)
+                self._pause_until_control_available(reason)
+                continue
+
+            if not isinstance(result, dict) or bool(result.get("ok", False)):
+                self._owned.add(target)
+                return
+
+            if self._is_retryable_control_conflict(result):
+                reason = self._extract_block_reason(
+                    result,
+                    f"request_control({target}) denied",
+                )
+                self._log(reason)
+                self._pause_until_control_available(reason)
+                continue
+
+            reason = self._extract_failure_reason(
+                result,
+                f"request_control({target}) failed",
+            )
+            raise RuntimeError(reason)
 
     def release_control(self, target: str) -> None:
         try:
@@ -476,6 +583,16 @@ class ScriptedRunner:
                 return None
             return self._navigation_queue.popleft()
 
+    def _pause_due_to_control_loss(self, reason: str) -> None:
+        with self._lock:
+            if self._state == "stopped":
+                return
+            self._pause_event.set()
+            self._state = "paused"
+            self._wait_message = f"Paused: {reason}"
+            self._pause_reason = f"control_lost: {reason}"
+            self._log(f"Run paused due to control loss: {reason}")
+
     def _navigation_pending(self) -> bool:
         with self._lock:
             return bool(self._navigation_queue)
@@ -488,6 +605,7 @@ class ScriptedRunner:
             artifacts=self._artifacts,
             log_fn=self._log,
             progress_fn=self._set_progress,
+            pause_for_reason_fn=self._pause_due_to_control_loss,
             consume_nav_fn=self._consume_navigation,
             nav_pending_fn=self._navigation_pending,
             stop_event=self._stop_event,
