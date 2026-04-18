@@ -14,7 +14,7 @@ from .runtime import ScenarioRuntime
 
 def main() -> None:
     parser = build_shared_parser("Scenario Service")
-    parser.set_defaults(backend_port=8767, data_backend_port=8764, port=8770)
+    parser.set_defaults(backend_port=8767, data_backend_port=8769, port=8770)
     args = parser.parse_args()
     control_url = str(args.backend_url or f"http://{args.backend_host}:{args.backend_port}")
     data_url = str(args.data_backend_url or f"http://{args.data_backend_host}:{args.data_backend_port}")

@@ -4,17 +4,17 @@ Multi-device split-topology simulation tests.
 Simulates a LabBREW deployment where services are spread across two physical
 devices (Device A and Device B), without any real network connections:
 
-    BrewSupervisor   (gateway layer)
-         â”‚   _MultiAgentProxy â€” dispatches by URL prefix
-         â”œâ”€â”€â–º Agent A  http://10.0.0.10:8780
-         â”‚        service_map: {control_service: http://127.0.0.1:8767}
-         â”‚        proxy_session â†’ _StubServiceSession (control stub)
-         â””â”€â”€â–º Agent B  http://10.0.0.11:8780
-                  service_map: {scenario_service: ...:8768, data_service: ...:8769}
-                  proxy_session â†’ _StubServiceSession (schedule/data stubs)
+        BrewSupervisor   (gateway layer)
+            |   _MultiAgentProxy -- dispatches by URL prefix
+            +--> Agent A  http://10.0.0.10:8780
+            |        service_map: {control_service: http://127.0.0.1:8767}
+            |        proxy_session -> _StubServiceSession (control stub)
+            +--> Agent B  http://10.0.0.11:8780
+                   service_map: {scenario_service: ...:8768, data_service: ...:8769}
+                   proxy_session -> _StubServiceSession (schedule/data stubs)
 
 Gateway-to-gateway bridge (service on B calling a service on A):
-    Agent B bridge /control/... â”€â–º (Agent B proxy_session) â”€â–º Agent A
+    Agent B bridge /control/... -> (Agent B proxy_session) -> Agent A
     Verified by calling Agent A's bridge path directly, as any service
     on Device B would do when using Agent A as its backend URL.
 
@@ -23,7 +23,7 @@ Groups
 1. Snapshot cache  â€” TTL deduplication, expiry, force-refresh, zero-TTL, close
 2. Agent bridge    â€” bridge routes forward to the right service stub
 3. Multi-device routing â€” BrewSupervisor routes each service to the correct agent
-4. Full end-to-end â€” 3-layer chain: Supervisor â†’ real Agent TestClient â†’ service stub
+4. Full end-to-end â€” 3-layer chain: Supervisor -> real Agent TestClient -> service stub
 5. Regression guards â€” agent_port param in topology validation
 """
 from __future__ import annotations

@@ -41,7 +41,7 @@ class JsonScenarioStateStore:
         delay_s = 0.02
         for attempt in range(attempts):
             try:
-                Path(tmp_name).replace(destination)
+                os.replace(tmp_name, destination)
                 return
             except PermissionError:
                 if attempt >= attempts - 1:

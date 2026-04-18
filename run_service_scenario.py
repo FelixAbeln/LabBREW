@@ -10,7 +10,7 @@ if __name__ == "__main__":
     parser.add_argument("--backend-host", default="127.0.0.1")
     parser.add_argument("--backend-port", type=int, default=8767)
     parser.add_argument("--data-backend-host", default="127.0.0.1")
-    parser.add_argument("--data-backend-port", type=int, default=8764)
+    parser.add_argument("--data-backend-port", type=int, default=8769)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8770)
     args, unknown = parser.parse_known_args()
