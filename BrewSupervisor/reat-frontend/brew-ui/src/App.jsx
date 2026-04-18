@@ -683,10 +683,11 @@ function App() {
     }
   }
 
-  async function releaseManualControl(targets = null) {
+  async function releaseManualControl(targets = null, options = {}) {
     if (!selected?.id) return
+    const { manageLoading = true, propagateError = false } = options || {}
     try {
-      setLoadingAction(true)
+      if (manageLoading) setLoadingAction(true)
       setError('')
       const payload = Array.isArray(targets) ? { targets } : {}
       await api(`/fermenters/${selected.id}/control/release-manual`, {
@@ -697,8 +698,9 @@ function App() {
       await Promise.all([loadRules(selected.id), loadDetails(selected.id)])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
+      if (propagateError) throw err
     } finally {
-      setLoadingAction(false)
+      if (manageLoading) setLoadingAction(false)
     }
   }
 
@@ -1210,12 +1212,10 @@ function App() {
             `Some controls are currently owned by operator:\n\n${preview}${remainder}\n\nPress OK to release manual ownership and continue.\nPress Cancel to continue without takeover. If ownership is still blocked, the scenario will pause.`,
           )
           if (shouldRelease) {
-            await api(`/fermenters/${selected.id}/control/release-manual`, {
-              method: 'POST',
-              body: JSON.stringify({
-                targets: operatorOwned.map((item) => item.target),
-              }),
-            })
+            await releaseManualControl(
+              operatorOwned.map((item) => item.target),
+              { manageLoading: false, propagateError: true },
+            )
           }
         }
       }
