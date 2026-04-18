@@ -69,18 +69,26 @@ class RunnerContext:
 
     def _pause_until_control_available(self, reason: str) -> None:
         self._pause_for_reason(str(reason))
+        if not self._pause.is_set():
+            if not self._stop.is_set():
+                time.sleep(0.05)
+            return
         while self._pause.is_set() and not self._stop.is_set():
             time.sleep(0.05)
 
     def _extract_block_reason(self, result: Any, fallback: str) -> str:
         if isinstance(result, dict):
+            parts: list[str] = []
             current_owner = str(result.get("current_owner") or "").strip()
             if current_owner:
-                return f"{fallback}; current owner: {current_owner}"
+                parts.append(f"current owner: {current_owner}")
             for key in ("reason", "error", "message", "detail"):
                 detail = str(result.get(key) or "").strip()
                 if detail:
-                    return f"{fallback}; {detail}"
+                    parts.append(detail)
+                    break
+            if parts:
+                return f"{fallback}; {'; '.join(parts)}"
         return fallback
 
     def _is_retryable_control_conflict(self, result: Any) -> bool:
