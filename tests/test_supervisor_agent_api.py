@@ -299,6 +299,42 @@ def test_agent_summary_includes_persistence_status(monkeypatch) -> None:
     assert body["rules_persistence"]["last_success_at"] == 789.0
 
 
+def test_agent_persistence_combines_datasource_reasons(monkeypatch) -> None:
+    original_stats = StubSignalClient.stats
+
+    def _stats(self):
+        if self.port == 8766:
+            return {
+                "source_persistence": {
+                    "backend": "postgres",
+                    "available": True,
+                    "healthy": False,
+                    "reason": "snapshot write failed",
+                },
+                "source_errors": {
+                    "relay": "connect timeout",
+                },
+            }
+        return original_stats(self)
+
+    monkeypatch.setattr(StubSignalClient, "stats", _stats)
+
+    client = _build_client(
+        monkeypatch,
+        service_map=lambda: {
+            "ParameterDB": {"healthy": True, "base_url": "http://127.0.0.1:8765"},
+            "ParameterDB_DataSource": {"healthy": True, "base_url": "http://127.0.0.1:8766"},
+            "control_service": {"healthy": True, "base_url": "http://127.0.0.1:8767"},
+        },
+    )
+
+    response = client.get("/agent/persistence")
+    assert response.status_code == 200
+    reason = response.json()["datasource_persistence"]["reason"]
+    assert "snapshot write failed" in reason
+    assert "source(s) failed to start" in reason
+
+
 def test_agent_snapshot_export_import_round_trip(monkeypatch) -> None:
     StubSignalClient.imported_snapshot_calls = []
     StubSignalClient.snapshot_payload = {
