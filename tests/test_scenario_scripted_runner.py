@@ -231,10 +231,17 @@ class TestRunnerContext:
         )
         ctx.request_control("x")
 
-        thread = threading.Thread(target=lambda: ctx.sleep(0.6))
-        cc.taken = True
+        sleep_started = threading.Event()
+
+        def _sleep_worker() -> None:
+            sleep_started.set()
+            ctx.sleep(0.6)
+
+        thread = threading.Thread(target=_sleep_worker)
         thread.start()
-        assert pause.wait(0.5)
+        assert sleep_started.wait(0.5)
+        cc.taken = True
+        assert pause.wait(1.5)
         assert pause_reason and "ownership lost for x" in pause_reason[0]
         cc.taken = False
         pause.clear()

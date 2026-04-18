@@ -255,8 +255,10 @@ export function ControlUiTab({
                         const widget = control?.widget || ''
                         const currentValue = control?.current_value
                         const currentOwner = String(control?.current_owner || '').trim()
+                        const normalizedOwner = currentOwner.toLowerCase()
+                        const safetyLocked = Boolean(control?.safety_locked) || normalizedOwner === 'safety'
                         const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator')
-                        const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse')
+                        const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse' && !safetyLocked)
                         const requiresTakeover = isServiceOwned
                         const controlLabel = friendlyControlLabel(control, target)
                         const actionLabel = friendlyActionLabel(control, target)
@@ -383,7 +385,7 @@ export function ControlUiTab({
                                 </button>
                               ) : null}
                               {requiresTakeover && !canTakeControl ? (
-                                <div className="small-text warning">This control is owned and cannot be taken over from this widget.</div>
+                                <div className="small-text warning">{safetyLocked ? 'Safety lock active; takeover disabled.' : 'This control is owned and cannot be taken over from this widget.'}</div>
                               ) : null}
                               {inlineOverwriteNotice ? (
                                 <div className="small-text control-inline-notice">

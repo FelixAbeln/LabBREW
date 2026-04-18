@@ -203,8 +203,10 @@ function ControlFieldWidget({ type, controlProps }) {
     ? controlProps.controlDrafts[valueTarget]
     : control?.value_target_current_value;
   const currentOwner = String(control?.current_owner || '').trim();
+  const normalizedOwner = currentOwner.toLowerCase();
+  const safetyLocked = Boolean(control?.safety_locked) || normalizedOwner === 'safety';
   const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator');
-  const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse');
+  const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse' && !safetyLocked);
   const requiresTakeover = isServiceOwned;
   const actionLabel = widget === 'number_button'
     ? 'Calibrate'
@@ -291,7 +293,7 @@ function ControlFieldWidget({ type, controlProps }) {
               {isWriting ? 'Taking…' : 'Take control'}
             </button>
           ) : null}
-          {requiresTakeover && !canTakeControl ? <div className="small-text warning">This control is owned and cannot be taken over from this widget.</div> : null}
+          {requiresTakeover && !canTakeControl ? <div className="small-text warning">{safetyLocked ? 'Safety lock active; takeover disabled.' : 'This control is owned and cannot be taken over from this widget.'}</div> : null}
           {inlineError ? <div className="small-text warning">Write failed: {inlineError}</div> : null}
         </div>
       </div>
