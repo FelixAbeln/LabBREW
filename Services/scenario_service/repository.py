@@ -73,7 +73,7 @@ class JsonScenarioStateStore:
                 return None
 
     def save(self, payload: dict[str, Any]) -> None:
-        data = json.dumps(payload, indent=2, sort_keys=True)
+        data = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._lock:
             self._cleanup_stale_tmp_files()

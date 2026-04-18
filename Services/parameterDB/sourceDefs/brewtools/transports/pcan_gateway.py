@@ -99,16 +99,18 @@ def _arp_mac_table() -> dict[str, str]:
         proc = subprocess.run(["arp", "-a"], capture_output=True, text=True, timeout=5, check=False)
         for raw in (proc.stdout or "").splitlines():
             line = raw.strip()
-            match = re.match(r"^(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F\-]{17})\s+\w+", line)
+            match = re.match(r"^(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F][0-9a-fA-F][:\-](?:[0-9a-fA-F][0-9a-fA-F][:\-]){4}[0-9a-fA-F][0-9a-fA-F])\s+\w+", line)
             if match:
-                out[match.group(1)] = match.group(2).lower()
+                # Normalise to hyphen-separated for consistent OUI lookup
+                out[match.group(1)] = match.group(2).lower().replace(":", "-")
     except Exception:
         return out
     return out
 
 
 def _mac_oui(mac: str) -> str:
-    parts = str(mac or "").strip().lower().split("-")
+    normalised = str(mac or "").strip().lower().replace(":", "-")
+    parts = normalised.split("-")
     if len(parts) < 3:
         return ""
     return "-".join(parts[:3])
