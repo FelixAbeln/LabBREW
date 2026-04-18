@@ -1207,7 +1207,7 @@ function App() {
             ? `\n- and ${operatorOwned.length - 6} more`
             : ''
           const shouldRelease = window.confirm(
-            `Some scenario controls are currently owned by operator:\n\n${preview}${remainder}\n\nPress OK to release manual ownership and continue.\nPress Cancel to continue without takeover. If ownership is still blocked, the scenario will pause.`,
+            `Some controls are currently owned by operator:\n\n${preview}${remainder}\n\nPress OK to release manual ownership and continue.\nPress Cancel to continue without takeover. If ownership is still blocked, the scenario will pause.`,
           )
           if (shouldRelease) {
             await api(`/fermenters/${selected.id}/control/release-manual`, {
