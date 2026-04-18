@@ -4,6 +4,8 @@ export function SystemStudioPage({
   fermenterId,
   fermenterName,
   systemProps,
+  onOpenDebug,
+  showDebugLink = false,
   onClose,
 }) {
   return (
@@ -16,6 +18,11 @@ export function SystemStudioPage({
           {fermenterId && <span className="pdb-page-mode">{fermenterId}</span>}
         </div>
         <div className="pdb-page-actions">
+          {showDebugLink ? (
+            <button className="debug-link-button" onClick={() => onOpenDebug?.()} title="Open debug menu">
+              Debug?
+            </button>
+          ) : null}
           <button className="pdb-close-btn" onClick={onClose} title="Close">✕</button>
         </div>
       </div>

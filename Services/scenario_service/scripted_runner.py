@@ -30,6 +30,7 @@ import msgpack
 # RunnerContext — the API handed to every runner script
 # ---------------------------------------------------------------------------
 
+
 class RunnerContext:
     """Passed as the sole argument to the script's ``run(ctx)`` function."""
 
@@ -106,6 +107,29 @@ class RunnerContext:
                 if detail:
                     return f"{fallback}; {detail}"
         return fallback
+
+    def _ownership_conflict_reason(self) -> str | None:
+        if not self._owned:
+            return None
+        ownership_fn = getattr(self._cc, "ownership", None)
+        if not callable(ownership_fn):
+            return None
+        try:
+            snapshot = ownership_fn()
+        except Exception:  # noqa: BLE001
+            return None
+        if not isinstance(snapshot, dict):
+            return None
+        for target in list(self._owned):
+            meta = snapshot.get(target)
+            owner = ""
+            if isinstance(meta, dict):
+                owner = str(meta.get("owner") or "").strip()
+            elif isinstance(meta, str):
+                owner = meta.strip()
+            if owner and owner != self._owner:
+                return f"ownership lost for {target}; current owner: {owner}"
+        return None
 
     def write_setpoint(self, target: str, value: Any) -> None:
         while not self._stop.is_set():
@@ -241,6 +265,12 @@ class RunnerContext:
         while time.monotonic() < deadline:
             if self._stop.is_set():
                 return
+            conflict_reason = self._ownership_conflict_reason()
+            if conflict_reason:
+                self._log(conflict_reason)
+                self._pause_until_control_available(conflict_reason)
+                if self._stop.is_set():
+                    return
             # Block while paused (stop still unblocks us)
             while self._pause.is_set() and not self._stop.is_set():
                 time.sleep(0.05)

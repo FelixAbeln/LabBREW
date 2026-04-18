@@ -99,7 +99,11 @@ function ControlAppItem({
   const title = String(itemSpec?.title || control?.label || target || '-').trim() || '-'
   const description = String(itemSpec?.description || control?.hint || '').trim()
   const currentOwner = String(control?.current_owner || '').trim()
+  const normalizedOwner = currentOwner.toLowerCase()
+  const safetyLocked = Boolean(control?.safety_locked) || normalizedOwner === 'safety'
   const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator')
+  const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse' && !safetyLocked)
+  const requiresTakeover = isServiceOwned
 
   let inputs = null
   if (widget === 'number_button') {
@@ -193,12 +197,27 @@ function ControlAppItem({
           {control?.unit ? ` ${control.unit}` : ''}
         </div>
         {description ? <div className="small-text">{description}</div> : null}
-        {control?.current_owner ? <div className={`small-text${isServiceOwned ? ' warning' : ''}`}>Owner: {String(control.current_owner)}</div> : null}
-        {isServiceOwned ? <div className="small-text warning">This target is owned by another service; manual writes may be blocked or take ownership depending on policy.</div> : null}
+        {isServiceOwned ? (
+          <div className="control-owner-banner" role="status" aria-live="polite">
+            <strong>Owned: {currentOwner}</strong>
+          </div>
+        ) : null}
         {control?.safety_locked ? <div className="small-text warning">Safety locked</div> : null}
       </div>
       <div className="control-item-inputs">
-        {inputs}
+        {!requiresTakeover ? inputs : null}
+        {requiresTakeover && canTakeControl ? (
+          <button
+            className="warning-button control-takeover-button"
+            disabled={controlUiLoading || isWriting}
+            onClick={() => onWrite(control, control?.current_value)}
+          >
+            {isWriting ? 'Taking…' : 'Take control'}
+          </button>
+        ) : null}
+        {requiresTakeover && !canTakeControl ? (
+          <div className="small-text warning">{safetyLocked ? 'Safety lock active; takeover disabled.' : 'This control is owned and cannot be taken over from this widget.'}</div>
+        ) : null}
         {inlineError ? <div className="small-text warning">Write failed: {inlineError}</div> : null}
       </div>
     </div>

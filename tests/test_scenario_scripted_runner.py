@@ -192,6 +192,62 @@ class TestRunnerContext:
         assert not thread.is_alive()
         assert "agitator.speed" in ctx._owned
 
+    def test_sleep_pauses_immediately_when_owned_target_taken_over(self):
+        class _CC:
+            def __init__(self):
+                self.taken = False
+
+            def write(self, t, v, o):
+                _ = (t, v, o)
+                return {"ok": True, "current_owner": o}
+
+            def request_control(self, t, o):
+                _ = t
+                return {"ok": True, "current_owner": o}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+            def ownership(self):
+                owner = "operator" if self.taken else "test"
+                return {"x": {"owner": owner}}
+
+        pause_reason = []
+        cc = _CC()
+        stop = threading.Event()
+        pause = threading.Event()
+        ctx = RunnerContext(
+            control_client=cc,
+            data_client=None,
+            owner="test",
+            artifacts=[],
+            log_fn=lambda *_args: None,
+            progress_fn=lambda **_kwargs: None,
+            pause_for_reason_fn=lambda reason: (pause_reason.append(reason), pause.set()),
+            consume_nav_fn=lambda: None,
+            nav_pending_fn=lambda: False,
+            stop_event=stop,
+            pause_event=pause,
+        )
+        ctx.request_control("x")
+
+        sleep_started = threading.Event()
+
+        def _sleep_worker() -> None:
+            sleep_started.set()
+            ctx.sleep(0.6)
+
+        thread = threading.Thread(target=_sleep_worker)
+        thread.start()
+        assert sleep_started.wait(0.5)
+        cc.taken = True
+        assert pause.wait(1.5)
+        assert pause_reason and "ownership lost for x" in pause_reason[0]
+        cc.taken = False
+        pause.clear()
+        thread.join(timeout=1.0)
+        assert not thread.is_alive()
+
     def test_write_setpoint_non_retryable_failure_raises(self):
         class _CC:
             def write(self, t, v, o):
@@ -600,7 +656,7 @@ class TestScriptedRunnerStateMachine:
             def write(self, t, v, o):
                 self.write_calls += 1
                 if self.write_calls == 1:
-                    return {"ok": False, "blocked": True, "current_owner": "operator"}
+                    return {"ok": False, "blocked": True, "current_owner": "schedule_service"}
                 writes.append((t, v, o))
                 return {"ok": True, "current_owner": o}
 
@@ -632,6 +688,42 @@ class TestScriptedRunnerStateMachine:
         runner._thread.join(timeout=2.0)
         assert runner.status()["state"] == "completed"
         assert writes == [("x", 1.0, "test")]
+
+    def test_runner_pauses_on_operator_takeover_during_write(self):
+        class _CC:
+            def request_control(self, t, o):
+                return {"ok": True, "current_owner": o}
+
+            def write(self, t, v, o):
+                _ = (t, v, o)
+                return {"ok": False, "blocked": True, "current_owner": "operator"}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        script = "def run(ctx):\n    ctx.request_control('x')\n    ctx.write_setpoint('x', 1.0)\n"
+        artifacts = _make_artifacts({"bin/runner.py": script})
+        runner = ScriptedRunner(
+            entrypoint_code=base64.b64decode(
+                next(a["content_b64"] for a in artifacts if a["path"] == "bin/runner.py")
+            ),
+            artifacts=artifacts,
+            control_client=_CC(),
+            owner="test",
+        )
+        runner.start_run()
+
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            if runner.status()["state"] == "paused":
+                break
+            time.sleep(0.01)
+
+        st = runner.status()
+        assert st["state"] == "paused"
+        assert st["pause_reason"].startswith("control_lost:")
+        assert "operator" in st["pause_reason"]
+        runner.stop_run()
 
     def test_runner_faults_on_non_retryable_write_failure(self):
         class _CC:
@@ -785,6 +877,66 @@ class TestScenarioRuntimeScriptedRunner:
         assert st["runner_status"]["state"] == "running"
         rt.stop_run()
         assert rt.status()["runner_status"]["state"] == "stopped"
+
+    def test_runtime_pauses_immediately_on_ownership_loss_during_wait(self):
+        script = (
+            "def run(ctx):\n"
+            "    ctx.request_control('x')\n"
+            "    ctx.sleep(5.0)\n"
+            "    ctx.write_setpoint('x', 1.0)\n"
+        )
+        payload = _make_package_payload("scripted", script)
+
+        class _CC:
+            def __init__(self):
+                self.owner = "scenario_service"
+                self.writes = []
+
+            def write(self, t, v, o):
+                self.writes.append((t, v, o))
+                return {"ok": True, "current_owner": o}
+
+            def request_control(self, t, o):
+                _ = t
+                self.owner = o
+                return {"ok": True, "current_owner": o}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+            def ownership(self):
+                return {"x": {"owner": self.owner}}
+
+        class _DC:
+            pass
+
+        cc = _CC()
+        rt = ScenarioRuntime(control_client=cc, data_client=_DC())
+        assert rt.load_package(payload)["ok"] is True
+        assert rt.start_run()["ok"] is True
+
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            owned_targets = rt.status()["runner_status"].get("owned_targets") or []
+            if "x" in owned_targets:
+                break
+            time.sleep(0.01)
+
+        assert "x" in (rt.status()["runner_status"].get("owned_targets") or [])
+        cc.owner = "operator"
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            state = rt.status()["runner_status"]["state"]
+            if state == "paused":
+                break
+            time.sleep(0.01)
+
+        status = rt.status()["runner_status"]
+        assert status["state"] == "paused"
+        assert str(status.get("pause_reason") or "").startswith("control_lost:")
+        assert "operator" in str(status.get("pause_reason") or "")
+        assert cc.writes == []
+        rt.stop_run()
 
     def test_clear_package_shuts_down_scripted_runner(self):
         rt = _make_runtime()

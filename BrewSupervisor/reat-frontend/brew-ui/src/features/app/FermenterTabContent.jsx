@@ -4,6 +4,7 @@ import { ArchiveViewerPage } from '../archive/ArchiveViewerPage';
 import { RuleEditorModal } from '../rules/RuleEditorModal';
 import { RulesStudioPage } from '../rules/RulesStudioPage';
 import { SystemStudioPage } from '../system/SystemStudioPage';
+import { SystemDebugPage } from '../system/SystemDebugPage';
 import { ScenarioPackageCard } from '../schedule/ScheduleTab';
 import { CustomLayoutTab } from './CustomLayoutTab';
 import asleepBreweryIcon from '../../assets/brewery-asleep.svg';
@@ -30,6 +31,8 @@ export function FermenterTabContent({
   onCreateCustomTab,
   globalView,
   setGlobalView,
+  onOpenSystemDebug,
+  showDebugLink,
   ruleEditorProps,
   archiveViewPayload,
   selectedArchiveName,
@@ -172,6 +175,27 @@ export function FermenterTabContent({
             fermenterId={selected?.id || null}
             fermenterName={selected?.name || null}
             systemProps={systemProps}
+            onOpenDebug={onOpenSystemDebug}
+            showDebugLink={showDebugLink}
+            onClose={() => setGlobalView(null)}
+          />
+        </div>
+      )}
+
+      {globalView === 'system-debug' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            background: '#11161c',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <SystemDebugPage
+            fermenterId={selected?.id || null}
+            fermenterName={selected?.name || null}
             onClose={() => setGlobalView(null)}
           />
         </div>

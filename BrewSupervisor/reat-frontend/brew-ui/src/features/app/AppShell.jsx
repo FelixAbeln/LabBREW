@@ -20,6 +20,8 @@ export function AppShell({
   layoutEditMode,
   onToggleLayoutEdit,
   onOpenSystemStudio,
+  onOpenSystemDebug,
+  showDebugLink,
   children,
 }) {
   const sidebarDockRef = useRef(null);
@@ -128,6 +130,8 @@ export function AppShell({
                 layoutEditMode={layoutEditMode}
                 onToggleLayoutEdit={onToggleLayoutEdit}
                 onOpenSystemStudio={onOpenSystemStudio}
+                onOpenSystemDebug={onOpenSystemDebug}
+                showDebugLink={showDebugLink}
               />
               {children}
             </div>
