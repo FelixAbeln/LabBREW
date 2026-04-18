@@ -156,6 +156,7 @@ export function ParameterList({
       {/* Edit / Create modal */}
       {editTarget && (
         <ParameterEditModal
+          key={editTarget === 'create' ? `create:${fermenterId}` : `edit:${fermenterId}:${editTarget.name}`}
           fermenterId={fermenterId}
           mode={editTarget === 'create' ? 'create' : 'edit'}
           record={editTarget === 'create' ? null : { name: editTarget.name, ...editTarget.rec }}
