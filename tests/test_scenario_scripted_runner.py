@@ -187,6 +187,93 @@ class TestRunnerContext:
         assert not thread.is_alive()
         assert "agitator.speed" in ctx._owned
 
+    def test_write_setpoint_non_retryable_failure_raises(self):
+        class _CC:
+            def write(self, t, v, o):
+                _ = (t, v, o)
+                return {"ok": False, "blocked": False, "reason": "validation failed"}
+
+            def request_control(self, t, o):
+                _ = (t, o)
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        ctx = RunnerContext(
+            control_client=_CC(),
+            data_client=None,
+            owner="test",
+            artifacts=[],
+            log_fn=lambda *_args: None,
+            progress_fn=lambda **_kwargs: None,
+            consume_nav_fn=lambda: None,
+            nav_pending_fn=lambda: False,
+            stop_event=threading.Event(),
+            pause_event=threading.Event(),
+        )
+
+        with pytest.raises(RuntimeError, match="validation failed"):
+            ctx.write_setpoint("agitator.speed", 100)
+
+    def test_request_control_non_retryable_failure_raises(self):
+        class _CC:
+            def write(self, t, v, o):
+                _ = (t, v, o)
+
+            def request_control(self, t, o):
+                _ = (t, o)
+                return {"ok": False, "reason": "unknown target"}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        ctx = RunnerContext(
+            control_client=_CC(),
+            data_client=None,
+            owner="test",
+            artifacts=[],
+            log_fn=lambda *_args: None,
+            progress_fn=lambda **_kwargs: None,
+            consume_nav_fn=lambda: None,
+            nav_pending_fn=lambda: False,
+            stop_event=threading.Event(),
+            pause_event=threading.Event(),
+        )
+
+        with pytest.raises(RuntimeError, match="unknown target"):
+            ctx.request_control("missing.param")
+
+    def test_ramp_setpoint_non_retryable_failure_raises(self):
+        class _CC:
+            def write(self, t, v, o):
+                _ = (t, v, o)
+
+            def ramp(self, *, target, value, duration_s, owner):
+                _ = (target, value, duration_s, owner)
+                return {"ok": False, "reason": "duration must be > 0"}
+
+            def request_control(self, t, o):
+                _ = (t, o)
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        ctx = RunnerContext(
+            control_client=_CC(),
+            data_client=None,
+            owner="test",
+            artifacts=[],
+            log_fn=lambda *_args: None,
+            progress_fn=lambda **_kwargs: None,
+            consume_nav_fn=lambda: None,
+            nav_pending_fn=lambda: False,
+            stop_event=threading.Event(),
+            pause_event=threading.Event(),
+        )
+
+        with pytest.raises(RuntimeError, match="duration must be > 0"):
+            ctx.ramp_setpoint("agitator.speed", 100, 0.0)
+
     def test_release_all_clears_all_owned(self):
         ctx, _, _, _, _ = self._make_ctx()
         ctx.request_control("a")
@@ -540,6 +627,66 @@ class TestScriptedRunnerStateMachine:
         runner._thread.join(timeout=2.0)
         assert runner.status()["state"] == "completed"
         assert writes == [("x", 1.0, "test")]
+
+    def test_runner_faults_on_non_retryable_write_failure(self):
+        class _CC:
+            def request_control(self, t, o):
+                return {"ok": True, "current_owner": o}
+
+            def write(self, t, v, o):
+                _ = (t, v, o)
+                return {"ok": False, "blocked": False, "reason": "backend write failed"}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        script = "def run(ctx):\n    ctx.request_control('x')\n    ctx.write_setpoint('x', 1.0)\n"
+        artifacts = _make_artifacts({"bin/runner.py": script})
+        runner = ScriptedRunner(
+            entrypoint_code=base64.b64decode(
+                next(a["content_b64"] for a in artifacts if a["path"] == "bin/runner.py")
+            ),
+            artifacts=artifacts,
+            control_client=_CC(),
+            owner="test",
+        )
+        runner.start_run()
+        runner._thread.join(timeout=2.0)
+        st = runner.status()
+        assert st["state"] == "faulted"
+        assert "backend write failed" in str(st["wait_message"])
+
+    def test_runner_faults_on_non_retryable_ramp_failure(self):
+        class _CC:
+            def request_control(self, t, o):
+                return {"ok": True, "current_owner": o}
+
+            def write(self, t, v, o):
+                _ = (t, v, o)
+                return {"ok": True}
+
+            def ramp(self, *, target, value, duration_s, owner):
+                _ = (target, value, duration_s, owner)
+                return {"ok": False, "reason": "duration must be > 0"}
+
+            def release_control(self, t, o):
+                _ = (t, o)
+
+        script = "def run(ctx):\n    ctx.request_control('x')\n    ctx.ramp_setpoint('x', 1.0, 0.0)\n"
+        artifacts = _make_artifacts({"bin/runner.py": script})
+        runner = ScriptedRunner(
+            entrypoint_code=base64.b64decode(
+                next(a["content_b64"] for a in artifacts if a["path"] == "bin/runner.py")
+            ),
+            artifacts=artifacts,
+            control_client=_CC(),
+            owner="test",
+        )
+        runner.start_run()
+        runner._thread.join(timeout=2.0)
+        st = runner.status()
+        assert st["state"] == "faulted"
+        assert "duration must be > 0" in str(st["wait_message"])
 
     def test_get_artifact_accessible_from_script(self):
         received = []

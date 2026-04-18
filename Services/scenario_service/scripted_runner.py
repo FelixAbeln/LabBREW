@@ -83,6 +83,22 @@ class RunnerContext:
                     return f"{fallback}; {detail}"
         return fallback
 
+    def _is_retryable_control_conflict(self, result: Any) -> bool:
+        if not isinstance(result, dict):
+            return False
+        if bool(result.get("blocked", False)):
+            return True
+        current_owner = str(result.get("current_owner") or "").strip()
+        return bool(current_owner and current_owner != self._owner)
+
+    def _extract_failure_reason(self, result: Any, fallback: str) -> str:
+        if isinstance(result, dict):
+            for key in ("reason", "error", "message", "detail"):
+                detail = str(result.get(key) or "").strip()
+                if detail:
+                    return f"{fallback}; {detail}"
+        return fallback
+
     def write_setpoint(self, target: str, value: Any) -> None:
         while not self._stop.is_set():
             try:
@@ -96,12 +112,20 @@ class RunnerContext:
             if not isinstance(result, dict) or bool(result.get("ok", False)):
                 return
 
-            reason = self._extract_block_reason(
+            if self._is_retryable_control_conflict(result):
+                reason = self._extract_block_reason(
+                    result,
+                    f"write_setpoint({target}={value!r}) blocked",
+                )
+                self._log(reason)
+                self._pause_until_control_available(reason)
+                continue
+
+            reason = self._extract_failure_reason(
                 result,
-                f"write_setpoint({target}={value!r}) blocked",
+                f"write_setpoint({target}={value!r}) failed",
             )
-            self._log(reason)
-            self._pause_until_control_available(reason)
+            raise RuntimeError(reason)
 
     def ramp_setpoint(self, target: str, value: Any, duration_s: float) -> None:
         """Delegate ramp execution to control service when supported.
@@ -127,12 +151,20 @@ class RunnerContext:
                 if not isinstance(result, dict) or bool(result.get("ok", False)):
                     return
 
-                reason = self._extract_block_reason(
+                if self._is_retryable_control_conflict(result):
+                    reason = self._extract_block_reason(
+                        result,
+                        f"ramp_setpoint({target}={value!r}, {duration_s}s) blocked",
+                    )
+                    self._log(reason)
+                    self._pause_until_control_available(reason)
+                    continue
+
+                reason = self._extract_failure_reason(
                     result,
-                    f"ramp_setpoint({target}={value!r}, {duration_s}s) blocked",
+                    f"ramp_setpoint({target}={value!r}, {duration_s}s) failed",
                 )
-                self._log(reason)
-                self._pause_until_control_available(reason)
+                raise RuntimeError(reason)
             return
         self.write_setpoint(target, value)
 
@@ -167,12 +199,20 @@ class RunnerContext:
                 self._owned.add(target)
                 return
 
-            reason = self._extract_block_reason(
+            if self._is_retryable_control_conflict(result):
+                reason = self._extract_block_reason(
+                    result,
+                    f"request_control({target}) denied",
+                )
+                self._log(reason)
+                self._pause_until_control_available(reason)
+                continue
+
+            reason = self._extract_failure_reason(
                 result,
-                f"request_control({target}) denied",
+                f"request_control({target}) failed",
             )
-            self._log(reason)
-            self._pause_until_control_available(reason)
+            raise RuntimeError(reason)
 
     def release_control(self, target: str) -> None:
         try:
