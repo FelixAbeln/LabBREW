@@ -392,7 +392,7 @@ export function ControlUiTab({
                                 </button>
                               ) : null}
                               {requiresTakeover && !canTakeControl ? (
-                                <div className="small-text warning">{safetyLocked ? 'Safety lock active; takeover disabled.' : 'This control is owned and cannot be taken over from this widget.'}</div>
+                                <div className="small-text warning">{isSafetyLocked || isSafetyControlled ? 'Safety lock active; takeover disabled.' : 'This control is owned and cannot be taken over from this widget.'}</div>
                               ) : null}
                               {inlineOverwriteNotice ? (
                                 <div className="small-text control-inline-notice">
