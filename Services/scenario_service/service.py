@@ -5,8 +5,8 @@ import uvicorn
 from fastapi import FastAPI
 
 from .._shared.cli import build_shared_parser
-from ..schedule_service.control_client import ControlClient
-from ..schedule_service.data_client import DataClient
+from .control_client import ControlClient
+from .data_client import DataClient
 from .api.routes_scenario import router as scenario_router
 from .api.routes_scenario import set_runtime
 from .runtime import ScenarioRuntime

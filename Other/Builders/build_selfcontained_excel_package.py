@@ -10,7 +10,7 @@ from pathlib import Path
 import msgpack
 
 from BrewSupervisor.api.schedule_import.parser import parse_schedule_workbook
-from Services.schedule_service.models import ScheduleDefinition
+from Services.scenario_service.models import ScheduleDefinition
 
 
 def _validate_runner_source(runner_source: str, *, source_path: Path) -> None:

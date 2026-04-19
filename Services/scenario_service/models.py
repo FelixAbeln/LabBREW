@@ -94,3 +94,94 @@ class ScenarioRunStatus:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+# ============================================================================
+# Legacy Schedule Service Models (kept for Excel importer compatibility)
+# ============================================================================
+
+ScheduleRunState = Literal["idle", "running", "paused", "completed", "stopped", "faulted"]
+SchedulePhaseName = Literal["setup", "plan", "idle"]
+
+
+@dataclass(slots=True)
+class ScheduleAction:
+    """Models an action within a schedule step (legacy format)."""
+    kind: str
+    target: str | None = None
+    value: Any | None = None
+    duration_s: float | None = None
+    owner: str | None = None
+    params: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> ScheduleAction:
+        return cls(
+            kind=str(payload.get("kind", "") or ""),
+            target=payload.get("target"),
+            value=payload.get("value"),
+            duration_s=payload.get("duration_s"),
+            owner=payload.get("owner"),
+            params=dict(payload.get("params") or {}),
+        )
+
+
+@dataclass(slots=True)
+class ScheduleStep:
+    """Models a step within a schedule (legacy format)."""
+    id: str
+    name: str
+    actions: list[ScheduleAction] = field(default_factory=list)
+    wait: dict[str, Any] | None = None
+    enabled: bool = True
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any], fallback_id: str) -> ScheduleStep:
+        return cls(
+            id=str(payload.get("id", fallback_id) or fallback_id),
+            name=str(payload.get("name", fallback_id) or fallback_id),
+            actions=[
+                ScheduleAction.from_payload(item)
+                for item in (payload.get("actions") or [])
+                if isinstance(item, dict)
+            ],
+            wait=payload.get("wait") if isinstance(payload.get("wait"), dict) else None,
+            enabled=bool(payload.get("enabled", True)),
+        )
+
+
+@dataclass(slots=True)
+class ScheduleDefinition:
+    """Models a complete schedule with setup and plan phases (legacy format).
+    
+    Used by Excel importer to parse workbook schedules and convert them to
+    scenario package payloads.
+    """
+    id: str
+    name: str
+    measurement_config: dict[str, Any] = field(default_factory=dict)
+    setup_steps: list[ScheduleStep] = field(default_factory=list)
+    plan_steps: list[ScheduleStep] = field(default_factory=list)
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> ScheduleDefinition:
+        setup = [
+            ScheduleStep.from_payload(item, fallback_id=f"setup-{idx + 1}")
+            for idx, item in enumerate(payload.get("setup_steps") or [])
+            if isinstance(item, dict)
+        ]
+        plan = [
+            ScheduleStep.from_payload(item, fallback_id=f"plan-{idx + 1}")
+            for idx, item in enumerate(payload.get("plan_steps") or [])
+            if isinstance(item, dict)
+        ]
+        return cls(
+            id=str(payload.get("id", "schedule") or "schedule"),
+            name=str(payload.get("name", "Schedule") or "Schedule"),
+            measurement_config=dict(payload.get("measurement_config") or {}),
+            setup_steps=setup,
+            plan_steps=plan,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
