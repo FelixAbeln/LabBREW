@@ -1379,7 +1379,7 @@ class TestScenarioRuntimeQueueControls:
 
     def test_set_queue_preserves_payload_when_round_tripping_ui_entries(self):
         rt = _make_runtime()
-        rt.set_queue(
+        initial_set_result = rt.set_queue(
             [
                 {
                     "package_id": "pkg-a",
@@ -1406,6 +1406,7 @@ class TestScenarioRuntimeQueueControls:
             ],
             enabled=True,
         )
+        assert initial_set_result["ok"] is True
 
         # UI updates currently send queue items without package_payload fields.
         ui_round_trip_entries = [
