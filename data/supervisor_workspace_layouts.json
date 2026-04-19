@@ -147,7 +147,7 @@
     "updated_at": "2026-04-19T15:00:27.613054+00:00"
   },
   "02": {
-    "active_tab": "custom-tab-fo65jvll",
+    "active_tab": "custom-tab-m9vyyzj5",
     "control_card_order": [],
     "fermenter_name": "Fermenter-Node-02",
     "tabs": [
@@ -235,9 +235,9 @@
             "y": 1
           },
           {
-            "cols": 12,
+            "cols": 6,
             "id": "widget-zhc2e9d1",
-            "rows": 4,
+            "rows": 8,
             "type": "scenario-package",
             "x": 1,
             "y": 5
@@ -248,7 +248,7 @@
             "rows": 12,
             "type": "scenario-events",
             "x": 1,
-            "y": 9
+            "y": 13
           },
           {
             "cols": 12,
@@ -257,10 +257,18 @@
             "type": "scenario-summary",
             "x": 1,
             "y": 2
+          },
+          {
+            "cols": 6,
+            "id": "widget-1fvndbgf",
+            "rows": 8,
+            "type": "scenario-queue",
+            "x": 7,
+            "y": 5
           }
         ]
       }
     ],
-    "updated_at": "2026-04-18T18:27:42.443321+00:00"
+    "updated_at": "2026-04-19T17:57:43.083347+00:00"
   }
 }
