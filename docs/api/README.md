@@ -9,7 +9,7 @@ LabBREW is a microservices-based fermentation management and control system. Thi
 | [BrewSupervisor Gateway](./brewsupervisor-api.md) | HTTP (REST) | 8782 | API gateway consumed by the React frontend |
 | [Supervisor Agent](./agent-api.md) | HTTP (REST) | 8780 | Per-node agent: health, discovery, service proxy |
 | [Control Service](./control-service-api.md) | HTTP (REST + WebSocket) | 8767 | Parameter ownership, ramping, rules engine |
-| [Scenario Service](./schedule-service-api.md) | HTTP (REST) | 8770 | Scenario package execution and run orchestration |
+| [Scenario Service](../implementation/scenario-service-integration.md) | HTTP (REST) | 8770 | Scenario package execution and run orchestration |
 | [Data Service](./data-service-api.md) | HTTP (REST) | 8769 | High-rate parameter logging and loadstep averaging |
 | [ParameterDB](./parameterdb-api.md) | Binary (TCP) | 8765 | Parameter store with real-time scanning |
 
