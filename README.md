@@ -158,7 +158,7 @@ LabBREW is not just a controller or dashboard.
 | [Writing a Scenario Runner](./docs/implementation/writing-a-scenario-runner.md) | End-to-end guide for scripted runner module contract, context API, packaging, and troubleshooting |
 | [Data Service API](./docs/api/data-service-api.md) | Measurement setup/start/stop, file logging, loadstep capture |
 | [ParameterDB Binary Protocol](./docs/api/parameterdb-api.md) | Low-level TCP binary protocol and Python client |
-| [Schedule Excel Import Guide](./docs/api/schedule-excel-import.md) | Workbook sheet layout, column syntax, wait expressions, validation rules for scenario package generation |
+| [Schedule Excel Import Guide](./docs/api/schedule-excel-import.md) | Legacy Excel-to-scenario conversion tool: workbook sheet layout, column syntax, wait expressions, and validation rules (use `.lbpkg` archive format for new packages) |
 
 ---
 
