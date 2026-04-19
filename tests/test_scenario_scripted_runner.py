@@ -15,6 +15,7 @@ import time
 import zipfile
 import io
 from pathlib import Path
+import tempfile
 from typing import Any
 
 import msgpack
@@ -99,6 +100,10 @@ def _make_runtime(*, state_store: JsonScenarioStateStore | None = None) -> Scena
         def snapshot(self, targets=None): return {"values": {}}
     class _DC:
         pass
+    if state_store is None:
+        state_store = JsonScenarioStateStore(
+            path=Path(tempfile.mkdtemp()) / "scenario_state.json"
+        )
     return ScenarioRuntime(control_client=_CC(), data_client=_DC(), state_store=state_store)
 
 
@@ -1418,6 +1423,37 @@ class TestScenarioRuntimeQueueControls:
         assert result["ok"] is False
         assert result["state"] == "paused"
         assert result.get("blocked_targets") == ["pressure"]
+
+    def test_start_next_queued_handles_ownership_check_failure(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-next",
+                    "label": "Next",
+                    "enabled": True,
+                    "package_payload": {"id": "pkg-next", "name": "Next", "artifacts": []},
+                }
+            ],
+            enabled=True,
+        )
+
+        class _PausedRunner:
+            def status(self):
+                return {
+                    "state": "paused",
+                    "pause_reason": "control_lost: ownership lost for pressure",
+                    "owned_targets": ["pressure"],
+                }
+
+        rt._scripted_runner = _PausedRunner()
+        rt._control_client.ownership = lambda: (_ for _ in ()).throw(RuntimeError("ownership offline"))
+
+        result = rt.start_next_queued()
+
+        assert result["ok"] is False
+        assert result["state"] == "paused"
+        assert "Failed to verify control ownership" in str(result.get("error") or "")
 
     def test_start_next_queued_rejects_when_queue_disabled(self):
         rt = _make_runtime()
