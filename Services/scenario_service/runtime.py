@@ -678,29 +678,52 @@ class ScenarioRuntime:
         candidates: list[QueueEntry],
         target: QueueEntry,
     ) -> QueueEntry | None:
+        target_package_id = target.package_id
+        target_package_filename = target.package_filename
+
         for candidate in candidates:
             if (
-                candidate.package_id == target.package_id
-                and candidate.package_filename == target.package_filename
+                candidate.package_id == target_package_id
+                and candidate.package_filename == target_package_filename
                 and candidate.label == target.label
                 and candidate.run_index == target.run_index
             ):
                 return candidate
         for candidate in candidates:
             if (
-                candidate.package_id == target.package_id
-                and candidate.package_filename == target.package_filename
+                candidate.package_id == target_package_id
+                and candidate.package_filename == target_package_filename
                 and candidate.run_index == target.run_index
             ):
                 return candidate
-        for candidate in candidates:
-            if candidate.package_id and candidate.package_id == target.package_id:
-                return candidate
-            if (
-                candidate.package_filename
-                and candidate.package_filename == target.package_filename
-            ):
-                return candidate
+        if target_package_id and target_package_filename:
+            for candidate in candidates:
+                if (
+                    candidate.package_id == target_package_id
+                    and candidate.package_filename == target_package_filename
+                ):
+                    return candidate
+
+        if target_package_id and not target_package_filename:
+            matches = [
+                candidate
+                for candidate in candidates
+                if candidate.package_id and candidate.package_id == target_package_id
+            ]
+            if len(matches) == 1:
+                return matches[0]
+
+        if target_package_filename and not target_package_id:
+            matches = [
+                candidate
+                for candidate in candidates
+                if (
+                    candidate.package_filename
+                    and candidate.package_filename == target_package_filename
+                )
+            ]
+            if len(matches) == 1:
+                return matches[0]
         return None
 
     def enqueue(
