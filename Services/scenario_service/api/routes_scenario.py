@@ -181,17 +181,21 @@ async def repository_package_file_action(
 
 @router.post("/run/start")
 def start_run(payload: dict | None = None):
-    requested_index = None
-    if isinstance(payload, dict):
-        requested_index = payload.get("run_index", payload.get("start_index"))
-    if requested_index is not None:
-        try:
-            requested_index = int(requested_index)
-        except (TypeError, ValueError):
-            requested_index = None
     start_index = None
-    if requested_index is not None:
-        start_index = max(0, requested_index - 1)
+    if isinstance(payload, dict):
+        run_index = payload.get("run_index")
+        if run_index is not None:
+            try:
+                start_index = max(0, int(run_index) - 1)
+            except (TypeError, ValueError):
+                start_index = None
+        else:
+            requested_start_index = payload.get("start_index")
+            if requested_start_index is not None:
+                try:
+                    start_index = int(requested_start_index)
+                except (TypeError, ValueError):
+                    start_index = None
     return _require_runtime().start_run(start_index=start_index)
 
 
