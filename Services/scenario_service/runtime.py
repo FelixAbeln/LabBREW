@@ -697,13 +697,17 @@ class ScenarioRuntime:
                 and candidate.run_index == target.run_index
             ):
                 return candidate
-        for candidate in candidates:
+        matches = [
+            candidate
+            for candidate in candidates
             if (
                 candidate.package_id == target_package_id
                 and candidate.package_filename == target_package_filename
                 and candidate.run_index == target.run_index
-            ):
-                return candidate
+            )
+        ]
+        if len(matches) == 1:
+            return matches[0]
         if target_package_id and target_package_filename:
             matches = [
                 candidate
