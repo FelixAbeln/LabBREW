@@ -1368,7 +1368,6 @@ class TestScenarioRuntimeQueueControls:
             seen["package_id"] = payload.get("id")
             return {"ok": True}
 
-        rt.load_package = lambda _payload: {"ok": True}
         rt.load_package = _fake_load
         rt.start_run = lambda start_index=None: {"ok": True, "start_index": start_index}
 
