@@ -803,10 +803,9 @@ class ScenarioRuntime:
 
         Entry is only removed from the queue after load + start succeeds.
         """
-        queued_from_paused = False
-        blocked_targets: list[str] = []
         with self._lock:
             runner = self._active_runner()
+            queued_from_paused = False
             if runner is not None:
                 runner_status = runner.status() or {}
                 runner_state = str(runner_status.get("state", "idle"))
@@ -829,6 +828,20 @@ class ScenarioRuntime:
                         for target in (runner_status.get("owned_targets") or [])
                         if str(target).strip()
                     ]
+                    still_blocked = self._wait_for_targets_release(blocked_targets)
+                    if still_blocked:
+                        self._append_event(
+                            "Queue: timed out waiting for control release before stepping; queue blocked"
+                        )
+                        self._persist_locked()
+                        return {
+                            "ok": False,
+                            "error": "Timed out waiting for control targets to be released; queue remains blocked",
+                            "state": runner_state,
+                            "blocked_targets": still_blocked,
+                        }
+                    queued_from_paused = True
+                    self._append_event("Queue: replacing paused run after control release")
             if not self._queue:
                 return {"ok": False, "error": "Queue is empty"}
             if not self._queue_enabled:
@@ -843,35 +856,6 @@ class ScenarioRuntime:
                     "error": "Queue has no enabled entries",
                 }
             next_entry = self._queue[enabled_index]
-
-        if runner is not None and runner_state == "paused":
-            still_blocked, wait_error = self._wait_for_targets_release(blocked_targets)
-            if wait_error:
-                with self._lock:
-                    self._append_event(
-                        f"Queue: ownership check failed before stepping ({wait_error})"
-                    )
-                    self._persist_locked()
-                return {
-                    "ok": False,
-                    "error": f"Failed to verify control ownership before continuing queue: {wait_error}",
-                    "state": runner_state,
-                }
-            if still_blocked:
-                with self._lock:
-                    self._append_event(
-                        "Queue: waiting for control release before stepping"
-                    )
-                    self._persist_locked()
-                return {
-                    "ok": False,
-                    "error": "Cannot continue queue while control targets are still owned",
-                    "state": runner_state,
-                    "blocked_targets": still_blocked,
-                }
-            queued_from_paused = True
-            with self._lock:
-                self._append_event("Queue: replacing paused run after control release")
 
         try:
             pkg_data = dict(next_entry.package_payload or {})
@@ -952,22 +936,17 @@ class ScenarioRuntime:
                 self._persist_locked()
             return {"ok": False, "error": str(exc)}
 
-    def _wait_for_targets_release(self, targets: list[str]) -> tuple[list[str], str | None]:
+    def _wait_for_targets_release(self, targets: list[str]) -> list[str]:
         watched_targets = [str(target).strip() for target in targets if str(target).strip()]
         if not watched_targets:
-            return [], None
+            return []
 
         deadline = time.monotonic() + max(0.0, float(self._queue_pause_wait_timeout_s))
         poll_interval = max(0.05, float(self._queue_pause_wait_poll_s))
         blocked_targets: list[str] = list(watched_targets)
 
         while True:
-            try:
-                ownership_snapshot = self._control_client.ownership()
-            except Exception as exc:  # noqa: BLE001
-                return watched_targets, str(exc)
-            if not isinstance(ownership_snapshot, dict):
-                return watched_targets, "ownership response was not an object"
+            ownership_snapshot = self._control_client.ownership()
             blocked_targets = []
             for target in watched_targets:
                 meta = ownership_snapshot.get(target)
@@ -980,10 +959,10 @@ class ScenarioRuntime:
                     blocked_targets.append(target)
 
             if not blocked_targets:
-                return [], None
+                return []
 
             if time.monotonic() >= deadline:
-                return blocked_targets, None
+                return blocked_targets
 
             time.sleep(poll_interval)
 
@@ -994,6 +973,8 @@ class ScenarioRuntime:
             if not self._queue_enabled:
                 advance = False
             elif final_state == "completed":
+                advance = bool(self._queue)
+            elif final_state == "stopped" and self._queue_advance_on_stop:
                 advance = bool(self._queue)
 
         if not advance:
