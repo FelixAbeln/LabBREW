@@ -69,7 +69,7 @@ LabBREW is not just a controller or dashboard.
 | **Data Service** | Records parameter values to files at configurable rates and computes loadstep averages for timed capture windows. |
 | **ParameterDB** | High-performance binary TCP parameter store with a real-time scan engine, plugin system, and snapshot persistence. |
 | **Supervisor Agent** | Per-node process supervisor that advertises services over mDNS and proxies requests to local services. |
-| **Scenario Package Import** | Upload a `.xlsx` workbook to BrewSupervisor; it is validated and forwarded to scenario service as a package payload. |
+| **Scenario Package Import** | Upload a `.lbpkg` or `.zip` scenario package archive to BrewSupervisor; it is compile-validated and forwarded to scenario service. |
 | **Service Discovery** | Automatic node registration and discovery via mDNS (`_fcs._tcp.local.`) — no manual configuration needed. |
 
 ---
@@ -103,9 +103,9 @@ LabBREW is not just a controller or dashboard.
 - Rules evaluated continuously against the live parameter snapshot
 
 ### 📥 Scenario Package Import
-- Upload a `.xlsx` workbook directly to the gateway
-- Dry-run validation endpoint returns any errors before committing
-- Workbook format: `meta`, `setup_steps`, and `plan_steps` sheets with simple column syntax
+- Upload a `.lbpkg` or `.zip` scenario package archive directly to the gateway
+- Dry-run validation endpoint returns compile and contract errors before committing
+- Packages can embed custom scripted runners and runtime artifacts; Excel/CSV conversion is handled through repository package functions/templates
 
 ### 🗄️ ParameterDB Binary Protocol
 - Custom MessagePack-over-TCP protocol for minimal latency
@@ -128,7 +128,7 @@ LabBREW is not just a controller or dashboard.
 ### 🌐 React Frontend
 - Browser UI backed by the BrewSupervisor gateway at port 8782
 - Connects over standard HTTP REST and WebSocket
-- **Scenario tab** — upload an Excel workbook, validate/package it, and drive step-by-step execution (play · pause · next · previous · stop)
+- **Scenario tab** — upload/import scenario package archives, validate before commit, and drive step-by-step execution (play · pause · next · previous · stop)
 - **Control tab** — render datasource and custom manual controls from backend control UI spec, including manual write/release actions
 - **System tab** — at-a-glance health and service-status overview for the selected fermenter node
 - **Data tab** — configure recording rate (Hz), start/stop parameter logging, and trigger loadstep captures

@@ -136,7 +136,7 @@ Validates a scenario package file without persisting anything.
   "ok": true,
   "valid": true,
   "errors": [],
-  "warnings": ["Sheet 'Plan' has no wait conditions"],
+  "warnings": ["Package metadata.tags is empty"],
   "scenario_package": { /* uploaded package payload */ },
   "compile": { /* compile result from scenario_service */ },
   "summary": {
@@ -146,7 +146,7 @@ Validates a scenario package file without persisting anything.
 }
 ```
 
-Returns `ok: false` and a list of `errors` if the workbook fails validation.
+Returns `ok: false` and a list of `errors` if the uploaded package fails validation.
 
 ### `PUT /fermenters/{fermenter_id}/scenario/import`
 

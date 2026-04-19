@@ -1,6 +1,6 @@
-# BrewSupervisor scenario package import patch
+# BrewSupervisor scenario package import
 
-Adds scenario package import support to the UI backend.
+Gateway endpoints for validating and importing scenario package archives.
 
 ## New routes
 
@@ -9,32 +9,17 @@ Adds scenario package import support to the UI backend.
 
 Both accept `multipart/form-data` with a `file` field.
 
-## Workbook format
+## Supported upload formats
 
-### Sheet: `meta`
-| key | value |
-|---|---|
-| id | proper-api-test-plan |
-| name | Proper API test plan |
-
-### Sheet: `setup_steps` and `plan_steps`
-Supported columns:
-- `step_id`
-- `name`
-- `enabled`
-- `action_kind`
-- `target`
-- `value`
-- `duration_s`
-- `wait_kind`
-- `wait_source`
-- `wait_operator`
-- `wait_threshold`
-- `wait_for_s`
-- `wait_duration_s`
+- `.lbpkg` or `.zip` archive
+- Archive must contain one of:
+	- `scenario.package.msgpack`
+	- `scenario-package.msgpack`
+	- `package.msgpack`
 
 ## Notes
 
 - Scenario runtime executes package-provided runner scripts via `runner.kind=scripted`.
-- BrewSupervisor parses Excel, validates, and forwards generated package payload to `PUT /scenario/package`.
-- This patch uses `openpyxl`; install it in the UI backend environment if needed.
+- BrewSupervisor forwards validate/import requests to `scenario_service` and mirrors the response.
+- Dry-run validation is available via `PUT /fermenters/{id}/scenario/validate-import`.
+- Import is available via `PUT /fermenters/{id}/scenario/import`.

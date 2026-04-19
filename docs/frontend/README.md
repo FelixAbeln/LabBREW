@@ -92,15 +92,15 @@ The left-hand sidebar lists every fermenter node discovered automatically via mD
 Manage the execution of multi-step scenario runs.
 
 **What you can do:**
-- **Upload** a `.xlsx` workbook containing `meta`, `setup_steps`, and `plan_steps` sheets
-- **Validate** the workbook with a dry-run before committing it — any column or syntax errors are reported inline
+- **Upload** a `.lbpkg` or `.zip` scenario package archive
+- **Validate** the package with a dry-run before committing it — compile or contract errors are reported inline
 - **Start** the scenario run to execute setup then repeating plan steps
 - **Pause / Resume** at any time without losing position
 - **Step manually** using *Next* (skip to the next step) and *Previous* (go back one step)
 - **Stop** execution and reset
 - View the **current step**, elapsed time, and wait condition status in real time
 
-See [Schedule Excel Import Guide](../api/schedule-excel-import.md) for the workbook format used to build scenario packages.
+For package authoring and format details, see [Writing a LabBREW `.lbpkg` Package](../implementation/writing-an-lbpkg-package.md).
 
 ---
 
