@@ -974,6 +974,8 @@ class ScenarioRuntime:
                 advance = False
             elif final_state == "completed":
                 advance = bool(self._queue)
+            elif final_state == "stopped" and self._queue_advance_on_stop:
+                advance = bool(self._queue)
 
         if not advance:
             with self._lock:
