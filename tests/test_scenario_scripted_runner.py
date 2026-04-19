@@ -1440,6 +1440,43 @@ class TestScenarioRuntimeQueueControls:
         assert result["ok"] is True
         assert loaded_ids == ["pkg-b"]
 
+    def test_set_queue_allows_explicit_payload_clear_with_null(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-a",
+                    "package_filename": "pkg-a.lbpkg",
+                    "label": "A",
+                    "enabled": True,
+                    "package_payload": {
+                        "id": "pkg-a",
+                        "name": "Package A",
+                        "artifacts": [],
+                    },
+                }
+            ],
+            enabled=True,
+        )
+
+        clear_result = rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-a",
+                    "package_filename": "pkg-a.lbpkg",
+                    "label": "A",
+                    "enabled": True,
+                    "package_payload": None,
+                }
+            ],
+            enabled=True,
+        )
+        assert clear_result["ok"] is True
+
+        result = rt.start_next_queued()
+        assert result["ok"] is False
+        assert "missing embedded package data" in str(result.get("error") or "")
+
     def test_queue_restore_keeps_embedded_package_payload(self, tmp_path: Path):
         state_store = JsonScenarioStateStore(tmp_path / "scenario_state.json")
         rt = _make_runtime(state_store=state_store)

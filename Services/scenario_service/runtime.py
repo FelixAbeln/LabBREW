@@ -637,7 +637,15 @@ class ScenarioRuntime:
         advance_on_stop: bool | None = None,
         enabled: bool | None = None,
     ) -> dict[str, Any]:
-        """Replace the entire queue with a new ordered list."""
+        """Replace queue order/flags, preserving embedded payload unless omitted.
+
+        Queue updates from UI commonly omit ``package_payload`` for compact
+        responses. When an incoming entry omits that field, the existing
+        embedded payload for the matching queue entry is retained.
+
+        To explicitly clear embedded payload for an entry, send
+        ``package_payload: null`` in that entry.
+        """
         with self._lock:
             previous_queue = list(self._queue)
             parsed: list[QueueEntry] = []
@@ -655,7 +663,7 @@ class ScenarioRuntime:
                 # UI queue updates intentionally omit embedded package payload for
                 # compact responses; keep the existing payload when the logical
                 # queue item is being updated/reordered.
-                if parsed_entry.package_payload is None:
+                if "package_payload" not in item and parsed_entry.package_payload is None:
                     prior = self._find_matching_queue_entry(previous_queue, parsed_entry)
                     if prior is not None and isinstance(prior.package_payload, dict):
                         parsed_entry.package_payload = dict(prior.package_payload)
