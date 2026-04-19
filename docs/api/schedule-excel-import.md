@@ -108,26 +108,26 @@ Zero or more actions separated by **`;`** (semicolon). Whitespace around `;` is 
 
 ### Write action
 
-```
+```text
 target:value
 ```
 
 Sets `target` to `value` immediately.
 
-```
+```text
 reactor.temp.setpoint:65
 heater.enable:true
 ```
 
 ### Ramp action
 
-```
+```text
 target:value:duration_seconds
 ```
 
 Ramps `target` from its current value to `value` over `duration_seconds` seconds.
 
-```
+```text
 reactor.temp.setpoint:0:3600
 ```
 
@@ -135,7 +135,7 @@ reactor.temp.setpoint:0:3600
 
 Actions are applied left-to-right in the order they appear:
 
-```
+```text
 reactor.temp.setpoint:65;heater.enable:true;agitator.rpm:120
 ```
 
@@ -191,19 +191,19 @@ Event semantics are documented in [Wait Event Engine](../implementation/wait-eve
 
 ### `elapsed` - wait for a time duration
 
-```
+```text
 elapsed:seconds
 ```
 
 The step advances after `seconds` have passed since it started.
 
-```
+```text
 elapsed:3600
 ```
 
 ### `cond` - wait for a parameter condition
 
-```
+```text
 cond:source:operator:threshold
 cond:source:operator:threshold:for_seconds
 ```
@@ -226,66 +226,66 @@ cond:source:operator:threshold:for_seconds
 | `==` | Loose equality |
 | `!=` | Loose inequality |
 
-```
+```text
 cond:reactor.temp:>=:64
 cond:reactor.temp:>=:64:60
 ```
 
 ### `all(...)` - all sub-waits must match
 
-```
+```text
 all(expr1;expr2;...)
 ```
 
-```
+```text
 all(elapsed:600;cond:reactor.temp:>=:64)
 ```
 
 ### `any(...)` - at least one sub-wait must match
 
-```
+```text
 any(expr1;expr2;...)
 ```
 
 Useful for timeout-or-condition patterns:
 
-```
+```text
 any(elapsed:7200;cond:abort.flag:==:true)
 ```
 
 ### `rising(...)` - trigger once on false -> true transition
 
-```
+```text
 rising(expr)
 ```
 
 The wait matches exactly on the scan where `expr` transitions from not-matched to matched.
 
-```
+```text
 rising(cond:brew.phase.ready:==:true)
 ```
 
 ### `falling(...)` - trigger once on true -> false transition
 
-```
+```text
 falling(expr)
 ```
 
 The wait matches exactly on the scan where `expr` transitions from matched to not-matched.
 
-```
+```text
 falling(cond:brew.phase.ready:==:true)
 ```
 
 ### `pulse(...)` - edge-triggered true window
 
-```
+```text
 pulse(expr;hold_seconds)
 ```
 
 Starts on the rising edge of `expr`, then stays matched for `hold_seconds`.
 
-```
+```text
 pulse(cond:brew.phase.ready:==:true;10)
 ```
 
@@ -295,11 +295,11 @@ This is useful when you need both a condition trigger and a deterministic time w
 
 `all`, `any`, `rising`, and `falling` can be nested to arbitrary depth. The parser splits on `;` respecting parenthesis depth, so inner `;` characters inside nested expressions are not treated as separators at the outer level:
 
-```
+```text
 all(elapsed:600;any(cond:reactor.temp:>=:64;cond:abort.flag:==:true))
 ```
 
-```
+```text
 all(pulse(cond:phase.start:==:true;30);any(elapsed:600;rising(cond:operator.next:==:true)))
 ```
 
@@ -307,7 +307,7 @@ all(pulse(cond:phase.start:==:true;30);any(elapsed:600;rising(cond:operator.next
 
 ## Complete Example
 
-```
+```text
 Sheet: meta
 -------------------------------
 key                    | value

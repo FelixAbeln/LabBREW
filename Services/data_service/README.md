@@ -314,7 +314,7 @@ Recorded data is saved to `data/measurements/` by default. Each session creates 
 **Problem:** `ConnectionError: Cannot connect to Data Service`
 
 **Solution:**
-1. Verify the service is running: `python run_service_data.py`
+1. Verify the backend supervisor is running: `python run_supervisor.py`
 2. Check the correct port (default is 8000, test uses 8766)
 3. Ensure parameterDB is running on the backend
 

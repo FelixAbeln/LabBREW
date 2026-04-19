@@ -46,11 +46,8 @@ labbrew-scenario            = "Services.scenario_service.service:main"
 labbrew-parameterdb         = "Services.parameterDB.serviceDB:main"
 # ParameterDB data-source runner
 labbrew-parameterds         = "Services.parameterDB.serviceDS:main"
-# ParameterDB terminal monitor / DB editor
-labbrew-dbedit              = "Services.parameterDB.parameterdb_monitor.app:main"
 # Backwards-compatible aliases (previously installed via Services/parameterDB/pyproject.toml)
 parameterdb-service         = "Services.parameterDB.parameterdb_service.service:main"
-parameterdb-monitor         = "Services.parameterDB.parameterdb_monitor.app:main"
 parameterdb-source-runner   = "Services.parameterDB.parameterdb_sources.service:main"
 
 [project.optional-dependencies]

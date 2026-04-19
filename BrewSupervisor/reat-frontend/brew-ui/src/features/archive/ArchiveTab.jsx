@@ -49,7 +49,7 @@ export function ArchiveFilesCard({ selected, archivePayload, deletingArchiveName
   const outputDir = archivePayload?.output_dir || ''
 
   return (
-    <div className="info-card">
+    <div className="info-card archive-files-card">
       <h3>Archive files</h3>
       {!archives.length ? (
         <p className="muted">No archives yet. Stop a measurement run to generate one.</p>
@@ -90,7 +90,7 @@ export function ArchiveFilesCard({ selected, archivePayload, deletingArchiveName
 export function ArchiveTab(props) {
   const { selected, archivePayload, deletingArchiveName, onDelete, onView } = props
   return (
-    <div className="tab-content-grid">
+    <div className="tab-content-grid archive-tab-grid">
       <ArchiveSummaryCard archivePayload={archivePayload} />
       <ArchiveFilesCard selected={selected} archivePayload={archivePayload} deletingArchiveName={deletingArchiveName} onDelete={onDelete} onView={onView} />
     </div>

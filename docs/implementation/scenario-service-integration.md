@@ -119,7 +119,6 @@ Base URL: `http://<node-host>:8770`
 - [x] New scenario package models added.
 - [x] New runtime created with compile/load package flow.
 - [x] Runtime executes package scripts via `ScriptedRunner`.
-- [x] New runner script added: `run_service_scenario.py`.
 - [x] Scenario state persistence introduced (`data/scenario_state.json`).
 - [x] HTTP clients (ControlClient, DataClient) moved to scenario_service.
 - [x] Legacy ScheduleDefinition models preserved for Excel importer compatibility.
@@ -144,7 +143,7 @@ Base URL: `http://<node-host>:8770`
 
 #### Updated References
 - ✅ `tests/conftest.py` – routes_schedule → routes_scenario
-- ✅ `Other/Builders/build_selfcontained_excel_package.py` – imports from scenario_service models
+- ✅ Excel conversion package templates now sourced from tracked template artifacts (`data/scenario_templates/Excel_Conditions.lbpkg`)
 - ✅ `tests/test_supervisor_config_loader.py` – all 4 YAML fixtures updated (schedule_service → scenario_service, port 8768 → 8770)
 - ✅ `docs/api/architecture.md` – diagram and data flows updated
 - ✅ `docs/api/schedule-service-api.md` – marked deprecated, redirects to Scenario Service
@@ -180,7 +179,6 @@ These are out of scope for April 2026 phase:
 - `Services/scenario_service/repository.py`
 - `Services/scenario_service/runtime.py`
 - `Services/scenario_service/service.py`
-- `run_service_scenario.py`
 
 ### Existing files to migrate next
 

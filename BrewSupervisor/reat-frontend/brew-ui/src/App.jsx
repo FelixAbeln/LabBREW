@@ -90,6 +90,8 @@ function buildCustomTab(label = 'Custom Workspace') {
       buildCustomWidget('system-actions', { x: 1, y: 1 }, { cols: 12, rows: 1 }),
       buildCustomWidget('data-recording', { x: 1, y: 3 }, { cols: 8, rows: 1 }),
       buildCustomWidget('data-snapshot', { x: 1, y: 5 }, { cols: 12, rows: 4 }),
+      buildCustomWidget('scenario-controls', { x: 1, y: 10 }, { cols: 8, rows: 1 }),
+      buildCustomWidget('scenario-queue', { x: 1, y: 12 }, { cols: 8, rows: 2 }),
     ],
   }
 }
@@ -104,6 +106,9 @@ function App() {
   const [fermenters, setFermenters] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [scenario, setScenario] = useState(null)
+  const [scenarioQueue, setScenarioQueue] = useState([])
+  const [scenarioQueueEnabled, setScenarioQueueEnabled] = useState(true)
+  const [queueAdvanceOnStop, setQueueAdvanceOnStop] = useState(false)
   const [ownedTargetValues, setOwnedTargetValues] = useState([])
   const [error, setError] = useState('')
   const [loadingAction, setLoadingAction] = useState(false)
@@ -1065,7 +1070,10 @@ function App() {
     const requestId = dashboardRequestRef.current + 1
     dashboardRequestRef.current = requestId
 
-    const payload = await loadDashboardData(brewApi, id, options)
+    const [payload, queuePayload] = await Promise.all([
+      loadDashboardData(brewApi, id, options),
+      api(`/fermenters/${id}/scenario/queue`).catch(() => null),
+    ])
     if (dashboardRequestRef.current !== requestId) return
 
     if (payload?.fermenter) {
@@ -1077,6 +1085,9 @@ function App() {
     setScenario(payload?.schedule || null)
     setScenarioPackage(payload?.scenario_package || payload?.schedule_definition || null)
     setOwnedTargetValues(Array.isArray(payload?.owned_target_values) ? payload.owned_target_values : [])
+    setScenarioQueue(Array.isArray(queuePayload?.queue) ? queuePayload.queue : [])
+    setScenarioQueueEnabled(queuePayload?.enabled !== false)
+    setQueueAdvanceOnStop(Boolean(queuePayload?.advance_on_stop))
   }, [brewApi])
 
   const refreshRepoUpdateStatus = useCallback(async (id = selectedId, { force = false, quiet = false } = {}) => {
@@ -1158,6 +1169,9 @@ function App() {
       if (!data.length) {
         setSelectedId(null)
         setScenario(null)
+        setScenarioQueue([])
+        setScenarioQueueEnabled(true)
+        setQueueAdvanceOnStop(false)
         setOwnedTargetValues([])
         return
       }
@@ -1174,7 +1188,7 @@ function App() {
     }
   }, [brewApi, loadDetails, loadFermenters, selectedId])
 
-  async function runAction(path) {
+  async function runAction(path, bodyParams = {}) {
     if (!selected) return
     try {
       setLoadingAction(true)
@@ -1229,7 +1243,100 @@ function App() {
 
       await api(`/fermenters/${selected.id}${path}`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify(bodyParams || {}),
+      })
+      brewApi.invalidateFermenter(selected.id)
+      brewApi.invalidateFermenters()
+      await loadFermenters()
+      await loadDetails(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function setScenarioQueueEntries(
+    entries,
+    advanceOnStop = queueAdvanceOnStop,
+    queueEnabled = scenarioQueueEnabled,
+  ) {
+    if (!selected) return
+    try {
+      setLoadingAction(true)
+      setError('')
+      await api(`/fermenters/${selected.id}/scenario/queue`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          entries,
+          advance_on_stop: Boolean(advanceOnStop),
+          enabled: Boolean(queueEnabled),
+        }),
+      })
+      await loadDetails(selected.id, { quiet: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function enqueueScenarioRun(entry) {
+    if (!selected) return
+    try {
+      setLoadingAction(true)
+      setError('')
+      await api(`/fermenters/${selected.id}/scenario/queue/enqueue`, {
+        method: 'POST',
+        body: JSON.stringify(entry || {}),
+      })
+      await loadDetails(selected.id, { quiet: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function removeScenarioQueueEntry(index) {
+    if (!selected) return
+    try {
+      setLoadingAction(true)
+      setError('')
+      await api(`/fermenters/${selected.id}/scenario/queue/${index}`, {
+        method: 'DELETE',
+      })
+      await loadDetails(selected.id, { quiet: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function clearScenarioQueue() {
+    if (!selected) return
+    try {
+      setLoadingAction(true)
+      setError('')
+      await api(`/fermenters/${selected.id}/scenario/queue/clear`, {
+        method: 'POST',
+      })
+      await loadDetails(selected.id, { quiet: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoadingAction(false)
+    }
+  }
+
+  async function runNextQueued() {
+    if (!selected) return
+    try {
+      setLoadingAction(true)
+      setError('')
+      await api(`/fermenters/${selected.id}/scenario/queue/run-next`, {
+        method: 'POST',
       })
       brewApi.invalidateFermenter(selected.id)
       brewApi.invalidateFermenters()
@@ -1365,6 +1472,22 @@ function App() {
     })
   }
 
+  async function listScenarioRepositoryTemplates() {
+    if (!selected?.id) return { ok: false, templates: [] }
+    return api(`/fermenters/${selected.id}/scenario/repository/templates`)
+  }
+
+  async function createScenarioRepositoryPackageFromTemplate({ templateFilename, filename } = {}) {
+    if (!selected?.id) return { ok: false }
+    return api(`/fermenters/${selected.id}/scenario/repository/create-from-template`, {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(templateFilename ? { template_filename: templateFilename } : {}),
+        ...(filename ? { filename } : {}),
+      }),
+    })
+  }
+
   async function renameScenarioRepositoryPackage(sourceFilename, targetFilename) {
     if (!selected?.id) return { ok: false }
     return api(`/fermenters/${selected.id}/scenario/repository/rename`, {
@@ -1406,58 +1529,35 @@ function App() {
     return `${window.location.origin}/fermenters/${selected.id}/scenario/repository/download/${encodeURIComponent(filename)}`
   }
 
-  async function convertExcelToRepositoryPackage({ file, filename }) {
-    if (!selected?.id || !file) return { ok: false }
-    return uploadFileToEndpoint('repository/convert-excel', file, { filename })
-  }
-
   /**
    * Generic file upload action declared by a package's editor_spec.file_upload_actions.
-   * endpointSuffix is relative to /fermenters/{id}/scenario/, e.g. "repository/convert-excel".
+   * endpointSuffix is relative to /fermenters/{id}/scenario/, e.g. "repository/package-file-action".
    */
   async function uploadFileToEndpoint(endpointSuffix, file, extraParams = {}) {
     if (!selected?.id || !file) return { ok: false }
+    const normalizedEndpoint = String(endpointSuffix || '').trim() === 'repository/convert-excel'
+      ? 'repository/package-file-action'
+      : endpointSuffix
     const formData = new FormData()
     formData.append('file', file)
     const params = new URLSearchParams()
     const normalizedParams = { ...extraParams }
-    if (String(endpointSuffix || '').trim() === 'repository/convert-excel' && normalizedParams.import_now == null) {
-      normalizedParams.import_now = 'true'
-    }
     for (const [key, value] of Object.entries(normalizedParams)) {
       if (value != null && value !== '') params.set(key, String(value))
     }
     const query = params.toString()
-    const result = await api(`/fermenters/${selected.id}/scenario/${endpointSuffix}${query ? `?${query}` : ''}`, {
+    const result = await api(`/fermenters/${selected.id}/scenario/${normalizedEndpoint}${query ? `?${query}` : ''}`, {
       method: 'POST',
       body: formData,
     })
 
-    const importNowParam = String(normalizedParams?.import_now || '').toLowerCase()
-    const shouldRefreshImportedState =
-      importNowParam === '1' || importNowParam === 'true' || Boolean(result?.imported)
+    const shouldShowActionResult =
+      result
+      && typeof result === 'object'
+      && ('valid' in result || 'errors' in result || 'warnings' in result)
 
-    if (result && typeof result === 'object' && result.imported && result.imported.ok === false) {
-      const importedForwarded = result.imported.forwarded
-      const importedMessage =
-        (importedForwarded && typeof importedForwarded === 'object' && String(importedForwarded.error || '').trim())
-        || 'Scenario service rejected imported package'
-      throw new Error(importedMessage)
-    }
-
-    if (shouldRefreshImportedState) {
+    if (shouldShowActionResult) {
       setImportResult(result)
-      if (result && typeof result === 'object' && result.scenario_package && typeof result.scenario_package === 'object') {
-        setScenarioPackage(result.scenario_package)
-        const nextProgram = result.scenario_package?.program
-        if (nextProgram && typeof nextProgram === 'object') {
-          setScenario(nextProgram)
-        }
-      }
-      brewApi.invalidateFermenter(selected.id)
-      brewApi.invalidateFermenters()
-      await loadFermenters()
-      await loadDetails(selected.id, { force: true })
     }
 
     return result
@@ -1468,6 +1568,7 @@ function App() {
   }, [refreshAll])
 
   useEffect(() => {
+    setImportResult(null)
     if (!selected?.id) {
       sharedWorkspaceSignatureRef.current = ''
       setRepoUpdateStatus(null)
@@ -1681,10 +1782,18 @@ function App() {
   const scenarioTabProps = {
     scenario,
     scenarioPackage,
+    scenarioQueue,
+    scenarioQueueEnabled,
+    queueAdvanceOnStop,
     runToggle,
     loadingAction,
     selected,
     runAction,
+    setScenarioQueueEntries,
+    enqueueScenarioRun,
+    removeScenarioQueueEntry,
+    clearScenarioQueue,
+    runNextQueued,
     ownedTargetValues,
     scenarioFile,
     setScenarioFile,
@@ -1695,6 +1804,8 @@ function App() {
     readScenarioRepositoryPackage,
     importScenarioRepositoryPackage,
     copyScenarioRepositoryPackage,
+    listScenarioRepositoryTemplates,
+    createScenarioRepositoryPackageFromTemplate,
     renameScenarioRepositoryPackage,
     deleteScenarioRepositoryPackage,
     updateScenarioRepositoryMetadata,
@@ -1704,7 +1815,10 @@ function App() {
     importResult,
     importErrorIssues,
     importWarningIssues,
-    onOpenScenarioBuilder: () => setGlobalView('scenario-builder'),
+    onOpenScenarioBuilder: () => {
+      setImportResult(null)
+      setGlobalView('scenario-builder')
+    },
   }
 
   const dataTabProps = {

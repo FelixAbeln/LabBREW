@@ -1,7 +1,7 @@
 import { ArchiveFilesCard, ArchiveSummaryCard } from '../archive/ArchiveTab';
 import BackendControlCard from '../control/BackendControlCard.jsx';
 import { DataLoadstepStatusCard, DataRecordingCard, DataSnapshotBrowserCard } from '../data/DataTab';
-import { ScenarioControlsBar, ScenarioEventLogCard, ScenarioPackageCard, ScenarioSummaryCard } from '../schedule/ScheduleTab';
+import { ScenarioControlsBar, ScenarioEventLogCard, ScenarioPackageCard, ScenarioQueueCard, ScenarioSummaryCard } from '../schedule/ScheduleTab';
 import { PersistenceStatusCard, SystemLauncherPanel } from '../system/SystemTab';
 
 function SystemNodeWidget({ systemProps }) {
@@ -380,6 +380,16 @@ const BASE_WORKSPACE_MODULES = [
     defaultCols: 4,
     defaultRows: 1,
     render: (props) => <ScenarioSummaryCard scenario={props.scenarioProps?.scenario} scenarioPackage={props.scenarioProps?.scenarioPackage} />,
+  },
+  {
+    type: 'scenario-queue',
+    label: 'Run Queue',
+    description: 'Queue, reorder, and enable/disable chained runs.',
+    category: 'Scenario',
+    sortOrder: 25,
+    defaultCols: 8,
+    defaultRows: 2,
+    render: (props) => <ScenarioQueueCard {...props.scenarioProps} />,
   },
   {
     type: 'scenario-events',

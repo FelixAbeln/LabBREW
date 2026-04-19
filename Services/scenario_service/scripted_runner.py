@@ -48,6 +48,7 @@ class RunnerContext:
         nav_pending_fn,
         stop_event: threading.Event,
         pause_event: threading.Event,
+        start_index: int | None = None,
     ) -> None:
         self._cc = control_client
         self._dc = data_client
@@ -65,6 +66,7 @@ class RunnerContext:
         self._stop = stop_event
         self._pause = pause_event  # set → runner is paused
         self._owned: set[str] = set()
+        self.start_index: int | None = start_index
 
     # -- setpoint API --------------------------------------------------------
 
@@ -436,6 +438,7 @@ class ScriptedRunner:
         self._package_snapshot = dict(package_snapshot or {})
         self._run_log_path: str | None = None
         self._capture_log_to_file = False
+        self._on_run_end = None  # optional callback(final_state: str) -> None
 
         self._lock = threading.RLock()
         self._state = "idle"
@@ -463,11 +466,15 @@ class ScriptedRunner:
         self._pause_event.clear()
         t = self._thread
         if t and t.is_alive():
+            # Auto-advance can trigger load/shutdown from the runner callback,
+            # which executes on the runner thread itself.
+            if t is threading.current_thread():
+                return
             t.join(timeout=3.0)
 
     # -- run control ---------------------------------------------------------
 
-    def start_run(self) -> dict[str, Any]:
+    def start_run(self, start_index: int | None = None) -> dict[str, Any]:
         with self._lock:
             if self._state == "running":
                 return {"ok": False, "error": "Already running"}
@@ -479,9 +486,17 @@ class ScriptedRunner:
             self._phase = "run"
             self._current_step_index = None
             self._current_step_name = None
-            t = threading.Thread(target=self._run_thread, daemon=True, name="scripted-runner")
+            t = threading.Thread(
+                target=self._run_thread,
+                args=(start_index,),
+                daemon=True,
+                name="scripted-runner",
+            )
             self._thread = t
-            self._log("Run started")
+            if start_index is not None:
+                self._log(f"Run started at run index {start_index + 1}")
+            else:
+                self._log("Run started")
         t.start()
         return {"ok": True}
 
@@ -564,7 +579,7 @@ class ScriptedRunner:
                 "wait_message": self._wait_message,
                 "pause_reason": self._pause_reason,
                 "owned_targets": owned,
-                "event_log": list(self._event_log[-20:]),
+                "event_log": list(self._event_log),
                 "navigation_pending": list(self._navigation_queue),
             }
 
@@ -633,7 +648,7 @@ class ScriptedRunner:
         with self._lock:
             return bool(self._navigation_queue)
 
-    def _run_thread(self) -> None:
+    def _run_thread(self, start_index: int | None = None) -> None:
         ctx = RunnerContext(
             control_client=self._cc,
             data_client=self._dc,
@@ -646,6 +661,7 @@ class ScriptedRunner:
             nav_pending_fn=self._navigation_pending,
             stop_event=self._stop_event,
             pause_event=self._pause_event,
+            start_index=start_index,
         )
         with self._lock:
             self._ctx = ctx
@@ -692,6 +708,13 @@ class ScriptedRunner:
                 pass
             with self._lock:
                 self._ctx = None
+                final_state = self._state
+            callback = self._on_run_end
+            if callable(callback):
+                try:
+                    callback(final_state)
+                except Exception:  # noqa: BLE001
+                    self._log("Run end callback failed")
 
     def _auto_start_measurement(self, ctx: RunnerContext) -> bool:
         """Best-effort global measurement auto-start for all scripted packages."""

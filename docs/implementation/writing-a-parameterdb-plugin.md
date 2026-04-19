@@ -25,7 +25,7 @@ Plugins communicate through the **store only** — they never hold references to
 
 ## 2. Folder structure
 
-```
+```text
 Services/parameterDB/plugins/
 └── myplugin/
     ├── implementation.py   # required — ParameterBase subclass + PluginSpec + PLUGIN sentinel
@@ -152,7 +152,7 @@ Key rules:
 
 ## 4. Engine lifecycle — what happens each cycle
 
-```
+```text
 ScanEngine.scan_once()
   for each param in topological order:
     old_value = param.get_value()
@@ -479,7 +479,7 @@ def test_myplugin_mirrors_output() -> None:
 
 Run them with:
 
-```
+```text
 .venv/Scripts/python.exe -m pytest tests/test_myplugin.py -v
 ```
 

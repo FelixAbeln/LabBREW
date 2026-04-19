@@ -2,7 +2,7 @@
 
 ⚠️ **This service has been completely removed.**
 
-The Schedule Service was deleted on April 19, 2026, in favor of the **[Scenario Service](./scenario-service-implementation.md)**.
+The Schedule Service was deleted on April 19, 2026, in favor of the **[Scenario Service](./scenario-service-integration.md)**.
 
 This document is retained for **historical reference only**. All workflow orchestration now happens in user-provided runner scripts executed by the scenario service, rather than in backend service code.
 
@@ -22,14 +22,14 @@ See **[Scenario Service Integration Plan](./scenario-service-integration.md)** f
 
 ---
 
-# Schedule Service — Implementation Status (ARCHIVED)
+## Schedule Service — Implementation Status (ARCHIVED)
 
 > Last updated: 2026-03-23 (ARCHIVED)
 
 The schedule service lives in `Services/schedule_service/` and is structured
 as a FastAPI app backed by a threaded poll-loop runtime.
 
-```
+```text
 Services/schedule_service/
 ├── service.py                  # App wiring — FastAPI + uvicorn entry point
 ├── models.py                   # Data models: ScheduleDefinition, ScheduleStep,
@@ -133,7 +133,7 @@ Services/schedule_service/
 - [x] All Excel-sourced loadsteps tagged `timing=before_next`
 - [x] Measurement session name defaults to generated schedule-based naming
       with optional `meta.measurement_name` override
-- [x] Template workbook at `data/Example_Schedule.xlsx` (6 sheets,
+- [x] Template workbook at `data/Example_Excel.xlsx` (6 sheets,
       unified dark-blue header style)
 
 ---

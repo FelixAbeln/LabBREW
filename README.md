@@ -195,9 +195,9 @@ python run_supervisor.py
 python run_FrontEndsupervisor.py
 ```
 
-> **React frontend** — the browser UI source lives in `BrewSupervisor/reat-frontend/` but does not yet have a dedicated launch script. Start it manually with your preferred dev server (e.g. `npm start` inside that directory) or build it and serve the static output.
+> **React frontend** — the browser UI source lives in `BrewSupervisor/reat-frontend/` but does not yet have a dedicated launch script. Start it manually with your preferred dev server (e.g. `npm run dev` inside that directory) or build it and serve the static output.
 
-Node topology is loaded from your local [`data/system_topology.yaml`](./data/system_topology.yaml), typically created from [`data/system_topology.sample.yaml`](./data/system_topology.sample.yaml). An example scenario workbook is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
+Node topology is loaded from your local [`data/system_topology.yaml`](./data/system_topology.yaml), typically created from [`data/system_topology.sample.yaml`](./data/system_topology.sample.yaml). An example scenario workbook is provided at [`data/Example_Excel.xlsx`](./data/Example_Excel.xlsx).
 
 ### Global Storage / Topology Override
 

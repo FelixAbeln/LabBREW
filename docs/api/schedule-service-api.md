@@ -2,7 +2,7 @@
 
 ⚠️ **This service has been deprecated and removed as of April 2026.**
 
-The Schedule Service was consolidated into the **[Scenario Service](./scenario-service-api.md)** (port 8770). All workflow orchestration logic now lives in user-provided runner scripts executed by the scenario service, rather than in a backend service.
+The Schedule Service was consolidated into the **[Scenario Service](../implementation/scenario-service-integration.md)** (port 8770). All workflow orchestration logic now lives in user-provided runner scripts executed by the scenario service, rather than in a backend service.
 
 **For new development, use the Scenario Service API instead.**
 
@@ -23,7 +23,7 @@ The old schedule model (multi-step sequences with built-in wait engine) has been
 
 ---
 
-# Legacy Schedule Service API (Archived)
+## Legacy Schedule Service API (Archived)
 
 The following documents the old Schedule Service for reference only.
 

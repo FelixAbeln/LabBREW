@@ -6,7 +6,7 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 
 ## Service Dependency Chain
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │  React Frontend  (browser)                  │
 └─────────────────┬───────────────────────────┘
@@ -63,7 +63,7 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 
 ### Read a Parameter Value
 
-```
+```text
 Frontend
   → GET /fermenters/{id}/control/read/{target}          (BrewSupervisor :8782)
   → GET /proxy/control_service/control/read/{target}    (Agent :8780)
@@ -74,7 +74,7 @@ Frontend
 
 ### Write a Parameter (with Ownership Check)
 
-```
+```text
 Frontend
   → POST /fermenters/{id}/control/write  {target, value, owner}
   → POST /proxy/control_service/control/write
@@ -85,7 +85,7 @@ Frontend
 
 ### Execute a Scenario
 
-```
+```text
 Scenario Service (runs user-provided runner script)
   ↓ POST /scenario/run/start  (loads and executes runner.py)
   ↓ runner.run(ctx) calls wait_engine for condition evaluation
@@ -95,7 +95,7 @@ Scenario Service (runs user-provided runner script)
 
 ### Live Parameter Updates (WebSocket)
 
-```
+```text
 Frontend
   → WS /fermenters/{id}/ws/live?targets=T1,T2&interval=0.5
   → WS (proxied via Agent)

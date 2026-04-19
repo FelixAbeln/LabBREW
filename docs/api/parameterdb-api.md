@@ -15,7 +15,7 @@ ParameterDB uses a framed binary protocol built on [MessagePack](https://msgpack
 
 Every message is a **length-prefixed MessagePack map**.
 
-```
+```text
 ┌─────────────────────────────────────┐
 │  length  (4 bytes, big-endian uint) │
 ├─────────────────────────────────────┤

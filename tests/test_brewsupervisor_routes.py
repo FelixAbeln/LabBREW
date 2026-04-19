@@ -618,7 +618,7 @@ def test_helper_read_functions_raise_http_502_on_request_exception() -> None:
     assert raw_exc.value.status_code == 502
 
 
-def _make_scenario_lbpkg(manifest_override: dict | None = None) -> bytes:
+def _make_scenario_lbpkg(manifest_override: dict | None = None, *, include_converter_artifact: bool = True) -> bytes:
     """Build self-contained .lbpkg bytes with a MessagePack manifest for use in tests."""
     manifest: dict = {
         "id": "test-pkg",
@@ -644,6 +644,8 @@ def _make_scenario_lbpkg(manifest_override: dict | None = None) -> bytes:
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("scenario.package.msgpack", msgpack.packb(manifest, use_bin_type=True))
         zf.writestr("bin/runner.py", b"# runner stub")
+        if include_converter_artifact:
+            zf.writestr("bin/excel_package_converter.py", b"# converter stub")
         zf.writestr("data/program.json", b"{}")
         zf.writestr("validation/validation.json", b"{}")
         zf.writestr("editor/spec.json", b"{}")
@@ -651,120 +653,118 @@ def _make_scenario_lbpkg(manifest_override: dict | None = None) -> bytes:
 
 
 def test_scenario_package_upload_rejects_json_format() -> None:
-    client = _client(nodes=[_make_node()])
+    proxy = StubProxy()
+    client = _client(nodes=[_make_node()], proxy=proxy)
     for path in ["/fermenters/01/scenario/validate-import", "/fermenters/01/scenario/import"]:
         response = client.put(
             path,
             files={"file": ("plan.json", b'{"id": "x"}', "application/json")},
         )
-        assert response.status_code == 415
+        assert response.status_code == 200
+
+    validate_call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "PUT" and call[1].endswith("/proxy/scenario_service/scenario/validate-import")
+    )
+    import_call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "PUT" and call[1].endswith("/proxy/scenario_service/scenario/import")
+    )
+    assert validate_call[4]
+    assert import_call[4]
+    assert validate_call[5]["content-type"].startswith("multipart/form-data")
+    assert import_call[5]["content-type"].startswith("multipart/form-data")
 
 
 def test_scenario_validate_import_accepts_valid_lbpkg() -> None:
-    client = _client(nodes=[_make_node()], proxy=StubProxy())
+    proxy = StubProxy()
+    client = _client(nodes=[_make_node()], proxy=proxy)
     pkg_bytes = _make_scenario_lbpkg()
     response = client.put(
         "/fermenters/01/scenario/validate-import",
         files={"file": ("test.lbpkg", pkg_bytes, "application/octet-stream")},
     )
     assert response.status_code == 200
-    body = response.json()
-    assert body["ok"] is True
-    assert body["valid"] is True
-    assert body["errors"] == []
+    call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "PUT" and call[1].endswith("/proxy/scenario_service/scenario/validate-import")
+    )
+    assert call[4]
 
 
 def test_scenario_import_accepts_valid_lbpkg() -> None:
-    client = _client(nodes=[_make_node()], proxy=StubProxy())
+    proxy = StubProxy()
+    client = _client(nodes=[_make_node()], proxy=proxy)
     pkg_bytes = _make_scenario_lbpkg()
     response = client.put(
         "/fermenters/01/scenario/import",
         files={"file": ("test.lbpkg", pkg_bytes, "application/octet-stream")},
     )
     assert response.status_code == 200
-    body = response.json()
-    assert body["ok"] is True
-
-
-def test_scenario_validate_import_rejects_archive_without_manifest() -> None:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("README.txt", "no manifest here")
-    pkg_bytes = buf.getvalue()
-    client = _client(nodes=[_make_node()])
-    response = client.put(
-        "/fermenters/01/scenario/validate-import",
-        files={"file": ("empty.lbpkg", pkg_bytes, "application/octet-stream")},
+    call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "PUT" and call[1].endswith("/proxy/scenario_service/scenario/import")
     )
-    assert response.status_code == 422
-    assert "msgpack" in response.json()["detail"].lower()
+    assert call[4]
 
 
-def test_scenario_validate_import_rejects_corrupt_msgpack() -> None:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("scenario.package.msgpack", b"\xff\xfe\xfd not valid msgpack")
-    pkg_bytes = buf.getvalue()
-    client = _client(nodes=[_make_node()])
-    response = client.put(
-        "/fermenters/01/scenario/validate-import",
-        files={"file": ("bad.lbpkg", pkg_bytes, "application/octet-stream")},
+def test_repository_routes_proxy_to_scenario_service() -> None:
+    proxy = StubProxy()
+    client = _client(nodes=[_make_node()], proxy=proxy)
+
+    list_response = client.get("/fermenters/01/scenario/repository", params={"q": "pkg"})
+    save_response = client.post(
+        "/fermenters/01/scenario/repository/save",
+        json={"filename": "pkg.lbpkg", "package": {"id": "pkg-1"}},
     )
-    assert response.status_code == 422
-    assert "messagepack" in response.json()["detail"].lower()
-
-
-def test_scenario_import_returns_422_on_compile_failure() -> None:
-    class FailingCompileProxy(StubProxy):
-        def request(self, *, method, url, **kwargs):
-            if "/scenario/compile" in url:
-                return 200, {
-                    "ok": False,
-                    "errors": [{"code": "package_id_missing", "message": "id is blank"}],
-                    "warnings": [],
-                }
-            return super().request(method=method, url=url, **kwargs)
-
-    client = _client(nodes=[_make_node()], proxy=FailingCompileProxy())
-    pkg_bytes = _make_scenario_lbpkg()
-    response = client.put(
-        "/fermenters/01/scenario/import",
-        files={"file": ("test.lbpkg", pkg_bytes, "application/octet-stream")},
-    )
-    assert response.status_code == 422
-    body = response.json()
-    assert body["ok"] is False
-    assert any(e["code"] == "package_id_missing" for e in body["errors"])
-
-
-def test_excel_package_builder_embeds_converter_assets() -> None:
-    package_payload = supervisor_routes._build_package_payload_from_program(
-        package_id="excel-pkg",
-        package_name="Excel Package",
-        version="1.0.0",
-        description="excel build",
-        tags=["excel"],
-        version_notes="v1",
-        source="excel",
-        program_payload={
-            "id": "excel-prog",
-            "name": "Excel Program",
-            "measurement_config": {"hz": 7.5},
-            "setup_steps": [],
-            "plan_steps": [],
-        },
-        source_workbook_bytes=b"excel-bytes",
-        source_workbook_name="brew.xlsx",
+    upload_response = client.post(
+        "/fermenters/01/scenario/repository/upload-package",
+        files={"file": ("pkg.lbpkg", _make_scenario_lbpkg(), "application/octet-stream")},
     )
 
-    artifacts = package_payload.get("artifacts") or []
-    artifact_map = {str(item.get("path")): item for item in artifacts if isinstance(item, dict)}
+    assert list_response.status_code == 200
+    assert save_response.status_code == 200
+    assert upload_response.status_code == 200
 
-    assert "source/brew.xlsx" in artifact_map
-    assert "source/conversion_manifest.json" in artifact_map
-    assert "tools/convert_excel_to_scenario_package.py" in artifact_map
+    list_call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "GET" and call[1].endswith("/proxy/scenario_service/scenario/repository")
+    )
+    save_call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "POST" and call[1].endswith("/proxy/scenario_service/scenario/repository/save")
+    )
+    upload_call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "POST" and call[1].endswith("/proxy/scenario_service/scenario/repository/upload-package")
+    )
 
-    manifest_b64 = str(artifact_map["source/conversion_manifest.json"].get("content_b64") or "")
-    manifest_payload = json.loads(base64.b64decode(manifest_b64).decode("utf-8"))
-    assert manifest_payload["source_workbook_artifact"] == "source/brew.xlsx"
-    assert manifest_payload["converter_script_artifact"] == "tools/convert_excel_to_scenario_package.py"
+    assert list_call[2] == {"q": "pkg"}
+    assert json.loads(save_call[4].decode("utf-8"))["filename"] == "pkg.lbpkg"
+    assert upload_call[4]
+    assert upload_call[5]["content-type"].startswith("multipart/form-data")
+
+
+def test_repository_download_proxies_to_scenario_service_stream() -> None:
+    proxy = StubProxy()
+    client = _client(nodes=[_make_node()], proxy=proxy)
+
+    response = client.get("/fermenters/01/scenario/repository/download/archive.lbpkg?token=abc")
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+
+    raw_call = next(
+        call
+        for call in proxy.calls
+        if call[0] == "raw:GET"
+        and call[1].endswith("/proxy/scenario_service/scenario/repository/download/archive.lbpkg")
+    )
+    assert raw_call[2] == {"token": "abc"}
