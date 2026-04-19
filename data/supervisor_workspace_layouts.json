@@ -235,7 +235,7 @@
             "y": 1
           },
           {
-            "cols": 6,
+            "cols": 5,
             "id": "widget-zhc2e9d1",
             "rows": 8,
             "type": "scenario-package",
@@ -259,16 +259,16 @@
             "y": 2
           },
           {
-            "cols": 6,
+            "cols": 7,
             "id": "widget-1fvndbgf",
             "rows": 8,
             "type": "scenario-queue",
-            "x": 7,
+            "x": 6,
             "y": 5
           }
         ]
       }
     ],
-    "updated_at": "2026-04-19T17:57:43.083347+00:00"
+    "updated_at": "2026-04-19T18:39:07.322950+00:00"
   }
 }

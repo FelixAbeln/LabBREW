@@ -15,6 +15,7 @@ import time
 import zipfile
 import io
 from pathlib import Path
+import tempfile
 from typing import Any
 
 import msgpack
@@ -99,6 +100,10 @@ def _make_runtime(*, state_store: JsonScenarioStateStore | None = None) -> Scena
         def snapshot(self, targets=None): return {"values": {}}
     class _DC:
         pass
+    if state_store is None:
+        state_store = JsonScenarioStateStore(
+            path=Path(tempfile.mkdtemp()) / "scenario_state.json"
+        )
     return ScenarioRuntime(control_client=_CC(), data_client=_DC(), state_store=state_store)
 
 
@@ -1285,6 +1290,171 @@ class TestSineWaveDemoPackage:
 
 
 class TestScenarioRuntimeQueueControls:
+    def test_start_next_queued_rejects_when_run_is_running(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-next",
+                    "label": "Next",
+                    "enabled": True,
+                    "package_payload": {"id": "pkg-next", "name": "Next", "artifacts": []},
+                }
+            ],
+            enabled=True,
+        )
+
+        class _RunningRunner:
+            def status(self):
+                return {"state": "running", "pause_reason": None}
+
+        rt._scripted_runner = _RunningRunner()
+
+        result = rt.start_next_queued()
+        assert result["ok"] is False
+        assert result["state"] == "running"
+
+    def test_start_next_queued_replaces_paused_run(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-next",
+                    "label": "Next",
+                    "enabled": True,
+                    "package_payload": {"id": "pkg-next", "name": "Next", "artifacts": []},
+                }
+            ],
+            enabled=True,
+        )
+
+        class _PausedRunner:
+            def status(self):
+                return {
+                    "state": "paused",
+                    "pause_reason": "control_lost: ownership lost for pressure",
+                    "owned_targets": ["pressure"],
+                }
+
+        rt._scripted_runner = _PausedRunner()
+        rt._queue_pause_wait_timeout_s = 0.3
+        rt._queue_pause_wait_poll_s = 0.01
+
+        ownership_calls = {"count": 0}
+
+        def _ownership():
+            ownership_calls["count"] += 1
+            if ownership_calls["count"] == 1:
+                return {"pressure": {"owner": "safety"}}
+            return {"pressure": {"owner": ""}}
+
+        rt._control_client.ownership = _ownership
+
+        loaded_ids = []
+
+        def _fake_load(payload):
+            loaded_ids.append(payload["id"])
+            return {"ok": True}
+
+        rt.load_package = _fake_load
+        rt.start_run = lambda start_index=None: {"ok": True, "start_index": start_index}
+
+        result = rt.start_next_queued()
+
+        assert result["ok"] is True
+        assert loaded_ids == ["pkg-next"]
+        assert ownership_calls["count"] >= 2
+
+    def test_start_next_queued_rejects_manual_pause(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-next",
+                    "label": "Next",
+                    "enabled": True,
+                    "package_payload": {"id": "pkg-next", "name": "Next", "artifacts": []},
+                }
+            ],
+            enabled=True,
+        )
+
+        class _PausedRunner:
+            def status(self):
+                return {"state": "paused", "pause_reason": "manual", "owned_targets": ["pressure"]}
+
+        rt._scripted_runner = _PausedRunner()
+
+        result = rt.start_next_queued()
+
+        assert result["ok"] is False
+        assert result["state"] == "paused"
+        assert "while a run is paused" in str(result.get("error") or "")
+
+    def test_start_next_queued_rejects_control_lost_pause_while_owned(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-next",
+                    "label": "Next",
+                    "enabled": True,
+                    "package_payload": {"id": "pkg-next", "name": "Next", "artifacts": []},
+                }
+            ],
+            enabled=True,
+        )
+
+        class _PausedRunner:
+            def status(self):
+                return {
+                    "state": "paused",
+                    "pause_reason": "control_lost: ownership lost for pressure",
+                    "owned_targets": ["pressure"],
+                }
+
+        rt._scripted_runner = _PausedRunner()
+        rt._queue_pause_wait_timeout_s = 0.01
+        rt._queue_pause_wait_poll_s = 0.01
+        rt._control_client.ownership = lambda: {"pressure": {"owner": "safety"}}
+
+        result = rt.start_next_queued()
+
+        assert result["ok"] is False
+        assert result["state"] == "paused"
+        assert result.get("blocked_targets") == ["pressure"]
+
+    def test_start_next_queued_handles_ownership_check_failure(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-next",
+                    "label": "Next",
+                    "enabled": True,
+                    "package_payload": {"id": "pkg-next", "name": "Next", "artifacts": []},
+                }
+            ],
+            enabled=True,
+        )
+
+        class _PausedRunner:
+            def status(self):
+                return {
+                    "state": "paused",
+                    "pause_reason": "control_lost: ownership lost for pressure",
+                    "owned_targets": ["pressure"],
+                }
+
+        rt._scripted_runner = _PausedRunner()
+        rt._control_client.ownership = lambda: (_ for _ in ()).throw(RuntimeError("ownership offline"))
+
+        result = rt.start_next_queued()
+
+        assert result["ok"] is False
+        assert result["state"] == "paused"
+        assert "Failed to verify control ownership" in str(result.get("error") or "")
+
     def test_start_next_queued_rejects_when_queue_disabled(self):
         rt = _make_runtime()
         set_result = rt.set_queue(
