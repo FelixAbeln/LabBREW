@@ -169,7 +169,7 @@ def test_fermenter_registry_merges_split_service_advertisements(monkeypatch) -> 
         proto="http",
         api_path="/agent/info",
         summary_path="/agent/summary",
-        services_hint=["schedule_service"],
+        services_hint=["scenario_service"],
     )
     browser = SimpleNamespace(snapshot=lambda: [agent_control, agent_schedule])
     registry = FermenterRegistry(browser)
@@ -260,7 +260,7 @@ def test_fermenter_registry_all_offline_merges_errors(monkeypatch) -> None:
         proto="http",
         api_path="/agent/info",
         summary_path="/agent/summary",
-        services_hint=["schedule_service"],
+        services_hint=["scenario_service"],
     )
     browser = SimpleNamespace(snapshot=lambda: [agent_a, agent_b])
     registry = FermenterRegistry(browser)
@@ -431,7 +431,7 @@ def test_fermenter_registry_deduplicates_agents_by_base_url_before_probe() -> No
         proto="http",
         api_path="/agent/info",
         summary_path="/agent/summary",
-        services_hint=["schedule_service"],
+        services_hint=["scenario_service"],
     )
 
     browser = SimpleNamespace(snapshot=lambda: [agent_a, agent_b])
@@ -551,7 +551,7 @@ def test_discovery_decode_urls_start_refresh_remove_snapshot_and_close(monkeypat
             b"proto": b"http",
             b"api": b"/agent/info",
             b"summary": b"/agent/summary",
-            b"services": b"control_service, schedule_service",
+            b"services": b"control_service, scenario_service",
             b"hostname": b"fermenter-host",
         },
         addresses=["10.0.0.5"],

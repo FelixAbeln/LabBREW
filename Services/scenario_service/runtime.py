@@ -7,10 +7,12 @@ import threading
 from typing import Any
 
 from .models import (
+    QueueEntry,
     ScenarioCompileIssue,
     ScenarioPackageDefinition,
     ScenarioRunStatus,
 )
+from .package_repository import ScenarioPackageRepository
 from .repository import InMemoryScenarioRepository, JsonScenarioStateStore
 from .scripted_runner import ScriptedRunner
 
@@ -36,10 +38,22 @@ class ScenarioRuntime:
         self._owner = owner
         self.repository = repository or InMemoryScenarioRepository()
         self.state_store = state_store or JsonScenarioStateStore()
+        self.package_repository = ScenarioPackageRepository(
+            compile_package=self.compile_package,
+            load_package=self.load_package,
+            get_current_package_payload=lambda: (
+                self.repository.get_current().to_dict()
+                if self.repository.get_current() is not None
+                else None
+            ),
+        )
         self._lock = threading.RLock()
         self._status = ScenarioRunStatus(runner_kind="scripted")
         self._scripted_runner: ScriptedRunner | None = None
         self._active_runner_kind: str = "scripted"
+        self._queue: list[QueueEntry] = []
+        self._queue_enabled: bool = True
+        self._queue_advance_on_stop: bool = False
         self._restore_from_store()
 
     # ------------------------------------------------------------------ lifecycle
@@ -321,6 +335,7 @@ class ScenarioRuntime:
                 package_program=package.program,
                 package_snapshot=package.to_dict(),
             )
+            self._scripted_runner._on_run_end = self._on_run_ended
             self._active_runner_kind = "scripted"
 
             self._append_event(f"Loaded package {package.name}")
@@ -565,12 +580,12 @@ class ScenarioRuntime:
 
     # ------------------------------------------------------------------ run control
 
-    def start_run(self) -> dict[str, Any]:
+    def start_run(self, start_index: int | None = None) -> dict[str, Any]:
         with self._lock:
             runner = self._active_runner()
             if runner is None:
                 return {"ok": False, "error": "No scripted package loaded"}
-            result = runner.start_run()
+            result = runner.start_run(start_index=start_index)
             self._sync_status_from_runner_locked()
             self._persist_locked()
             return result
@@ -604,6 +619,236 @@ class ScenarioRuntime:
             self._sync_status_from_runner_locked()
             self._persist_locked()
             return result
+
+    # ------------------------------------------------------------------ queue management
+
+    def get_queue(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "ok": True,
+                "queue": [e.to_dict() for e in self._queue],
+                "enabled": self._queue_enabled,
+                "advance_on_stop": self._queue_advance_on_stop,
+            }
+
+    def set_queue(
+        self,
+        entries: list[dict],
+        advance_on_stop: bool | None = None,
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        """Replace the entire queue with a new ordered list."""
+        with self._lock:
+            parsed: list[QueueEntry] = []
+            for item in entries:
+                if not isinstance(item, dict):
+                    return {"ok": False, "error": "Each queue entry must be an object"}
+                pkg_id = str(item.get("package_id") or "").strip()
+                pkg_filename = str(item.get("package_filename") or "").strip()
+                if not pkg_id and not pkg_filename:
+                    return {
+                        "ok": False,
+                        "error": "Each queue entry requires package_id or package_filename",
+                    }
+                parsed.append(QueueEntry.from_dict(item))
+            self._queue = parsed
+            if advance_on_stop is not None:
+                self._queue_advance_on_stop = bool(advance_on_stop)
+            if enabled is not None:
+                self._queue_enabled = bool(enabled)
+            self._persist_locked()
+            return {
+                "ok": True,
+                "queue": [e.to_dict() for e in self._queue],
+                "enabled": self._queue_enabled,
+                "advance_on_stop": self._queue_advance_on_stop,
+            }
+
+    def enqueue(
+        self,
+        entry: dict,
+        advance_on_stop: bool | None = None,
+        queue_enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        """Append one entry to the end of the queue."""
+        if not isinstance(entry, dict):
+            return {"ok": False, "error": "Entry must be an object"}
+        pkg_id = str(entry.get("package_id") or "").strip()
+        pkg_filename = str(entry.get("package_filename") or "").strip()
+        if not pkg_id and not pkg_filename:
+            return {"ok": False, "error": "Entry requires package_id or package_filename"}
+        with self._lock:
+            self._queue.append(QueueEntry.from_dict(entry))
+            if advance_on_stop is not None:
+                self._queue_advance_on_stop = bool(advance_on_stop)
+            if queue_enabled is not None:
+                self._queue_enabled = bool(queue_enabled)
+            self._persist_locked()
+            return {
+                "ok": True,
+                "queue": [e.to_dict() for e in self._queue],
+                "enabled": self._queue_enabled,
+                "advance_on_stop": self._queue_advance_on_stop,
+            }
+
+    def dequeue(self, index: int) -> dict[str, Any]:
+        """Remove the entry at the given 0-based index."""
+        with self._lock:
+            if index < 0 or index >= len(self._queue):
+                return {"ok": False, "error": f"Index {index} out of range"}
+            removed = self._queue.pop(index)
+            self._persist_locked()
+            return {
+                "ok": True,
+                "removed": removed.to_dict(),
+                "queue": [e.to_dict() for e in self._queue],
+                "enabled": self._queue_enabled,
+                "advance_on_stop": self._queue_advance_on_stop,
+            }
+
+    def clear_queue(self) -> dict[str, Any]:
+        with self._lock:
+            self._queue.clear()
+            self._persist_locked()
+            return {
+                "ok": True,
+                "queue": [],
+                "enabled": self._queue_enabled,
+                "advance_on_stop": self._queue_advance_on_stop,
+            }
+
+    def start_next_queued(self) -> dict[str, Any]:
+        """Start the next enabled queued entry.
+
+        Entry is only removed from the queue after load + start succeeds.
+        """
+        with self._lock:
+            runner = self._active_runner()
+            if runner is not None:
+                runner_state = str((runner.status() or {}).get("state", "idle"))
+                if runner_state in {"running", "paused"}:
+                    return {
+                        "ok": False,
+                        "error": "Cannot start next queued run while a run is active",
+                        "state": runner_state,
+                    }
+            if not self._queue:
+                return {"ok": False, "error": "Queue is empty"}
+            if not self._queue_enabled:
+                return {
+                    "ok": False,
+                    "error": "Queue is disabled",
+                }
+            enabled_index = next((idx for idx, entry in enumerate(self._queue) if entry.enabled), None)
+            if enabled_index is None:
+                return {
+                    "ok": False,
+                    "error": "Queue has no enabled entries",
+                }
+            next_entry = self._queue[enabled_index]
+
+        try:
+            pkg_data = dict(next_entry.package_payload or {})
+            if not pkg_data:
+                with self._lock:
+                    self._append_event(
+                        f"Queue: package '{next_entry.package_id or next_entry.package_filename}' is missing embedded package data"
+                    )
+                    self._persist_locked()
+                return {
+                    "ok": False,
+                    "error": "Queue entry is missing embedded package data",
+                }
+
+            load_result = self.load_package(pkg_data)
+            if not load_result.get("ok"):
+                errs = load_result.get("errors", [])
+                message = (
+                    errs[0].get("message", "compile error")
+                    if errs and isinstance(errs[0], dict)
+                    else "compile error"
+                )
+                with self._lock:
+                    self._append_event(
+                        f"Queue: failed to load '{next_entry.package_id}' - {message}"
+                    )
+                    self._persist_locked()
+                return {"ok": False, "error": message}
+
+            start_index = (
+                max(0, next_entry.run_index - 1)
+                if next_entry.run_index is not None
+                else None
+            )
+            with self._lock:
+                self._append_event(
+                    f"Queue: starting '{next_entry.label or next_entry.package_id}'"
+                )
+            start_result = self.start_run(start_index=start_index)
+            if not start_result.get("ok"):
+                return start_result
+            with self._lock:
+                # Remove only after successful run start.
+                if 0 <= enabled_index < len(self._queue):
+                    current = self._queue[enabled_index]
+                    if (
+                        current.package_id == next_entry.package_id
+                        and current.package_filename == next_entry.package_filename
+                        and current.label == next_entry.label
+                        and current.run_index == next_entry.run_index
+                        and current.enabled == next_entry.enabled
+                    ):
+                        self._queue.pop(enabled_index)
+                    else:
+                        for i, queued in enumerate(self._queue):
+                            if (
+                                queued.package_id == next_entry.package_id
+                                and queued.package_filename == next_entry.package_filename
+                                and queued.label == next_entry.label
+                                and queued.run_index == next_entry.run_index
+                                and queued.enabled == next_entry.enabled
+                            ):
+                                self._queue.pop(i)
+                                break
+                self._persist_locked()
+            return {
+                "ok": True,
+                "started": next_entry.to_dict(),
+                "queue": [e.to_dict() for e in self._queue],
+                "enabled": self._queue_enabled,
+                "advance_on_stop": self._queue_advance_on_stop,
+            }
+        except Exception as exc:  # noqa: BLE001
+            with self._lock:
+                self._append_event(f"Queue: failed to start next run: {exc}")
+                self._persist_locked()
+            return {"ok": False, "error": str(exc)}
+
+    def _on_run_ended(self, final_state: str) -> None:
+        """Called from the runner thread when a run finishes. Advances the queue if appropriate."""
+        advance = False
+        with self._lock:
+            if not self._queue_enabled:
+                advance = False
+            elif final_state == "completed":
+                advance = bool(self._queue)
+            elif final_state == "stopped" and self._queue_advance_on_stop:
+                advance = bool(self._queue)
+
+        if not advance:
+            with self._lock:
+                self._sync_status_from_runner_locked()
+                self._persist_locked()
+            return
+
+        result = self.start_next_queued()
+        if not result.get("ok"):
+            with self._lock:
+                self._append_event(
+                    f"Queue: auto-advance skipped ({result.get('error', 'unknown error')})"
+                )
+                self._sync_status_from_runner_locked()
+                self._persist_locked()
 
     def next_step(self) -> dict[str, Any]:
         with self._lock:
@@ -648,6 +893,9 @@ class ScenarioRuntime:
                 "status": self._status.to_dict(),
                 "runner_status": runner_status,
                 "package": package.to_dict() if package else None,
+                "queue": [e.to_dict() for e in self._queue],
+                "queue_enabled": self._queue_enabled,
+                "queue_advance_on_stop": self._queue_advance_on_stop,
             }
 
     # ------------------------------------------------------------------ internals
@@ -688,6 +936,9 @@ class ScenarioRuntime:
         payload = {
             "package": package.to_dict() if package else None,
             "status": self._status.to_dict(),
+            "queue": [e.to_dict(include_package_payload=True) for e in self._queue],
+            "queue_enabled": self._queue_enabled,
+            "queue_advance_on_stop": self._queue_advance_on_stop,
         }
         self.state_store.save(payload)
 
@@ -728,6 +979,7 @@ class ScenarioRuntime:
                         package_program=package.program,
                         package_snapshot=package.to_dict(),
                     )
+                    self._scripted_runner._on_run_end = self._on_run_ended
                 except Exception as exc:  # noqa: BLE001
                     self._append_event(f"Failed to restore scripted runner: {exc}")
                     self._scripted_runner = None
@@ -747,6 +999,23 @@ class ScenarioRuntime:
             ]
             details = status_payload.get("details")
             self._status.details = dict(details) if isinstance(details, dict) else {}
+
+        queue_payload = payload.get("queue")
+        if isinstance(queue_payload, list):
+            try:
+                self._queue = [
+                    QueueEntry.from_dict(item)
+                    for item in queue_payload
+                    if isinstance(item, dict)
+                    and (
+                        str(item.get("package_id") or "").strip()
+                        or str(item.get("package_filename") or "").strip()
+                    )
+                ]
+            except Exception:  # noqa: BLE001
+                self._queue = []
+        self._queue_enabled = bool(payload.get("queue_enabled", True))
+        self._queue_advance_on_stop = bool(payload.get("queue_advance_on_stop", False))
 
         if self._active_runner_kind == "scripted":
             # Script execution state itself cannot be resumed after process restart.

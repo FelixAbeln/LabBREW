@@ -6,7 +6,7 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 
 ## Service Dependency Chain
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │  React Frontend  (browser)                  │
 └─────────────────┬───────────────────────────┘
@@ -25,15 +25,16 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 │  – /proxy/* → individual services          │
 └──────┬──────────┬──────────────────────────┘
       │          │          │
-      port 8767   port 8768   port 8769
+      port 8767   port 8770   port 8769
       │          │          │
     ┌──────▼──────┐  ┌▼─────────────────────────┐  ┌▼─────────────────────────┐
-    │  Control    │  │  Schedule Service         │  │  Data Service            │
-    │  Service    │←─│  – Step execution         │  │  – Parameter logging     │
-    │  – Ownership│  │  – Wait conditions        │  │  – File recording        │
-    │  – Rules    │  │  – Phase management       │  │  – Loadstep averaging    │
+    │  Control    │  │  Scenario Service         │  │  Data Service            │
+    │  Service    │←─│  – Package loading        │  │  – Parameter logging     │
+    │  – Ownership│  │  – Scripted runner exec   │  │  – File recording        │
+    │  – Rules    │  │  – Run orchestration      │  │  – Loadstep averaging    │
     │  – Ramping  │  └──────────────────────────┘  └──────────┬──────────────┘
     │  – WebSocket│                                           │
+    └──────┬──────┘                                           │
     └──────┬──────┘                                           │
       │ Binary TCP  (port 8765)                          │ HTTP setup + Binary TCP reads
 ┌──────▼──────────────────────────────────────┐
@@ -52,7 +53,7 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 |---|---|---|---|
 | Frontend ↔ Gateway | HTTP REST / multipart | 8782 | React UI |
 | Gateway ↔ Agent | HTTP REST | 8780 | BrewSupervisor |
-| Agent ↔ Services | HTTP proxy | 8767, 8768, 8769 | Agent |
+| Agent ↔ Services | HTTP proxy | 8767, 8770, 8769 | Agent |
 | Control ↔ ParameterDB | Custom binary over TCP | 8765 | Control Service |
 | Data ↔ ParameterDB | Custom binary over TCP | 8765 | Data Service |
 | Data source ↔ ParameterDB | Custom binary over TCP | 8766 | Data sources |
@@ -62,7 +63,7 @@ LabBREW is a microservices system that controls and monitors laboratory fermenta
 
 ### Read a Parameter Value
 
-```
+```text
 Frontend
   → GET /fermenters/{id}/control/read/{target}          (BrewSupervisor :8782)
   → GET /proxy/control_service/control/read/{target}    (Agent :8780)
@@ -73,7 +74,7 @@ Frontend
 
 ### Write a Parameter (with Ownership Check)
 
-```
+```text
 Frontend
   → POST /fermenters/{id}/control/write  {target, value, owner}
   → POST /proxy/control_service/control/write
@@ -82,18 +83,19 @@ Frontend
   ← {ok, value}
 ```
 
-### Execute a Schedule Step
+### Execute a Scenario
 
-```
-Schedule Service (background thread)
-  ↓ evaluates wait condition (polls ParameterDB values)
-  ↓ POST /control/write  (one action at a time)
+```text
+Scenario Service (runs user-provided runner script)
+  ↓ POST /scenario/run/start  (loads and executes runner.py)
+  ↓ runner.run(ctx) calls wait_engine for condition evaluation
+  ↓ POST /control/write  (user script controls parameters)
   ↓ TCP set_value
 ```
 
 ### Live Parameter Updates (WebSocket)
 
-```
+```text
 Frontend
   → WS /fermenters/{id}/ws/live?targets=T1,T2&interval=0.5
   → WS (proxied via Agent)

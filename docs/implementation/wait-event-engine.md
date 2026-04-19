@@ -19,7 +19,7 @@ No existing syntax was removed.
 
 ### Rising edge
 
-```
+```text
 rising(expr)
 ```
 
@@ -27,7 +27,7 @@ Matches once when `expr` transitions from false to true.
 
 ### Falling edge
 
-```
+```text
 falling(expr)
 ```
 
@@ -35,7 +35,7 @@ Matches once when `expr` transitions from true to false.
 
 ### Pulse window
 
-```
+```text
 pulse(expr;hold_seconds)
 ```
 

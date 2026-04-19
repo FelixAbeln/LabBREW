@@ -508,6 +508,21 @@ class TestScriptedRunnerStateMachine:
         r._thread.join(timeout=3.0)
         assert r.status()["state"] == "completed"
 
+    def test_shutdown_from_run_end_callback_does_not_self_join(self):
+        r = self._runner(TRIVIAL_RUNNER)
+        callback_states = []
+
+        def _on_end(final_state):
+            callback_states.append(final_state)
+            r.shutdown()
+
+        r._on_run_end = _on_end
+        r.start_run()
+        r._thread.join(timeout=3.0)
+
+        assert callback_states == ["completed"]
+        assert r.status()["state"] == "completed"
+
     def test_pause_and_resume(self):
         r = self._runner(SLEEP_RUNNER)
         r.start_run()
@@ -1267,3 +1282,130 @@ class TestSineWaveDemoPackage:
         rt.stop_run()
 
         assert all(lo <= v <= hi for v in writes), f"Out-of-range values: {[v for v in writes if not (lo <= v <= hi)]}"
+
+
+class TestScenarioRuntimeQueueControls:
+    def test_start_next_queued_rejects_when_queue_disabled(self):
+        rt = _make_runtime()
+        set_result = rt.set_queue(
+            [{"package_id": "pkg-a", "label": "A", "enabled": True}],
+            enabled=False,
+        )
+        assert set_result["ok"] is True
+
+        result = rt.start_next_queued()
+        assert result["ok"] is False
+        assert result["error"] == "Queue is disabled"
+
+    def test_start_next_queued_skips_disabled_entries(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {"package_id": "pkg-disabled", "label": "Disabled", "enabled": False},
+                {
+                    "package_id": "pkg-enabled",
+                    "label": "Enabled",
+                    "enabled": True,
+                    "run_index": 2,
+                    "package_payload": {"id": "pkg-enabled", "name": "Enabled", "artifacts": []},
+                },
+            ],
+            enabled=True,
+        )
+
+        loaded_ids = []
+
+        def _fake_load(payload):
+            loaded_ids.append(payload["id"])
+            return {"ok": True}
+
+        rt.load_package = _fake_load
+        rt.start_run = lambda start_index=None: {"ok": True, "start_index": start_index}
+
+        result = rt.start_next_queued()
+
+        assert result["ok"] is True
+        assert result["started"]["package_id"] == "pkg-enabled"
+        assert loaded_ids == ["pkg-enabled"]
+        assert [item["package_id"] for item in result["queue"]] == ["pkg-disabled"]
+
+    def test_start_next_queued_keeps_entry_when_load_fails(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {"package_id": "pkg-a", "label": "A", "enabled": True},
+                {"package_id": "pkg-b", "label": "B", "enabled": True},
+            ],
+            enabled=True,
+        )
+
+        result = rt.start_next_queued()
+        assert result["ok"] is False
+        assert "missing embedded package data" in str(result.get("error") or "")
+
+        queue_after = rt.get_queue()
+        assert queue_after["ok"] is True
+        assert [item["package_id"] for item in queue_after["queue"]] == ["pkg-a", "pkg-b"]
+
+    def test_start_next_queued_accepts_filename_only_entry(self):
+        rt = _make_runtime()
+        rt.set_queue(
+            [
+                {
+                    "package_id": "",
+                    "package_filename": "queued-package.lbpkg",
+                    "label": "Queued Package",
+                    "enabled": True,
+                    "package_payload": {"id": "resolved-id", "name": "Resolved", "artifacts": []},
+                }
+            ],
+            enabled=True,
+        )
+
+        seen = {}
+
+        def _fake_load(payload):
+            seen["package_id"] = payload.get("id")
+            return {"ok": True}
+
+        rt.load_package = _fake_load
+        rt.start_run = lambda start_index=None: {"ok": True, "start_index": start_index}
+
+        result = rt.start_next_queued()
+
+        assert result["ok"] is True
+        assert seen.get("package_id") == "resolved-id"
+        assert result["queue"] == []
+
+    def test_queue_restore_keeps_embedded_package_payload(self, tmp_path: Path):
+        state_store = JsonScenarioStateStore(tmp_path / "scenario_state.json")
+        rt = _make_runtime(state_store=state_store)
+
+        set_result = rt.set_queue(
+            [
+                {
+                    "package_id": "pkg-from-repo",
+                    "package_filename": "repo-file.lbpkg",
+                    "label": "Repo Package",
+                    "enabled": True,
+                    "package_payload": {
+                        "id": "pkg-from-repo",
+                        "name": "Repo Package",
+                        "artifacts": [],
+                        "metadata": {"archive_filename": "repo-file.lbpkg"},
+                    },
+                }
+            ],
+            enabled=True,
+        )
+
+        assert set_result["ok"] is True
+
+        restored = _make_runtime(state_store=state_store)
+        queue_payload = restored.get_queue()
+
+        assert queue_payload["ok"] is True
+        assert queue_payload["queue"][0]["package_id"] == "pkg-from-repo"
+        assert queue_payload["queue"][0]["package_filename"] == "repo-file.lbpkg"
+        assert restored._queue[0].package_payload is not None
+        assert restored._queue[0].package_payload.get("metadata", {}).get("archive_filename") == "repo-file.lbpkg"

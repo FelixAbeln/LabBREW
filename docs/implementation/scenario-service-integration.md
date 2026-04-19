@@ -119,10 +119,56 @@ Base URL: `http://<node-host>:8770`
 - [x] New scenario package models added.
 - [x] New runtime created with compile/load package flow.
 - [x] Runtime executes package scripts via `ScriptedRunner`.
-- [x] New runner script added: `run_service_scenario.py`.
 - [x] Scenario state persistence introduced (`data/scenario_state.json`).
+- [x] HTTP clients (ControlClient, DataClient) moved to scenario_service.
+- [x] Legacy ScheduleDefinition models preserved for Excel importer compatibility.
+- [x] All schedule_service tests removed.
+- [x] **schedule_service folder deleted completely.**
 
-## File-by-File Migration Map
+## Second Implementation Slice (COMPLETED - April 19, 2026)
+
+### Files Migrated (schedule_service removed)
+
+#### Schedule Service Deletion
+- ✅ Removed: `Services/schedule_service/` (entire folder)
+- ✅ Removed: `Services/schedule_service/runtime/*` (core, actions, measurement, navigation, ownership, persistence, utils)
+- ✅ Removed: `Services/schedule_service/api/routes_schedule.py`
+- ✅ Removed: All 14 `tests/test_schedule*.py` test files
+
+#### Added to Scenario Service
+- ✅ `Services/scenario_service/control_client.py` (moved from schedule_service)
+- ✅ `Services/scenario_service/data_client.py` (moved from schedule_service)
+- ✅ `Services/scenario_service/models.py` – added ScheduleDefinition classes for Excel importer
+- ✅ `Services/scenario_service/__init__.py` – maintained
+
+#### Updated References
+- ✅ `tests/conftest.py` – routes_schedule → routes_scenario
+- ✅ Excel conversion package templates now sourced from tracked template artifacts (`data/scenario_templates/Excel_Conditions.lbpkg`)
+- ✅ `tests/test_supervisor_config_loader.py` – all 4 YAML fixtures updated (schedule_service → scenario_service, port 8768 → 8770)
+- ✅ `docs/api/architecture.md` – diagram and data flows updated
+- ✅ `docs/api/schedule-service-api.md` – marked deprecated, redirects to Scenario Service
+
+### Remaining Frontend/Gateway Work
+
+These are out of scope for April 2026 phase:
+
+- `BrewSupervisor/api/routes.py`
+  - Add `/fermenters/{id}/scenario/*` proxy and dashboard fields.
+  - Remove `/schedule/*` compatibility bridge.
+- `Supervisor/infrastructure/agent_api.py`
+  - Add `/scenario/*` bridge to `scenario_service`.
+  - Remove `/schedule/*` compatibility bridge.
+- `BrewSupervisor/reat-frontend/brew-ui/src/features/schedule/ScheduleTab.jsx`
+  - Retarget actions to `/scenario/run/*`.
+  - Rename workbook/import UX to package/import UX.
+- `BrewSupervisor/reat-frontend/brew-ui/src/features/schedule/scheduleUtils.js`
+  - Replace run-toggle paths with scenario run paths.
+- `BrewSupervisor/reat-frontend/brew-ui/src/App.jsx`
+  - Add scenario status/package polling and scenario module terminology.
+- `BrewSupervisor/reat-frontend/brew-ui/src/features/app/workspaceModuleCatalog.jsx`
+  - Swap schedule summary module bindings to scenario runtime data.
+
+## Historical File Map
 
 ### New files (first slice)
 
@@ -133,7 +179,6 @@ Base URL: `http://<node-host>:8770`
 - `Services/scenario_service/repository.py`
 - `Services/scenario_service/runtime.py`
 - `Services/scenario_service/service.py`
-- `run_service_scenario.py`
 
 ### Existing files to migrate next
 
@@ -153,18 +198,31 @@ Base URL: `http://<node-host>:8770`
 - `BrewSupervisor/reat-frontend/brew-ui/src/features/app/workspaceModuleCatalog.jsx`
   - Swap schedule summary module bindings to scenario runtime data.
 
-### Existing files to keep (short term compatibility)
+### Files Kept (for historical reference or compatibility)
 
-- `Services/schedule_service/*`
-  - Keep running while frontend and supervisor are migrated.
 - `BrewSupervisor/api/schedule_import/*`
-  - Keep workbook import; compile workbook payload into scripted package artifacts.
+  - Workbook import still present; imports ScheduleDefinition from scenario_service models.
+  - Converts Excel → scenario package JSON artifacts.
+
+### Removed Files Deleted
+
+- `Services/schedule_service/` (entire service)
+  - `api/routes_schedule.py`
+  - `runtime/core.py`
+  - `runtime/utils.py`
+  - `runtime/actions.py`
+  - `runtime/measurement.py`
+  - `runtime/navigation.py`
+  - `runtime/ownership.py`
+  - `runtime/persistence.py`
+  - `control_client.py` (moved to scenario_service)
+  - `data_client.py` (moved to scenario_service)
+  - `models.py` (ScheduleDefinition moved to scenario_service)
+  - `repository.py` (no longer needed)
 
 ## Next implementation slice
 
-1. Add supervisor and agent route bridging for `/scenario/*`.
-2. Remove schedule bridge routes from gateway and agent APIs.
-3. Add import adapter in BrewSupervisor:
-   - workbook -> scenario package payload,
-   - forward to `PUT /scenario/package`.
-4. Add initial scenario API docs in `docs/api/` and register service port 8770 in architecture docs.
+1. ✅ Backend consolidation complete — schedule_service deleted, scenario_service ready.
+2. **IN PROGRESS**: Frontend route bridging and proxy setup.
+3. Update/test scenario runner execution against real control/data services.
+4. Validate Excel workbook → scenario package conversion pipeline.

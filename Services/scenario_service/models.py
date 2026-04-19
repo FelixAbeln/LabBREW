@@ -81,6 +81,54 @@ class ScenarioCompileIssue:
 
 
 @dataclass(slots=True)
+class QueueEntry:
+    """A single entry in the scenario run queue."""
+
+    package_id: str
+    package_filename: str = ""
+    label: str = ""
+    run_index: int | None = None
+    enabled: bool = True
+    package_payload: dict[str, Any] | None = None
+
+    def to_dict(self, *, include_package_payload: bool = False) -> dict[str, Any]:
+        payload = {
+            "package_id": self.package_id,
+            "package_filename": self.package_filename,
+            "label": self.label,
+            "run_index": self.run_index,
+            "enabled": self.enabled,
+        }
+        if include_package_payload and isinstance(self.package_payload, dict):
+            payload["package_payload"] = self.package_payload
+        return payload
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "QueueEntry":
+        run_index_raw = data.get("run_index")
+        run_index: int | None = None
+        if run_index_raw not in (None, ""):
+            try:
+                parsed = int(run_index_raw)
+                if parsed > 0:
+                    run_index = parsed
+            except (TypeError, ValueError):
+                run_index = None
+        return cls(
+            package_id=str(data.get("package_id") or "").strip(),
+            package_filename=str(data.get("package_filename") or "").strip(),
+            label=str(data.get("label") or "").strip(),
+            run_index=run_index,
+            enabled=bool(data.get("enabled", True)),
+            package_payload=(
+                dict(data.get("package_payload"))
+                if isinstance(data.get("package_payload"), dict)
+                else None
+            ),
+        )
+
+
+@dataclass(slots=True)
 class ScenarioRunStatus:
     state: ScenarioRunState = "idle"
     package_id: str = ""

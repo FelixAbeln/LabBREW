@@ -92,13 +92,19 @@ function resolveActionTemplate(template, scenarioPackage) {
   })
 }
 
-function resolveActionQuery(action, scenarioPackage) {
+function resolveActionQuery(action, scenarioPackage, editingFilename = '') {
   const raw = action && typeof action === 'object' ? action.query : null
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return editingFilename ? { filename: String(editingFilename) } : {}
+  }
   const result = {}
   for (const [key, value] of Object.entries(raw)) {
     if (!key) continue
     result[String(key)] = resolveActionTemplate(value, scenarioPackage)
+  }
+  if (editingFilename) {
+    // While editing a repository package, replace operations must overwrite that file.
+    result.filename = String(editingFilename)
   }
   return result
 }
@@ -134,6 +140,11 @@ function buildRepositoryCopyFilename(filename) {
   return `${baseName}-${formatRepositoryTimestamp()}.lbpkg`
 }
 
+function buildTemplateInstanceFilename(templateName) {
+  const stem = String(templateName || '').replace(/\.lbpkg$/i, '') || 'template'
+  return `${stem}-${formatRepositoryTimestamp()}.lbpkg`
+}
+
 function resolveRepositorySavePayload(editorSpec, scenarioPackage) {
   const saveSpec = editorSpec && typeof editorSpec === 'object' ? editorSpec.repository_save : null
   const fallbackName = scenarioPackage?.id || scenarioPackage?.name || 'package'
@@ -160,6 +171,109 @@ function resolveRepositorySavePayload(editorSpec, scenarioPackage) {
   }
 }
 
+function SplitStartButton({ scenario, loadingAction, selected, runAction }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [indexInput, setIndexInput] = useState('')
+  const menuRef = useRef(null)
+  const popoverRef = useRef(null)
+  const inputRef = useRef(null)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 200 })
+
+  const isRunning = scenario?.state === 'running'
+  const isRestart = scenario?.state === 'paused'
+  const mainLabel = isRunning ? 'Running' : isRestart ? 'Restart' : 'Start'
+  const mainClass = `primary-button split-start-main${isRunning ? ' is-running' : isRestart ? ' is-restart' : ''}`
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const updateMenuPosition = () => {
+      const rect = menuRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setMenuPosition({
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: Math.max(200, rect.width),
+      })
+    }
+    updateMenuPosition()
+    if (inputRef.current) inputRef.current.focus()
+    function onMouseDown(e) {
+      const inAnchor = menuRef.current?.contains(e.target)
+      const inPopover = popoverRef.current?.contains(e.target)
+      if (!inAnchor && !inPopover) setMenuOpen(false)
+    }
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    window.addEventListener('mousedown', onMouseDown)
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+      window.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [menuOpen])
+
+  function handleMainClick() {
+    runAction('/scenario/run/start')
+  }
+
+  function handleStartAtIndex() {
+    const runIndex = parseInt(indexInput, 10)
+    if (!Number.isFinite(runIndex) || runIndex < 1) return
+    runAction('/scenario/run/start', { run_index: runIndex })
+    setMenuOpen(false)
+    setIndexInput('')
+  }
+
+  return (
+    <div className="split-start-wrap" ref={menuRef}>
+      <button
+        className={mainClass}
+        disabled={!selected || loadingAction}
+        onClick={handleMainClick}
+      >
+        {mainLabel}
+      </button>
+      <button
+        className="primary-button split-start-chevron"
+        disabled={!selected || loadingAction}
+        onClick={() => setMenuOpen((o) => !o)}
+        aria-label="Start at run index"
+        title="Start at run index…"
+      >
+        ▾
+      </button>
+      {menuOpen && typeof document !== 'undefined' ? createPortal((
+        <div
+          ref={popoverRef}
+          className="split-start-popover"
+          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, minWidth: `${menuPosition.width}px` }}
+        >
+          <label className="split-start-label">Start at run index</label>
+          <div className="split-start-row">
+            <input
+              ref={inputRef}
+              className="pdb-input split-start-input"
+              type="number"
+              min="1"
+              placeholder="1"
+              value={indexInput}
+              onChange={(e) => setIndexInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleStartAtIndex() }}
+            />
+            <button
+              className="pdb-btn-primary"
+              disabled={indexInput === '' || !Number.isFinite(parseInt(indexInput, 10))}
+              onClick={handleStartAtIndex}
+            >
+              Go
+            </button>
+          </div>
+        </div>
+      ), document.body) : null}
+    </div>
+  )
+}
+
 export function ScenarioControlsBar({ scenario, runToggle, loadingAction, selected, runAction }) {
   return (
     <div className="control-bar">
@@ -168,13 +282,7 @@ export function ScenarioControlsBar({ scenario, runToggle, loadingAction, select
         <span>{runToggle.hint}</span>
       </div>
       <div className="control-button-group">
-        <button
-          className={`primary-button ${scenario?.state === 'running' ? 'is-running' : scenario?.state === 'paused' ? 'is-restart' : ''}`}
-          disabled={!selected || loadingAction}
-          onClick={() => runAction('/scenario/run/start')}
-        >
-          {scenario?.state === 'running' ? 'Running' : scenario?.state === 'paused' ? 'Restart' : 'Start'}
-        </button>
+        <SplitStartButton scenario={scenario} loadingAction={loadingAction} selected={selected} runAction={runAction} />
         <button
           className={runToggle.className}
           disabled={!selected || loadingAction || runToggle.disabled}
@@ -218,6 +326,137 @@ export function ScenarioSummaryCard({ scenario, scenarioPackage }) {
   )
 }
 
+export function ScenarioQueueCard({
+  scenarioQueue,
+  scenarioQueueEnabled,
+  queueAdvanceOnStop,
+  scenarioPackage,
+  selected,
+  loadingAction,
+  setScenarioQueueEntries,
+  enqueueScenarioRun,
+  removeScenarioQueueEntry,
+  clearScenarioQueue,
+}) {
+  const queueItems = Array.isArray(scenarioQueue) ? scenarioQueue : []
+
+  function updateQueueEntry(index, patch) {
+    if (index < 0 || index >= queueItems.length) return
+    const nextEntries = queueItems.map((item, idx) => (idx === index ? { ...item, ...patch } : item))
+    setScenarioQueueEntries(nextEntries, queueAdvanceOnStop, scenarioQueueEnabled)
+  }
+
+  function moveQueueEntry(index, direction) {
+    const target = index + direction
+    if (index < 0 || index >= queueItems.length) return
+    if (target < 0 || target >= queueItems.length) return
+    const nextEntries = [...queueItems]
+    const [moved] = nextEntries.splice(index, 1)
+    nextEntries.splice(target, 0, moved)
+    setScenarioQueueEntries(nextEntries, queueAdvanceOnStop, scenarioQueueEnabled)
+  }
+
+  return (
+    <div className="info-card scenario-queue-card">
+      <div className="card-header-row">
+        <h3>Run queue</h3>
+        <button
+          className="warning-button icon-only-button"
+          title="Clear queue"
+          disabled={!selected || loadingAction || !queueItems.length}
+          onClick={clearScenarioQueue}
+        >
+          <svg className="trash-icon" viewBox="0 0 18 18" aria-hidden="true">
+            <path className="trash-body" d="M4 2h10v1H4zm1 2h8v11c0 0.55-0.45 1-1 1H6c-0.55 0-1-0.45-1-1V4zm2-1v-1h2V2h2v1h2v1H7V3z" />
+            <rect className="trash-line" x="7" y="5" width="1" height="8" />
+            <rect className="trash-line" x="10" y="5" width="1" height="8" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="scenario-queue-controls">
+        <label className="small-text" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input
+            type="checkbox"
+            checked={Boolean(scenarioQueueEnabled)}
+            disabled={!selected || loadingAction}
+            onChange={(e) => setScenarioQueueEntries(queueItems, queueAdvanceOnStop, e.target.checked)}
+          />
+          Queue enabled
+        </label>
+        <label className="small-text" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input
+            type="checkbox"
+            checked={Boolean(queueAdvanceOnStop)}
+            disabled={!selected || loadingAction}
+            onChange={(e) => setScenarioQueueEntries(queueItems, e.target.checked, scenarioQueueEnabled)}
+          />
+          Auto-advance when stopped (not only completed)
+        </label>
+        <div className="small-text">Enabled entries: {queueItems.filter((item) => item?.enabled !== false).length} / {queueItems.length}</div>
+      </div>
+
+      <div className="event-list">
+        {!queueItems.length ? (
+          <p className="muted" style={{ margin: 0, padding: '4px 0' }}>Queue is empty.</p>
+        ) : (
+          queueItems.map((item, index) => (
+            <div key={`${item.package_id}-${index}`} className="event-item">
+              <div className="queue-entry-main-row">
+                <div style={{ minWidth: 0 }}>
+                  <strong>{item.label || item.package_id}</strong>
+                  <div className="small-text">id: {item.package_id}</div>
+                  {item.package_filename ? <div className="small-text">file: {item.package_filename}</div> : null}
+                  {item.run_index ? <div className="small-text">run index: {item.run_index}</div> : null}
+                </div>
+                <div className="button-row" style={{ gap: '6px' }}>
+                  <button
+                    className="secondary-button"
+                    disabled={!selected || loadingAction || index <= 0}
+                    onClick={() => moveQueueEntry(index, -1)}
+                  >
+                    Up
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={!selected || loadingAction || index >= queueItems.length - 1}
+                    onClick={() => moveQueueEntry(index, 1)}
+                  >
+                    Down
+                  </button>
+                  <button
+                    className="warning-button icon-only-button"
+                    disabled={!selected || loadingAction}
+                    onClick={() => removeScenarioQueueEntry(index)}
+                    title="Remove from queue"
+                  >
+                    <svg className="trash-icon" viewBox="0 0 18 18" aria-hidden="true">
+                      <path className="trash-body" d="M4 2h10v1H4zm1 2h8v11c0 0.55-0.45 1-1 1H6c-0.55 0-1-0.45-1-1V4zm2-1v-1h2V2h2v1h2v1H7V3z" />
+                      <rect className="trash-line" x="7" y="5" width="1" height="8" />
+                      <rect className="trash-line" x="10" y="5" width="1" height="8" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="queue-entry-footer-row">
+                <label className="small-text queue-entry-enabled-toggle">
+                  <input
+                    type="checkbox"
+                    checked={item?.enabled !== false}
+                    disabled={!selected || loadingAction}
+                    onChange={(e) => updateQueueEntry(index, { enabled: e.target.checked })}
+                  />
+                  Enabled
+                </label>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ScenarioPackageCard({
   selected,
   loadingAction,
@@ -231,6 +470,9 @@ export function ScenarioPackageCard({
   readScenarioRepositoryPackage,
   importScenarioRepositoryPackage,
   copyScenarioRepositoryPackage,
+  enqueueScenarioRun,
+  listScenarioRepositoryTemplates,
+  createScenarioRepositoryPackageFromTemplate,
   renameScenarioRepositoryPackage,
   deleteScenarioRepositoryPackage,
   updateScenarioRepositoryMetadata,
@@ -250,6 +492,29 @@ export function ScenarioPackageCard({
   const [fileUploadFiles, setFileUploadFiles] = useState({})
   const [repoEditingFilename, setRepoEditingFilename] = useState('')
   const [repoEditingPackage, setRepoEditingPackage] = useState(null)
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false)
+  const [templateItems, setTemplateItems] = useState([])
+  const [repoActionsOpenFor, setRepoActionsOpenFor] = useState('')
+  const [importResultVisible, setImportResultVisible] = useState(false)
+  const importDismissTimerRef = useRef(null)
+  const templateMenuRef = useRef(null)
+  const repoActionsMenuRef = useRef(null)
+  const lastImportResultRef = useRef(importResult)
+
+  useEffect(() => {
+    if (lastImportResultRef.current === importResult) {
+      return () => clearTimeout(importDismissTimerRef.current)
+    }
+    lastImportResultRef.current = importResult
+    if (importResult) {
+      setImportResultVisible(true)
+      clearTimeout(importDismissTimerRef.current)
+      importDismissTimerRef.current = setTimeout(() => setImportResultVisible(false), 4000)
+    } else {
+      setImportResultVisible(false)
+    }
+    return () => clearTimeout(importDismissTimerRef.current)
+  }, [importResult])
 
   const packageForEditor = repoEditingPackage || scenarioPackage
 
@@ -267,14 +532,57 @@ export function ScenarioPackageCard({
     }
   }
 
+  async function refreshTemplates() {
+    if (!selected || !listScenarioRepositoryTemplates) {
+      setTemplateItems([])
+      return
+    }
+    const payload = await listScenarioRepositoryTemplates()
+    setTemplateItems(Array.isArray(payload?.templates) ? payload.templates : [])
+  }
+
   useEffect(() => {
     if (!selected?.id) {
       setRepoPackages([])
+      setTemplateItems([])
       setRepoError('')
+      setTemplateMenuOpen(false)
       return
     }
     refreshRepository().catch(() => {})
+    refreshTemplates().catch(() => {})
   }, [selected?.id])
+
+  useEffect(() => {
+    if (!templateMenuOpen) return undefined
+    function onMouseDown(event) {
+      if (!templateMenuRef.current) return
+      if (!templateMenuRef.current.contains(event.target)) {
+        setTemplateMenuOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', onMouseDown)
+    return () => window.removeEventListener('mousedown', onMouseDown)
+  }, [templateMenuOpen])
+
+  useEffect(() => {
+    if (!repoActionsOpenFor) return undefined
+    function onMouseDown(event) {
+      if (!repoActionsMenuRef.current) return
+      if (!repoActionsMenuRef.current.contains(event.target)) {
+        setRepoActionsOpenFor('')
+      }
+    }
+    function onKeyDown(event) {
+      if (event.key === 'Escape') setRepoActionsOpenFor('')
+    }
+    window.addEventListener('mousedown', onMouseDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [repoActionsOpenFor])
 
   async function saveCurrentToRepository() {
     if (!saveScenarioRepositoryPackage) return
@@ -356,6 +664,27 @@ export function ScenarioPackageCard({
     }
   }
 
+  async function queueFromRepository(item) {
+    if (!enqueueScenarioRun || !item) return
+    try {
+      setRepoBusy(true)
+      setRepoError('')
+      const payload = await readScenarioRepositoryPackage(item.name)
+      const packagePayload = payload && typeof payload.scenario_package === 'object' ? payload.scenario_package : null
+      const packageId = String(packagePayload?.id || '').trim()
+      await enqueueScenarioRun({
+        package_id: packageId,
+        package_filename: String(item?.name || '').trim(),
+        label: String(packagePayload?.name || packageId),
+        package_payload: packagePayload,
+      })
+    } catch (err) {
+      setRepoError(err instanceof Error ? err.message : 'Failed to queue package')
+    } finally {
+      setRepoBusy(false)
+    }
+  }
+
   async function copyRepositoryPackage(filename) {
     if (!copyScenarioRepositoryPackage || !filename) return
     const targetName = buildRepositoryCopyFilename(filename)
@@ -366,6 +695,27 @@ export function ScenarioPackageCard({
       await refreshRepository()
     } catch (err) {
       setRepoError(err instanceof Error ? err.message : 'Failed to copy package')
+    } finally {
+      setRepoBusy(false)
+    }
+  }
+
+  async function createFromTemplate(templateName) {
+    if (!createScenarioRepositoryPackageFromTemplate || !templateName) return
+    const suggestedName = buildTemplateInstanceFilename(templateName)
+    const enteredName = window.prompt('New package filename', suggestedName)
+    if (!enteredName) return
+    try {
+      setRepoBusy(true)
+      setRepoError('')
+      await createScenarioRepositoryPackageFromTemplate({
+        templateFilename: templateName,
+        filename: enteredName,
+      })
+      setTemplateMenuOpen(false)
+      await refreshRepository()
+    } catch (err) {
+      setRepoError(err instanceof Error ? err.message : 'Failed to create package from template')
     } finally {
       setRepoBusy(false)
     }
@@ -447,11 +797,17 @@ export function ScenarioPackageCard({
       setRepoError('Upload action is missing endpoint in editor spec')
       return
     }
-    const query = resolveActionQuery(action, scenarioPackage)
+    const query = resolveActionQuery(action, packageForEditor, repoEditingFilename)
     try {
       setRepoBusy(true)
       setRepoError('')
-      await uploadFileToEndpoint(endpoint, file, query)
+      const result = await uploadFileToEndpoint(endpoint, file, query)
+      if (repoEditingFilename && result && typeof result.scenario_package === 'object') {
+        setRepoEditingPackage(result.scenario_package)
+      }
+      if (repoEditingFilename && result && typeof result.saved === 'object' && typeof result.saved.name === 'string') {
+        setRepoEditingFilename(result.saved.name)
+      }
       setFileUploadFiles((prev) => ({ ...prev, [action.id]: null }))
       await refreshRepository()
     } catch (err) {
@@ -464,13 +820,21 @@ export function ScenarioPackageCard({
   const visibleRepoPackages = useMemo(() => {
     const query = repoSearch.trim().toLowerCase()
     const tagQuery = repoTagFilter.trim().toLowerCase()
-    return repoPackages.filter((item) => {
+    const filtered = repoPackages.filter((item) => {
       const tags = Array.isArray(item?.tags) ? item.tags : []
       const haystack = `${item?.name || ''} ${tags.join(' ')} ${item?.version_notes || ''} ${item?.notes || ''}`.toLowerCase()
       if (query && !haystack.includes(query)) return false
       if (tagQuery && !tags.some((tag) => String(tag).toLowerCase().includes(tagQuery))) return false
       return true
     })
+    filtered.sort((a, b) => {
+      const ta = a.modified_at || ''
+      const tb = b.modified_at || ''
+      if (ta > tb) return -1
+      if (ta < tb) return 1
+      return 0
+    })
+    return filtered
   }, [repoPackages, repoSearch, repoTagFilter])
 
   const resolvedEditorSpec = useMemo(() => {
@@ -654,6 +1018,34 @@ export function ScenarioPackageCard({
           >
             ↻
           </button>
+          <div className="scenario-template-menu-wrap" ref={templateMenuRef}>
+            <button
+              className="pdb-btn-primary"
+              disabled={!selected || loadingAction || repoBusy}
+              onClick={() => setTemplateMenuOpen((open) => !open)}
+              title="Create package from template"
+            >
+              +
+            </button>
+            {templateMenuOpen && (
+              <div className="scenario-template-menu" role="menu" aria-label="Template selection menu">
+                {!templateItems.length ? (
+                  <div className="scenario-template-empty">No templates found</div>
+                ) : (
+                  templateItems.map((template) => (
+                    <button
+                      key={template.name}
+                      className="scenario-template-menu-item"
+                      onClick={() => createFromTemplate(template.name)}
+                      disabled={repoBusy || loadingAction}
+                    >
+                      {template.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <button
             className="pdb-btn-primary"
             disabled={!selected || loadingAction || repoBusy}
@@ -667,52 +1059,108 @@ export function ScenarioPackageCard({
           {!visibleRepoPackages.length ? (
             <div className="muted">No repository packages found.</div>
           ) : (
-            visibleRepoPackages.map((item) => (
-              <div key={item.name} className="package-repo-item">
+            visibleRepoPackages.map((item) => {
+              const loadedFilename = scenarioPackage?.metadata?.archive_filename || ''
+              const isActive = loadedFilename && item.name === loadedFilename
+              return (
+              <div
+                key={item.name}
+                className={`package-repo-item${isActive ? ' is-active' : ''}${repoActionsOpenFor === item.name ? ' is-menu-open' : ''}`}
+              >
                 <div className="package-repo-meta">
-                  <strong>{item.name}</strong>
+                  <strong>{item.name}{isActive ? <span className="repo-active-badge">● active</span> : null}</strong>
                   <span className="small-text">{item.size} bytes · {item.modified_at || '-'}</span>
                   <span className="small-text">tags: {(item.tags || []).join(', ') || '-'}</span>
                   <span className="small-text">version notes: {item.version_notes || '-'}</span>
                 </div>
-                <div className="button-row">
+                <div className="repo-actions-wrap" ref={repoActionsOpenFor === item.name ? repoActionsMenuRef : null}>
                   <button
-                    className="pdb-btn-primary"
+                    className="pdb-btn-secondary repo-actions-trigger"
                     disabled={!selected || loadingAction || repoBusy}
-                    onClick={() => editRepositoryPackage(item.name)}
+                    onClick={() => setRepoActionsOpenFor((open) => (open === item.name ? '' : item.name))}
+                    aria-haspopup="menu"
+                    aria-expanded={repoActionsOpenFor === item.name}
                   >
-                    Edit
+                    Actions ▾
                   </button>
-                  <button
-                    className="pdb-btn-secondary"
-                    disabled={!selected || loadingAction || repoBusy}
-                    onClick={() => importFromRepository(item.name)}
-                  >
-                    Load
-                  </button>
-                  <button
-                    className="pdb-btn-secondary"
-                    disabled={!selected || loadingAction || repoBusy}
-                    onClick={() => copyRepositoryPackage(item.name)}
-                  >
-                    Copy
-                  </button>
-                  <button className="pdb-btn-secondary" disabled={!selected || loadingAction || repoBusy} onClick={() => renameRepositoryPackage(item.name)}>
-                    Rename
-                  </button>
-                  <button className="pdb-btn-secondary" disabled={!selected || loadingAction || repoBusy} onClick={() => deleteRepositoryPackage(item.name)}>
-                    Delete
-                  </button>
-                  <button
-                    className="pdb-btn-secondary"
-                    disabled={!selected || loadingAction || repoBusy || !getScenarioRepositoryDownloadUrl}
-                    onClick={() => downloadRepositoryPackage(item.name)}
-                  >
-                    Download
-                  </button>
+                  {repoActionsOpenFor === item.name && (
+                    <div className="repo-actions-menu" role="menu" aria-label={`Repository actions for ${item.name}`}>
+                      <button
+                        className="repo-actions-menu-item"
+                        disabled={!selected || loadingAction || repoBusy}
+                        onClick={() => {
+                          setRepoActionsOpenFor('')
+                          importFromRepository(item.name)
+                        }}
+                      >
+                        Load
+                      </button>
+                      <button
+                        className="repo-actions-menu-item"
+                        disabled={!selected || loadingAction || repoBusy || !enqueueScenarioRun}
+                        onClick={() => {
+                          setRepoActionsOpenFor('')
+                          queueFromRepository(item)
+                        }}
+                      >
+                        Queue
+                      </button>
+                      <button
+                        className="repo-actions-menu-item"
+                        disabled={!selected || loadingAction || repoBusy}
+                        onClick={() => {
+                          setRepoActionsOpenFor('')
+                          editRepositoryPackage(item.name)
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="repo-actions-menu-item"
+                        disabled={!selected || loadingAction || repoBusy}
+                        onClick={() => {
+                          setRepoActionsOpenFor('')
+                          copyRepositoryPackage(item.name)
+                        }}
+                      >
+                        Copy
+                      </button>
+                      <button
+                        className="repo-actions-menu-item"
+                        disabled={!selected || loadingAction || repoBusy}
+                        onClick={() => {
+                          setRepoActionsOpenFor('')
+                          renameRepositoryPackage(item.name)
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        className="repo-actions-menu-item"
+                        disabled={!selected || loadingAction || repoBusy}
+                        onClick={() => {
+                          setRepoActionsOpenFor('')
+                          deleteRepositoryPackage(item.name)
+                        }}
+                      >
+                        Delete
+                      </button>
+                      <button
+                        className="repo-actions-menu-item"
+                        disabled={!selected || loadingAction || repoBusy || !getScenarioRepositoryDownloadUrl}
+                        onClick={() => {
+                          setRepoActionsOpenFor('')
+                          downloadRepositoryPackage(item.name)
+                        }}
+                      >
+                        Download
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>
@@ -841,8 +1289,13 @@ export function ScenarioPackageCard({
         </div>
       ), document.body) : null}
 
-      {importResult && (
-        <div className="import-result">
+      {importResult && importResultVisible && typeof document !== 'undefined' ? createPortal((
+        <div className="import-result scenario-import-result-float">
+          <button
+            className="import-result-dismiss"
+            onClick={() => setImportResultVisible(false)}
+            aria-label="Dismiss"
+          >✕</button>
           {importResult.valid ? (
             <>
               <div className="success">✔ Scenario package valid</div>
@@ -919,8 +1372,9 @@ export function ScenarioPackageCard({
               )}
             </>
           )}
+          <div className="import-result-progress" />
         </div>
-      )}
+      ), document.body) : null}
 
     </div>
   )
@@ -960,22 +1414,22 @@ export function ScenarioEventLogCard({ scenario }) {
         <h3>Event log</h3>
         <span className="small-text">Newest entries append at the bottom</span>
       </div>
-      {!scenario?.event_log?.length ? (
-        <p className="muted">No events yet.</p>
-      ) : (
-        <div className="event-log-wrap">
-          <div ref={logRef} className="event-list" onScroll={handleEventLogScroll}>
-            {scenario.event_log.map((event, index) => (
+      <div className="event-log-wrap">
+        <div ref={logRef} className="event-list" onScroll={handleEventLogScroll}>
+          {!scenario?.event_log?.length ? (
+            <p className="muted" style={{ margin: 0, padding: '4px 0' }}>No events yet.</p>
+          ) : (
+            scenario.event_log.map((event, index) => (
               <div key={index} className="event-item">{event}</div>
-            ))}
-          </div>
-          {!followLogBottom && (
-            <button className="log-jump-button" onClick={() => scrollEventLogToBottom()} aria-label="Jump to latest log entry" title="Jump to latest">
-              ↓
-            </button>
+            ))
           )}
         </div>
-      )}
+        {scenario?.event_log?.length > 0 && !followLogBottom && (
+          <button className="log-jump-button" onClick={() => scrollEventLogToBottom()} aria-label="Jump to latest log entry" title="Jump to latest">
+            ↓
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -984,10 +1438,18 @@ export function ScenarioTab(props) {
   const {
     scenario,
     scenarioPackage,
+    scenarioQueue,
+    scenarioQueueEnabled,
+    queueAdvanceOnStop,
     runToggle,
     loadingAction,
     selected,
     runAction,
+    setScenarioQueueEntries,
+    enqueueScenarioRun,
+    removeScenarioQueueEntry,
+    clearScenarioQueue,
+    runNextQueued,
     scenarioFile,
     setScenarioFile,
     uploadWorkbook,
@@ -1000,6 +1462,8 @@ export function ScenarioTab(props) {
     readScenarioRepositoryPackage,
     importScenarioRepositoryPackage,
     copyScenarioRepositoryPackage,
+    listScenarioRepositoryTemplates,
+    createScenarioRepositoryPackageFromTemplate,
     renameScenarioRepositoryPackage,
     deleteScenarioRepositoryPackage,
     updateScenarioRepositoryMetadata,
@@ -1011,6 +1475,18 @@ export function ScenarioTab(props) {
     <div className="tab-content-grid">
       <ScenarioControlsBar scenario={scenario} runToggle={runToggle} loadingAction={loadingAction} selected={selected} runAction={runAction} />
       <ScenarioSummaryCard scenario={scenario} scenarioPackage={scenarioPackage} />
+      <ScenarioQueueCard
+        scenarioQueue={scenarioQueue}
+        scenarioQueueEnabled={scenarioQueueEnabled}
+        queueAdvanceOnStop={queueAdvanceOnStop}
+        scenarioPackage={scenarioPackage}
+        selected={selected}
+        loadingAction={loadingAction}
+        setScenarioQueueEntries={setScenarioQueueEntries}
+        enqueueScenarioRun={enqueueScenarioRun}
+        removeScenarioQueueEntry={removeScenarioQueueEntry}
+        clearScenarioQueue={clearScenarioQueue}
+      />
       <ScenarioPackageCard
         selected={selected}
         loadingAction={loadingAction}
@@ -1027,6 +1503,9 @@ export function ScenarioTab(props) {
         readScenarioRepositoryPackage={readScenarioRepositoryPackage}
         importScenarioRepositoryPackage={importScenarioRepositoryPackage}
         copyScenarioRepositoryPackage={copyScenarioRepositoryPackage}
+        enqueueScenarioRun={enqueueScenarioRun}
+        listScenarioRepositoryTemplates={listScenarioRepositoryTemplates}
+        createScenarioRepositoryPackageFromTemplate={createScenarioRepositoryPackageFromTemplate}
         renameScenarioRepositoryPackage={renameScenarioRepositoryPackage}
         deleteScenarioRepositoryPackage={deleteScenarioRepositoryPackage}
         updateScenarioRepositoryMetadata={updateScenarioRepositoryMetadata}

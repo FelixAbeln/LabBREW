@@ -20,11 +20,11 @@ external_capabilities:
       proto: http
       path: /data
 services:
-  schedule_service:
-    module: Services.schedule_service.service
+  scenario_service:
+    module: Services.scenario_service.service
     listen:
       host: 0.0.0.0
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
@@ -32,7 +32,7 @@ services:
         url_flag: --data-backend-url
     static_args: []
     advertise_as:
-      - schedule_service
+      - scenario_service
 """.strip(),
         encoding="utf-8",
     )
@@ -53,11 +53,11 @@ def test_loader_rejects_mixed_url_and_host_port_backend_mapping(tmp_path: Path) 
     config_path.write_text(
         """
 services:
-  schedule_service:
-    module: Services.schedule_service.service
+  scenario_service:
+    module: Services.scenario_service.service
     listen:
       host: 0.0.0.0
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
@@ -73,7 +73,7 @@ services:
         YamlTopologyLoader().load(config_path)
 
     assert str(exc.value) == (
-        "Service 'schedule_service'.backends['data_service'] cannot define url_flag together with host_flag/port_flag"
+        "Service 'scenario_service'.backends['data_service'] cannot define url_flag together with host_flag/port_flag"
     )
 
 
@@ -82,11 +82,11 @@ def test_loader_requires_host_and_port_when_url_flag_missing(tmp_path: Path) -> 
     config_path.write_text(
         """
 services:
-  schedule_service:
-    module: Services.schedule_service.service
+  scenario_service:
+    module: Services.scenario_service.service
     listen:
       host: 0.0.0.0
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
@@ -100,7 +100,7 @@ services:
         YamlTopologyLoader().load(config_path)
 
     assert str(exc.value) == (
-        "Service 'schedule_service'.backends['data_service'].port_flag must be a non-empty string"
+        "Service 'scenario_service'.backends['data_service'].port_flag must be a non-empty string"
     )
 
 
@@ -116,11 +116,11 @@ external_capabilities:
       proto: http
       path: /data
 services:
-  schedule_service:
-    module: Services.schedule_service.service
+  scenario_service:
+    module: Services.scenario_service.service
     listen:
       host: 0.0.0.0
-      port: 8768
+      port: 8770
       proto: http
       path: /
     backends:
@@ -135,7 +135,7 @@ services:
         YamlTopologyLoader().load(config_path)
 
     assert str(exc.value) == (
-        "Service 'schedule_service'.backends['database.local'] uses url_flag with external HTTP capability "
+        "Service 'scenario_service'.backends['database.local'] uses url_flag with external HTTP capability "
         "that does not target Supervisor Agent port 8780"
     )
 

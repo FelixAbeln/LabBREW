@@ -33,28 +33,20 @@ python -m pytest -q -m integration
 
 ## Special Ownership Logic Coverage
 
-These tests verify the specialty scheduler-manual ownership flow:
+## Scenario Service Tests
 
-- Scheduler pauses when manual control takes ownership (`ownership_lost`):
-  - `tests/test_schedule_navigation_actions.py::test_schedule_runtime_pauses_when_target_ownership_is_lost`
+The Scenario Service is tested through integration tests in:
 
-- Scheduler resume reclaims control after manual override is released:
-  - `tests/test_schedule_navigation_actions.py::test_resume_after_manual_override_reclaims_control_for_active_step`
-  - `tests/test_schedule_service_api_integration.py::test_manual_override_pauses_and_resume_reclaims_live_apis`
-
-- Reclaim fails safely if a non-manual owner still holds the target:
-  - `tests/test_schedule_navigation_actions.py::test_resume_fails_when_non_manual_owner_still_holds_target`
-
-- Multi-target ownership in one step:
-  - `tests/test_schedule_navigation_actions.py::test_schedule_runtime_tracks_multiple_owned_targets_in_one_step`
+- `tests/test_scenario_scripted_runner.py` - Tests runner context and execution
+- `tests/test_scenario_runtime.py` - Tests package loading and compilation
 
 ## Integration Preconditions
 
 Integration tests automatically skip when services are unreachable. For best results, start:
 
 - Control service (`127.0.0.1:8767`)
-- Schedule service (`127.0.0.1:8768`)
-- Data service (`127.0.0.1:8769`) for schedule-data tests
+- Scenario service (`127.0.0.1:8770`)
+- Data service (`127.0.0.1:8769`) for scenario-data tests
 - ParameterDB (`127.0.0.1:8765`) for parameter-backed integration tests
 
 ## Notes

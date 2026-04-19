@@ -25,7 +25,7 @@ uname -r
 ```
 
 If you see something like:
-```
+```text
 6.x.x+rpt-rpi-2712
 ```
 
@@ -94,7 +94,7 @@ cd canlib/examples
 
 Expected:
 
-```
+```text
 Found 1 channel(s).
 ch 0: Kvaser Leaf v3 ...
 ```
@@ -142,7 +142,7 @@ PY
 
 ### Problem
 
-```
+```text
 Function canIoCtl failed - Error in parameter [Error Code -1]
 ```
 
@@ -219,7 +219,7 @@ sudo modprobe mhydra
 
 ### Modules missing after reboot
 Ensure `/etc/modules` contains:
-```
+```text
 kvcommon
 mhydra
 ```

@@ -35,7 +35,9 @@ Unsupported or unsafe syntax (attributes, comprehensions, keyword args, and arbi
 
 Equation:
 
+```text
 brewcan.density.0 * 1
+```
 
 Result:
 

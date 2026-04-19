@@ -2,6 +2,8 @@
 
 This guide explains how to build a production-ready scripted scenario runner for LabBREW packages.
 
+If you need the full package-authoring workflow, including `.lbpkg` archive structure, manifest fields, editor spec, validation artifacts, and repository integration, start with [Writing a LabBREW `.lbpkg` Package](./writing-an-lbpkg-package.md).
+
 It covers:
 - the required package shape,
 - the runner entrypoint contract,
@@ -205,7 +207,7 @@ Implementation rules:
 - Keep condition parsing tolerant of bad/missing values.
 - Write readable `wait_message` values to aid operator debugging.
 
-The reference implementation used by Excel-imported packages is in [Other/Builders/demo_sources/excel_program_runner.py](../../Other/Builders/demo_sources/excel_program_runner.py).
+The reference implementation used by Excel-imported packages lives inside the tracked template package at [data/scenario_templates/Excel_Conditions.lbpkg](../../data/scenario_templates/Excel_Conditions.lbpkg) under `bin/excel_program_runner.py`.
 
 ---
 

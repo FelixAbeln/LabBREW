@@ -8,12 +8,9 @@ For a step-by-step guide to writing a new plugin see [Writing a ParameterDB Plug
 
 Each plugin state payload must expose these keys (published via scan engine state updates):
 
-- `connected`
-: `bool`, plugin scan health for the current cycle.
-- `last_error`
-: `string`, plugin error text; empty string means no active error.
-- `last_sync`
-: `string` UTC timestamp (ISO-8601) of the most recent successful plugin scan.
+- `connected`: `bool`, plugin scan health for the current cycle.
+- `last_error`: `string`, plugin error text; empty string means no active error.
+- `last_sync`: `string` UTC timestamp (ISO-8601) of the most recent successful plugin scan.
 
 ## Engine-Enforced Rules
 
@@ -48,10 +45,8 @@ The following plugins support an optional `output_params` config key: `pid`, `de
 
 When `output_params` is set, the plugin writes its computed output value to each named parameter in the store on every successful scan cycle. The following state keys are published by any plugin that implements mirror output:
 
-- `output_targets`
-: `list[str]`, parameter names that were successfully written during the last scan cycle.
-- `missing_output_targets`
-: `list[str]`, entries from `output_params` that do not exist in the store. Key is absent when all targets are present.
+- `output_targets`: `list[str]`, parameter names that were successfully written during the last scan cycle.
+- `missing_output_targets`: `list[str]`, entries from `output_params` that do not exist in the store. Key is absent when all targets are present.
 
 Rules:
 

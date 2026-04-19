@@ -6,7 +6,7 @@ A complete new service has been created for high-frequency data logging from par
 
 ## Directory Structure Created
 
-```
+```text
 Services/data_service/
 ├── __init__.py              # Package marker
 ├── service.py               # FastAPI entry point
@@ -21,13 +21,13 @@ Services/data_service/
     └── loadstep.py          # Loadstep averaging logic
 
 Root level:
-├── run_service_data.py      # Convenience runner script
+├── run_supervisor.py        # Starts all backend services (recommended)
 └── Other/test_data_service.py # Example client & usage patterns
 ```
 
 ## Key Components
 
-### 1. **runtime.py** - Core Recording Engine
+### 1. runtime.py — Core Recording Engine
 - `DataRecordingRuntime`: Main class running in background thread
 - Records parameters at specified Hz (1-150)
 - Maintains circular buffer for in-memory data
@@ -42,7 +42,7 @@ Root level:
 - `take_loadstep()` - Start recording averaged data for a duration
 - `get_status()` - Check runtime status
 
-### 2. **service.py** - FastAPI Server
+### 2. service.py — FastAPI Server
 - Standard entry point following control_service pattern
 - Starts background runtime thread
 - Creates FastAPI app with all routes
@@ -50,12 +50,14 @@ Root level:
 
 **Run with:**
 ```bash
-python run_service_data.py
-# Or with custom host/port:
-python run_service_data.py --port 8001 --backend-port 8765
+# Recommended (starts all backend services):
+python run_supervisor.py
+
+# Or run only data_service directly:
+python -m Services.data_service.service --host 127.0.0.1 --port 8769 --backend-host 127.0.0.1 --backend-port 8765
 ```
 
-### 3. **api/routes.py** - REST Endpoints
+### 3. api/routes.py — REST Endpoints
 Six main endpoints:
 
 | Endpoint | Method | Purpose |
@@ -71,7 +73,7 @@ Six main endpoints:
 - `SetupMeasurementRequest` - Configuration for measurements
 - `TakeLoadstepRequest` - Configuration for loadsteps
 
-### 4. **storage/writer.py** - File Output
+### 4. storage/writer.py — File Output
 Three format writers implemented:
 
 - **ParquetWriter** - Binary columnar format (efficient)
@@ -83,7 +85,7 @@ Three format writers implemented:
 writer = FileWriterFactory.create("parquet", output_dir, session_name, params)
 ```
 
-### 5. **storage/loadstep.py** - Averaging Logic
+### 5. storage/loadstep.py — Averaging Logic
 `LoadstepAverager` class:
 - Accumulates samples over specified duration
 - Computes arithmetic mean of numeric values
@@ -231,7 +233,7 @@ The service is production-ready and:
 ## Quick Testing Checklist
 
 - [ ] Start parameterDB
-- [ ] Start data_service: `python run_service_data.py`
+- [ ] Start backend services: `python run_supervisor.py`
 - [ ] Verify health: `curl http://localhost:8000/health`
 - [ ] Run example: `python Other/test_data_service.py`
 - [ ] Check output files in `data/measurements/`

@@ -27,14 +27,6 @@
           },
           {
             "cols": 4,
-            "id": "widget-py230ymm",
-            "rows": 2,
-            "type": "control-field:source%3ABrewtools:auto%3Abrewcan.density.0.calibrate",
-            "x": 1,
-            "y": 4
-          },
-          {
-            "cols": 4,
             "id": "widget-6pv2rrej",
             "rows": 2,
             "type": "control-field:manual%3Acustom-map:manual_set_spd_Agitator",
@@ -58,20 +50,28 @@
             "y": 2
           },
           {
-            "cols": 4,
-            "id": "widget-z61pz5fe",
-            "rows": 2,
-            "type": "control-field:source%3ABrewtools:auto%3Abrewcan.pressure.0.calibrate",
-            "x": 9,
-            "y": 4
-          },
-          {
             "cols": 12,
             "id": "widget-fptzsdag",
             "rows": 12,
             "type": "data-snapshot",
             "x": 1,
             "y": 6
+          },
+          {
+            "cols": 4,
+            "id": "widget-7vw7e5xc",
+            "rows": 2,
+            "type": "control-field:source%3ABrewtools_Kvaser_Sim:auto%3Abrewcan.pressure.0.calibrate",
+            "x": 1,
+            "y": 4
+          },
+          {
+            "cols": 4,
+            "id": "widget-kfbvd4xf",
+            "rows": 2,
+            "type": "control-field:source%3ABrewtools_Kvaser_Sim:auto%3Abrewcan.density.0.calibrate",
+            "x": 9,
+            "y": 4
           }
         ]
       },
@@ -88,9 +88,9 @@
             "y": 1
           },
           {
-            "cols": 12,
+            "cols": 5,
             "id": "widget-zhc2e9d1",
-            "rows": 4,
+            "rows": 9,
             "type": "scenario-package",
             "x": 1,
             "y": 5
@@ -101,7 +101,7 @@
             "rows": 12,
             "type": "scenario-events",
             "x": 1,
-            "y": 9
+            "y": 14
           },
           {
             "cols": 12,
@@ -110,11 +110,41 @@
             "type": "scenario-summary",
             "x": 1,
             "y": 2
+          },
+          {
+            "cols": 7,
+            "id": "widget-9xeat4rb",
+            "rows": 9,
+            "type": "scenario-queue",
+            "x": 6,
+            "y": 5
+          }
+        ]
+      },
+      {
+        "id": "custom-tab-514txobh",
+        "label": "Data",
+        "widgets": [
+          {
+            "cols": 12,
+            "id": "widget-6dmufech",
+            "rows": 2,
+            "type": "archive-summary",
+            "x": 1,
+            "y": 1
+          },
+          {
+            "cols": 12,
+            "id": "widget-t9dki5xs",
+            "rows": 9,
+            "type": "archive-files",
+            "x": 1,
+            "y": 3
           }
         ]
       }
     ],
-    "updated_at": "2026-04-16T21:17:48.325249+00:00"
+    "updated_at": "2026-04-19T15:00:27.613054+00:00"
   },
   "02": {
     "active_tab": "custom-tab-fo65jvll",

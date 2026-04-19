@@ -17,7 +17,7 @@ Related documentation:
 
 ## 1. Folder structure
 
-```
+```text
 Services/parameterDB/sourceDefs/
 └── mydevice/
     ├── service.py   # required — SourceBase subclass + factory
@@ -359,7 +359,7 @@ keyword arguments in your signature.
 
 Understanding this helps you design your `run_ui_action` response and `apply_map` correctly.
 
-```
+```text
 User opens "Add source" modal
     │
     ├─ Frontend fetches GET /parameterdb/source-types/{type}/ui

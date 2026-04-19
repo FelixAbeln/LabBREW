@@ -41,7 +41,6 @@ export const GRID_CONTRACT = {
       'scenario-package',
       'schedule-events',
       'schedule-workbook',
-      'archive-files',
     ],
     blockedTypePrefixes: ['control-field:', 'control-card:'],
     maxRowsByType: {
@@ -50,7 +49,6 @@ export const GRID_CONTRACT = {
       'scenario-package': 8,
       'schedule-events': 8,
       'schedule-workbook': 8,
-      'archive-files': 10,
     },
     minOverflowPx: 28,
     minColumnsForAutoGrow: 6,

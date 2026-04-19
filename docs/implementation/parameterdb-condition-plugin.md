@@ -31,14 +31,14 @@ This syntax is intentionally the same as the wait syntax documented in [Schedule
 
 ### `cond` - parameter comparison
 
-```
+```text
 cond:source:operator:threshold
 cond:source:operator:threshold:for_seconds
 ```
 
 Examples:
 
-```
+```text
 cond:test:!=:10
 cond:brewcan.density.0:<=:1.012:120
 ```
@@ -56,13 +56,13 @@ Parts:
 
 ### `elapsed` - elapsed time since the logic started
 
-```
+```text
 elapsed:seconds
 ```
 
 Example:
 
-```
+```text
 elapsed:900
 ```
 
@@ -72,61 +72,61 @@ When `enable_param` is `false`, elapsed timing state is reset. Re-enabling start
 
 ### `all(...)` - every child must match
 
-```
+```text
 all(expr1;expr2;...)
 ```
 
 Example:
 
-```
+```text
 all(elapsed:900;cond:brewcan.density.0:<=:1.012:120)
 ```
 
 ### `any(...)` - at least one child must match
 
-```
+```text
 any(expr1;expr2;...)
 ```
 
 Example:
 
-```
+```text
 any(elapsed:7200;cond:abort.flag:==:true)
 ```
 
 ### `rising(...)` - match once on false -> true transition
 
-```
+```text
 rising(expr)
 ```
 
 Example:
 
-```
+```text
 rising(cond:brew.phase.ready:==:true)
 ```
 
 ### `falling(...)` - match once on true -> false transition
 
-```
+```text
 falling(expr)
 ```
 
 Example:
 
-```
+```text
 falling(cond:brew.phase.ready:==:true)
 ```
 
 ### `pulse(...)` - edge-triggered hold window
 
-```
+```text
 pulse(expr;hold_seconds)
 ```
 
 Example:
 
-```
+```text
 pulse(cond:brew.phase.ready:==:true;10)
 ```
 
@@ -136,7 +136,7 @@ The pulse starts on the rising edge of `expr` and remains matched for `hold_seco
 
 `all(...)`, `any(...)`, `rising(...)`, `falling(...)`, and `pulse(...)` can be nested:
 
-```
+```text
 all(elapsed:600;any(cond:reactor.temp:>=:64;cond:abort.flag:==:true))
 ```
 

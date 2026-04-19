@@ -195,9 +195,9 @@ python run_supervisor.py
 python run_FrontEndsupervisor.py
 ```
 
-> **React frontend** — the browser UI source lives in `BrewSupervisor/reat-frontend/` but does not yet have a dedicated launch script. Start it manually with your preferred dev server (e.g. `npm start` inside that directory) or build it and serve the static output.
+> **React frontend** — the browser UI source lives in `BrewSupervisor/reat-frontend/` but does not yet have a dedicated launch script. Start it manually with your preferred dev server (e.g. `npm run dev` inside that directory) or build it and serve the static output.
 
-Node topology is loaded from your local [`data/system_topology.yaml`](./data/system_topology.yaml), typically created from [`data/system_topology.sample.yaml`](./data/system_topology.sample.yaml). An example scenario workbook is provided at [`data/Example_Schedule.xlsx`](./data/Example_Schedule.xlsx).
+Node topology is loaded from your local [`data/system_topology.yaml`](./data/system_topology.yaml), typically created from [`data/system_topology.sample.yaml`](./data/system_topology.sample.yaml). An example scenario workbook is provided at [`data/Example_Excel.xlsx`](./data/Example_Excel.xlsx).
 
 ### Global Storage / Topology Override
 
@@ -316,10 +316,9 @@ LabBREW/
 ├── Services/
 │   ├── parameterDB/      # Parameter store & scan engine
 │   ├── control_service/  # Ownership, ramp, rules
-│   ├── scenario_service/ # Scenario execution engine
-│   ├── schedule_service/ # Legacy schedule runtime (migration reference)
+│   ├── scenario_service/ # Scenario package execution (replaces schedule_service)
 │   ├── data_service/     # Parameter recording and loadstep capture
-│   └── _shared/          # Shared operator & wait engines
+│   └── _shared/          # Shared operator, wait engines, storage paths
 ├── Supervisor/           # Per-node process supervisor
 ├── Other/Sims/           # Hardware simulators / test harnesses
 ├── data/                 # Topology config, scenario examples, rule definitions

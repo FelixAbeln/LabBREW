@@ -7,19 +7,19 @@ This source supports two transport modes:
 
 ## Config Keys
 
-Common:
+### Common
 
 - transport: bridge or ble
 - tilt_color: Red, Green, Black, Purple, Orange, Blue, Yellow, Pink
 - parameter_prefix: Prefix for published parameters
 - update_interval_s: Loop delay for bridge mode
 
-Bridge mode:
+### Bridge mode
 
 - bridge_url: Tilt Bridge endpoint, usually http://tiltbridge.local/json
 - request_timeout_s: HTTP timeout in seconds
 
-BLE mode:
+### BLE mode
 
 - ble_scan_timeout_s: Duration of each active BLE scan cycle
 - ble_idle_s: Delay between scan cycles. Set 0 for continuous scanning.
@@ -71,11 +71,15 @@ If Windows still misses advertisements, use transport bridge on Windows and vali
 
 Use the standalone probe to confirm advertisements are visible to this host process:
 
+```bash
 python Other/Sims/tilt_ble_probe.py --color green --timeout-s 10 --cycles 6 --idle-s 0
+```
 
 Optional address pinning:
 
+```bash
 python Other/Sims/tilt_ble_probe.py --color green --address AA:BB:CC:DD:EE:FF --timeout-s 10 --cycles 6
+```
 
 Exit code:
 

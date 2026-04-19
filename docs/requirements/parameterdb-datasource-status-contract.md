@@ -6,12 +6,9 @@ This document defines the minimum status behavior every ParameterDB datasource m
 
 Each datasource must publish these status fields as `static` parameters under its prefix:
 
-- `connected`
-: `bool` flag for current health of the datasource runtime loop.
-- `last_error`
-: `string` with the most recent error message. Empty string means no active error.
-- `last_sync`
-: `string` UTC timestamp (ISO-8601) of the most recent successful sync cycle.
+- `connected`: `bool` flag for current health of the datasource runtime loop.
+- `last_error`: `string` with the most recent error message. Empty string means no active error.
+- `last_sync`: `string` UTC timestamp (ISO-8601) of the most recent successful sync cycle.
 
 ## Behavior Rules
 
