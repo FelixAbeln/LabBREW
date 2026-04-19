@@ -639,6 +639,7 @@ class ScenarioRuntime:
     ) -> dict[str, Any]:
         """Replace the entire queue with a new ordered list."""
         with self._lock:
+            previous_queue = list(self._queue)
             parsed: list[QueueEntry] = []
             for item in entries:
                 if not isinstance(item, dict):
@@ -650,7 +651,15 @@ class ScenarioRuntime:
                         "ok": False,
                         "error": "Each queue entry requires package_id or package_filename",
                     }
-                parsed.append(QueueEntry.from_dict(item))
+                parsed_entry = QueueEntry.from_dict(item)
+                # UI queue updates intentionally omit embedded package payload for
+                # compact responses; keep the existing payload when the logical
+                # queue item is being updated/reordered.
+                if parsed_entry.package_payload is None:
+                    prior = self._find_matching_queue_entry(previous_queue, parsed_entry)
+                    if prior is not None and isinstance(prior.package_payload, dict):
+                        parsed_entry.package_payload = dict(prior.package_payload)
+                parsed.append(parsed_entry)
             self._queue = parsed
             if advance_on_stop is not None:
                 self._queue_advance_on_stop = bool(advance_on_stop)
@@ -663,6 +672,36 @@ class ScenarioRuntime:
                 "enabled": self._queue_enabled,
                 "advance_on_stop": self._queue_advance_on_stop,
             }
+
+    def _find_matching_queue_entry(
+        self,
+        candidates: list[QueueEntry],
+        target: QueueEntry,
+    ) -> QueueEntry | None:
+        for candidate in candidates:
+            if (
+                candidate.package_id == target.package_id
+                and candidate.package_filename == target.package_filename
+                and candidate.label == target.label
+                and candidate.run_index == target.run_index
+            ):
+                return candidate
+        for candidate in candidates:
+            if (
+                candidate.package_id == target.package_id
+                and candidate.package_filename == target.package_filename
+                and candidate.run_index == target.run_index
+            ):
+                return candidate
+        for candidate in candidates:
+            if candidate.package_id and candidate.package_id == target.package_id:
+                return candidate
+            if (
+                candidate.package_filename
+                and candidate.package_filename == target.package_filename
+            ):
+                return candidate
+        return None
 
     def enqueue(
         self,
