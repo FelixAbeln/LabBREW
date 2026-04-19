@@ -831,12 +831,12 @@ class ScenarioRuntime:
                     still_blocked = self._wait_for_targets_release(blocked_targets)
                     if still_blocked:
                         self._append_event(
-                            "Queue: waiting for control release before stepping"
+                            "Queue: timed out waiting for control release before stepping; queue blocked"
                         )
                         self._persist_locked()
                         return {
                             "ok": False,
-                            "error": "Cannot continue queue while control targets are still owned",
+                            "error": "Timed out waiting for control targets to be released; queue remains blocked",
                             "state": runner_state,
                             "blocked_targets": still_blocked,
                         }
