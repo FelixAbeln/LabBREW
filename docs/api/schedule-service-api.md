@@ -1,7 +1,34 @@
-# Schedule Service API
+# Schedule Service API (DEPRECATED)
 
-**Base URL:** `http://<node-host>:8768`  
-**Source:** `Services/schedule_service/api/routes_schedule.py`, `Services/schedule_service/models.py`
+⚠️ **This service has been deprecated and removed as of April 2026.**
+
+The Schedule Service was consolidated into the **[Scenario Service](./scenario-service-api.md)** (port 8770). All workflow orchestration logic now lives in user-provided runner scripts executed by the scenario service, rather than in a backend service.
+
+**For new development, use the Scenario Service API instead.**
+
+---
+
+## Migration
+
+The old schedule model (multi-step sequences with built-in wait engine) has been replaced with a more flexible runner-based approach:
+
+| Old (Schedule Service) | New (Scenario Service) |
+|---|---|
+| Service-level step execution | User script in package (runner.py) |
+| Service-level wait condition evaluation | Script uses shared wait_engine() helper |
+| Service-level phase management | Script controls flow via run_program() calls |
+| No script customization | Full Python/async script customization |
+
+**Reference:** See [Scenario Service Integration Plan](../implementation/scenario-service-integration.md)
+
+---
+
+# Legacy Schedule Service API (Archived)
+
+The following documents the old Schedule Service for reference only.
+
+**Base URL:** `http://<node-host>:8768` (now retired)  
+**Source:** `Services/schedule_service/*` (removed)
 
 The Schedule Service executes multi-step fermentation schedules. A schedule has two phases: **setup** (run once at start) and **plan** (the main repeating sequence). Each step can carry a list of control actions and an optional wait condition that gates progression to the next step.
 

@@ -316,10 +316,9 @@ LabBREW/
 ├── Services/
 │   ├── parameterDB/      # Parameter store & scan engine
 │   ├── control_service/  # Ownership, ramp, rules
-│   ├── scenario_service/ # Scenario execution engine
-│   ├── schedule_service/ # Legacy schedule runtime (migration reference)
+│   ├── scenario_service/ # Scenario package execution (replaces schedule_service)
 │   ├── data_service/     # Parameter recording and loadstep capture
-│   └── _shared/          # Shared operator & wait engines
+│   └── _shared/          # Shared operator, wait engines, storage paths
 ├── Supervisor/           # Per-node process supervisor
 ├── Other/Sims/           # Hardware simulators / test harnesses
 ├── data/                 # Topology config, scenario examples, rule definitions

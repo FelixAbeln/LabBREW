@@ -1,10 +1,30 @@
-# Schedule Service — Implementation Status
+# Schedule Service — ARCHIVED (Last Updated April 19, 2026)
 
-> Last updated: 2026-03-23
+⚠️ **This service has been completely removed.**
+
+The Schedule Service was deleted on April 19, 2026, in favor of the **[Scenario Service](./scenario-service-implementation.md)**.
+
+This document is retained for **historical reference only**. All workflow orchestration now happens in user-provided runner scripts executed by the scenario service, rather than in backend service code.
+
+## Why Was It Removed?
+
+The old schedule service had serious resource issues on resource-constrained devices (Raspberry Pi):
+- **Aggressive polling**: `reload_rules()` every 0.2 seconds caused disk I/O stalls
+- **Socket exhaustion**: Created 50+ new connections per second when collecting parameter values
+- **Continuous serialization**: WebSocket `json.dumps()` called on every loop cycle
+- **Service restart requirement**: High CPU/memory accumulation forced periodic systemd restarts
+
+The new scenario runner architecture moves all logic into user scripts running on-demand, eliminating background polling and freeing resources.
+
+## Migration Path
+
+See **[Scenario Service Integration Plan](./scenario-service-integration.md)** for the complete migration details.
 
 ---
 
-## Architecture
+# Schedule Service — Implementation Status (ARCHIVED)
+
+> Last updated: 2026-03-23 (ARCHIVED)
 
 The schedule service lives in `Services/schedule_service/` and is structured
 as a FastAPI app backed by a threaded poll-loop runtime.
