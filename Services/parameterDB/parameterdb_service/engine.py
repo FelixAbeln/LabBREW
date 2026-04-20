@@ -163,24 +163,16 @@ class ScanEngine:
         *,
         allow_cached_input: bool,
     ) -> Any:
-        """Return stable transducer input to avoid repeated remapping drift.
+        """Return the explicit pre-transducer input for this evaluation.
 
-        For passive parameters, the stored value can already be the mapped transducer
-        output from the previous cycle. Re-mapping that output as if it were raw
-        input causes runaway growth when clamp is disabled.
+        Do not infer that a value is already mapped based on equality with the last
+        transducer output. A legitimate fresh raw input can numerically equal the
+        previous mapped output, and treating that as "already transformed" causes
+        stale cached raw input to be reused incorrectly.
 
-        Rule:
-        - If current value equals last mapped transducer output, reuse the previous
-          pre-transducer input.
-        - Otherwise treat current value as fresh pre-transducer input.
+        The safe behavior in this code path is to treat the provided value as the
+        current raw transducer input and cache it for later reference.
         """
-        if (
-            allow_cached_input
-            and param_name in self._transducer_input_cache
-            and param_name in self._transducer_output_cache
-            and current_value == self._transducer_output_cache[param_name]
-        ):
-            return self._transducer_input_cache[param_name]
         self._transducer_input_cache[param_name] = current_value
         return current_value
 
