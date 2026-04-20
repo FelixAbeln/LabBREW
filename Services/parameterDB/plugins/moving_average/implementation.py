@@ -8,10 +8,7 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 class MovingAverageParameter(ParameterBase):
     parameter_type = "moving_average"
     display_name = "Moving Average"
-    description = (
-        "Applies a rolling arithmetic mean to a source parameter. "
-        "Output can also be mirrored to other parameters."
-    )
+    description = "Applies a rolling arithmetic mean to a source parameter."
 
     def __init__(
         self,
@@ -23,38 +20,6 @@ class MovingAverageParameter(ParameterBase):
     ) -> None:
         super().__init__(name, config=config, value=value, metadata=metadata)
         self._samples: list[float] = []
-
-    def _output_targets(self) -> list[str]:
-        raw = self.config.get("output_params") or []
-        if isinstance(raw, str):
-            raw = [raw]
-        result: list[str] = []
-        if isinstance(raw, list):
-            for item in raw:
-                if not item:
-                    continue
-                target = str(item).strip()
-                if target and target != self.name:
-                    result.append(target)
-        return list(dict.fromkeys(result))
-
-    def write_targets(self) -> list[str]:
-        return self._output_targets()
-
-    def _write_output_targets(self, store, value: float) -> None:
-        written: list[str] = []
-        missing: list[str] = []
-        for target in self._output_targets():
-            if not store.exists(target):
-                missing.append(target)
-                continue
-            store.set_value(target, value)
-            written.append(target)
-        self.state["output_targets"] = written
-        if missing:
-            self.state["missing_output_targets"] = missing
-        else:
-            self.state.pop("missing_output_targets", None)
 
     def dependencies(self) -> list[str]:
         deps = [self.config.get("source"), self.config.get("enable_param")]
@@ -105,7 +70,6 @@ class MovingAverageParameter(ParameterBase):
 
         output = sum(self._samples) / len(self._samples)
         self.value = output
-        self._write_output_targets(store, output)
 
         self.state["source"] = str(source_name)
         self.state["input"] = current_input

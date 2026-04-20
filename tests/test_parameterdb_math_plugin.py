@@ -11,7 +11,7 @@ def _ctx(store: ParameterStore):
     return SimpleNamespace(store=store, dt=0.1)
 
 
-def test_math_plugin_evaluates_equation_and_mirrors_output() -> None:
+def test_math_plugin_evaluates_equation_without_plugin_side_mirroring() -> None:
     store = ParameterStore()
     store.add(StaticParameter("density", value=1.234))
     store.add(StaticParameter("linked_density", value=0.0))
@@ -29,9 +29,8 @@ def test_math_plugin_evaluates_equation_and_mirrors_output() -> None:
     param.scan(_ctx(store))
 
     assert float(param.get_value()) == 1.234
-    assert float(store.get_value("linked_density")) == 1.234
+    assert float(store.get_value("linked_density")) == 0.0
     assert param.state["symbols"] == ["density"]
-    assert param.state["output_targets"] == ["linked_density"]
     assert "last_error" not in param.state
 
 

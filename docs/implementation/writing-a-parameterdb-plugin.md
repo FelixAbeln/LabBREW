@@ -211,8 +211,15 @@ Useful store methods available inside `scan()`:
 
 ## 6. Dependency declaration
 
-The engine builds a dependency graph every time the store revision changes (parameter
-added/removed). Declare dependencies accurately so the scan order is correct.
+The engine lazily rebuilds the dependency graph whenever the store revision changes.
+In practice this means it rebuilds on next scan cycle (or next graph query) after:
+
+- parameter add/remove
+- config changes
+- metadata changes
+- external value writes that actually change value
+
+Declare dependencies accurately so scan order remains correct.
 
 ```python
 def dependencies(self) -> list[str]:
@@ -233,52 +240,29 @@ def write_targets(self) -> list[str]:
 
 ---
 
-## 7. Mirror output (optional but standard)
+## 7. Mirror output and calibration (database-owned)
 
-All active plugins that produce a scalar output (`pid`, `deadband`, `math`, `condition`)
-follow the same mirror-output pattern. Copy this verbatim and adjust the value type if
-needed.
+**Mirror output, calibration equations, and timeshift are now handled by the database engine,
+not by plugins.** Do NOT implement mirror writing in your plugin.
 
-```python
-def _output_targets(self) -> list[str]:
-    raw = self.config.get("output_params") or []
-    if isinstance(raw, str):
-        raw = [raw]
-    result: list[str] = []
-    if isinstance(raw, list):
-        for item in raw:
-            if not item:
-                continue
-            name = str(item).strip()
-            if name and name != self.name:
-                result.append(name)
-    return list(dict.fromkeys(result))   # preserve order, deduplicate
+Instead, users configure these fields in the parameter UI:
+- **mirror_to**: List of parameters that receive the calibrated output each scan
+- **calibration_equation**: Math expression applied to your output (e.g., `"2*x + 5"`)
+- **timeshift**: Metadata offset for post-processing alignment
 
-def write_targets(self) -> list[str]:
-    return self._output_targets()
+The engine applies these after your `scan()` returns, in this order:
+1. Your plugin outputs a value → `self.value`
+2. Engine applies `calibration_equation` (if any)
+3. Engine writes to all `mirror_to` targets
 
-def _write_output_targets(self, store, value) -> None:
-    written: list[str] = []
-    missing: list[str] = []
-    for target in self._output_targets():
-        if not store.exists(target):
-            missing.append(target)
-            continue
-        store.set_value(target, value)
-        written.append(target)
-    self.state["output_targets"] = written
-    if missing:
-        self.state["missing_output_targets"] = missing
-    else:
-        self.state.pop("missing_output_targets", None)
-```
+### Dependencies from calibration equations
 
-Call `self._write_output_targets(ctx.store, self.value)` at the end of `scan()` after
-setting `self.value`. Add `output_params` to `default_config()`, `schema()`, and to the
-UI spec (`"Mirror Output To"` field, `parameter_ref` type).
+If users reference other parameters in a calibration equation (e.g., `"x * tank.volume"`),
+the engine automatically adds them as dependencies. Your plugin doesn't need to know about
+this — the engine handles dependency resolution.
 
-See the [Plugin Runtime State Contract](../requirements/parameterdb-plugin-state-contract.md#mirror-output-convention)
-for the full published state key specification.
+**See:** [Database-Owned Output Pipeline](./parameterdb-database-output-pipeline.md) for full details,
+syntax, examples, and how dependencies affect scan ordering.
 
 ---
 
@@ -331,12 +315,6 @@ def get_ui_spec() -> dict:
                             "type":  "parameter_ref",
                             "help":  "Optional flag that gates evaluation.",
                         },
-                        {
-                            "key":   "config.output_params",
-                            "label": "Mirror Output To",
-                            "type":  "parameter_ref",
-                            "help":  "Optional parameters that receive the output value.",
-                        },
                     ],
                 },
                 {
@@ -369,15 +347,12 @@ def get_ui_spec() -> dict:
                     "fields": [
                         {"key": "config.source",        "label": "Source",           "type": "parameter_ref", "required": True},
                         {"key": "config.enable_param",  "label": "Enable Parameter", "type": "parameter_ref"},
-                        {"key": "config.output_params", "label": "Mirror Output To", "type": "parameter_ref"},
                     ],
                 },
                 {
                     "title": "State",
                     "fields": [
                         {"key": "state.source_value",           "label": "Source Value",    "type": "readonly"},
-                        {"key": "state.output_targets",         "label": "Output Targets",  "type": "readonly"},
-                        {"key": "state.missing_output_targets", "label": "Missing Targets", "type": "readonly"},
                         {"key": "state.last_error",             "label": "Last Error",      "type": "readonly"},
                     ],
                 },
@@ -455,28 +430,6 @@ def test_myplugin_missing_source_sets_error() -> None:
     assert param.get_value() == 0.0   # value unchanged
 ```
 
-### 9.4 Mirror output
-
-```python
-def test_myplugin_mirrors_output() -> None:
-    store = ParameterStore()
-    store.add(StaticParameter("reactor.temp", value=50.0))
-    store.add(StaticParameter("mirror.target", value=0.0))
-
-    plugin = MyPlugin()
-    param  = plugin.create(
-        "out",
-        config={"source": "reactor.temp", "output_params": ["mirror.target"]},
-        value=0.0,
-    )
-
-    param.scan(_ctx(store))
-
-    assert param.get_value() == 100.0
-    assert store.get_value("mirror.target") == 100.0
-    assert "mirror.target" in param.state["output_targets"]
-```
-
 Run them with:
 
 ```text
@@ -496,26 +449,24 @@ Use this when reviewing a new plugin before merging.
 - [ ] `scan()` never raises for expected domain errors — uses `self.state["last_error"]` instead
 - [ ] `scan()` never sets `connected`, `last_sync` — engine-managed
 - [ ] `dependencies()` lists every parameter name read from the store during scan
-- [ ] `write_targets()` lists every parameter name written to the store during scan
+- [ ] `write_targets()` lists every parameter name written to the store during scan (not including mirror targets—those are engine-owned)
 - [ ] `enable_param` gate follows the standard pattern: set `state["enabled"] = False`, clear `last_error`, return
-- [ ] Mirror output uses the standard `_output_targets` / `_write_output_targets` helpers
-- [ ] `default_config()` includes `output_params: []` if mirror output is supported
-- [ ] `schema()` includes `output_params` in `properties` if mirror output is supported
+- [ ] **Mirror output, calibration, and timeshift are database-owned** — do NOT implement in plugin
+  - Users set `mirror_to`, `calibration_equation`, `timeshift` in parameter UI
+  - Engine applies these after your `scan()` returns
 
 ### UI spec
 
 - [ ] `create.required` includes `"name"` and any truly required config keys
 - [ ] `create.defaults.config` matches `default_config()` exactly
-- [ ] `edit` section has a `"State"` group with `state.last_error` (and `state.output_targets` / `state.missing_output_targets` if mirror output is present)
-- [ ] `"Mirror Output To"` field present in both create and edit if `output_params` is in config
+- [ ] `edit` section has a `"State"` group with `state.last_error` and plugin-specific state
+- [ ] **Database Output Pipeline section is auto-added** — do NOT add `mirror_to`, `calibration_equation`, or `timeshift` fields
 
 ### Tests
 
 - [ ] Default config + schema contract test
 - [ ] Happy-path scan test
 - [ ] Missing / invalid config sets `last_error` and leaves `self.value` unchanged
-- [ ] Mirror output writes correct value and records `output_targets`
-- [ ] Missing mirror target recorded in `missing_output_targets`
 - [ ] Enable-gate test: disabled plugin leaves value unchanged
 
 ### Contract

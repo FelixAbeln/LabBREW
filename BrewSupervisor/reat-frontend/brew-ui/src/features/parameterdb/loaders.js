@@ -35,6 +35,30 @@ export async function fetchSourceTypeUi(fermenterId, sourceType, name = null, mo
   return api(`${base(fermenterId)}/source-types/${encodeURIComponent(sourceType)}/ui?${q}`);
 }
 
+export async function fetchTransducers(fermenterId) {
+  return api(`${base(fermenterId)}/transducers`);
+}
+
+export async function createTransducer(fermenterId, transducer) {
+  return api(`${base(fermenterId)}/transducers`, {
+    method: 'POST',
+    body: JSON.stringify({ transducer }),
+  });
+}
+
+export async function updateTransducer(fermenterId, name, transducer) {
+  return api(`${base(fermenterId)}/transducers/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ transducer }),
+  });
+}
+
+export async function deleteTransducer(fermenterId, name) {
+  return api(`${base(fermenterId)}/transducers/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function invokeSourceTypeModuleAction(fermenterId, sourceType, action, payload = {}, name = null, signal = null) {
   return api(`${base(fermenterId)}/source-types/${encodeURIComponent(sourceType)}/module-actions/${encodeURIComponent(action)}`, {
     method: 'POST',

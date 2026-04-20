@@ -61,6 +61,10 @@ class ImportSnapshotBody(BaseModel):
     save_to_disk: bool = True
 
 
+class TransducerBody(BaseModel):
+    transducer: dict[str, Any] = Field(default_factory=dict)
+
+
 class AgentStorageListBody(BaseModel):
     root: str
     path: str = ""
@@ -614,6 +618,24 @@ def build_agent_app(
             "ok": True,
             "ui": _wrap(lambda: _db().get_parameter_type_ui(parameter_type)),
         }
+
+    @app.get("/parameterdb/transducers")
+    def list_transducers() -> dict[str, Any]:
+        return {"ok": True, "transducers": _wrap(lambda: _db().list_transducers())}
+
+    @app.post("/parameterdb/transducers")
+    def create_transducer(body: TransducerBody) -> dict[str, Any]:
+        transducer = _wrap(lambda: _db().create_transducer(body.transducer))
+        return {"ok": True, "transducer": transducer}
+
+    @app.put("/parameterdb/transducers/{name}")
+    def update_transducer(name: str, body: TransducerBody) -> dict[str, Any]:
+        transducer = _wrap(lambda: _db().update_transducer(name, body.transducer))
+        return {"ok": True, "transducer": transducer}
+
+    @app.delete("/parameterdb/transducers/{name}")
+    def delete_transducer(name: str) -> dict[str, Any]:
+        return {"ok": bool(_wrap(lambda: _db().delete_transducer(name)))}
 
     @app.post("/parameterdb/params")
     def create_param(body: CreateParamBody) -> dict[str, Any]:

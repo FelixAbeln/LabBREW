@@ -13,11 +13,12 @@ import {
 import { ParameterList } from './ParameterList.jsx';
 import { ParameterGraph } from './ParameterGraph.jsx';
 import { SourcesPanel } from './SourcesPanel.jsx';
+import { TransducersPanel } from './TransducersPanel.jsx';
 
 const POLL_MS = 2500;
 
 export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
-  const [view, setView] = useState('params');   // 'params' | 'graph' | 'sources'
+  const [view, setView] = useState('params');   // 'params' | 'graph' | 'sources' | 'transducers'
   const [params, setParams] = useState({});
   const [graph, setGraph] = useState(null);
   const [stats, setStats] = useState(null);
@@ -203,13 +204,13 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
 
       {/* View tabs */}
       <div className="pdb-view-tabs">
-        {['params', 'graph', 'sources'].map(v => (
+        {['params', 'graph', 'sources', 'transducers'].map(v => (
           <button
             key={v}
             className={`pdb-view-tab ${view === v ? 'pdb-view-tab-active' : ''}`}
             onClick={() => setView(v)}
           >
-            {v === 'params' ? 'Parameters' : v === 'graph' ? 'Graph' : 'Sources'}
+            {v === 'params' ? 'Parameters' : v === 'graph' ? 'Graph' : v === 'sources' ? 'Sources' : 'Transducers'}
           </button>
         ))}
         <span style={{ marginLeft: 12, fontSize: 12, color: '#475569', alignSelf: 'center' }}>
@@ -242,8 +243,10 @@ export function ParameterDBPage({ fermenterId, fermenterName, onClose }) {
           />
         ) : view === 'graph' ? (
           <ParameterGraph params={params} graph={graph} />
-        ) : (
+        ) : view === 'sources' ? (
           <SourcesPanel fermenterId={fermenterId} parameterNames={Object.keys(params)} params={params} graph={graph} />
+        ) : (
+          <TransducersPanel fermenterId={fermenterId} />
         )}
       </div>
     </div>

@@ -125,6 +125,25 @@ def validate_import_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_create_transducer(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "transducer": require_dict(payload, "transducer"),
+    }
+
+
+def validate_update_transducer(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": require_str(payload, "name"),
+        "transducer": require_dict(payload, "transducer"),
+    }
+
+
+def validate_delete_transducer(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": require_str(payload, "name"),
+    }
+
+
 def optional_int(payload: dict[str, Any], key: str, default: int) -> int:
     value = payload.get(key, default)
     if not isinstance(value, int):

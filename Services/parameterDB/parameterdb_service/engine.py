@@ -7,7 +7,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from ..parameterdb_core.expression import (
+    CompiledExpression,
+    compile_expression,
+    evaluate_expression,
+    expression_symbol_names,
+)
 from .store import ParameterStore
+from .transducers import PostgresTransducerCatalog, TransducerCatalog
 
 UTC = timezone.utc
 
@@ -25,6 +32,7 @@ class ScanEngine:
         self,
         period_s: float,
         store: ParameterStore | None = None,
+        transducers: TransducerCatalog | PostgresTransducerCatalog | None = None,
         *,
         mode: str = "fixed",
         target_utilization: float = 0.7,
@@ -39,6 +47,7 @@ class ScanEngine:
         self.min_period_s = max(0.0, float(min_period_s))
         self.max_period_s = max(self.min_period_s, float(max_period_s))
         self.store = store or ParameterStore()
+        self.transducers = transducers or TransducerCatalog(path=None)
         self._running = False
         self._thread: threading.Thread | None = None
         self._cycle_count = 0
@@ -55,6 +64,317 @@ class ScanEngine:
         self._graph_warnings: list[str] = []
         self._dependency_map: dict[str, list[str]] = {}
         self._write_target_map: dict[str, list[str]] = {}
+        self._calibration_cache: dict[str, CompiledExpression | None] = {}
+        self._calibration_input_cache: dict[str, Any] = {}
+        self._calibration_output_cache: dict[str, Any] = {}
+        self._transducer_input_cache: dict[str, Any] = {}
+        self._transducer_output_cache: dict[str, Any] = {}
+
+    def _prune_runtime_caches(self, names: set[str]) -> None:
+        for cache in (
+            self._calibration_cache,
+            self._calibration_input_cache,
+            self._calibration_output_cache,
+            self._transducer_input_cache,
+            self._transducer_output_cache,
+        ):
+            stale = [name for name in cache if name not in names]
+            for name in stale:
+                cache.pop(name, None)
+
+    def _resolve_calibration_input(self, param_name: str, current_value: Any) -> Any:
+        """Return stable calibration input to avoid repeated accumulation.
+
+        For passive parameters (e.g. static values updated externally), scan() may
+        leave the previously calibrated value untouched. If we calibrate that value
+        again every cycle, equations like `x + offset` drift upward forever.
+
+        Rule:
+        - If current value still equals our last calibrated output, reuse the last
+          raw input value.
+        - Otherwise treat current value as fresh raw input.
+        """
+        if (
+            param_name in self._calibration_output_cache
+            and current_value == self._calibration_output_cache[param_name]
+            and param_name in self._calibration_input_cache
+        ):
+            return self._calibration_input_cache[param_name]
+        self._calibration_input_cache[param_name] = current_value
+        return current_value
+
+    def _database_mirror_targets(self, param_name: str, config: dict[str, Any]) -> list[str]:
+        raw = config.get("mirror_to")
+        if raw is None:
+            raw = config.get("output_params")
+        if isinstance(raw, str):
+            raw = [raw]
+        if not isinstance(raw, list):
+            return []
+        targets: list[str] = []
+        for item in raw:
+            target = str(item or "").strip()
+            if target and target != param_name:
+                targets.append(target)
+        return list(dict.fromkeys(targets))
+
+    def _resolve_transducer_input(self, param_name: str, current_value: Any) -> Any:
+        """Return stable transducer input to avoid repeated remapping drift.
+
+        For passive parameters, the stored value can already be the mapped transducer
+        output from the previous cycle. Re-mapping that output as if it were raw
+        input causes runaway growth when clamp is disabled.
+
+        Rule:
+        - If current value equals last mapped transducer output, reuse the previous
+          pre-transducer input.
+        - Otherwise treat current value as fresh pre-transducer input.
+        """
+        if (
+            param_name in self._transducer_output_cache
+            and current_value == self._transducer_output_cache[param_name]
+            and param_name in self._transducer_input_cache
+        ):
+            return self._transducer_input_cache[param_name]
+        self._transducer_input_cache[param_name] = current_value
+        return current_value
+
+    def _database_calibration_compiled(self, param_name: str, config: dict[str, Any]) -> CompiledExpression | None:
+        equation = str(config.get("calibration_equation") or "").strip()
+        if not equation:
+            self._calibration_cache[param_name] = None
+            return None
+        cached = self._calibration_cache.get(param_name)
+        if cached is not None and cached.expression == equation:
+            return cached
+        compiled = compile_expression(equation, required=True)
+        self._calibration_cache[param_name] = compiled
+        return compiled
+
+    def _database_dependencies(self, param_name: str, config: dict[str, Any]) -> tuple[list[str], str | None]:
+        try:
+            compiled = self._database_calibration_compiled(param_name, config)
+        except Exception as exc:
+            return [], str(exc)
+        if compiled is None:
+            return [], None
+        deps = [
+            symbol
+            for symbol in compiled.symbols
+            if symbol and symbol not in {param_name, "x", "value"}
+        ]
+        return list(dict.fromkeys(deps)), None
+
+    def _apply_calibration_equation(
+        self,
+        *,
+        param_name: str,
+        config: dict[str, Any],
+        base_value: Any,
+    ) -> tuple[Any, dict[str, Any] | None]:
+        equation = str(config.get("calibration_equation") or "").strip()
+        if not equation:
+            return base_value, None
+        try:
+            x_value = float(base_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "calibration equation requires numeric parameter value"
+            ) from exc
+
+        compiled = self._database_calibration_compiled(param_name, config)
+        if compiled is None:
+            return base_value, None
+
+        values: dict[str, float] = {
+            "x": x_value,
+            "value": x_value,
+        }
+        missing: list[str] = []
+        non_numeric: list[str] = []
+        for name in expression_symbol_names(compiled):
+            source_symbol = compiled.alias_to_symbol.get(name, name)
+            if source_symbol in {"x", "value"}:
+                continue
+            if not self.store.exists(source_symbol):
+                missing.append(source_symbol)
+                continue
+            raw_value = self.store.get_value(source_symbol)
+            try:
+                values[name] = float(raw_value)
+            except (TypeError, ValueError):
+                non_numeric.append(source_symbol)
+
+        if missing:
+            raise ValueError(
+                "missing parameters in calibration equation: " + ", ".join(missing)
+            )
+        if non_numeric:
+            raise ValueError(
+                "non-numeric parameters in calibration equation: "
+                + ", ".join(non_numeric)
+            )
+
+        try:
+            calibrated = evaluate_expression(compiled.tree, values)
+        except Exception as exc:
+            raise ValueError(f"calibration equation failed: {exc}") from exc
+
+        return calibrated, {
+            "calibration_equation": equation,
+            "calibration_symbols": list(compiled.symbols),
+            "calibration_input": x_value,
+            "calibration_output": calibrated,
+        }
+
+    def _apply_mirror_to_targets(self, *, name: str, config: dict[str, Any], value: Any) -> dict[str, Any] | None:
+        targets = self._database_mirror_targets(name, config)
+        if not targets:
+            return None
+        written: list[str] = []
+        missing: list[str] = []
+        for target in targets:
+            if not self.store.exists(target):
+                missing.append(target)
+                continue
+            self.store.set_value(target, value)
+            written.append(target)
+        state: dict[str, Any] = {"output_targets": written}
+        if missing:
+            state["missing_output_targets"] = missing
+        return state
+
+    def _apply_transducer_mapping(
+        self,
+        *,
+        param_name: str,
+        config: dict[str, Any],
+        base_value: Any,
+    ) -> tuple[Any, dict[str, Any] | None]:
+        transducer_id = str(config.get("transducer_id") or "").strip()
+        if not transducer_id:
+            return base_value, None
+
+        transducer = self.transducers.get(transducer_id)
+        if transducer is None:
+            raise ValueError(f"unknown transducer '{transducer_id}'")
+
+        try:
+            x_value = float(base_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "transducer mapping requires numeric parameter value"
+            ) from exc
+
+        input_min = float(transducer["input_min"])
+        input_max = float(transducer["input_max"])
+        output_min = float(transducer["output_min"])
+        output_max = float(transducer["output_max"])
+
+        if input_min == input_max:
+            raise ValueError(
+                f"transducer '{transducer_id}' has invalid input range"
+            )
+
+        ratio = (x_value - input_min) / (input_max - input_min)
+        mapped = output_min + ratio * (output_max - output_min)
+
+        if bool(transducer.get("clamp", True)):
+            low = min(output_min, output_max)
+            high = max(output_min, output_max)
+            mapped = max(low, min(high, mapped))
+
+        return mapped, {
+            "transducer_id": transducer_id,
+            "transducer_input": x_value,
+            "transducer_output": mapped,
+            "transducer_input_unit": str(transducer.get("input_unit") or ""),
+            "transducer_output_unit": str(transducer.get("output_unit") or ""),
+        }
+
+    def _apply_database_pipeline(self, param_name: str, param, now: float) -> str | None:
+        config = dict(param.config)
+        value = param.get_value()
+        equation = str(config.get("calibration_equation") or "").strip()
+        transducer_id = str(config.get("transducer_id") or "").strip()
+
+        base_value = value
+        if equation:
+            base_value = self._resolve_calibration_input(param_name, value)
+
+        try:
+            calibrated, calibration_state = self._apply_calibration_equation(
+                param_name=param_name,
+                config=config,
+                base_value=base_value,
+            )
+        except Exception as exc:
+            return str(exc)
+
+        pre_transducer_value = calibrated
+        if transducer_id:
+            pre_transducer_value = self._resolve_transducer_input(
+                param_name,
+                calibrated,
+            )
+
+        try:
+            transformed, transducer_state = self._apply_transducer_mapping(
+                param_name=param_name,
+                config=config,
+                base_value=pre_transducer_value,
+            )
+        except Exception as exc:
+            return str(exc)
+
+        param.set_value(transformed)
+        if equation:
+            self._calibration_output_cache[param_name] = calibrated
+        else:
+            self._calibration_input_cache.pop(param_name, None)
+            self._calibration_output_cache.pop(param_name, None)
+
+        if transducer_id:
+            self._transducer_output_cache[param_name] = transformed
+        else:
+            self._transducer_input_cache.pop(param_name, None)
+            self._transducer_output_cache.pop(param_name, None)
+
+        if calibration_state:
+            param.state.update(calibration_state)
+        else:
+            param.state.pop("calibration_equation", None)
+            param.state.pop("calibration_symbols", None)
+            param.state.pop("calibration_input", None)
+            param.state.pop("calibration_output", None)
+
+        if transducer_state:
+            param.state.update(transducer_state)
+        else:
+            param.state.pop("transducer_id", None)
+            param.state.pop("transducer_input", None)
+            param.state.pop("transducer_output", None)
+            param.state.pop("transducer_input_unit", None)
+            param.state.pop("transducer_output_unit", None)
+
+        # timeshift is now metadata-only (exported for post-processing), not applied at runtime
+        param.state.pop("timeshift", None)
+        param.state.pop("timeshift_buffer_length", None)
+
+        mirror_state = self._apply_mirror_to_targets(
+            name=param_name,
+            config=config,
+            value=transformed,
+        )
+        if mirror_state:
+            param.state.update(mirror_state)
+            if "missing_output_targets" not in mirror_state:
+                param.state.pop("missing_output_targets", None)
+        else:
+            param.state.pop("output_targets", None)
+            param.state.pop("missing_output_targets", None)
+
+        return None
 
     def _desired_period_s(self, elapsed_s: float) -> float:
         if self.mode == "adaptive":
@@ -73,6 +393,7 @@ class ScanEngine:
                 return
             params = self.store._iter_runtime_params()
             names = {p.name for p in params}
+            self._prune_runtime_caches(names)
             param_map = {p.name: p for p in params}
             dependency_map: dict[str, list[str]] = {}
             write_target_map: dict[str, list[str]] = {}
@@ -92,10 +413,29 @@ class ScanEngine:
                         indegree[name] += 1
                     else:
                         warnings.append(f"{name}: dependency '{dep}' does not exist")
+
+                db_deps, db_dep_error = self._database_dependencies(name, p.config)
+                if db_dep_error:
+                    warnings.append(f"{name}: invalid calibration equation: {db_dep_error}")
+                for dep in db_deps:
+                    if not dep or dep == name:
+                        continue
+                    deps.append(dep)
+                    if dep in names:
+                        graph[dep].add(name)
+                        indegree[name] += 1
+                    else:
+                        warnings.append(f"{name}: dependency '{dep}' does not exist")
                 dependency_map[name] = deps
 
                 targets: list[str] = []
                 for target in p.write_targets():
+                    if not target or target == name:
+                        continue
+                    targets.append(target)
+                    writers[target].append(name)
+
+                for target in self._database_mirror_targets(name, p.config):
                     if not target or target == name:
                         continue
                     targets.append(target)
@@ -168,11 +508,19 @@ class ScanEngine:
             except KeyError:
                 continue
             old_value = param.get_value()
+            # Reset previous-cycle error so scan/pipeline can recover when config is fixed.
+            param.state.pop("last_error", None)
             try:
                 param.scan(ctx)
             except Exception as exc:
                 param.state["last_error"] = str(exc)
                 param.state["connected"] = False
+            else:
+                pre_pipeline_error = str(param.state.get("last_error", "") or "").strip()
+                if not pre_pipeline_error:
+                    pipeline_error = self._apply_database_pipeline(name, param, now)
+                    if pipeline_error:
+                        param.state["last_error"] = pipeline_error
             new_value = param.get_value()
             error_text = str(param.state.get("last_error", "") or "").strip()
             if error_text:

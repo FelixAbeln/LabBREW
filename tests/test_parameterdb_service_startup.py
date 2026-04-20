@@ -8,9 +8,10 @@ import Services.parameterDB.parameterdb_service.service as service_module
 
 
 class FakeEngine:
-    def __init__(self, period_s, store, mode, target_utilization, min_period_s, max_period_s):
+    def __init__(self, period_s, store, transducers, mode, target_utilization, min_period_s, max_period_s):
         self.period_s = period_s
         self.store = store
+        self.transducers = transducers
         self.mode = mode
         self.target_utilization = target_utilization
         self.min_period_s = min_period_s
@@ -161,6 +162,7 @@ def test_build_service_wires_components_and_restores_when_enabled(monkeypatch) -
     assert restore_config.host == "db.internal"
     assert restore_config.database == "labbrew"
     assert restore_config.table_prefix == "parameterdb"
+    assert type(engine.transducers).__name__ == "PostgresTransducerCatalog"
     assert server.host == "0.0.0.0"
     assert server.port == 9876
     assert engine.mode == "adaptive"
@@ -202,7 +204,7 @@ def test_build_service_skips_restore_when_snapshot_persistence_disabled(monkeypa
 
 
 def test_main_boots_then_shutdowns_on_keyboard_interrupt(monkeypatch) -> None:
-    fake_engine = FakeEngine(0.05, store=None, mode="fixed", target_utilization=0.7, min_period_s=0.002, max_period_s=0.05)
+    fake_engine = FakeEngine(0.05, store=None, transducers=None, mode="fixed", target_utilization=0.7, min_period_s=0.002, max_period_s=0.05)
     fake_server = FakeServer("127.0.0.1", 8765, fake_engine, registry=None, broker=None)
     fake_snapshots = FakeSnapshotManager(store=None, path="x.json")
     fake_audit = FakeAuditLogger("audit.jsonl")
@@ -224,6 +226,7 @@ def test_main_boots_then_shutdowns_on_keyboard_interrupt(monkeypatch) -> None:
             max_period=0.05,
             plugin_root="./plugins",
             snapshot_path="./data/snapshot.json",
+            transducers_path="./data/transducers.json",
             snapshot_interval=5.0,
             no_restore_snapshot=False,
             no_snapshot_persistence=False,

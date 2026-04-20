@@ -11,7 +11,7 @@ def _ctx(store: ParameterStore, *, dt: float = 0.1):
     return SimpleNamespace(store=store, dt=dt)
 
 
-def test_median_plugin_filters_and_mirrors_output() -> None:
+def test_median_plugin_filters_without_plugin_side_mirroring() -> None:
     store = ParameterStore()
     store.add(StaticParameter("signal", value=10.0))
     store.add(StaticParameter("signal.med", value=0.0))
@@ -37,9 +37,8 @@ def test_median_plugin_filters_and_mirrors_output() -> None:
     store.set_value("signal", 12.0)
     param.scan(_ctx(store))
     assert float(param.get_value()) == 12.0
-    assert float(store.get_value("signal.med")) == 12.0
+    assert float(store.get_value("signal.med")) == 0.0
     assert param.state["samples"] == [10.0, 100.0, 12.0]
-    assert param.state["output_targets"] == ["signal.med"]
     assert param.state["last_error"] == ""
 
 

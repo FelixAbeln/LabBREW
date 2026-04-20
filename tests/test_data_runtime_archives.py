@@ -120,6 +120,59 @@ def test_archive_includes_inline_payload_members(tmp_path: Path) -> None:
     assert payload == package_json
 
 
+def test_archive_auto_includes_parameterdb_runtime_context_payloads(tmp_path: Path) -> None:
+    class BackendWithRuntimeContext(FakeBackend):
+        def export_snapshot(self) -> dict:
+            return {
+                "format_version": 1,
+                "parameters": {
+                    "temp": {
+                        "value": 21.0,
+                        "config": {"timeshift": 1.25},
+                    }
+                },
+            }
+
+        def graph_info(self) -> dict:
+            return {
+                "scan_order": ["temp"],
+                "dependencies": {"temp": []},
+                "write_targets": {"temp": []},
+                "warnings": [],
+            }
+
+        def describe(self) -> dict:
+            return {"service": "parameterdb", "status": "ok"}
+
+    runtime = _runtime(BackendWithRuntimeContext(snapshot={"temp": 20.0}, values={"temp": 21.0}))
+    setup = runtime.setup_measurement(
+        parameters=["temp"],
+        hz=5.0,
+        output_dir=str(tmp_path),
+        output_format="jsonl",
+        session_name="runtime-context",
+    )
+
+    assert setup["ok"] is True
+    effective_session = setup["session_name"]
+    assert runtime.measure_start()["ok"] is True
+    runtime._record_sample()
+    result = runtime.measure_stop()
+    archive_path = Path(result["archive_file"])
+
+    assert result["ok"] is True
+    with zipfile.ZipFile(archive_path) as zf:
+        names = sorted(zf.namelist())
+        exported_snapshot = zf.read("parameterdb.export_snapshot.json").decode("utf-8")
+
+    assert f"{effective_session}.jsonl" in names
+    assert f"{effective_session}.loadsteps.jsonl" in names
+    assert "parameterdb.export_snapshot.json" in names
+    assert "parameterdb.graph_info.json" in names
+    assert "parameterdb.describe.json" in names
+    assert '"timeshift": 1.25' in exported_snapshot
+
+
 def test_setup_measurement_remaps_session_scoped_include_file_to_stamped_name(
     tmp_path: Path,
 ) -> None:

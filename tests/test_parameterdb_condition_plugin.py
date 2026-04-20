@@ -369,7 +369,7 @@ def test_condition_plugin_legacy_dict_condition_still_works() -> None:
     assert param.state["condition_kind"] == "atomic"
 
 
-def test_condition_plugin_mirrors_output_to_target_params() -> None:
+def test_condition_plugin_does_not_mirror_during_direct_plugin_scan() -> None:
     store = ParameterStore()
     store.add(StaticParameter("reactor.temp", value=72.0))
     store.add(StaticParameter("relay.on", value=False))
@@ -387,11 +387,10 @@ def test_condition_plugin_mirrors_output_to_target_params() -> None:
     param.scan(_ctx(store))
 
     assert param.get_value() is True
-    assert store.get_value("relay.on") is True
-    assert "relay.on" in param.state["output_targets"]
+    assert store.get_value("relay.on") is False
 
 
-def test_condition_plugin_mirror_missing_target_recorded_in_state() -> None:
+def test_condition_plugin_direct_scan_does_not_record_mirror_targets() -> None:
     store = ParameterStore()
     store.add(StaticParameter("reactor.temp", value=72.0))
 
@@ -408,4 +407,4 @@ def test_condition_plugin_mirror_missing_target_recorded_in_state() -> None:
     param.scan(_ctx(store))
 
     assert param.get_value() is True
-    assert "does.not.exist" in param.state["missing_output_targets"]
+    assert "missing_output_targets" not in param.state

@@ -154,6 +154,7 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
           )}
           {schemaUi && sections.length > 0 && (
             <SchemaForm
+              fermenterId={fermenterId}
               sections={sections}
               data={draft}
               errors={errors}

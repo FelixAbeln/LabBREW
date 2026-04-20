@@ -101,6 +101,26 @@ class SignalStoreBackend:
         except Exception:
             return {}
 
+    def export_snapshot(self) -> dict[str, Any]:
+        if self._client is None:
+            return {}
+        try:
+            with self._lock:
+                payload = self._client.export_snapshot()
+            return dict(payload) if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
+
+    def graph_info(self) -> dict[str, Any]:
+        if self._client is None:
+            return {}
+        try:
+            with self._lock:
+                payload = self._client.graph_info()
+            return dict(payload) if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
+
     def describe(self) -> dict[str, Any]:
         if self._client is None:
             return {}
