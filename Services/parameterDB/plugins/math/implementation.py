@@ -1,30 +1,14 @@
 from __future__ import annotations
 
-import ast
 from typing import Any
 
 from ...parameterdb_core.expression import (
-    ALLOWED_CONSTANTS,
     CompiledExpression,
     compile_expression,
     evaluate_expression,
     expression_symbol_names,
 )
 from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
-
-
-class _ExpressionSymbolCollector(ast.NodeVisitor):
-    def __init__(self) -> None:
-        self.names: list[str] = []
-        self.function_names: set[str] = set()
-
-    def visit_Name(self, node: ast.Name) -> None:
-        self.names.append(node.id)
-
-    def visit_Call(self, node: ast.Call) -> None:
-        if isinstance(node.func, ast.Name):
-            self.function_names.add(node.func.id)
-        self.generic_visit(node)
 
 
 class MathParameter(ParameterBase):
