@@ -142,20 +142,22 @@ class ScanEngine:
         return current_value
 
     def _database_mirror_targets(self, param_name: str, config: dict[str, Any]) -> list[str]:
-        raw = config.get("mirror_to")
-        if raw is None:
-            raw = config.get("output_params")
-        if isinstance(raw, str):
-            raw = [raw]
-        if not isinstance(raw, list):
-            return []
-        targets: list[str] = []
-        for item in raw:
-            target = str(item or "").strip()
-            if target and target != param_name:
-                targets.append(target)
-        return list(dict.fromkeys(targets))
+        def _normalize_targets(raw_value: Any) -> list[str]:
+            if isinstance(raw_value, str):
+                raw_value = [raw_value]
+            if not isinstance(raw_value, list):
+                return []
+            targets: list[str] = []
+            for item in raw_value:
+                target = str(item or "").strip()
+                if target and target != param_name:
+                    targets.append(target)
+            return list(dict.fromkeys(targets))
 
+        targets = _normalize_targets(config.get("mirror_to"))
+        if not targets:
+            targets = _normalize_targets(config.get("output_params"))
+        return targets
     def _resolve_transducer_input(
         self,
         param_name: str,
