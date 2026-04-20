@@ -278,10 +278,11 @@ class ScanEngine:
         written: list[str] = []
         missing: list[str] = []
         for target in targets:
-            if not self.store.exists(target):
+            try:
+                self.store.set_value(target, value)
+            except KeyError:
                 missing.append(target)
                 continue
-            self.store.set_value(target, value)
             written.append(target)
         state: dict[str, Any] = {"output_targets": written}
         if missing:
