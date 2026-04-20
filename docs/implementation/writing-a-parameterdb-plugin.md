@@ -217,6 +217,7 @@ In practice this means it rebuilds on next scan cycle (or next graph query) afte
 - parameter add/remove
 - config changes
 - metadata changes
+- scan-time value writes that actually change value
 - external value writes that actually change value
 
 Declare dependencies accurately so scan order remains correct.

@@ -311,6 +311,7 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
     def api_set_value(self, payload: dict[str, Any]) -> bool:
         clean = validate_set_value(payload)
         self.engine.store.set_value(clean["name"], clean["value"])
+        self.engine.invalidate_database_pipeline_runtime(clean["name"])
         if self.audit_log.audit_external_writes:
             self.audit_log.log(
                 category="change",

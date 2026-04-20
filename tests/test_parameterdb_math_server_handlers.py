@@ -362,6 +362,84 @@ def test_transducer_pipeline_additive_mapping_does_not_accumulate_between_scans(
     assert server.api_get_value({"name": "sensor.raw"}) == pytest.approx(20.0, abs=1e-9)
 
 
+def test_transducer_pipeline_reapplies_from_manual_raw_write_not_cached_output() -> None:
+    server = _build_server_with_math()
+
+    server.api_create_transducer(
+        {
+            "transducer": {
+                "name": "gain10",
+                "input_min": 0.0,
+                "input_max": 10.0,
+                "output_min": 0.0,
+                "output_max": 100.0,
+                "input_unit": "V",
+                "output_unit": "u",
+                "clamp": False,
+            }
+        }
+    )
+
+    assert server.api_create_parameter(
+        {
+            "name": "sensor.raw",
+            "parameter_type": "static",
+            "value": 1.0,
+            "config": {
+                "transducer_id": "gain10",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    assert server.api_get_value({"name": "sensor.raw"}) == pytest.approx(10.0, abs=1e-9)
+
+    # Manual writes are raw inputs; next scan should map from 10.0 -> 100.0.
+    assert server.api_set_value({"name": "sensor.raw", "value": 10.0}) is True
+    server.engine.scan_once(dt=0.1)
+    assert server.api_get_value({"name": "sensor.raw"}) == pytest.approx(100.0, abs=1e-9)
+
+
+def test_pipeline_failure_clears_stale_pipeline_state_details() -> None:
+    server = _build_server_with_math()
+
+    assert server.api_create_parameter(
+        {
+            "name": "src.temp",
+            "parameter_type": "static",
+            "value": 10.0,
+            "config": {
+                "calibration_equation": "x + 5",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    first = server.api_describe({})["src.temp"]
+    assert first["state"].get("calibration_input") == 10.0
+    assert first["state"].get("calibration_output") == 15.0
+
+    assert (
+        server.api_update_config(
+            {
+                "name": "src.temp",
+                "changes": {
+                    "calibration_equation": "x + missing_param",
+                },
+            }
+        )
+        is True
+    )
+    server.engine.scan_once(dt=0.1)
+    second = server.api_describe({})["src.temp"]
+
+    assert "missing parameters in calibration equation" in second["state"]["last_error"]
+    assert "calibration_input" not in second["state"]
+    assert "calibration_output" not in second["state"]
+
+
 def test_transducer_crud_handlers() -> None:
     server = _build_server_with_math()
 

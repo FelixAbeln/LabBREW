@@ -133,8 +133,8 @@ This reads:
 
 If the equation is invalid or references a missing parameter:
 - Parameter value unchanged from plugin output
-- Error recorded in parameter state: `calibration_error`
-- State keys provide details: `calibration_symbols`, `calibration_input`, `calibration_output`
+- Error recorded in parameter state: `last_error`
+- Pipeline detail keys are cleared before each pipeline attempt, then repopulated only on success (`calibration_symbols`, `calibration_input`, `calibration_output`, transducer details, mirror target details)
 
 ---
 
@@ -216,6 +216,7 @@ Store revision changes on:
 - Parameter add/remove
 - Parameter config updates
 - Parameter metadata updates
+- Scan-time value writes that actually change value
 - External value writes that actually change the value (including mirror target writes)
 
 ### How it works
@@ -285,7 +286,7 @@ Changes take effect immediately on next scan cycle.
 ## Backward Compatibility
 
 **Snapshots with legacy `output_params`:**
-- Field is recognized and converted to `mirror_to` at import
+- Field is recognized at runtime as a fallback mirror source when `mirror_to` is not set
 - All existing snapshots remain compatible
 
 **Plugins with `output_params` in UI specs:**

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from collections import defaultdict, deque
@@ -17,6 +18,7 @@ from .store import ParameterStore
 from .transducers import PostgresTransducerCatalog, TransducerCatalog
 
 UTC = timezone.utc
+_DB_PIPELINE_APPLIED_FLAG = "__db_pipeline_applied"
 
 
 @dataclass(slots=True)
@@ -70,6 +72,35 @@ class ScanEngine:
         self._transducer_input_cache: dict[str, Any] = {}
         self._transducer_output_cache: dict[str, Any] = {}
 
+    def _clear_database_pipeline_state(self, param) -> None:
+        for key in (
+            "calibration_equation",
+            "calibration_symbols",
+            "calibration_input",
+            "calibration_output",
+            "transducer_id",
+            "transducer_input",
+            "transducer_output",
+            "transducer_input_unit",
+            "transducer_output_unit",
+            "output_targets",
+            "missing_output_targets",
+            "timeshift",
+            "timeshift_buffer_length",
+            _DB_PIPELINE_APPLIED_FLAG,
+        ):
+            param.state.pop(key, None)
+
+    def invalidate_database_pipeline_runtime(self, param_name: str) -> None:
+        """Invalidate per-parameter pipeline caches after manual/external writes."""
+        self._calibration_input_cache.pop(param_name, None)
+        self._calibration_output_cache.pop(param_name, None)
+        self._transducer_input_cache.pop(param_name, None)
+        self._transducer_output_cache.pop(param_name, None)
+        with contextlib.suppress(Exception):
+            param = self.store._get_runtime_param(param_name)
+            self._clear_database_pipeline_state(param)
+
     def _prune_runtime_caches(self, names: set[str]) -> None:
         for cache in (
             self._calibration_cache,
@@ -82,7 +113,13 @@ class ScanEngine:
             for name in stale:
                 cache.pop(name, None)
 
-    def _resolve_calibration_input(self, param_name: str, current_value: Any) -> Any:
+    def _resolve_calibration_input(
+        self,
+        param_name: str,
+        current_value: Any,
+        *,
+        allow_cached_input: bool,
+    ) -> Any:
         """Return stable calibration input to avoid repeated accumulation.
 
         For passive parameters (e.g. static values updated externally), scan() may
@@ -95,9 +132,10 @@ class ScanEngine:
         - Otherwise treat current value as fresh raw input.
         """
         if (
-            param_name in self._calibration_output_cache
-            and current_value == self._calibration_output_cache[param_name]
+            allow_cached_input
             and param_name in self._calibration_input_cache
+            and param_name in self._calibration_output_cache
+            and current_value == self._calibration_output_cache[param_name]
         ):
             return self._calibration_input_cache[param_name]
         self._calibration_input_cache[param_name] = current_value
@@ -118,7 +156,13 @@ class ScanEngine:
                 targets.append(target)
         return list(dict.fromkeys(targets))
 
-    def _resolve_transducer_input(self, param_name: str, current_value: Any) -> Any:
+    def _resolve_transducer_input(
+        self,
+        param_name: str,
+        current_value: Any,
+        *,
+        allow_cached_input: bool,
+    ) -> Any:
         """Return stable transducer input to avoid repeated remapping drift.
 
         For passive parameters, the stored value can already be the mapped transducer
@@ -131,9 +175,10 @@ class ScanEngine:
         - Otherwise treat current value as fresh pre-transducer input.
         """
         if (
-            param_name in self._transducer_output_cache
-            and current_value == self._transducer_output_cache[param_name]
+            allow_cached_input
             and param_name in self._transducer_input_cache
+            and param_name in self._transducer_output_cache
+            and current_value == self._transducer_output_cache[param_name]
         ):
             return self._transducer_input_cache[param_name]
         self._transducer_input_cache[param_name] = current_value
@@ -297,10 +342,18 @@ class ScanEngine:
         value = param.get_value()
         equation = str(config.get("calibration_equation") or "").strip()
         transducer_id = str(config.get("transducer_id") or "").strip()
+        allow_cached_input = bool(param.state.get(_DB_PIPELINE_APPLIED_FLAG))
+
+        # Clear prior-cycle pipeline details so failed attempts cannot leak stale state.
+        self._clear_database_pipeline_state(param)
 
         base_value = value
         if equation:
-            base_value = self._resolve_calibration_input(param_name, value)
+            base_value = self._resolve_calibration_input(
+                param_name,
+                value,
+                allow_cached_input=allow_cached_input,
+            )
 
         try:
             calibrated, calibration_state = self._apply_calibration_equation(
@@ -309,6 +362,7 @@ class ScanEngine:
                 base_value=base_value,
             )
         except Exception as exc:
+            self.invalidate_database_pipeline_runtime(param_name)
             return str(exc)
 
         pre_transducer_value = calibrated
@@ -316,6 +370,7 @@ class ScanEngine:
             pre_transducer_value = self._resolve_transducer_input(
                 param_name,
                 calibrated,
+                allow_cached_input=allow_cached_input,
             )
 
         try:
@@ -325,6 +380,7 @@ class ScanEngine:
                 base_value=pre_transducer_value,
             )
         except Exception as exc:
+            self.invalidate_database_pipeline_runtime(param_name)
             return str(exc)
 
         param.set_value(transformed)
@@ -357,10 +413,6 @@ class ScanEngine:
             param.state.pop("transducer_input_unit", None)
             param.state.pop("transducer_output_unit", None)
 
-        # timeshift is now metadata-only (exported for post-processing), not applied at runtime
-        param.state.pop("timeshift", None)
-        param.state.pop("timeshift_buffer_length", None)
-
         mirror_state = self._apply_mirror_to_targets(
             name=param_name,
             config=config,
@@ -373,6 +425,9 @@ class ScanEngine:
         else:
             param.state.pop("output_targets", None)
             param.state.pop("missing_output_targets", None)
+
+        if equation or transducer_id:
+            param.state[_DB_PIPELINE_APPLIED_FLAG] = True
 
         return None
 
@@ -513,6 +568,7 @@ class ScanEngine:
             try:
                 param.scan(ctx)
             except Exception as exc:
+                self.invalidate_database_pipeline_runtime(name)
                 param.state["last_error"] = str(exc)
                 param.state["connected"] = False
             else:
@@ -521,6 +577,8 @@ class ScanEngine:
                     pipeline_error = self._apply_database_pipeline(name, param, now)
                     if pipeline_error:
                         param.state["last_error"] = pipeline_error
+                else:
+                    self.invalidate_database_pipeline_runtime(name)
             new_value = param.get_value()
             error_text = str(param.state.get("last_error", "") or "").strip()
             if error_text:
