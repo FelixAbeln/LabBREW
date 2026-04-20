@@ -82,7 +82,7 @@ class ParameterStore:
             except KeyError as exc:
                 raise KeyError(f"Unknown parameter '{name}'") from exc
 
-    def set_value(self, name: str, value: Any) -> None:
+    def set_value(self, name: str, value: Any, *, source: str = "external") -> None:
         with self._lock:
             param = self._params[name]
             old = param.get_value()
@@ -94,7 +94,7 @@ class ParameterStore:
                 "event": "value_changed",
                 "name": name,
                 "value": new,
-                "source": "external",
+                "source": str(source or "external"),
                 "store_revision": rev,
             })
 

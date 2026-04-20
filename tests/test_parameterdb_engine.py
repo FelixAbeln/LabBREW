@@ -300,7 +300,8 @@ def test_scan_engine_run_loop_exits_immediately_when_not_running() -> None:
 
 
 def test_scan_engine_database_pipeline_applies_calibration_and_mirror() -> None:
-    store = ParameterStore()
+    broker = FakeBroker()
+    store = ParameterStore(event_broker=broker)
     mirror = FakeParameter("mirror.target", value=0.0)
     calc = FakeParameter(
         "calc",
@@ -322,6 +323,12 @@ def test_scan_engine_database_pipeline_applies_calibration_and_mirror() -> None:
     assert calc_record.state["calibration_output"] == 11.0
     assert calc_record.state["output_targets"] == ["mirror.target"]
     assert store.get_value("mirror.target") == 11.0
+    assert any(
+        event.get("event") == "value_changed"
+        and event.get("name") == "mirror.target"
+        and event.get("source") == "scan"
+        for event in broker.events
+    )
 
 
 def test_scan_engine_database_pipeline_skips_on_plugin_error() -> None:

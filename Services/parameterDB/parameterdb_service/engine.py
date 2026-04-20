@@ -281,7 +281,7 @@ class ScanEngine:
             if not self.store.exists(target):
                 missing.append(target)
                 continue
-            self.store.set_value(target, value)
+            self.store.set_value(target, value, source="scan")
             written.append(target)
         state: dict[str, Any] = {"output_targets": written}
         if missing:
