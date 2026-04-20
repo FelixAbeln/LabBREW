@@ -382,7 +382,7 @@ class ScanEngine:
 
         param.set_value(transformed)
         if equation:
-            self._calibration_output_cache[param_name] = calibrated
+            self._calibration_output_cache[param_name] = transformed
         else:
             self._calibration_input_cache.pop(param_name, None)
             self._calibration_output_cache.pop(param_name, None)
