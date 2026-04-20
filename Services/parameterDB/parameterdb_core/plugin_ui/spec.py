@@ -80,7 +80,7 @@ def _append_db_owned_section(sections: list[dict[str, Any]], *, editable: bool) 
             {
                 "key": "config.mirror_to",
                 "label": "Mirror Output To",
-                "type": "parameter_ref",
+                "type": "parameter_ref_list",
                 "readonly": not editable,
                 "help": "Optional target parameters that receive this value each scan cycle.",
             }
