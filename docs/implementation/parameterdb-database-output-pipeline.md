@@ -6,12 +6,13 @@ The **Database Output Pipeline** is a centralized system for transforming and di
 
 The pipeline executes in this order for each parameter scan:
 1. **Calibration**: Apply mathematical transformation to plugin output
-2. **Mirror**: Write calibrated value to target parameters
-3. *(timeshift is now metadata-only for post-processing)*
+2. **Transducer Mapping**: Optionally map calibrated value through selected transducer range
+3. **Mirror**: Write transformed value to target parameters
+4. *(timeshift is now metadata-only for post-processing)*
 
 ## Configuration Fields
 
-All ParameterDB parameters support these three database-owned fields in the "Database Output Pipeline" section:
+All ParameterDB parameters support these four database-owned fields in the "Database Output Pipeline" section:
 
 ### mirror_to
 
@@ -19,7 +20,7 @@ All ParameterDB parameters support these three database-owned fields in the "Dat
 **Default**: `[]` (empty)  
 **Runtime Behavior**: Applied at every scan cycle
 
-Specifies one or more parameters that should receive the calibrated output value.
+Specifies one or more parameters that should receive the pipeline output value.
 
 **Examples:**
 ```json
@@ -33,8 +34,34 @@ or
 Each scan cycle:
 1. Plugin computes value
 2. Calibration equation applied (if set)
-3. Result written to all mirror targets
-4. State tracks successful writes and any missing targets
+3. Transducer mapping applied (if `transducer_id` is set)
+4. Result written to all mirror targets
+5. State tracks successful writes and any missing targets
+
+---
+
+### transducer_id
+
+**Type**: String (transducer name)  
+**Default**: `""` (empty, disabled)  
+**Runtime Behavior**: Applied after calibration, before mirror writes
+
+Specifies a transducer mapping from the transducer catalog. When set, the calibrated value is treated as transducer input and mapped linearly from `[input_min, input_max]` to `[output_min, output_max]`.
+
+Mapping formula:
+
+$$
+  ext{ratio} = \frac{x - input_{min}}{input_{max} - input_{min}}\quad\text{and}\quad y = output_{min} + \text{ratio}\cdot(output_{max} - output_{min})
+$$
+
+If transducer `clamp` is enabled (default), output is clamped to the output range.
+
+**Errors:**
+- Unknown transducer name
+- Non-numeric input value
+- Invalid transducer input range (`input_min == input_max`)
+
+On any of these, pipeline fails for that scan attempt and `last_error` is populated.
 
 ---
 
@@ -188,7 +215,13 @@ After pipeline execution, parameters report state:
 - `calibration_symbols: list[str]` — All referenced parameters/constants
 - `calibration_input: float` — Raw plugin output before equation
 - `calibration_output: float` — Result after equation
-- `calibration_error: str` — Error message if evaluation failed (optional)
+
+### transducer_id state
+- `transducer_id: str` — Selected transducer name
+- `transducer_input: float` — Value entering transducer mapping
+- `transducer_output: float` — Value after mapping
+- `transducer_input_unit: str` — Transducer input unit metadata
+- `transducer_output_unit: str` — Transducer output unit metadata
 
 ### timeshift state
 - (Cleared on each scan; timeshift is metadata-only)
@@ -277,6 +310,7 @@ All parameters expose the "Database Output Pipeline" section in create/edit form
 3. Set fields:
    - **Mirror Output To**: Select parameters to receive calibrated value
    - **Calibration Equation**: Enter math expression (e.g., `2*x + 5`)
+  - **Transducer**: Select transducer mapping by name
    - **Post-Processing Timeshift (s)**: Metadata offset for export
 
 Changes take effect immediately on next scan cycle.
