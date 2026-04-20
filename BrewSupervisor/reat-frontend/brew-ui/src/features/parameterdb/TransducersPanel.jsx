@@ -185,13 +185,18 @@ function TransducerDeleteModal({ state, onClose, onConfirmClearAndDelete }) {
 export function TransducersPanel({ fermenterId }) {
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(fermenterId));
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [deleteState, setDeleteState] = useState(null);
 
   async function refresh() {
-    if (!fermenterId) return;
+    if (!fermenterId) {
+      setItems([]);
+      setError('');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const response = await fetchTransducers(fermenterId);
