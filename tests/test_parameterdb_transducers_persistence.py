@@ -41,18 +41,16 @@ class FakePostgresCursor:
             self._rows = [(rows[0][1],)] if rows else []
             return
 
-        if normalized.startswith("select 1"):
-            assert params is not None
-            key = params[0]
-            rows = [row for row in list(self.state.get("rows") or []) if row[0] == key]
-            self._rows = [(1,)] if rows else []
-            return
-
         if normalized.startswith("insert into"):
             assert params is not None
             key = params[0]
             payload_json = params[1]
             updated_at = params[2]
+            has_conflict_clause = "on conflict" in normalized
+            existing = [row for row in list(self.state.get("rows") or []) if row[0] == key]
+            if has_conflict_clause and existing:
+                self.rowcount = 0
+                return
             rows = [row for row in list(self.state.get("rows") or []) if row[0] != key]
             rows.append((key, payload_json, updated_at))
             self.state["rows"] = rows
@@ -156,6 +154,39 @@ def test_postgres_transducer_catalog_roundtrip(monkeypatch) -> None:
     assert catalog.list() == []
 
 
+def test_postgres_transducer_catalog_duplicate_create_raises_value_error(monkeypatch) -> None:
+    state: dict[str, object] = {"rows": []}
+    config = PostgresPersistenceConfig(
+        host="db.internal",
+        port=5432,
+        database="labbrew",
+        username="brew",
+        password="secret",
+        table_prefix="fermenter_a",
+    )
+
+    monkeypatch.setattr(
+        "Services.parameterDB.parameterdb_service.transducers.connect_postgres",
+        lambda _config: FakePostgresConnection(state),
+    )
+
+    catalog = PostgresTransducerCatalog(config)
+    payload = {
+        "name": "dup_name",
+        "input_min": 0.0,
+        "input_max": 10.0,
+        "output_min": 0.0,
+        "output_max": 6.0,
+        "input_unit": "V",
+        "output_unit": "bar",
+        "clamp": True,
+    }
+
+    catalog.create(payload)
+    with pytest.raises(ValueError, match="already exists"):
+        catalog.create(payload)
+
+
 def test_postgres_transducer_catalog_uses_shared_table_name(monkeypatch) -> None:
     state: dict[str, object] = {"rows": []}
     config = PostgresPersistenceConfig(
@@ -208,6 +239,22 @@ def test_json_transducer_catalog_still_file_backed(tmp_path) -> None:
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["transducers"][0]["name"] == "t1"
+
+
+def test_json_transducer_catalog_rejects_unsupported_format_version(tmp_path) -> None:
+    path = tmp_path / "transducers.json"
+    path.write_text(
+        json.dumps(
+            {
+                "format_version": 2,
+                "transducers": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="format_version"):
+        TransducerCatalog(path)
 
 
 def test_postgres_transducer_catalog_rejects_invalid_table_name() -> None:

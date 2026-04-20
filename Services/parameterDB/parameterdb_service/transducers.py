@@ -156,12 +156,6 @@ class PostgresTransducerCatalog:
                 with connection.cursor() as cursor:
                     _ensure_postgres_schema(cursor, self.table_name)
                     cursor.execute(
-                        f"SELECT 1 FROM {self.table_name} WHERE name = %s",
-                        (item["name"],),
-                    )
-                    if cursor.fetchone() is not None:
-                        raise ValueError(f"Transducer '{item['name']}' already exists")
-                    cursor.execute(
                         f"""
                         INSERT INTO {self.table_name} (
                             name,
@@ -169,9 +163,12 @@ class PostgresTransducerCatalog:
                             updated_at
                         )
                         VALUES (%s, %s, %s)
+                        ON CONFLICT (name) DO NOTHING
                         """,
                         (item["name"], json.dumps(item, sort_keys=True), time.time()),
                     )
+                    if cursor.rowcount != 1:
+                        raise ValueError(f"Transducer '{item['name']}' already exists")
                 connection.commit()
         return dict(item)
 
@@ -301,6 +298,11 @@ def _load_catalog_file(path: Path) -> list[dict[str, Any]]:
 
     if not isinstance(payload, dict):
         raise ValueError("Transducer catalog must be an object")
+    format_version = payload.get("format_version", 1)
+    if not isinstance(format_version, int):
+        raise ValueError("Field 'format_version' must be an integer")
+    if format_version != 1:
+        raise ValueError(f"Unsupported transducer catalog format_version: {format_version}")
     rows = payload.get("transducers", [])
     if not isinstance(rows, list):
         raise ValueError("Field 'transducers' must be an array")
