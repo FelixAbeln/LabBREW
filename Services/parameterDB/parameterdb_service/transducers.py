@@ -14,13 +14,14 @@ from ..._shared.postgres_persistence import (
     PostgresPersistenceConfig,
     connect_postgres,
 )
+from ..parameterdb_core.expression import compile_expression
 
 DEFAULT_SHARED_TRANSDUCERS_TABLE = "parameterdb_shared_transducers"
 _VALID_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class TransducerCatalog:
-    """Persistent catalog of linear signal transducer mappings."""
+    """Persistent catalog of equation-driven transducer transforms."""
 
     def __init__(self, path: str | Path | None = None) -> None:
         self.path = Path(path) if path else None
@@ -244,23 +245,30 @@ def _ensure_postgres_schema(cursor: Any, table_name: str) -> None:
     )
 
 
-def _require_number(payload: dict[str, Any], key: str) -> float:
-    raw = payload.get(key)
-    if isinstance(raw, bool):
-        raise ValueError(f"Field '{key}' must be a number")
-    if not isinstance(raw, (int, float)):
-        raise ValueError(f"Field '{key}' must be a number")
-    value = float(raw)
-    if not math.isfinite(value):
-        raise ValueError(f"Field '{key}' must be finite")
-    return value
-
-
 def _optional_text(payload: dict[str, Any], key: str) -> str:
     raw = payload.get(key)
     if raw is None:
         return ""
     return str(raw).strip()
+
+
+def _optional_number(payload: dict[str, Any], key: str) -> float | None:
+    raw = payload.get(key)
+    if raw is None:
+        return None
+    if isinstance(raw, str) and not raw.strip():
+        return None
+    if isinstance(raw, bool):
+        raise ValueError(f"Field '{key}' must be a finite number")
+    if not isinstance(raw, (int, float, str)):
+        raise ValueError(f"Field '{key}' must be a finite number")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Field '{key}' must be a finite number") from exc
+    if not math.isfinite(value):
+        raise ValueError(f"Field '{key}' must be a finite number")
+    return value
 
 
 def _normalize_transducer_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -271,29 +279,36 @@ def _normalize_transducer_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not name:
         raise ValueError("Field 'name' is required")
 
-    input_min = _require_number(payload, "input_min")
-    input_max = _require_number(payload, "input_max")
-    if input_min == input_max:
-        raise ValueError("input_min and input_max must not be equal")
+    equation = _optional_text(payload, "equation")
+    if not equation:
+        raise ValueError("Field 'equation' is required")
 
-    output_min = _require_number(payload, "output_min")
-    output_max = _require_number(payload, "output_max")
+    compiled = compile_expression(equation, required=True)
+    unsupported_symbols = [
+        symbol for symbol in compiled.symbols if symbol not in {"x", "value"}
+    ]
+    if unsupported_symbols:
+        raise ValueError(
+            "Transducer equation only supports symbols 'x' and 'value'"
+        )
 
-    clamp_raw = payload.get("clamp", True)
-    if not isinstance(clamp_raw, bool):
-        raise ValueError("Field 'clamp' must be a boolean")
+    min_limit = _optional_number(payload, "min_limit")
+    max_limit = _optional_number(payload, "max_limit")
+    if min_limit is not None and max_limit is not None and min_limit > max_limit:
+        raise ValueError("Field 'min_limit' must be <= 'max_limit'")
 
-    return {
+    normalized: dict[str, Any] = {
         "name": name,
-        "input_min": input_min,
-        "input_max": input_max,
-        "output_min": output_min,
-        "output_max": output_max,
+        "equation": equation,
         "input_unit": _optional_text(payload, "input_unit"),
         "output_unit": _optional_text(payload, "output_unit"),
         "description": _optional_text(payload, "description"),
-        "clamp": clamp_raw,
     }
+    if min_limit is not None:
+        normalized["min_limit"] = min_limit
+    if max_limit is not None:
+        normalized["max_limit"] = max_limit
+    return normalized
 
 
 def _load_catalog_file(path: Path) -> list[dict[str, Any]]:

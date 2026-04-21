@@ -128,13 +128,11 @@ def test_postgres_transducer_catalog_roundtrip(monkeypatch) -> None:
     created = catalog.create(
         {
             "name": "volt_to_pressure",
-            "input_min": 0.0,
-            "input_max": 10.0,
-            "output_min": 0.0,
-            "output_max": 6.0,
+            "equation": "0.6*x",
+            "min_limit": 0.0,
+            "max_limit": 10.0,
             "input_unit": "V",
             "output_unit": "bar",
-            "clamp": True,
         }
     )
     assert created["name"] == "volt_to_pressure"
@@ -142,13 +140,14 @@ def test_postgres_transducer_catalog_roundtrip(monkeypatch) -> None:
     listed = catalog.list()
     assert len(listed) == 1
     assert listed[0]["input_unit"] == "V"
+    assert listed[0]["max_limit"] == 10.0
 
-    updated = catalog.update("volt_to_pressure", {"output_max": 8.0})
-    assert updated["output_max"] == 8.0
+    updated = catalog.update("volt_to_pressure", {"equation": "0.8*x"})
+    assert updated["equation"] == "0.8*x"
 
     fetched = catalog.get("volt_to_pressure")
     assert fetched is not None
-    assert fetched["output_max"] == 8.0
+    assert fetched["equation"] == "0.8*x"
 
     assert catalog.delete("volt_to_pressure") is True
     assert catalog.list() == []
@@ -173,13 +172,11 @@ def test_postgres_transducer_catalog_duplicate_create_raises_value_error(monkeyp
     catalog = PostgresTransducerCatalog(config)
     payload = {
         "name": "dup_name",
-        "input_min": 0.0,
-        "input_max": 10.0,
-        "output_min": 0.0,
-        "output_max": 6.0,
+        "equation": "x + 1",
+        "min_limit": -1.0,
+        "max_limit": 1.0,
         "input_unit": "V",
         "output_unit": "bar",
-        "clamp": True,
     }
 
     catalog.create(payload)
@@ -229,11 +226,7 @@ def test_json_transducer_catalog_still_file_backed(tmp_path) -> None:
     catalog.create(
         {
             "name": "t1",
-            "input_min": 0.0,
-            "input_max": 10.0,
-            "output_min": 4.0,
-            "output_max": 20.0,
-            "clamp": True,
+            "equation": "2*x + 4",
         }
     )
 
@@ -270,18 +263,59 @@ def test_postgres_transducer_catalog_rejects_invalid_table_name() -> None:
         PostgresTransducerCatalog(config, table_name="bad-name")
 
 
-def test_transducer_payload_rejects_bool_for_numeric_fields(tmp_path) -> None:
+def test_transducer_payload_requires_equation(tmp_path) -> None:
     path = tmp_path / "transducers.json"
     catalog = TransducerCatalog(path)
 
-    with pytest.raises(ValueError, match="input_min"):
+    with pytest.raises(ValueError, match="equation"):
         catalog.create(
             {
-                "name": "bad_bool",
-                "input_min": True,
-                "input_max": 10.0,
-                "output_min": 0.0,
-                "output_max": 100.0,
-                "clamp": True,
+                "name": "missing_eq",
+            }
+        )
+
+
+def test_transducer_payload_accepts_equation_without_linear_ranges(tmp_path) -> None:
+    path = tmp_path / "transducers.json"
+    catalog = TransducerCatalog(path)
+
+    created = catalog.create(
+        {
+            "name": "eq_map",
+            "equation": "x**2 + 2*x + 1",
+            "input_unit": "V",
+            "output_unit": "psi",
+            "description": "Quadratic fit",
+        }
+    )
+
+    assert created["equation"] == "x**2 + 2*x + 1"
+    assert "input_min" not in created
+
+
+def test_transducer_payload_rejects_equation_with_parameter_dependencies(tmp_path) -> None:
+    path = tmp_path / "transducers.json"
+    catalog = TransducerCatalog(path)
+
+    with pytest.raises(ValueError, match="only supports symbols"):
+        catalog.create(
+            {
+                "name": "bad_eq",
+                "equation": "x + tank.offset",
+            }
+        )
+
+
+def test_transducer_payload_rejects_invalid_limit_range(tmp_path) -> None:
+    path = tmp_path / "transducers.json"
+    catalog = TransducerCatalog(path)
+
+    with pytest.raises(ValueError, match="min_limit"):
+        catalog.create(
+            {
+                "name": "bad_limits",
+                "equation": "x",
+                "min_limit": 5.0,
+                "max_limit": 1.0,
             }
         )

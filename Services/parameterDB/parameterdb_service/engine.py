@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import math
 import threading
 import time
 from collections import defaultdict, deque
@@ -80,10 +81,24 @@ class ScanEngine:
             "calibration_input",
             "calibration_output",
             "transducer_id",
+            "transducer_equation",
+            "transducer_symbols",
             "transducer_input",
             "transducer_output",
             "transducer_input_unit",
             "transducer_output_unit",
+            "parameter_force_invalid",
+            "parameter_force_invalid_reason",
+            "channel_limit_min",
+            "channel_limit_max",
+            "channel_limit_in_range",
+            "channel_limit_violation",
+            "transducer_limit_min",
+            "transducer_limit_max",
+            "transducer_limit_in_range",
+            "transducer_limit_violation",
+            "parameter_valid",
+            "parameter_invalid_reasons",
             "output_targets",
             "missing_output_targets",
             "timeshift",
@@ -182,7 +197,7 @@ class ScanEngine:
         """Return stable transducer input to avoid repeated remapping drift.
 
         For passive parameters, stored value can already be previous mapped output.
-        Re-mapping that output as raw input causes runaway growth when clamp is off.
+        Re-applying equation output as raw input can cause runaway growth.
 
         Reuse cached pre-transducer input only when the previous cycle applied the
         pipeline and the current value still equals last mapped output.
@@ -310,6 +325,54 @@ class ScanEngine:
             state["missing_output_targets"] = missing
         return state
 
+    def _optional_limit(self, config: dict[str, Any], key: str) -> float | None:
+        raw = config.get(key)
+        if raw is None:
+            return None
+        if isinstance(raw, str) and not raw.strip():
+            return None
+        if isinstance(raw, bool):
+            raise ValueError(f"{key} must be a finite number")
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be a finite number") from exc
+        if not math.isfinite(value):
+            raise ValueError(f"{key} must be a finite number")
+        return value
+
+    def _evaluate_stage_limits(
+        self,
+        *,
+        stage: str,
+        value: float,
+        min_limit: float | None,
+        max_limit: float | None,
+    ) -> tuple[dict[str, Any], bool, str | None]:
+        prefix = f"{stage}_limit"
+        state: dict[str, Any] = {
+            f"{prefix}_min": min_limit,
+            f"{prefix}_max": max_limit,
+        }
+        if min_limit is None and max_limit is None:
+            state[f"{prefix}_in_range"] = True
+            return state, True, None
+
+        in_range = True
+        if min_limit is not None and value < min_limit:
+            in_range = False
+        if max_limit is not None and value > max_limit:
+            in_range = False
+
+        state[f"{prefix}_in_range"] = in_range
+        if not in_range:
+            state[f"{prefix}_violation"] = (
+                f"{stage} value {value} outside configured range "
+                f"[{min_limit if min_limit is not None else '-inf'}, {max_limit if max_limit is not None else 'inf'}]"
+            )
+            return state, False, stage
+        return state, True, None
+
     def _apply_transducer_mapping(
         self,
         *,
@@ -332,31 +395,34 @@ class ScanEngine:
                 "transducer mapping requires numeric parameter value"
             ) from exc
 
-        input_min = float(transducer["input_min"])
-        input_max = float(transducer["input_max"])
-        output_min = float(transducer["output_min"])
-        output_max = float(transducer["output_max"])
+        equation = str(transducer.get("equation") or "").strip()
+        if not equation:
+            raise ValueError(f"transducer '{transducer_id}' requires a non-empty equation")
 
-        if input_min == input_max:
-            raise ValueError(
-                f"transducer '{transducer_id}' has invalid input range"
+        try:
+            compiled = compile_expression(equation, required=True)
+            mapped = evaluate_expression(
+                compiled.tree,
+                {
+                    "x": x_value,
+                    "value": x_value,
+                },
             )
+        except Exception as exc:
+            raise ValueError(f"transducer equation failed: {exc}") from exc
 
-        ratio = (x_value - input_min) / (input_max - input_min)
-        mapped = output_min + ratio * (output_max - output_min)
-
-        if bool(transducer.get("clamp", True)):
-            low = min(output_min, output_max)
-            high = max(output_min, output_max)
-            mapped = max(low, min(high, mapped))
-
-        return mapped, {
+        state: dict[str, Any] = {
             "transducer_id": transducer_id,
+            "transducer_equation": equation,
+            "transducer_symbols": list(compiled.symbols),
             "transducer_input": x_value,
             "transducer_output": mapped,
             "transducer_input_unit": str(transducer.get("input_unit") or ""),
             "transducer_output_unit": str(transducer.get("output_unit") or ""),
+            "transducer_limit_min": transducer.get("min_limit"),
+            "transducer_limit_max": transducer.get("max_limit"),
         }
+        return mapped, state
 
     def _apply_database_pipeline(self, param_name: str, param) -> str | None:
         config = dict(param.config)
@@ -387,6 +453,37 @@ class ScanEngine:
             self.invalidate_database_pipeline_runtime(param_name)
             return str(exc)
 
+        try:
+            channel_min = self._optional_limit(config, "channel_min")
+            channel_max = self._optional_limit(config, "channel_max")
+        except Exception as exc:
+            self.invalidate_database_pipeline_runtime(param_name)
+            return str(exc)
+
+        if channel_min is not None and channel_max is not None and channel_min > channel_max:
+            self.invalidate_database_pipeline_runtime(param_name)
+            return "channel_min must be <= channel_max"
+        channel_reason: str | None = None
+        if channel_min is None and channel_max is None:
+            channel_limit_state = {
+                "channel_limit_min": None,
+                "channel_limit_max": None,
+                "channel_limit_in_range": True,
+            }
+        else:
+            try:
+                calibrated_float = float(calibrated)
+            except (TypeError, ValueError) as exc:
+                self.invalidate_database_pipeline_runtime(param_name)
+                return f"calibrated value must be numeric for limit checks: {exc}"
+
+            channel_limit_state, _channel_ok, channel_reason = self._evaluate_stage_limits(
+                stage="channel",
+                value=calibrated_float,
+                min_limit=channel_min,
+                max_limit=channel_max,
+            )
+
         pre_transducer_value = calibrated
         if transducer_id:
             pre_transducer_value = self._resolve_transducer_input(
@@ -404,6 +501,34 @@ class ScanEngine:
         except Exception as exc:
             self.invalidate_database_pipeline_runtime(param_name)
             return str(exc)
+
+        transducer_min: float | None = None
+        transducer_max: float | None = None
+        if transducer_state:
+            transducer_min = self._optional_limit(transducer_state, "transducer_limit_min")
+            transducer_max = self._optional_limit(transducer_state, "transducer_limit_max")
+
+        transducer_limits_apply = bool(transducer_id)
+        transducer_limit_state: dict[str, Any]
+        transducer_reason: str | None = None
+        if transducer_limits_apply and (transducer_min is not None or transducer_max is not None):
+            try:
+                transformed_float = float(transformed)
+            except (TypeError, ValueError) as exc:
+                self.invalidate_database_pipeline_runtime(param_name)
+                return f"transformed value must be numeric for limit checks: {exc}"
+            transducer_limit_state, _transducer_ok, transducer_reason = self._evaluate_stage_limits(
+                stage="transducer",
+                value=transformed_float,
+                min_limit=transducer_min,
+                max_limit=transducer_max,
+            )
+        else:
+            transducer_limit_state = {
+                "transducer_limit_min": transducer_min,
+                "transducer_limit_max": transducer_max,
+                "transducer_limit_in_range": True,
+            }
 
         param.set_value(transformed)
         with self._pipeline_cache_lock:
@@ -431,10 +556,31 @@ class ScanEngine:
             param.state.update(transducer_state)
         else:
             param.state.pop("transducer_id", None)
+            param.state.pop("transducer_equation", None)
+            param.state.pop("transducer_symbols", None)
             param.state.pop("transducer_input", None)
             param.state.pop("transducer_output", None)
             param.state.pop("transducer_input_unit", None)
             param.state.pop("transducer_output_unit", None)
+
+        param.state.update(channel_limit_state)
+        if "channel_limit_violation" not in channel_limit_state:
+            param.state.pop("channel_limit_violation", None)
+
+        param.state.update(transducer_limit_state)
+        if "transducer_limit_violation" not in transducer_limit_state:
+            param.state.pop("transducer_limit_violation", None)
+
+        invalid_reasons: list[str] = []
+        if channel_reason:
+            invalid_reasons.append(channel_reason)
+        if transducer_reason:
+            invalid_reasons.append(transducer_reason)
+        param.state["parameter_valid"] = not bool(invalid_reasons)
+        if invalid_reasons:
+            param.state["parameter_invalid_reasons"] = invalid_reasons
+        else:
+            param.state.pop("parameter_invalid_reasons", None)
 
         mirror_state = self._apply_mirror_to_targets(
             name=param_name,
@@ -595,6 +741,37 @@ class ScanEngine:
             except KeyError:
                 continue
             old_value = param.get_value()
+
+            force_invalid = bool(param.config.get("force_invalid", False))
+            force_invalid_reason = str(param.config.get("force_invalid_reason") or "").strip()
+            if force_invalid:
+                self.invalidate_database_pipeline_runtime(name)
+                param.state["parameter_force_invalid"] = True
+                if force_invalid_reason:
+                    param.state["parameter_force_invalid_reason"] = force_invalid_reason
+                else:
+                    param.state.pop("parameter_force_invalid_reason", None)
+                param.state["parameter_valid"] = False
+                param.state["parameter_invalid_reasons"] = ["manual"]
+                param.state["last_error"] = ""
+                param.state["connected"] = False
+                new_value = param.get_value()
+                self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
+                self.store.publish_scan_state(param.name, dict(param.state))
+                continue
+
+            param.state.pop("parameter_force_invalid", None)
+            param.state.pop("parameter_force_invalid_reason", None)
+
+            if param.state.get("parameter_valid") is False and param.state.get("parameter_invalid_reasons"):
+                # Skip evaluation when a parameter is already marked invalid by datasource/runtime.
+                param.state["last_error"] = ""
+                param.state["connected"] = False
+                new_value = param.get_value()
+                self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
+                self.store.publish_scan_state(param.name, dict(param.state))
+                continue
+
             # Reset previous-cycle error so scan/pipeline can recover when config is fixed.
             param.state.pop("last_error", None)
             try:
@@ -604,8 +781,12 @@ class ScanEngine:
                 param.state["last_error"] = str(exc)
                 param.state["connected"] = False
             else:
+                plugin_marked_invalid = param.state.get("parameter_valid") is False and bool(param.state.get("parameter_invalid_reasons"))
                 pre_pipeline_error = str(param.state.get("last_error", "") or "").strip()
-                if not pre_pipeline_error:
+                if plugin_marked_invalid:
+                    # Datasource/plugin can mark a parameter invalid for this cycle.
+                    pass
+                elif not pre_pipeline_error:
                     pipeline_error = self._apply_database_pipeline(name, param)
                     if pipeline_error:
                         param.state["last_error"] = pipeline_error
@@ -613,9 +794,13 @@ class ScanEngine:
                     self.invalidate_database_pipeline_runtime(name)
             new_value = param.get_value()
             error_text = str(param.state.get("last_error", "") or "").strip()
+            parameter_invalid = param.state.get("parameter_valid") is False
             if error_text:
                 param.state["connected"] = False
             elif param.state.get("enabled") is False:
+                param.state["last_error"] = ""
+                param.state["connected"] = False
+            elif parameter_invalid:
                 param.state["last_error"] = ""
                 param.state["connected"] = False
             else:

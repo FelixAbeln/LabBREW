@@ -8,28 +8,29 @@ import {
   updateTransducer,
 } from './loaders.js';
 
-function normalizeNumber(value, fallback = 0) {
-  const n = Number.parseFloat(String(value ?? '').trim());
-  return Number.isFinite(n) ? n : fallback;
-}
-
 function emptyDraft() {
   return {
     name: '',
-    input_min: 0,
-    input_max: 10,
-    output_min: 0,
-    output_max: 100,
+    equation: 'x',
+    min_limit: '',
+    max_limit: '',
     input_unit: 'V',
     output_unit: '',
     description: '',
-    clamp: true,
+  };
+}
+
+function normalizeDraft(initial) {
+  return {
+    ...emptyDraft(),
+    ...(initial || {}),
+    equation: String(initial?.equation || 'x'),
   };
 }
 
 function TransducerModal({ mode, initial, onClose, onSave }) {
   const isCreate = mode === 'create';
-  const [draft, setDraft] = useState(initial ?? emptyDraft());
+  const [draft, setDraft] = useState(normalizeDraft(initial));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -42,22 +43,31 @@ function TransducerModal({ mode, initial, onClose, onSave }) {
     const next = {
       ...draft,
       name: String(draft.name || '').trim(),
-      input_min: normalizeNumber(draft.input_min),
-      input_max: normalizeNumber(draft.input_max),
-      output_min: normalizeNumber(draft.output_min),
-      output_max: normalizeNumber(draft.output_max),
+      equation: String(draft.equation || '').trim(),
+      min_limit: String(draft.min_limit ?? '').trim(),
+      max_limit: String(draft.max_limit ?? '').trim(),
       input_unit: String(draft.input_unit || '').trim(),
       output_unit: String(draft.output_unit || '').trim(),
       description: String(draft.description || '').trim(),
-      clamp: Boolean(draft.clamp),
-    };
+    }
+
+    if (next.min_limit === '') delete next.min_limit;
+    if (next.max_limit === '') delete next.max_limit;
 
     if (!next.name) {
       setError('Name is required');
       return;
     }
-    if (next.input_min === next.input_max) {
-      setError('Input min and max must differ');
+    if (!next.equation) {
+      setError('Equation is required');
+      return;
+    }
+    if (next.min_limit !== undefined && Number.isNaN(Number(next.min_limit))) {
+      setError('Min Limit must be numeric');
+      return;
+    }
+    if (next.max_limit !== undefined && Number.isNaN(Number(next.max_limit))) {
+      setError('Max Limit must be numeric');
       return;
     }
 
@@ -86,26 +96,45 @@ function TransducerModal({ mode, initial, onClose, onSave }) {
           </div>
 
           <div className="pdb-field">
-            <label className="pdb-label">Input Min</label>
-            <input className="pdb-input" type="number" step="any" value={draft.input_min} onChange={(e) => setField('input_min', e.target.value)} />
+            <label className="pdb-label">Equation</label>
+            <input
+              className="pdb-input"
+              value={draft.equation || ''}
+              onChange={(e) => setField('equation', e.target.value)}
+              placeholder="x"
+            />
+            <div className="pdb-field-help">Use x (or value) as the calibrated input value.</div>
           </div>
+
           <div className="pdb-field">
-            <label className="pdb-label">Input Max</label>
-            <input className="pdb-input" type="number" step="any" value={draft.input_max} onChange={(e) => setField('input_max', e.target.value)} />
+            <label className="pdb-label">Min Limit</label>
+            <input
+              className="pdb-input"
+              type="number"
+              step="any"
+              value={draft.min_limit ?? ''}
+              onChange={(e) => setField('min_limit', e.target.value)}
+              placeholder="optional"
+            />
           </div>
+
+          <div className="pdb-field">
+            <label className="pdb-label">Max Limit</label>
+            <input
+              className="pdb-input"
+              type="number"
+              step="any"
+              value={draft.max_limit ?? ''}
+              onChange={(e) => setField('max_limit', e.target.value)}
+              placeholder="optional"
+            />
+          </div>
+
           <div className="pdb-field">
             <label className="pdb-label">Input Unit</label>
             <input className="pdb-input" value={draft.input_unit} onChange={(e) => setField('input_unit', e.target.value)} />
           </div>
 
-          <div className="pdb-field">
-            <label className="pdb-label">Output Min</label>
-            <input className="pdb-input" type="number" step="any" value={draft.output_min} onChange={(e) => setField('output_min', e.target.value)} />
-          </div>
-          <div className="pdb-field">
-            <label className="pdb-label">Output Max</label>
-            <input className="pdb-input" type="number" step="any" value={draft.output_max} onChange={(e) => setField('output_max', e.target.value)} />
-          </div>
           <div className="pdb-field">
             <label className="pdb-label">Output Unit</label>
             <input className="pdb-input" value={draft.output_unit} onChange={(e) => setField('output_unit', e.target.value)} />
@@ -114,13 +143,6 @@ function TransducerModal({ mode, initial, onClose, onSave }) {
           <div className="pdb-field">
             <label className="pdb-label">Description</label>
             <textarea className="pdb-textarea" rows={3} value={draft.description} onChange={(e) => setField('description', e.target.value)} />
-          </div>
-
-          <div className="pdb-field">
-            <label className="pdb-checkbox-row">
-              <input type="checkbox" checked={Boolean(draft.clamp)} onChange={(e) => setField('clamp', e.target.checked)} />
-              <span>Clamp output to configured output range</span>
-            </label>
           </div>
 
           {error && <div className="pdb-save-error">{error}</div>}
@@ -297,9 +319,9 @@ export function TransducersPanel({ fermenterId }) {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Input Range</th>
-                <th>Output Range</th>
-                <th>Clamp</th>
+                <th>Equation</th>
+                <th>Limits</th>
+                <th>Units</th>
                 <th>Description</th>
                 <th />
               </tr>
@@ -313,9 +335,9 @@ export function TransducersPanel({ fermenterId }) {
               {visible.map((item) => (
                 <tr key={item.name}>
                   <td><code className="pdb-param-name">{item.name}</code></td>
-                  <td>{item.input_min} {item.input_unit || ''} → {item.input_max} {item.input_unit || ''}</td>
-                  <td>{item.output_min} {item.output_unit || ''} → {item.output_max} {item.output_unit || ''}</td>
-                  <td>{item.clamp ? 'yes' : 'no'}</td>
+                  <td>{item.equation || '—'}</td>
+                  <td>{`${item.min_limit ?? '-'} → ${item.max_limit ?? '-'}`}</td>
+                  <td>{`${item.input_unit || '-'} → ${item.output_unit || '-'}`}</td>
                   <td>{item.description || '—'}</td>
                   <td>
                     <div className="pdb-row-actions">

@@ -23,6 +23,10 @@ DB_OWNED_CONFIG_DEFAULTS = {
     "timeshift": 0.0,
     "calibration_equation": "",
     "transducer_id": "",
+    "channel_min": None,
+    "channel_max": None,
+    "force_invalid": False,
+    "force_invalid_reason": "",
 }
 
 DB_OWNED_SCHEMA_PROPERTIES = {
@@ -30,6 +34,10 @@ DB_OWNED_SCHEMA_PROPERTIES = {
     "timeshift": {"type": "number"},
     "calibration_equation": {"type": "string"},
     "transducer_id": {"type": "string"},
+    "channel_min": {"type": "number"},
+    "channel_max": {"type": "number"},
+    "force_invalid": {"type": "boolean"},
+    "force_invalid_reason": {"type": "string"},
 }
 
 
@@ -112,7 +120,47 @@ def _append_db_owned_section(sections: list[dict[str, Any]], *, editable: bool) 
                 "label": "Transducer",
                 "type": "transducer_ref",
                 "readonly": not editable,
-                "help": "Optional transducer mapping name applied after calibration and before mirror output.",
+                "help": "Optional transducer equation transform applied after calibration and before mirror output.",
+            }
+        )
+    if not _section_has_field(sections, "config.channel_min"):
+        db_fields.append(
+            {
+                "key": "config.channel_min",
+                "label": "Channel Min",
+                "type": "float",
+                "readonly": not editable,
+                "help": "Optional lower bound check on calibrated channel value (post calibration_equation).",
+            }
+        )
+    if not _section_has_field(sections, "config.channel_max"):
+        db_fields.append(
+            {
+                "key": "config.channel_max",
+                "label": "Channel Max",
+                "type": "float",
+                "readonly": not editable,
+                "help": "Optional upper bound check on calibrated channel value (post calibration_equation).",
+            }
+        )
+    if not _section_has_field(sections, "config.force_invalid"):
+        db_fields.append(
+            {
+                "key": "config.force_invalid",
+                "label": "Force Invalid",
+                "type": "bool",
+                "readonly": not editable,
+                "help": "When enabled, this parameter is marked invalid and skipped in the scan cycle.",
+            }
+        )
+    if not _section_has_field(sections, "config.force_invalid_reason"):
+        db_fields.append(
+            {
+                "key": "config.force_invalid_reason",
+                "label": "Invalid Reason",
+                "type": "string",
+                "readonly": not editable,
+                "help": "Optional operator/source reason for a forced-invalid parameter.",
             }
         )
 

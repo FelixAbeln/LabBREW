@@ -132,6 +132,53 @@ def test_scan_engine_records_scan_errors_as_disconnected_state() -> None:
     assert record.state["last_error"] == "scan failed"
 
 
+def test_scan_engine_skips_force_invalid_parameter() -> None:
+    store = ParameterStore()
+    param = FakeParameter("temp", value=10.0, scan_value=12.5)
+    param.update_config(force_invalid=True, force_invalid_reason="datasource offline")
+    store.add(param)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    record = store.get_record("temp")
+    assert record.value == 10.0
+    assert record.state["parameter_force_invalid"] is True
+    assert record.state["parameter_valid"] is False
+    assert record.state["parameter_invalid_reasons"] == ["manual"]
+    assert record.state["parameter_force_invalid_reason"] == "datasource offline"
+    assert record.state["connected"] is False
+
+
+def test_scan_engine_skips_parameter_marked_invalid_by_state() -> None:
+    class InvalidatingParameter(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=1.0)
+            self.scan_calls = 0
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(2.0)
+            self.state["parameter_valid"] = False
+            self.state["parameter_invalid_reasons"] = ["datasource"]
+
+    store = ParameterStore()
+    param = InvalidatingParameter("temp")
+    store.add(param)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+    first = store.get_record("temp")
+    assert first.value == 2.0
+    assert first.state["parameter_valid"] is False
+
+    engine.scan_once(dt=0.1)
+    second = store.get_record("temp")
+    assert second.value == 2.0
+    assert param.scan_calls == 1
+    assert second.state["connected"] is False
+
+
 def test_scan_engine_init_and_desired_period_variants() -> None:
     engine = ScanEngine(period_s=0.01, mode="invalid", target_utilization=5.0, min_period_s=-1.0, max_period_s=0.001)
 
