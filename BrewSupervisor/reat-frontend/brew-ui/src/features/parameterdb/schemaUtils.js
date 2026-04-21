@@ -126,6 +126,14 @@ export function collectJsonFieldKeys(sections) {
   );
 }
 
+export function collectFloatFieldKeys(sections) {
+  return sections.flatMap((section) =>
+    sectionFields(section)
+      .filter((field) => field?.type === 'float')
+      .map((field) => field.key),
+  );
+}
+
 function normalizeList(value) {
   if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
   if (typeof value === 'string') return value.trim() ? [value.trim()] : [];

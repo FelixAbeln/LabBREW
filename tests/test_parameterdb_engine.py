@@ -150,6 +150,32 @@ def test_scan_engine_skips_force_invalid_parameter() -> None:
     assert record.state["connected"] is False
 
 
+def test_scan_engine_recovers_after_force_invalid_is_cleared() -> None:
+    store = ParameterStore()
+    param = FakeParameter("temp", value=10.0, scan_value=12.5)
+    param.update_config(force_invalid=True, force_invalid_reason="datasource disabled")
+    store.add(param)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    first = store.get_record("temp")
+    assert first.value == 10.0
+    assert first.state["parameter_valid"] is False
+    assert first.state["parameter_invalid_reasons"] == ["manual"]
+
+    param.update_config(force_invalid=False, force_invalid_reason="")
+    engine.scan_once(dt=0.1)
+
+    second = store.get_record("temp")
+    assert second.value == 12.5
+    assert second.state.get("parameter_force_invalid") is None
+    assert second.state.get("parameter_force_invalid_reason") is None
+    assert second.state.get("parameter_invalid_reasons") is None
+    assert second.state.get("parameter_valid") is True
+    assert second.state["connected"] is True
+
+
 def test_scan_engine_skips_parameter_marked_invalid_by_state() -> None:
     class InvalidatingParameter(FakeParameter):
         def __init__(self, name: str) -> None:
@@ -177,6 +203,59 @@ def test_scan_engine_skips_parameter_marked_invalid_by_state() -> None:
     assert second.value == 2.0
     assert param.scan_calls == 1
     assert second.state["connected"] is False
+
+
+def test_scan_engine_skips_dependents_of_invalid_parameter_and_recovers() -> None:
+    class InvalidatingSource(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=1.0)
+            self.scan_calls = 0
+            self.should_invalidate = True
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(2.0)
+            if self.should_invalidate:
+                self.state["parameter_valid"] = False
+                self.state["parameter_invalid_reasons"] = ["datasource"]
+
+    class DependentParameter(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=10.0, deps=["source"])
+            self.scan_calls = 0
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(20.0)
+
+    store = ParameterStore()
+    source = InvalidatingSource("source")
+    dependent = DependentParameter("derived")
+    store.add(source)
+    store.add(dependent)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    first = store.get_record("derived")
+    assert dependent.scan_calls == 0
+    assert first.value == 10.0
+    assert first.state["parameter_valid"] is False
+    assert first.state["parameter_invalid_reasons"] == ["dependency"]
+    assert first.state["dependency_invalid_parameters"] == ["source"]
+    assert first.state["connected"] is False
+
+    source.should_invalidate = False
+    source.state.pop("parameter_valid", None)
+    source.state.pop("parameter_invalid_reasons", None)
+
+    engine.scan_once(dt=0.1)
+
+    second = store.get_record("derived")
+    assert dependent.scan_calls == 1
+    assert second.value == 20.0
+    assert second.state["connected"] is True
+    assert "dependency_invalid_parameters" not in second.state
 
 
 def test_scan_engine_init_and_desired_period_variants() -> None:

@@ -227,6 +227,7 @@ export function ControlUiTab({
             <div className="control-card-column" key={`control-column-${columnIndex}`}>
               {columnCards.map((card) => {
                 const controls = Array.isArray(card?.controls) ? card.controls : []
+                const invalidCount = controls.reduce((count, control) => count + (control?.parameter_invalid ? 1 : 0), 0)
                 const cardKey = String(card.card_id || `${card.kind}-${card.title}`)
                 const cardBody = hasBackendControlCardApp(card) ? (
                   <BackendControlCard
@@ -242,12 +243,20 @@ export function ControlUiTab({
                 ) : (
                   <div
                     key={cardKey}
-                    className="info-card control-device-card"
+                    className={`info-card control-device-card${invalidCount > 0 ? ' control-device-card--invalid' : ''}`}
                   >
                     <div className="card-header-row">
                       <h3>{card.title || 'Device'}</h3>
-                      <span className={`pill ${card.running ? 'pill-ok' : 'pill-warn'}`}>{card.running ? 'running' : 'stopped'}</span>
+                      <div className="tag-row">
+                        <span className={`pill ${card.running ? 'pill-ok' : 'pill-warn'}`}>{card.running ? 'running' : 'stopped'}</span>
+                        {invalidCount > 0 ? <span className="pill pill-bad">invalid {invalidCount}</span> : null}
+                      </div>
                     </div>
+                    {invalidCount > 0 ? (
+                      <div className="control-card-invalid-banner">
+                        Parameter invalid: {invalidCount} control field{invalidCount === 1 ? '' : 's'} unavailable
+                      </div>
+                    ) : null}
                     <div className="control-item-stack">
                       {controls.map((control) => {
                         const target = String(control?.target || '').trim()
@@ -255,6 +264,8 @@ export function ControlUiTab({
                         const widget = control?.widget || ''
                         const currentValue = control?.current_value
                         const currentOwner = String(control?.current_owner || '').trim()
+                        const parameterInvalid = Boolean(control?.parameter_invalid)
+                        const parameterInvalidReason = String(control?.parameter_invalid_reason || '').trim()
                         const isSafetyOwned = currentOwner === 'safety'
                         const isSafetyLocked = Boolean(control?.safety_locked)
                         const isSafetyControlled = isSafetyOwned || isSafetyLocked
@@ -289,7 +300,7 @@ export function ControlUiTab({
                         const vtDraftValue = vtDraftExists ? controlDrafts[vtTarget] : control?.value_target_current_value
 
                         return (
-                          <div key={`${control.id || target}-${target}`} className={`control-item-row${isStackedLayout ? ' control-item-row--stacked' : ''}${isServiceOwned ? ' control-item-row--service-owned' : ''}`}>
+                          <div key={`${control.id || target}-${target}`} className={`control-item-row${isStackedLayout ? ' control-item-row--stacked' : ''}${isServiceOwned ? ' control-item-row--service-owned' : ''}${parameterInvalid ? ' control-item-row--parameter-invalid' : ''}`}>
                             <div className="control-item-meta">
                               <strong>{controlLabel}</strong>
                               <div className="small-text control-item-target">{target || '-'}</div>
@@ -316,10 +327,11 @@ export function ControlUiTab({
                                     value={String(vtDraftValue ?? '')}
                                     placeholder={control.unit || 'value'}
                                     onChange={(event) => onDraftChange(vtTarget, event.target.value)}
+                                    disabled={parameterInvalid}
                                   />
                                   <button
                                     className="warning-button"
-                                    disabled={!target || isWriting || controlUiLoading}
+                                    disabled={!target || isWriting || controlUiLoading || parameterInvalid}
                                     onClick={() => onWrite(control)}
                                   >
                                     {isWriting ? 'Sending…' : actionLabel}
@@ -328,7 +340,7 @@ export function ControlUiTab({
                               ) : !requiresTakeover && (widget === 'button' || writeKind === 'pulse') ? (
                                 <button
                                   className="warning-button"
-                                  disabled={!target || isWriting || controlUiLoading}
+                                  disabled={!target || isWriting || controlUiLoading || parameterInvalid}
                                   onClick={() => onWrite(control, true)}
                                 >
                                   {isWriting ? 'Sending…' : actionLabel}
@@ -336,7 +348,7 @@ export function ControlUiTab({
                               ) : !requiresTakeover && (widget === 'toggle' || writeKind === 'bool') ? (
                                 <button
                                   className={`toggle-button ${toggleValue ? 'is-resume' : 'is-pause'}`}
-                                  disabled={!target || isWriting || controlUiLoading}
+                                  disabled={!target || isWriting || controlUiLoading || parameterInvalid}
                                   onClick={() => {
                                     const nextValue = !toggleValue
                                     onWrite(control, nextValue)
@@ -355,10 +367,11 @@ export function ControlUiTab({
                                     value={draftValue ?? ''}
                                     onChange={(event) => onDraftChange(target, event.target.value)}
                                     onKeyDown={(event) => applyOnEnter(event, control, target, isWriting)}
+                                    disabled={parameterInvalid}
                                   />
                                   <button
                                     className="primary-button"
-                                    disabled={!target || isWriting || controlUiLoading}
+                                    disabled={!target || isWriting || controlUiLoading || parameterInvalid}
                                     onClick={() => onWrite(control)}
                                   >
                                     {isWriting ? 'Writing…' : 'Apply'}
@@ -372,10 +385,11 @@ export function ControlUiTab({
                                     value={draftValue ?? ''}
                                     onChange={(event) => onDraftChange(target, event.target.value)}
                                     onKeyDown={(event) => applyOnEnter(event, control, target, isWriting)}
+                                    disabled={parameterInvalid}
                                   />
                                   <button
                                     className="primary-button"
-                                    disabled={!target || isWriting || controlUiLoading}
+                                    disabled={!target || isWriting || controlUiLoading || parameterInvalid}
                                     onClick={() => onWrite(control)}
                                   >
                                     {isWriting ? 'Writing…' : 'Apply'}
@@ -385,11 +399,16 @@ export function ControlUiTab({
                               {requiresTakeover && canTakeControl ? (
                                 <button
                                   className="warning-button control-takeover-button"
-                                  disabled={!target || isWriting || controlUiLoading}
+                                  disabled={!target || isWriting || controlUiLoading || parameterInvalid}
                                   onClick={() => onWrite(control, currentValue)}
                                 >
                                   {isWriting ? 'Taking…' : 'Take control'}
                                 </button>
+                              ) : null}
+                              {parameterInvalid ? (
+                                <div className="small-text warning">
+                                  Parameter invalid{parameterInvalidReason ? `: ${parameterInvalidReason}` : ''}
+                                </div>
                               ) : null}
                               {requiresTakeover && !canTakeControl ? (
                                 <div className="small-text warning">

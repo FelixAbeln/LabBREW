@@ -608,6 +608,41 @@ class ControlRuntime:
                 return True
             return bool(map_item.get("safety_locked")) if isinstance(map_item, dict) else False
 
+        def _parameter_invalid_info(param: dict[str, Any] | None) -> tuple[bool, str | None]:
+            if not isinstance(param, dict):
+                return False, None
+            state = param.get("state")
+            if not isinstance(state, dict):
+                return False, None
+
+            reasons: list[str] = []
+            if bool(state.get("invalid_config")):
+                reasons.append("config")
+
+            if state.get("parameter_valid") is False or bool(state.get("parameter_force_invalid")):
+                raw_reasons = state.get("parameter_invalid_reasons")
+                if isinstance(raw_reasons, list):
+                    for item in raw_reasons:
+                        text = str(item or "").strip()
+                        if text:
+                            reasons.append(text)
+                forced_reason = str(state.get("parameter_force_invalid_reason") or "").strip()
+                if forced_reason:
+                    reasons.append(forced_reason)
+
+            if not reasons:
+                return False, None
+
+            deduped: list[str] = []
+            seen: set[str] = set()
+            for reason in reasons:
+                key = reason.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(reason)
+            return True, ", ".join(deduped)
+
         for control in resolved_controls:
             if not isinstance(control, dict):
                 continue
@@ -667,6 +702,7 @@ class ControlRuntime:
                 "name": parameter_name,
                 "parameter_type": record.get("parameter_type"),
                 "value": record.get("value"),
+                "state": dict(record.get("state") or {}),
                 "role": metadata.get("role"),
                 "unit": metadata.get("unit"),
                 "device": metadata.get("device"),
@@ -732,6 +768,7 @@ class ControlRuntime:
                     vt_param = (
                         parameters_by_name.get(value_target) if value_target else None
                     )
+                    parameter_invalid, parameter_invalid_reason = _parameter_invalid_info(param)
                     item: dict[str, Any] = {
                         "id": control.get("id") or map_item.get("id") or target,
                         "label": map_item.get("label")
@@ -754,6 +791,8 @@ class ControlRuntime:
                         else None,
                         "current_owner": current_owner,
                         "safety_locked": _resolve_safety_locked(current_owner, map_item),
+                        "parameter_invalid": parameter_invalid,
+                        "parameter_invalid_reason": parameter_invalid_reason,
                         "source": "sourcedef",
                         "mapped": bool(map_item),
                     }
@@ -818,6 +857,7 @@ class ControlRuntime:
                     map_hint = controls_by_target.get(target, [])
                     map_item = map_hint[0] if map_hint else {}
                     current_owner = _resolve_owner(target, map_item)
+                    parameter_invalid, parameter_invalid_reason = _parameter_invalid_info(parameter)
                     control_items.append(
                         {
                             "id": map_item.get("id") or f"auto:{target}",
@@ -830,6 +870,8 @@ class ControlRuntime:
                             "current_value": value,
                             "current_owner": current_owner,
                             "safety_locked": _resolve_safety_locked(current_owner, map_item),
+                            "parameter_invalid": parameter_invalid,
+                            "parameter_invalid_reason": parameter_invalid_reason,
                             "source": "discovered",
                             "mapped": bool(map_item),
                             **extra,
@@ -843,6 +885,7 @@ class ControlRuntime:
                     current_owner = _resolve_owner(target, map_item)
                     seen_targets.add(target)
                     param = parameters_by_name.get(target)
+                    parameter_invalid, parameter_invalid_reason = _parameter_invalid_info(param)
                     control_items.append(
                         {
                             "id": map_item.get("id") or target,
@@ -860,6 +903,8 @@ class ControlRuntime:
                             else None,
                             "current_owner": current_owner,
                             "safety_locked": _resolve_safety_locked(current_owner, map_item),
+                            "parameter_invalid": parameter_invalid,
+                            "parameter_invalid_reason": parameter_invalid_reason,
                             "source": "manual_map",
                             "mapped": True,
                         }
@@ -959,6 +1004,8 @@ class ControlRuntime:
         for target, map_items in all_controls_by_target.items():
             map_item = map_items[0] if map_items else {}
             current_owner = _resolve_owner(target, map_item)
+            param_record = described.get(target) if isinstance(described, dict) else None
+            parameter_invalid, parameter_invalid_reason = _parameter_invalid_info(param_record)
             pin_scope = str(map_item.get("pin_scope") or "").strip().lower()
             force_manual_card = pin_scope == "manual"
             if target in all_source_parameter_names and not force_manual_card:
@@ -999,9 +1046,11 @@ class ControlRuntime:
                     "widget": widget,
                     "unit": map_item.get("unit"),
                     "write": write,
-                    "current_value": map_item.get("current_value"),
+                    "current_value": param_record.get("value") if isinstance(param_record, dict) else map_item.get("current_value"),
                     "current_owner": current_owner,
                     "safety_locked": _resolve_safety_locked(current_owner, map_item),
+                    "parameter_invalid": parameter_invalid,
+                    "parameter_invalid_reason": parameter_invalid_reason,
                     "source": "manual_map",
                     "mapped": True,
                     "target_exists": bool(map_item.get("target_exists")),

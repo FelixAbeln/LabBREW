@@ -20,6 +20,7 @@ from .transducers import PostgresTransducerCatalog, TransducerCatalog
 
 UTC = timezone.utc
 _DB_PIPELINE_APPLIED_FLAG = "__db_pipeline_applied"
+_PIPELINE_INVALID_REASONS = frozenset({"channel", "transducer"})
 
 
 @dataclass(slots=True)
@@ -707,6 +708,19 @@ class ScanEngine:
             self._write_target_map = write_target_map
             self._cached_store_revision = rev
 
+    def _invalid_dependency_names(self, param_name: str) -> list[str]:
+        with self._graph_lock:
+            deps = list(self._dependency_map.get(param_name, ()))
+        invalid: list[str] = []
+        for dep in deps:
+            try:
+                dep_param = self.store._get_runtime_param(dep)
+            except KeyError:
+                continue
+            if dep_param.state.get("parameter_valid") is False:
+                invalid.append(dep)
+        return invalid
+
     def get_scan_order(self) -> list[str]:
         self._rebuild_graph_if_needed()
         with self._graph_lock:
@@ -763,7 +777,37 @@ class ScanEngine:
             param.state.pop("parameter_force_invalid", None)
             param.state.pop("parameter_force_invalid_reason", None)
 
-            if param.state.get("parameter_valid") is False and param.state.get("parameter_invalid_reasons"):
+            # Allow recovery after force_invalid is turned off.
+            # The forced-invalid branch marks state as manual invalid and skips scan;
+            # if we do not clear that marker here, the parameter can remain stuck.
+            if (
+                param.state.get("parameter_valid") is False
+                and param.state.get("parameter_invalid_reasons") == ["manual"]
+            ):
+                param.state.pop("parameter_valid", None)
+                param.state.pop("parameter_invalid_reasons", None)
+
+            invalid_dependencies = self._invalid_dependency_names(name)
+            if invalid_dependencies:
+                self.invalidate_database_pipeline_runtime(name)
+                param.state["parameter_valid"] = False
+                param.state["parameter_invalid_reasons"] = ["dependency"]
+                param.state["dependency_invalid_parameters"] = invalid_dependencies
+                param.state["last_error"] = ""
+                param.state["connected"] = False
+                new_value = param.get_value()
+                self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
+                self.store.publish_scan_state(param.name, dict(param.state))
+                continue
+
+            if param.state.get("parameter_invalid_reasons") == ["dependency"]:
+                param.state.pop("parameter_valid", None)
+                param.state.pop("parameter_invalid_reasons", None)
+            param.state.pop("dependency_invalid_parameters", None)
+
+            invalid_reasons = param.state.get("parameter_invalid_reasons") or []
+            is_pipeline_invalid_only = bool(invalid_reasons) and set(invalid_reasons).issubset(_PIPELINE_INVALID_REASONS)
+            if param.state.get("parameter_valid") is False and invalid_reasons and not is_pipeline_invalid_only:
                 # Skip evaluation when a parameter is already marked invalid by datasource/runtime.
                 param.state["last_error"] = ""
                 param.state["connected"] = False
@@ -771,6 +815,10 @@ class ScanEngine:
                 self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
+
+            if is_pipeline_invalid_only:
+                param.state.pop("parameter_valid", None)
+                param.state.pop("parameter_invalid_reasons", None)
 
             # Reset previous-cycle error so scan/pipeline can recover when config is fixed.
             param.state.pop("last_error", None)

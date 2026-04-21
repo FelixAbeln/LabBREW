@@ -5,8 +5,6 @@
       "description": "",
       "equation": "10 *x + 5",
       "input_unit": "V",
-      "max_limit": 100.0,
-      "min_limit": -10.0,
       "name": "Test",
       "output_unit": "kpa"
     }

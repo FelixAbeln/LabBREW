@@ -453,6 +453,19 @@ def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_ca
                 "unit": "C",
             },
         },
+        "manual.target": {
+            "parameter_type": "fake",
+            "value": 0.5,
+            "state": {
+                "parameter_valid": False,
+                "parameter_invalid_reasons": ["manual"],
+            },
+            "metadata": {
+                "created_by": "manual",
+                "role": "command",
+                "unit": "%",
+            },
+        },
         "orphan.param": {
             "parameter_type": "fake",
             "value": 1,
@@ -504,6 +517,8 @@ def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_ca
     assert snap["ui_cards"][0]["app"]["sections"][0]["items"][0]["control_id"] == "source-temp"
     assert snap["orphan_parameters"][0]["name"] == "orphan.param"
     assert snap["manual_controls"][0]["target"] == "manual.target"
+    assert snap["manual_controls"][0]["parameter_invalid"] is True
+    assert snap["manual_controls"][0]["parameter_invalid_reason"] == "manual"
     manual_card = next(card for card in snap["ui_cards"] if card["kind"] == "manual")
     assert manual_card["app"]["kind"] == "sections"
     assert manual_card["app"]["sections"][0]["items"][0]["control_id"] == manual_card["controls"][0]["id"]
@@ -970,6 +985,10 @@ def test_datasource_contract_snapshot_discovers_command_and_control_parameters()
         "src.count": {
             "parameter_type": "number",
             "value": 7,
+            "state": {
+                "parameter_valid": False,
+                "parameter_invalid_reasons": ["manual"],
+            },
             "metadata": {
                 "created_by": "data_source",
                 "owner": "src",
@@ -1000,6 +1019,8 @@ def test_datasource_contract_snapshot_discovers_command_and_control_parameters()
     assert controls["src.count"]["write"] == {"kind": "number"}
     assert controls["src.count"]["current_owner"] is None
     assert controls["src.count"]["safety_locked"] is False
+    assert controls["src.count"]["parameter_invalid"] is True
+    assert controls["src.count"]["parameter_invalid_reason"] == "manual"
     assert controls["src.label"]["widget"] == "text"
     assert controls["src.label"]["write"] == {"kind": "string"}
 

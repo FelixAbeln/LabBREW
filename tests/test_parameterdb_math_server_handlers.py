@@ -517,6 +517,25 @@ def test_pipeline_marks_transducer_limit_invalid_independently() -> None:
     assert state.get("parameter_valid") is False
     assert state.get("parameter_invalid_reasons") == ["transducer"]
 
+    server.api_update_transducer(
+        {
+            "name": "gain2",
+            "transducer": {
+                "equation": "2*x",
+                "input_unit": "V",
+                "output_unit": "bar",
+            },
+        }
+    )
+
+    server.engine.scan_once(dt=0.1)
+    recovered = server.api_describe({})["sensor.pressure"]
+    recovered_state = recovered["state"]
+    assert recovered_state.get("transducer_limit_in_range") is True
+    assert "transducer_limit_violation" not in recovered_state
+    assert recovered_state.get("parameter_valid") is True
+    assert "parameter_invalid_reasons" not in recovered_state
+
 
 def test_pipeline_marks_channel_limit_invalid_independently() -> None:
     server = _build_server_with_math()

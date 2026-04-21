@@ -23,6 +23,27 @@
   gap: 10px;
 }
 
+.control-device-card--invalid {
+  border-color: #7f1d1d;
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.25);
+}
+
+.control-card-invalid-banner {
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.control-invalid-badge {
+  background: rgba(120, 53, 15, 0.55);
+  color: #fed7aa;
+}
+
 .control-item-stack {
   display: grid;
   gap: 8px;
@@ -44,6 +65,11 @@
 .control-item-row--service-owned {
   border-color: #2a3644;
   background: rgba(185, 28, 28, 0.14);
+}
+
+.control-item-row--parameter-invalid {
+  border-color: rgba(239, 68, 68, 0.7);
+  background: rgba(127, 29, 29, 0.24);
 }
 
 .control-item-row--service-owned:hover {
