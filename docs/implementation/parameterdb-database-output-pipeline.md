@@ -51,7 +51,7 @@ Specifies a transducer mapping from the transducer catalog. When set, the calibr
 Mapping formula:
 
 $$
-  	ext{ratio} = \frac{x - input_{min}}{input_{max} - input_{min}}\quad\text{and}\quad y = output_{min} + \text{ratio}\cdot(output_{max} - output_{min})
+r = \frac{x - input_{min}}{input_{max} - input_{min}}\quad\text{and}\quad y = output_{min} + r\cdot(output_{max} - output_{min})
 $$
 
 If transducer `clamp` is enabled (default), output is clamped to the output range.
@@ -305,13 +305,12 @@ All parameters expose the "Database Output Pipeline" section in create/edit form
 
 **To configure:**
 
-1. Open parameter create/edit form
-2. Scroll to **Database Output Pipeline** section
-3. Set fields:
-   - **Mirror Output To**: Select parameters to receive calibrated value
-   - **Calibration Equation**: Enter math expression (e.g., `2*x + 5`)
-  - **Transducer**: Select transducer mapping by name
-   - **Post-Processing Timeshift (s)**: Metadata offset for export
+1. Open parameter create/edit form.
+2. Scroll to **Database Output Pipeline** section.
+3. Set **Mirror Output To** to the parameters that should receive the calibrated value.
+4. Set **Calibration Equation** to the math expression to apply, for example `2*x + 5`.
+5. Set **Transducer** to the transducer mapping name.
+6. Set **Post-Processing Timeshift (s)** to the metadata offset used during export.
 
 Changes take effect immediately on next scan cycle.
 
