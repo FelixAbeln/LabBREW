@@ -66,6 +66,7 @@ class ScanEngine:
         self._graph_warnings: list[str] = []
         self._dependency_map: dict[str, list[str]] = {}
         self._write_target_map: dict[str, list[str]] = {}
+        self._pipeline_cache_lock = threading.RLock()
         self._calibration_cache: dict[str, CompiledExpression | None] = {}
         self._calibration_input_cache: dict[str, Any] = {}
         self._calibration_output_cache: dict[str, Any] = {}
@@ -93,25 +94,27 @@ class ScanEngine:
 
     def invalidate_database_pipeline_runtime(self, param_name: str) -> None:
         """Invalidate per-parameter pipeline caches after manual/external writes."""
-        self._calibration_input_cache.pop(param_name, None)
-        self._calibration_output_cache.pop(param_name, None)
-        self._transducer_input_cache.pop(param_name, None)
-        self._transducer_output_cache.pop(param_name, None)
+        with self._pipeline_cache_lock:
+            self._calibration_input_cache.pop(param_name, None)
+            self._calibration_output_cache.pop(param_name, None)
+            self._transducer_input_cache.pop(param_name, None)
+            self._transducer_output_cache.pop(param_name, None)
         with contextlib.suppress(Exception):
             param = self.store._get_runtime_param(param_name)
             self._clear_database_pipeline_state(param)
 
     def _prune_runtime_caches(self, names: set[str]) -> None:
-        for cache in (
-            self._calibration_cache,
-            self._calibration_input_cache,
-            self._calibration_output_cache,
-            self._transducer_input_cache,
-            self._transducer_output_cache,
-        ):
-            stale = [name for name in cache if name not in names]
-            for name in stale:
-                cache.pop(name, None)
+        with self._pipeline_cache_lock:
+            for cache in (
+                self._calibration_cache,
+                self._calibration_input_cache,
+                self._calibration_output_cache,
+                self._transducer_input_cache,
+                self._transducer_output_cache,
+            ):
+                stale = [name for name in cache if name not in names]
+                for name in stale:
+                    cache.pop(name, None)
 
     def _resolve_calibration_input(
         self,
@@ -133,12 +136,16 @@ class ScanEngine:
         """
         if (
             allow_cached_input
-            and param_name in self._calibration_input_cache
-            and param_name in self._calibration_output_cache
-            and current_value == self._calibration_output_cache[param_name]
         ):
-            return self._calibration_input_cache[param_name]
-        self._calibration_input_cache[param_name] = current_value
+            with self._pipeline_cache_lock:
+                if (
+                    param_name in self._calibration_input_cache
+                    and param_name in self._calibration_output_cache
+                    and current_value == self._calibration_output_cache[param_name]
+                ):
+                    return self._calibration_input_cache[param_name]
+        with self._pipeline_cache_lock:
+            self._calibration_input_cache[param_name] = current_value
         return current_value
 
     def _database_mirror_targets(self, param_name: str, config: dict[str, Any]) -> list[str]:
@@ -175,24 +182,31 @@ class ScanEngine:
         """
         if (
             allow_cached_input
-            and param_name in self._transducer_input_cache
-            and param_name in self._transducer_output_cache
-            and current_value == self._transducer_output_cache[param_name]
         ):
-            return self._transducer_input_cache[param_name]
-        self._transducer_input_cache[param_name] = current_value
+            with self._pipeline_cache_lock:
+                if (
+                    param_name in self._transducer_input_cache
+                    and param_name in self._transducer_output_cache
+                    and current_value == self._transducer_output_cache[param_name]
+                ):
+                    return self._transducer_input_cache[param_name]
+        with self._pipeline_cache_lock:
+            self._transducer_input_cache[param_name] = current_value
         return current_value
 
     def _database_calibration_compiled(self, param_name: str, config: dict[str, Any]) -> CompiledExpression | None:
         equation = str(config.get("calibration_equation") or "").strip()
         if not equation:
-            self._calibration_cache[param_name] = None
+            with self._pipeline_cache_lock:
+                self._calibration_cache[param_name] = None
             return None
-        cached = self._calibration_cache.get(param_name)
+        with self._pipeline_cache_lock:
+            cached = self._calibration_cache.get(param_name)
         if cached is not None and cached.expression == equation:
             return cached
         compiled = compile_expression(equation, required=True)
-        self._calibration_cache[param_name] = compiled
+        with self._pipeline_cache_lock:
+            self._calibration_cache[param_name] = compiled
         return compiled
 
     def _database_dependencies(self, param_name: str, config: dict[str, Any]) -> tuple[list[str], str | None]:
@@ -384,17 +398,18 @@ class ScanEngine:
             return str(exc)
 
         param.set_value(transformed)
-        if equation:
-            self._calibration_output_cache[param_name] = transformed
-        else:
-            self._calibration_input_cache.pop(param_name, None)
-            self._calibration_output_cache.pop(param_name, None)
+        with self._pipeline_cache_lock:
+            if equation:
+                self._calibration_output_cache[param_name] = calibrated
+            else:
+                self._calibration_input_cache.pop(param_name, None)
+                self._calibration_output_cache.pop(param_name, None)
 
-        if transducer_id:
-            self._transducer_output_cache[param_name] = transformed
-        else:
-            self._transducer_input_cache.pop(param_name, None)
-            self._transducer_output_cache.pop(param_name, None)
+            if transducer_id:
+                self._transducer_output_cache[param_name] = transformed
+            else:
+                self._transducer_input_cache.pop(param_name, None)
+                self._transducer_output_cache.pop(param_name, None)
 
         if calibration_state:
             param.state.update(calibration_state)

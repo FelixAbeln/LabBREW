@@ -51,7 +51,7 @@ Specifies a transducer mapping from the transducer catalog. When set, the calibr
 Mapping formula:
 
 $$
-  ext{ratio} = \frac{x - input_{min}}{input_{max} - input_{min}}\quad\text{and}\quad y = output_{min} + \text{ratio}\cdot(output_{max} - output_{min})
+  	ext{ratio} = \frac{x - input_{min}}{input_{max} - input_{min}}\quad\text{and}\quad y = output_{min} + \text{ratio}\cdot(output_{max} - output_{min})
 $$
 
 If transducer `clamp` is enabled (default), output is clamped to the output range.
