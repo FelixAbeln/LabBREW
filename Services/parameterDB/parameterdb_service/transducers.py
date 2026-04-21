@@ -246,6 +246,8 @@ def _ensure_postgres_schema(cursor: Any, table_name: str) -> None:
 
 def _require_number(payload: dict[str, Any], key: str) -> float:
     raw = payload.get(key)
+    if isinstance(raw, bool):
+        raise ValueError(f"Field '{key}' must be a number")
     if not isinstance(raw, (int, float)):
         raise ValueError(f"Field '{key}' must be a number")
     value = float(raw)

@@ -268,3 +268,20 @@ def test_postgres_transducer_catalog_rejects_invalid_table_name() -> None:
     )
     with pytest.raises(ValueError, match="table name"):
         PostgresTransducerCatalog(config, table_name="bad-name")
+
+
+def test_transducer_payload_rejects_bool_for_numeric_fields(tmp_path) -> None:
+    path = tmp_path / "transducers.json"
+    catalog = TransducerCatalog(path)
+
+    with pytest.raises(ValueError, match="input_min"):
+        catalog.create(
+            {
+                "name": "bad_bool",
+                "input_min": True,
+                "input_max": 10.0,
+                "output_min": 0.0,
+                "output_max": 100.0,
+                "clamp": True,
+            }
+        )
