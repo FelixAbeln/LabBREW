@@ -43,12 +43,22 @@ def test_normalize_ui_spec_applies_defaults_and_field_normalization() -> None:
     assert normalized["parameter_type"] == "pid"
     assert normalized["display_name"] == "PID"
     assert normalized["create"]["defaults"]["config"]["kp"] == 1.0
+    assert normalized["create"]["defaults"]["config"]["mirror_to"] == []
+    assert normalized["create"]["defaults"]["config"]["timeshift"] == 0.0
+    assert normalized["create"]["defaults"]["config"]["calibration_equation"] == ""
     assert normalized["create"]["defaults"]["metadata"] == {}
     assert normalized["create"]["sections"][0]["title"] == "Section 1"
     assert normalized["create"]["sections"][0]["fields"][0]["label"] == "name"
     assert normalized["create"]["sections"][0]["fields"][0]["required"] is False
+    assert normalized["create"]["sections"][1]["title"] == "Database Output Pipeline"
     assert normalized["edit"]["allow_rename"] is True
     assert normalized["edit"]["sections"][0]["fields"][0]["label"] == "value"
+    assert normalized["edit"]["sections"][1]["title"] == "Database Output Pipeline"
+    create_db_fields = {
+        field["key"]: field
+        for field in normalized["create"]["sections"][1]["fields"]
+    }
+    assert create_db_fields["config.transducer_id"]["type"] == "transducer_ref"
 
 
 
@@ -59,8 +69,10 @@ def test_normalize_ui_spec_without_input_uses_global_defaults() -> None:
     assert normalized["display_name"] == "Static"
     assert normalized["description"] == "desc"
     assert normalized["create"]["required"] == ["name"]
-    assert normalized["create"]["defaults"]["config"] == {}
-    assert normalized["edit"]["sections"] == []
+    assert normalized["create"]["defaults"]["config"]["mirror_to"] == []
+    assert normalized["create"]["defaults"]["config"]["timeshift"] == 0.0
+    assert normalized["create"]["defaults"]["config"]["calibration_equation"] == ""
+    assert normalized["edit"]["sections"][0]["title"] == "Database Output Pipeline"
 
 
 

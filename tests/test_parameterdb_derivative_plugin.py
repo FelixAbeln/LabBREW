@@ -11,7 +11,7 @@ def _ctx(store: ParameterStore, *, dt: float):
     return SimpleNamespace(store=store, dt=dt)
 
 
-def test_derivative_plugin_evaluates_rate_and_mirrors_output() -> None:
+def test_derivative_plugin_evaluates_rate_without_plugin_side_mirroring() -> None:
     store = ParameterStore()
     store.add(StaticParameter("reactor.temp", value=10.0))
     store.add(StaticParameter("reactor.temp_rate", value=0.0))
@@ -33,11 +33,10 @@ def test_derivative_plugin_evaluates_rate_and_mirrors_output() -> None:
     param.scan(_ctx(store, dt=2.0))
 
     assert float(param.get_value()) == 1.5
-    assert float(store.get_value("reactor.temp_rate")) == 1.5
+    assert float(store.get_value("reactor.temp_rate")) == 0.0
     assert param.state["source"] == "reactor.temp"
     assert param.state["delta"] == 3.0
     assert param.state["raw_derivative"] == 1.5
-    assert param.state["output_targets"] == ["reactor.temp_rate"]
     assert param.state["updated_on_change"] is True
     assert param.state["mode"] == "continuous"
     assert param.state["last_error"] == ""

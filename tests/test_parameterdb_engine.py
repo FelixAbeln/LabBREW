@@ -54,6 +54,16 @@ class StatefulParameter(FakeParameter):
             self.state.update(initial_state)
 
 
+class SequenceParameter(FakeParameter):
+    def __init__(self, name: str, *, scan_values: list[Any], value: Any = None, **kwargs) -> None:
+        super().__init__(name, value=value, **kwargs)
+        self._scan_values = list(scan_values)
+
+    def scan(self, _ctx) -> None:
+        if self._scan_values:
+            self.set_value(self._scan_values.pop(0))
+
+
 def test_scan_engine_graph_orders_dependencies_and_reports_conflicts() -> None:
     store = ParameterStore()
     store.add(FakeParameter("source"))
@@ -79,6 +89,19 @@ def test_scan_engine_cycle_warning_falls_back_to_stable_order() -> None:
 
     assert graph["scan_order"] == ["a", "b"]
     assert any("dependency cycle detected" in warning for warning in graph["warnings"])
+
+
+def test_scan_engine_deduplicates_targets_per_writer_before_conflict_warning() -> None:
+    store = ParameterStore()
+    p = FakeParameter("writer", targets=["shared.target"])
+    p.update_config(mirror_to=["shared.target", "shared.target"])
+    store.add(p)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    graph = engine.graph_info()
+
+    assert graph["write_targets"]["writer"] == ["shared.target"]
+    assert not any("multiple writers for 'shared.target'" in warning for warning in graph["warnings"])
 
 
 def test_scan_once_updates_value_state_and_publishes_scan_events() -> None:
@@ -171,8 +194,9 @@ def test_scan_once_handles_missing_param_disabled_and_stale_error_state(monkeypa
     assert disabled_record.state["last_error"] == ""
 
     stale_record = store.get_record("stale")
-    assert stale_record.state["connected"] is False
-    assert stale_record.state["last_error"] == "keep-me"
+    # Stale pre-existing errors are cleared before scan to allow recovery.
+    assert stale_record.state["connected"] is True
+    assert stale_record.state["last_error"] == ""
 
 
 def test_scan_once_updates_average_duration_after_first_cycle(monkeypatch) -> None:
@@ -286,3 +310,54 @@ def test_scan_engine_run_loop_exits_immediately_when_not_running() -> None:
     engine = ScanEngine(period_s=0.01)
     engine._running = False
     engine._run_loop()
+
+
+def test_scan_engine_database_pipeline_applies_calibration_and_mirror() -> None:
+    broker = FakeBroker()
+    store = ParameterStore(event_broker=broker)
+    mirror = FakeParameter("mirror.target", value=0.0)
+    calc = FakeParameter(
+        "calc",
+        value=1.0,
+        scan_value=3.0,
+    )
+    calc.update_config(
+        calibration_equation="2*x + 5",
+        mirror_to=["mirror.target"],
+    )
+    store.add(mirror)
+    store.add(calc)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    calc_record = store.get_record("calc")
+    assert calc_record.value == 11.0
+    assert calc_record.state["calibration_output"] == 11.0
+    assert calc_record.state["output_targets"] == ["mirror.target"]
+    assert store.get_value("mirror.target") == 11.0
+    assert any(
+        event.get("event") == "value_changed"
+        and event.get("name") == "mirror.target"
+        and event.get("source") == "scan"
+        for event in broker.events
+    )
+
+
+def test_scan_engine_database_pipeline_skips_on_plugin_error() -> None:
+    store = ParameterStore()
+    target = FakeParameter("target", value=9.0)
+    bad = StatefulParameter(
+        "bad",
+        value=3.0,
+        raise_error=True,
+    )
+    bad.update_config(mirror_to=["target"], calibration_equation="2*x")
+    store.add(target)
+    store.add(bad)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    assert store.get_value("target") == 9.0
+    assert store.get_record("bad").state["last_error"] == "scan failed"

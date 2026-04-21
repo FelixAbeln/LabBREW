@@ -13,7 +13,9 @@ from ..parameterdb_core.protocol import (
 )
 from .api import CommandDispatcher, register_all_handlers
 from .api.validation import (
+    validate_create_transducer,
     validate_create_parameter,
+    validate_delete_transducer,
     validate_delete_parameter,
     validate_empty_ok,
     validate_export_snapshot,
@@ -23,6 +25,7 @@ from .api.validation import (
     validate_load_parameter_type_folder,
     validate_set_value,
     validate_subscribe,
+    validate_update_transducer,
     validate_update_changes,
 )
 from .engine import ScanEngine
@@ -208,6 +211,42 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
         validate_empty_ok(payload)
         return self.engine.graph_info()
 
+    # transducers
+    def api_list_transducers(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        validate_empty_ok(payload)
+        return self.engine.transducers.list()
+
+    def api_create_transducer(self, payload: dict[str, Any]) -> dict[str, Any]:
+        clean = validate_create_transducer(payload)
+        item = self.engine.transducers.create(clean["transducer"])
+        self.audit_log.log(
+            category="change",
+            action="transducer_created",
+            name=item.get("name"),
+        )
+        return item
+
+    def api_update_transducer(self, payload: dict[str, Any]) -> dict[str, Any]:
+        clean = validate_update_transducer(payload)
+        item = self.engine.transducers.update(clean["name"], clean["transducer"])
+        self.audit_log.log(
+            category="change",
+            action="transducer_updated",
+            name=clean["name"],
+        )
+        return item
+
+    def api_delete_transducer(self, payload: dict[str, Any]) -> bool:
+        clean = validate_delete_transducer(payload)
+        removed = self.engine.transducers.delete(clean["name"])
+        if removed:
+            self.audit_log.log(
+                category="change",
+                action="transducer_deleted",
+                name=clean["name"],
+            )
+        return removed
+
     # plugins
     def api_list_parameter_types(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_empty_ok(payload)
@@ -272,6 +311,7 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
     def api_set_value(self, payload: dict[str, Any]) -> bool:
         clean = validate_set_value(payload)
         self.engine.store.set_value(clean["name"], clean["value"])
+        self.engine.invalidate_database_pipeline_runtime(clean["name"])
         if self.audit_log.audit_external_writes:
             self.audit_log.log(
                 category="change",

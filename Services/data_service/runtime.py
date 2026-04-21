@@ -7,6 +7,7 @@ saves to files, and supports loadstep averaging.
 from __future__ import annotations
 
 import base64
+import contextlib
 import csv
 import importlib.util
 import io
@@ -341,11 +342,13 @@ class DataRecordingRuntime:
                     self._file_writer, "sample_count", len(self._measurement_data)
                 )
                 try:
+                    configured_payloads = list(self.config.include_payloads) if self.config else []
+                    runtime_payloads = self._build_parameterdb_runtime_payloads()
                     archive = self._build_session_archive(
                         measurement_file=filepath,
                         loadsteps_file=self._loadsteps_archive_path,
                         extra_files=self.config.include_files if self.config else [],
-                        extra_payloads=self.config.include_payloads if self.config else [],
+                        extra_payloads=[*configured_payloads, *runtime_payloads],
                     )
                 except Exception as exc:
                     archive = {"archive_path": None, "members": [], "missing": []}
@@ -775,6 +778,44 @@ class DataRecordingRuntime:
                     or "application/octet-stream",
                 }
             )
+        return payloads
+
+    def _build_parameterdb_runtime_payloads(self) -> list[dict[str, Any]]:
+        """Build sidecar payloads that capture ParameterDB logical runtime context."""
+        payloads: list[dict[str, Any]] = []
+
+        def _append_json_payload(name: str, data: dict[str, Any]) -> None:
+            if not isinstance(data, dict) or not data:
+                return
+            raw = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            payloads.append(
+                {
+                    "name": name,
+                    "content_b64": base64.b64encode(raw).decode("ascii"),
+                    "size": len(raw),
+                    "media_type": "application/json",
+                }
+            )
+
+        # Exported snapshot includes values/config/state/metadata and is the
+        # canonical logical runtime capture for post-processing.
+        with contextlib.suppress(Exception):
+            export_fn = getattr(self.backend, "export_snapshot", None)
+            if callable(export_fn):
+                _append_json_payload("parameterdb.export_snapshot.json", export_fn())
+
+        # Graph metadata helps consumers interpret dependency and write ordering.
+        with contextlib.suppress(Exception):
+            graph_fn = getattr(self.backend, "graph_info", None)
+            if callable(graph_fn):
+                _append_json_payload("parameterdb.graph_info.json", graph_fn())
+
+        # Backend/service describe metadata for additional runtime context.
+        with contextlib.suppress(Exception):
+            describe_fn = getattr(self.backend, "describe", None)
+            if callable(describe_fn):
+                _append_json_payload("parameterdb.describe.json", describe_fn())
+
         return payloads
 
     def _recover_unarchived_outputs(self, *, output_dir: str) -> dict[str, Any]:

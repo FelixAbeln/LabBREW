@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   datasourceFmuDownloadUrl,
   deleteDatasourceFmuFile,
+  fetchTransducers,
   listDatasourceFmuFiles,
   uploadDatasourceFmuFile,
 } from './loaders.js';
@@ -17,7 +18,67 @@ function valueToText(value, field) {
   return value ?? '';
 }
 
-function ParameterPickerModal({ options, selected, multi, onClose, onApply }) {
+function normalizeUnit(value) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+const UNIT_ALIASES = new Map([
+  // temperature
+  ['c', 'degc'],
+  ['°c', 'degc'],
+  ['degc', 'degc'],
+  ['celsius', 'degc'],
+  ['f', 'degf'],
+  ['°f', 'degf'],
+  ['degf', 'degf'],
+  ['fahrenheit', 'degf'],
+  ['k', 'kelvin'],
+  ['kelvin', 'kelvin'],
+  // pressure
+  ['bar', 'bar'],
+  ['mbar', 'mbar'],
+  ['psi', 'psi'],
+  ['pa', 'pa'],
+  ['kpa', 'kpa'],
+  ['mpa', 'mpa'],
+  // voltage/current
+  ['v', 'v'],
+  ['volt', 'v'],
+  ['volts', 'v'],
+  ['a', 'a'],
+  ['amp', 'a'],
+  ['amps', 'a'],
+  ['ampere', 'a'],
+  ['amperes', 'a'],
+  ['ma', 'ma'],
+  ['ua', 'ua'],
+  // time
+  ['s', 's'],
+  ['sec', 's'],
+  ['secs', 's'],
+  ['second', 's'],
+  ['seconds', 's'],
+  ['ms', 'ms'],
+  ['millisecond', 'ms'],
+  ['milliseconds', 'ms'],
+  ['min', 'min'],
+  ['mins', 'min'],
+  ['minute', 'min'],
+  ['minutes', 'min'],
+  ['h', 'h'],
+  ['hr', 'h'],
+  ['hrs', 'h'],
+  ['hour', 'h'],
+  ['hours', 'h'],
+]);
+
+function canonicalUnit(value) {
+  const raw = normalizeUnit(value);
+  if (!raw) return '';
+  return UNIT_ALIASES.get(raw) ?? raw;
+}
+
+function ParameterPickerModal({ options, selected, multi, entityLabel, emptyHint, onClose, onApply }) {
   const [filter, setFilter] = useState('');
   const [singleValue, setSingleValue] = useState(selected ?? '');
   const [multiValue, setMultiValue] = useState(() => new Set(selected ?? []));
@@ -37,7 +98,7 @@ function ParameterPickerModal({ options, selected, multi, onClose, onApply }) {
     <div className="pdb-modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
       <div className="pdb-modal pdb-modal-sm">
         <div className="pdb-modal-header">
-          <h3>{multi ? 'Choose Parameters' : 'Choose Parameter'}</h3>
+          <h3>{multi ? `Choose ${entityLabel}s` : `Choose ${entityLabel}`}</h3>
           <button className="pdb-close-btn" onClick={onClose}>✕</button>
         </div>
         <div className="pdb-modal-body">
@@ -47,7 +108,7 @@ function ParameterPickerModal({ options, selected, multi, onClose, onApply }) {
               className="pdb-input"
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
-              placeholder="Search parameters"
+              placeholder={`Search ${entityLabel.toLowerCase()}s`}
             />
           </div>
           <div className="pdb-picker-list">
@@ -79,7 +140,13 @@ function ParameterPickerModal({ options, selected, multi, onClose, onApply }) {
                 </button>
               )
             ))}
-            {visibleOptions.length === 0 && <div className="pdb-empty">No matching parameters</div>}
+            {visibleOptions.length === 0 && (
+              <div className="pdb-empty">
+                {options.length === 0 && emptyHint
+                  ? emptyHint
+                  : `No matching ${entityLabel.toLowerCase()}s`}
+              </div>
+            )}
           </div>
         </div>
         <div className="pdb-modal-footer">
@@ -268,11 +335,43 @@ export function SchemaForm({
   onJsonChange,
 }) {
   const [pickerState, setPickerState] = useState(null);
+  const [transducerOptions, setTransducerOptions] = useState([]);
 
-  function openPicker(field, value, multi = false) {
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTransducers() {
+      if (!fermenterId) {
+        setTransducerOptions([]);
+        return;
+      }
+      try {
+        const response = await fetchTransducers(fermenterId);
+        if (cancelled) return;
+        const options = Array.isArray(response?.transducers)
+          ? response.transducers
+            .map((item) => ({
+              name: String(item?.name || '').trim(),
+              inputUnit: String(item?.input_unit || '').trim(),
+            }))
+            .filter((item) => Boolean(item.name))
+            .sort((a, b) => a.name.localeCompare(b.name))
+          : [];
+        setTransducerOptions(options);
+      } catch {
+        if (!cancelled) setTransducerOptions([]);
+      }
+    }
+
+    loadTransducers();
+    return () => { cancelled = true; };
+  }, [fermenterId]);
+
+  function openPicker(field, value, multi = false, kind = 'parameter') {
     setPickerState({
       field,
       multi,
+      kind,
       selected: multi
         ? (Array.isArray(value) ? value : String(value || '').split(',').map((item) => item.trim()).filter(Boolean))
         : String(value ?? ''),
@@ -344,7 +443,7 @@ export function SchemaForm({
                   placeholder="Select parameter"
                 />
                 {!commonProps.disabled && (
-                  <button type="button" className="pdb-btn-ghost pdb-btn-sm" onClick={() => openPicker(field, value, Array.isArray(value))}>
+                  <button type="button" className="pdb-btn-ghost pdb-btn-sm" onClick={() => openPicker(field, value, Array.isArray(value), 'parameter')}>
                     Pick…
                   </button>
                 )}
@@ -360,7 +459,23 @@ export function SchemaForm({
                   placeholder="Select parameters"
                 />
                 {!commonProps.disabled && (
-                  <button type="button" className="pdb-btn-ghost pdb-btn-sm" onClick={() => openPicker(field, value, true)}>
+                  <button type="button" className="pdb-btn-ghost pdb-btn-sm" onClick={() => openPicker(field, value, true, 'parameter')}>
+                    Pick…
+                  </button>
+                )}
+              </div>
+            );
+          } else if (field.type === 'transducer_ref') {
+            input = (
+              <div className="pdb-picker-input-row">
+                <input
+                  {...commonProps}
+                  value={String(shown)}
+                  onChange={(event) => onFieldChange(field, event.target.value)}
+                  placeholder="Select transducer"
+                />
+                {!commonProps.disabled && (
+                  <button type="button" className="pdb-btn-ghost pdb-btn-sm" onClick={() => openPicker(field, value, false, 'transducer')}>
                     Pick…
                   </button>
                 )}
@@ -398,11 +513,56 @@ export function SchemaForm({
       </div>
       {pickerState && (
         <ParameterPickerModal
-          options={parameterOptions}
+          options={
+            pickerState.kind === 'transducer'
+              ? transducerOptions.map((item) => item.name)
+              : parameterOptions
+          }
           selected={pickerState.selected}
           multi={pickerState.multi}
+          entityLabel={pickerState.kind === 'transducer' ? 'Transducer' : 'Parameter'}
+          emptyHint={
+            pickerState.kind === 'transducer'
+              ? 'No transducers found. Create one in the Transducers tab first.'
+              : ''
+          }
           onClose={() => setPickerState(null)}
           onApply={(value) => {
+            if (pickerState.kind === 'transducer') {
+              const selectedName = String(value ?? '').trim();
+              const selectedTransducer = transducerOptions.find((item) => item.name === selectedName);
+              const transducerInputUnit = String(selectedTransducer?.inputUnit || '').trim();
+              const parameterUnit = String(
+                getByPath(data, 'metadata.unit')
+                ?? getByPath(data, 'config.unit')
+                ?? '',
+              ).trim();
+
+              if (selectedName && transducerInputUnit) {
+                if (!parameterUnit) {
+                  const proceedWithoutUnit = window.confirm(
+                    `This parameter has no unit set, but transducer '${selectedName}' expects input unit '${transducerInputUnit}'. Continue?`,
+                  );
+                  if (!proceedWithoutUnit) return;
+                } else if (normalizeUnit(parameterUnit) !== normalizeUnit(transducerInputUnit)) {
+                  const sameCanonicalUnit =
+                    canonicalUnit(parameterUnit) === canonicalUnit(transducerInputUnit);
+                  if (sameCanonicalUnit) {
+                    onFieldChange(
+                      pickerState.field,
+                      pickerState.multi ? value.join(', ') : value,
+                    );
+                    setPickerState(null);
+                    return;
+                  }
+                  const proceedOnMismatch = window.confirm(
+                    `Unit mismatch: parameter unit is '${parameterUnit}', but transducer '${selectedName}' expects '${transducerInputUnit}'. Continue?`,
+                  );
+                  if (!proceedOnMismatch) return;
+                }
+              }
+            }
+
             onFieldChange(
               pickerState.field,
               pickerState.multi ? value.join(', ') : value,

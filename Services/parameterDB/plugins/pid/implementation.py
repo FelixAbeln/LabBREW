@@ -8,10 +8,7 @@ from ...parameterdb_service.plugin_api import ParameterBase, PluginSpec
 class PIDParameter(ParameterBase):
     parameter_type = "pid"
     display_name = "PID"
-    description = (
-        "PID controller using other DB parameters as PV/SP. "
-        "Output can also be mirrored to other parameters."
-    )
+    description = "PID controller using other DB parameters as PV/SP."
 
     def __init__(
         self,
@@ -24,38 +21,6 @@ class PIDParameter(ParameterBase):
         super().__init__(name, config=config, value=value, metadata=metadata)
         self.state.setdefault("integral", 0.0)
         self.state.setdefault("prev_error", 0.0)
-
-    def _output_targets(self) -> list[str]:
-        raw = self.config.get("output_params") or []
-        if isinstance(raw, str):
-            raw = [raw]
-        result: list[str] = []
-        if isinstance(raw, list):
-            for item in raw:
-                if not item:
-                    continue
-                name = str(item).strip()
-                if name and name != self.name:
-                    result.append(name)
-        return list(dict.fromkeys(result))
-
-    def write_targets(self) -> list[str]:
-        return self._output_targets()
-
-    def _write_output_targets(self, store, value: float) -> None:
-        written: list[str] = []
-        missing: list[str] = []
-        for target in self._output_targets():
-            if not store.exists(target):
-                missing.append(target)
-                continue
-            store.set_value(target, value)
-            written.append(target)
-        self.state["output_targets"] = written
-        if missing:
-            self.state["missing_output_targets"] = missing
-        else:
-            self.state.pop("missing_output_targets", None)
 
     def dependencies(self) -> list[str]:
         deps = [
@@ -115,7 +80,6 @@ class PIDParameter(ParameterBase):
                     cfg.get("manual_out", self.value if self.value is not None else 0.0)
                 )
             self.value = manual_out
-            self._write_output_targets(store, manual_out)
             self.state["mode"] = "manual"
             self.state["pv"] = pv
             self.state["sp"] = sp
@@ -140,7 +104,6 @@ class PIDParameter(ParameterBase):
         self.state["error"] = error
         self.state.pop("last_error", None)
         self.value = out
-        self._write_output_targets(store, out)
 
 
 class PIDPlugin(PluginSpec):

@@ -5,6 +5,7 @@ from pathlib import Path
 from ..._shared.storage_paths import (
     default_parameterdb_audit_path,
     default_parameterdb_snapshot_path,
+    default_parameterdb_transducers_path,
 )
 from .engine import ScanEngine
 from .event_broker import EventBroker
@@ -17,6 +18,11 @@ from .persistence import (
 )
 from .server import SignalTCPServer
 from .store import ParameterStore
+from .transducers import (
+    DEFAULT_SHARED_TRANSDUCERS_TABLE,
+    PostgresTransducerCatalog,
+    TransducerCatalog,
+)
 
 
 def build_service(
@@ -36,6 +42,7 @@ def build_service(
     audit_log_path: str | None = None,
     enable_audit_log: bool = True,
     audit_external_writes: bool = False,
+    transducers_path: str | None = None,
     persistence_kind: str | None = None,
     postgres_host: str | None = None,
     postgres_port: int | None = None,
@@ -49,6 +56,8 @@ def build_service(
         snapshot_path = default_parameterdb_snapshot_path()
     if audit_log_path is None:
         audit_log_path = default_parameterdb_audit_path()
+    if transducers_path is None:
+        transducers_path = default_parameterdb_transducers_path()
 
     resolved_persistence_kind, postgres_config = (
         resolve_snapshot_persistence_settings(
@@ -67,6 +76,13 @@ def build_service(
     loaded = autodiscover_plugins(plugin_root, registry)
     broker = EventBroker()
     store = ParameterStore(event_broker=broker)
+    if resolved_persistence_kind == "postgres" and postgres_config is not None:
+        transducers = PostgresTransducerCatalog(
+            postgres_config,
+            table_name=DEFAULT_SHARED_TRANSDUCERS_TABLE,
+        )
+    else:
+        transducers = TransducerCatalog(transducers_path)
 
     restored_count = 0
     if restore_snapshot and enable_snapshot_persistence:
@@ -81,6 +97,7 @@ def build_service(
     engine = ScanEngine(
         period_s=period_s,
         store=store,
+        transducers=transducers,
         mode=scan_mode,
         target_utilization=target_utilization,
         min_period_s=min_period_s,
@@ -122,6 +139,7 @@ def main() -> None:
     parser.add_argument("--max-period", type=float, default=0.05)
     parser.add_argument("--plugin-root", default="./plugins")
     parser.add_argument("--snapshot-path", default=default_parameterdb_snapshot_path())
+    parser.add_argument("--transducers-path", default=default_parameterdb_transducers_path())
     parser.add_argument("--snapshot-interval", type=float, default=5.0)
     parser.add_argument("--no-restore-snapshot", action="store_true")
     parser.add_argument("--no-snapshot-persistence", action="store_true")
@@ -134,6 +152,8 @@ def main() -> None:
     plugin_root.mkdir(parents=True, exist_ok=True)
     snapshot_path = Path(args.snapshot_path).resolve()
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    transducers_path = Path(args.transducers_path).resolve()
+    transducers_path.parent.mkdir(parents=True, exist_ok=True)
     audit_log_path = Path(args.audit_log_path).resolve()
     audit_log_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -154,6 +174,7 @@ def main() -> None:
             audit_log_path=str(audit_log_path),
             enable_audit_log=not args.no_audit_log,
             audit_external_writes=args.audit_external_writes,
+            transducers_path=str(transducers_path),
         )
     )
     print(f"[INFO] Plugin root: {plugin_root}")
@@ -179,6 +200,15 @@ def main() -> None:
         print(f"[INFO] Restored parameters from snapshot: {restored_count}")
     if not args.no_audit_log:
         print(f"[INFO] Audit log path: {audit_log_path}")
+    if snapshots.persistence_kind == "postgres":
+        print(f"[INFO] Transducer catalog backend: postgres")
+        print(
+            "[INFO] Transducer shared table: "
+            f"{DEFAULT_SHARED_TRANSDUCERS_TABLE}"
+        )
+    else:
+        print(f"[INFO] Transducer catalog backend: json")
+        print(f"[INFO] Transducer catalog path: {transducers_path}")
 
     engine.start()
     snapshots.start()

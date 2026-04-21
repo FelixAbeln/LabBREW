@@ -17,7 +17,7 @@ services:
       database: labbrew
       username: postgres
       password: root
-      table_prefix: parameterdb
+      table_prefix: demofermenter
       sslmode: disable
     listen:
       host: 127.0.0.1
@@ -44,7 +44,7 @@ services:
       database: labbrew
       username: postgres
       password: root
-      table_prefix: datasource
+      table_prefix: demofermenter
       sslmode: disable
     listen:
       host: 127.0.0.1
@@ -67,7 +67,7 @@ services:
       database: labbrew
       username: postgres
       password: root
-      table_prefix: control_rules
+      table_prefix: demofermenter
       sslmode: disable
     listen:
       host: 127.0.0.1

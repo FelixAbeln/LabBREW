@@ -13,7 +13,7 @@ def _ctx(store: ParameterStore, *, dt: float = 0.1):
     return SimpleNamespace(store=store, dt=dt)
 
 
-def test_moving_average_plugin_filters_and_mirrors_output() -> None:
+def test_moving_average_plugin_filters_without_plugin_side_mirroring() -> None:
     store = ParameterStore()
     store.add(StaticParameter("signal", value=10.0))
     store.add(StaticParameter("signal.avg", value=0.0))
@@ -39,9 +39,8 @@ def test_moving_average_plugin_filters_and_mirrors_output() -> None:
     store.set_value("signal", 40.0)
     param.scan(_ctx(store))
     assert float(param.get_value()) == 70.0 / 3.0
-    assert float(store.get_value("signal.avg")) == 70.0 / 3.0
+    assert float(store.get_value("signal.avg")) == 0.0
     assert param.state["samples"] == [10.0, 20.0, 40.0]
-    assert param.state["output_targets"] == ["signal.avg"]
     assert param.state["last_error"] == ""
 
 

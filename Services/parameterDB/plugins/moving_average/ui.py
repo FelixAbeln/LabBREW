@@ -11,7 +11,6 @@ def get_ui_spec() -> dict:
                     "source": "",
                     "enable_param": "",
                     "window": 5,
-                    "output_params": [],
                 },
                 "metadata": {},
             },
@@ -54,15 +53,6 @@ def get_ui_spec() -> dict:
                             "help": (
                                 "Optional boolean-like parameter used to "
                                 "enable or disable filtering."
-                            ),
-                        },
-                        {
-                            "key": "config.output_params",
-                            "label": "Mirror Output To",
-                            "type": "parameter_ref",
-                            "help": (
-                                "Optional parameters that should receive "
-                                "the same filtered value."
                             ),
                         },
                     ],
@@ -111,11 +101,6 @@ def get_ui_spec() -> dict:
                         {
                             "key": "config.enable_param",
                             "label": "Enable Parameter",
-                            "type": "parameter_ref",
-                        },
-                        {
-                            "key": "config.output_params",
-                            "label": "Mirror Output To",
                             "type": "parameter_ref",
                         },
                     ],

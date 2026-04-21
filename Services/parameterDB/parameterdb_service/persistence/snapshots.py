@@ -355,7 +355,8 @@ def load_snapshot_file(path: str | Path) -> dict[str, Any] | None:
     cleanup_stale_snapshot_tmp_files(snapshot_path)
     if not snapshot_path.exists():
         return None
-    with snapshot_path.open("r", encoding="utf-8") as fh:
+    # Accept both UTF-8 and UTF-8-with-BOM snapshots.
+    with snapshot_path.open("r", encoding="utf-8-sig") as fh:
         payload = json.load(fh)
     if not isinstance(payload, dict):
         raise ValueError("Snapshot file does not contain an object")

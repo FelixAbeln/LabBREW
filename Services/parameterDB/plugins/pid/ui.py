@@ -32,7 +32,6 @@ def get_ui_spec() -> dict:
                     "out_min": 0.0,
                     "out_max": 100.0,
                     "manual_out": 0.0,
-                    "output_params": [],
                 },
                 "metadata": {},
             },
@@ -94,15 +93,6 @@ def get_ui_spec() -> dict:
                             "help": (
                                 "Optional parameter providing manual output "
                                 "when the controller is not in auto."
-                            ),
-                        },
-                        {
-                            "key": "config.output_params",
-                            "label": "Mirror Output To",
-                            "type": "parameter_ref",
-                            "help": (
-                                "Optional parameters that should receive the "
-                                "same output value as this PID controller."
                             ),
                         },
                     ],
@@ -226,11 +216,6 @@ def get_ui_spec() -> dict:
                         {
                             "key": "config.manual_out_param",
                             "label": "Manual Output Parameter",
-                            "type": "parameter_ref",
-                        },
-                        {
-                            "key": "config.output_params",
-                            "label": "Mirror Output To",
                             "type": "parameter_ref",
                         },
                     ],

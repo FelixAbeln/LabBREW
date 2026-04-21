@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..parameterdb_core.plugin_ui import normalize_ui_spec
+from ..parameterdb_core.plugin_ui.spec import augment_type_defaults, augment_type_schema
 from .plugin_api import PluginSpec
 
 
@@ -43,8 +44,8 @@ class PluginRegistry:
             name: {
                 "display_name": spec.display_name,
                 "description": spec.description,
-                "default_config": spec.default_config(),
-                "schema": spec.schema(),
+                "default_config": augment_type_defaults(spec.default_config()),
+                "schema": augment_type_schema(spec.schema()),
                 "has_ui": name in self._ui_specs,
                 "plugin_path": self._plugin_paths.get(name),
             }

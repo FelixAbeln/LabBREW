@@ -31,6 +31,10 @@ class SupportsSignalRequests(Protocol):
     def list_parameter_types(self) -> dict[str, Any]: ...
     def list_parameter_type_ui(self) -> dict[str, Any]: ...
     def get_parameter_type_ui(self, parameter_type: str) -> dict[str, Any]: ...
+    def list_transducers(self) -> list[dict[str, Any]]: ...
+    def create_transducer(self, transducer: dict[str, Any]) -> dict[str, Any]: ...
+    def update_transducer(self, name: str, transducer: dict[str, Any]) -> dict[str, Any]: ...
+    def delete_transducer(self, name: str) -> bool: ...
     def create_parameter(
         self,
         name: str,
@@ -195,6 +199,21 @@ class _BaseClient:
         return self._request(
             "get_parameter_type_ui", {"parameter_type": parameter_type}
         )
+
+    def list_transducers(self) -> list[dict[str, Any]]:
+        return self._request("list_transducers")
+
+    def create_transducer(self, transducer: dict[str, Any]) -> dict[str, Any]:
+        return self._request("create_transducer", {"transducer": transducer or {}})
+
+    def update_transducer(self, name: str, transducer: dict[str, Any]) -> dict[str, Any]:
+        return self._request(
+            "update_transducer",
+            {"name": name, "transducer": transducer or {}},
+        )
+
+    def delete_transducer(self, name: str) -> bool:
+        return self._request("delete_transducer", {"name": name})
 
     def list_source_types_ui(self) -> dict[str, Any]:
         return self._request("list_source_types_ui")

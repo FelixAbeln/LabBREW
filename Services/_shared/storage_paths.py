@@ -167,6 +167,10 @@ def default_parameterdb_audit_path() -> str:
     return storage_path_text("./data/parameterdb_audit.jsonl")
 
 
+def default_parameterdb_transducers_path() -> str:
+    return storage_path_text("./data/parameterdb_transducers.json")
+
+
 def default_sources_dir() -> str:
     return storage_path_text("./data/sources")
 
