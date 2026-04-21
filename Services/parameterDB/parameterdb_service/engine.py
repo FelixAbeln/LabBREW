@@ -507,17 +507,26 @@ class ScanEngine:
                 dependency_map[name] = deps
 
                 targets: list[str] = []
+                seen_targets: set[str] = set()
                 for target in p.write_targets():
                     if not target or target == name:
                         continue
+                    if target in seen_targets:
+                        continue
+                    seen_targets.add(target)
                     targets.append(target)
-                    writers[target].append(name)
+                    if name not in writers[target]:
+                        writers[target].append(name)
 
                 for target in self._database_mirror_targets(name, p.config):
                     if not target or target == name:
                         continue
+                    if target in seen_targets:
+                        continue
+                    seen_targets.add(target)
                     targets.append(target)
-                    writers[target].append(name)
+                    if name not in writers[target]:
+                        writers[target].append(name)
                 write_target_map[name] = targets
 
             for target, source_names in sorted(writers.items()):

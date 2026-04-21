@@ -91,6 +91,19 @@ def test_scan_engine_cycle_warning_falls_back_to_stable_order() -> None:
     assert any("dependency cycle detected" in warning for warning in graph["warnings"])
 
 
+def test_scan_engine_deduplicates_targets_per_writer_before_conflict_warning() -> None:
+    store = ParameterStore()
+    p = FakeParameter("writer", targets=["shared.target"])
+    p.update_config(mirror_to=["shared.target", "shared.target"])
+    store.add(p)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    graph = engine.graph_info()
+
+    assert graph["write_targets"]["writer"] == ["shared.target"]
+    assert not any("multiple writers for 'shared.target'" in warning for warning in graph["warnings"])
+
+
 def test_scan_once_updates_value_state_and_publishes_scan_events() -> None:
     broker = FakeBroker()
     store = ParameterStore(event_broker=broker)
