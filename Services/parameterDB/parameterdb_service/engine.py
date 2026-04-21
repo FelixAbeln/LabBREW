@@ -167,10 +167,9 @@ class ScanEngine:
                     targets.append(target)
             return list(dict.fromkeys(targets))
 
-        targets = _normalize_targets(config.get("mirror_to"))
-        if not targets:
-            targets = _normalize_targets(config.get("output_params"))
-        return targets
+        if "mirror_to" in config:
+            return _normalize_targets(config.get("mirror_to"))
+        return _normalize_targets(config.get("output_params"))
 
     def _resolve_transducer_input(
         self,

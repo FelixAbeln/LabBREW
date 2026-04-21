@@ -100,10 +100,15 @@ def _rewrite_dotted_symbols(equation: str) -> tuple[str, dict[str, str]]:
 
 def compile_expression(expression: str, *, required: bool = True) -> CompiledExpression:
     text = str(expression or "").strip()
-    if required and not text:
-        raise ValueError("equation requires non-empty expression")
     if not text:
-        raise ValueError("empty expression")
+        if required:
+            raise ValueError("equation requires non-empty expression")
+        return CompiledExpression(
+            expression="",
+            tree=ast.Expression(body=ast.Constant(value=None)),
+            symbols=[],
+            alias_to_symbol={},
+        )
 
     rewritten_expression, alias_to_symbol = _rewrite_dotted_symbols(text)
     try:
