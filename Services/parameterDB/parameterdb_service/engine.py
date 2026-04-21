@@ -122,6 +122,7 @@ class ScanEngine:
         current_value: Any,
         *,
         allow_cached_input: bool,
+        transducer_enabled: bool,
     ) -> Any:
         """Return stable calibration input to avoid repeated accumulation.
 
@@ -138,10 +139,15 @@ class ScanEngine:
             allow_cached_input
         ):
             with self._pipeline_cache_lock:
+                cached_output = None
+                if transducer_enabled:
+                    cached_output = self._transducer_output_cache.get(param_name)
+                if cached_output is None:
+                    cached_output = self._calibration_output_cache.get(param_name)
                 if (
                     param_name in self._calibration_input_cache
-                    and param_name in self._calibration_output_cache
-                    and current_value == self._calibration_output_cache[param_name]
+                    and cached_output is not None
+                    and current_value == cached_output
                 ):
                     return self._calibration_input_cache[param_name]
         with self._pipeline_cache_lock:
@@ -368,6 +374,7 @@ class ScanEngine:
                 param_name,
                 value,
                 allow_cached_input=allow_cached_input,
+                transducer_enabled=bool(transducer_id),
             )
 
         try:

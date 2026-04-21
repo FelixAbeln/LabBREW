@@ -401,6 +401,52 @@ def test_transducer_pipeline_reapplies_from_manual_raw_write_not_cached_output()
     assert server.api_get_value({"name": "sensor.raw"}) == pytest.approx(100.0, abs=1e-9)
 
 
+def test_pipeline_calibration_plus_transducer_does_not_accumulate_between_scans() -> None:
+    server = _build_server_with_math()
+
+    server.api_create_transducer(
+        {
+            "transducer": {
+                "name": "combo_gain",
+                "input_min": 0.0,
+                "input_max": 10.0,
+                "output_min": 0.0,
+                "output_max": 100.0,
+                "input_unit": "V",
+                "output_unit": "u",
+                "clamp": False,
+            }
+        }
+    )
+
+    assert server.api_create_parameter(
+        {
+            "name": "sensor.combo",
+            "parameter_type": "static",
+            "value": 1.0,
+            "config": {
+                "calibration_equation": "x + 1",
+                "transducer_id": "combo_gain",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    # First scan: (1 + 1) -> 2, then transducer 2/10*100 = 20.
+    server.engine.scan_once(dt=0.1)
+    assert server.api_get_value({"name": "sensor.combo"}) == pytest.approx(20.0, abs=1e-9)
+
+    # Second scan without fresh raw input should remain stable at 20 (no re-application drift).
+    server.engine.scan_once(dt=0.1)
+    assert server.api_get_value({"name": "sensor.combo"}) == pytest.approx(20.0, abs=1e-9)
+
+    # Fresh raw input should still apply exactly once.
+    assert server.api_set_value({"name": "sensor.combo", "value": 2.0}) is True
+    server.engine.scan_once(dt=0.1)
+    # (2 + 1) -> 3, then 3/10*100 = 30.
+    assert server.api_get_value({"name": "sensor.combo"}) == pytest.approx(30.0, abs=1e-9)
+
+
 def test_pipeline_failure_clears_stale_pipeline_state_details() -> None:
     server = _build_server_with_math()
 
