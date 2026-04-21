@@ -203,6 +203,8 @@ class PostgresTransducerCatalog:
                         """,
                         (json.dumps(item, sort_keys=True), time.time(), key),
                     )
+                    if cursor.rowcount == 0:
+                        raise ValueError(f"Unknown transducer '{key}'")
                 connection.commit()
         return dict(item)
 
