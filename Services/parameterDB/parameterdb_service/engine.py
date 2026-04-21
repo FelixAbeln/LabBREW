@@ -167,7 +167,8 @@ class ScanEngine:
                     targets.append(target)
             return list(dict.fromkeys(targets))
 
-        if "mirror_to" in config:
+        mirror_to_present = "mirror_to" in config
+        if mirror_to_present:
             return _normalize_targets(config.get("mirror_to"))
         return _normalize_targets(config.get("output_params"))
 
