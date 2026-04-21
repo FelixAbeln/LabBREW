@@ -165,6 +165,7 @@ class ScanEngine:
         if not targets:
             targets = _normalize_targets(config.get("output_params"))
         return targets
+
     def _resolve_transducer_input(
         self,
         param_name: str,
@@ -351,7 +352,7 @@ class ScanEngine:
             "transducer_output_unit": str(transducer.get("output_unit") or ""),
         }
 
-    def _apply_database_pipeline(self, param_name: str, param, now: float) -> str | None:
+    def _apply_database_pipeline(self, param_name: str, param) -> str | None:
         config = dict(param.config)
         value = param.get_value()
         equation = str(config.get("calibration_equation") or "").strip()
@@ -589,7 +590,7 @@ class ScanEngine:
             else:
                 pre_pipeline_error = str(param.state.get("last_error", "") or "").strip()
                 if not pre_pipeline_error:
-                    pipeline_error = self._apply_database_pipeline(name, param, now)
+                    pipeline_error = self._apply_database_pipeline(name, param)
                     if pipeline_error:
                         param.state["last_error"] = pipeline_error
                 else:
