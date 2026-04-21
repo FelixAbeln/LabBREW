@@ -312,7 +312,9 @@ def _load_catalog_file(path: Path) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
     for row in rows:
-        item = _normalize_transducer_payload(dict(row or {}))
+        if not isinstance(row, dict):
+            raise ValueError("Transducer payload must be an object")
+        item = _normalize_transducer_payload(row)
         if item["name"] in seen:
             raise ValueError(f"Duplicate transducer '{item['name']}' in catalog")
         seen.add(item["name"])
