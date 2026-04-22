@@ -101,6 +101,8 @@ function ControlAppItem({
   const currentOwner = String(control?.current_owner || '').trim()
   const normalizedOwner = currentOwner.toLowerCase()
   const safetyLocked = Boolean(control?.safety_locked) || normalizedOwner === 'safety'
+  const parameterInvalid = Boolean(control?.parameter_invalid)
+  const parameterInvalidReason = String(control?.parameter_invalid_reason || '').trim()
   const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator')
   const canTakeControl = Boolean(target && widget !== 'button' && widget !== 'number_button' && writeKind !== 'pulse' && !safetyLocked)
   const requiresTakeover = isServiceOwned
@@ -120,11 +122,12 @@ function ControlAppItem({
           value={String(valueDraft ?? '')}
           onChange={(event) => onDraftChange(valueTarget, event.target.value)}
           onKeyDown={(event) => applyOnEnter(event, { target, isWriting, controlUiLoading, onWrite, control })}
+          disabled={parameterInvalid}
         />
         {renderActionButton({
           label: isWriting ? 'Sending…' : actionLabel,
           className: 'warning-button',
-          disabled: !target || controlUiLoading || isWriting,
+          disabled: !target || controlUiLoading || isWriting || parameterInvalid,
           onClick: () => onWrite(control),
         })}
       </>
@@ -133,14 +136,14 @@ function ControlAppItem({
     inputs = renderActionButton({
       label: isWriting ? 'Sending…' : actionLabel,
       className: 'warning-button',
-      disabled: !target || controlUiLoading || isWriting,
+      disabled: !target || controlUiLoading || isWriting || parameterInvalid,
       onClick: () => onWrite(control, true),
     })
   } else if (widget === 'toggle' || writeKind === 'bool') {
     inputs = (
       <button
         className={`toggle-button ${toBoolean(control?.current_value) ? 'is-resume' : 'is-pause'}`}
-        disabled={!target || controlUiLoading || isWriting}
+        disabled={!target || controlUiLoading || isWriting || parameterInvalid}
         onClick={() => onWrite(control, !toBoolean(control?.current_value))}
       >
         {isWriting ? 'Writing…' : (toBoolean(control?.current_value) ? 'On' : 'Off')}
@@ -158,11 +161,12 @@ function ControlAppItem({
           value={draftValue ?? ''}
           onChange={(event) => onDraftChange(target, event.target.value)}
           onKeyDown={(event) => applyOnEnter(event, { target, isWriting, controlUiLoading, onWrite, control })}
+          disabled={parameterInvalid}
         />
         {renderActionButton({
           label: isWriting ? 'Writing…' : actionLabel,
           className: 'primary-button',
-          disabled: !target || controlUiLoading || isWriting,
+          disabled: !target || controlUiLoading || isWriting || parameterInvalid,
           onClick: () => onWrite(control),
         })}
       </>
@@ -176,11 +180,12 @@ function ControlAppItem({
           value={draftValue ?? ''}
           onChange={(event) => onDraftChange(target, event.target.value)}
           onKeyDown={(event) => applyOnEnter(event, { target, isWriting, controlUiLoading, onWrite, control })}
+          disabled={parameterInvalid}
         />
         {renderActionButton({
           label: isWriting ? 'Writing…' : actionLabel,
           className: 'primary-button',
-          disabled: !target || controlUiLoading || isWriting,
+          disabled: !target || controlUiLoading || isWriting || parameterInvalid,
           onClick: () => onWrite(control),
         })}
       </>
@@ -188,7 +193,7 @@ function ControlAppItem({
   }
 
   return (
-    <div className={`control-item-row control-item-row--stacked${isServiceOwned ? ' control-item-row--service-owned' : ''}`}>
+    <div className={`control-item-row control-item-row--stacked${isServiceOwned ? ' control-item-row--service-owned' : ''}${parameterInvalid ? ' control-item-row--parameter-invalid' : ''}`}>
       <div className="control-item-meta">
         <strong>{title}</strong>
         <div className="small-text control-item-target">{target || '-'}</div>
@@ -202,6 +207,11 @@ function ControlAppItem({
             <strong>Owned: {currentOwner}</strong>
           </div>
         ) : null}
+        {parameterInvalid ? (
+          <div className="small-text warning">
+            Parameter invalid{parameterInvalidReason ? `: ${parameterInvalidReason}` : ''}
+          </div>
+        ) : null}
         {control?.safety_locked ? <div className="small-text warning">Safety locked</div> : null}
       </div>
       <div className="control-item-inputs">
@@ -209,7 +219,7 @@ function ControlAppItem({
         {requiresTakeover && canTakeControl ? (
           <button
             className="warning-button control-takeover-button"
-            disabled={controlUiLoading || isWriting}
+            disabled={controlUiLoading || isWriting || parameterInvalid}
             onClick={() => onWrite(control, control?.current_value)}
           >
             {isWriting ? 'Taking…' : 'Take control'}
@@ -246,15 +256,24 @@ export function BackendControlCard({
 }) {
   const appSpec = card?.app || card?.card_app || {}
   const controls = Array.isArray(card?.controls) ? card.controls : []
+  const invalidCount = controls.reduce((count, control) => count + (control?.parameter_invalid ? 1 : 0), 0)
   const sections = Array.isArray(appSpec?.sections) && appSpec.sections.length ? appSpec.sections : buildFallbackSections(controls)
   const controlById = new Map(controls.map((control) => [String(control?.id || ''), control]))
 
   return (
-    <div className="info-card control-device-card">
+    <div className={`info-card control-device-card${invalidCount > 0 ? ' control-device-card--invalid' : ''}`}>
       <div className="card-header-row">
         <h3>{card?.title || 'Device'}</h3>
-        <span className={`pill ${card?.running ? 'pill-ok' : 'pill-warn'}`}>{card?.running ? 'running' : 'stopped'}</span>
+        <div className="tag-row">
+          <span className={`pill ${card?.running ? 'pill-ok' : 'pill-warn'}`}>{card?.running ? 'running' : 'stopped'}</span>
+          {invalidCount > 0 ? <span className="pill pill-bad">invalid {invalidCount}</span> : null}
+        </div>
       </div>
+      {invalidCount > 0 ? (
+        <div className="control-card-invalid-banner">
+          Parameter invalid: {invalidCount} control field{invalidCount === 1 ? '' : 's'} unavailable
+        </div>
+      ) : null}
       <div className="control-item-stack">
         {sections.map((section, sectionIndex) => {
           const items = Array.isArray(section?.items) ? section.items : []

@@ -13,6 +13,7 @@ import pytest
 from Services.parameterDB import serviceDS
 from Services.parameterDB.parameterdb_sources import loader
 from Services.parameterDB.parameterdb_sources import repository as repository_module
+from Services.parameterDB.parameterdb_sources import runner as runner_module
 
 
 class FakeSession:
@@ -20,6 +21,7 @@ class FakeSession:
         self.owner = owner
         self.connected = False
         self.closed = False
+        self.config_updates: list[tuple[str, dict[str, Any]]] = []
 
     def connect(self) -> None:
         self.connected = True
@@ -34,12 +36,18 @@ class FakeSession:
         self.owner.deleted_parameters.append(name)
         return True
 
+    def update_config(self, name: str, **changes: Any):
+        self.config_updates.append((name, dict(changes)))
+        self.owner.config_updates.append((name, dict(changes)))
+        return True
+
 
 class FakeClient:
     def __init__(self) -> None:
         self.sessions: list[FakeSession] = []
         self.describe_payload: dict[str, Any] = {}
         self.deleted_parameters: list[str] = []
+        self.config_updates: list[tuple[str, dict[str, Any]]] = []
 
     def session(self) -> FakeSession:
         session = FakeSession(self)
@@ -137,10 +145,12 @@ def test_source_runner_load_start_update_delete_lifecycle(tmp_path: Path, monkey
     runner.start_all()
     listed = runner.list_sources()
     assert listed["alpha"]["running"] is True
+    assert listed["alpha"]["enabled"] is True
 
     runner.update_source("alpha", config={"interval": 2})
     info = runner.get_source_record("alpha")
     assert info["config"] == {"interval": 2}
+    assert info["enabled"] is True
 
     on_disk = json.loads(Path(info["config_path"]).read_text(encoding="utf-8"))
     assert on_disk["config"] == {"interval": 2}
@@ -160,6 +170,193 @@ def test_source_runner_load_start_update_delete_lifecycle(tmp_path: Path, monkey
 
     runner.stop_all()
     assert runner.instances == {}
+
+
+def test_source_runner_disabled_source_stays_stopped_and_invalidates_owned_parameters(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.create_source("alpha", "fake", config={"enabled": False, "interval": 1})
+
+    listed = runner.list_sources()
+    assert listed["alpha"]["running"] is False
+    assert listed["alpha"]["enabled"] is False
+    assert runner.base_client.config_updates == []
+
+    runner.base_client.describe_payload = {
+        "alpha.temp": {
+            "config": {},
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            },
+        },
+        "beta.temp": {
+            "config": {},
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "beta",
+                "source_type": "fake",
+            },
+        },
+    }
+
+    runner.update_source("alpha", config={"enabled": False, "interval": 2})
+
+    assert runner.list_sources()["alpha"]["running"] is False
+    assert runner.base_client.config_updates == [
+        (
+            "alpha.temp",
+            {
+                "force_invalid": True,
+                "force_invalid_reason": runner_module.DISABLED_PARAMETER_REASON,
+            },
+        )
+    ]
+
+
+def test_source_runner_enable_clears_runner_managed_invalid_reason_only(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.create_source("alpha", "fake", config={"enabled": False})
+
+    runner.base_client.config_updates.clear()
+    runner.base_client.describe_payload = {
+        "alpha.temp": {
+            "config": {
+                "force_invalid": True,
+                "force_invalid_reason": runner_module.DISABLED_PARAMETER_REASON,
+            },
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            },
+        },
+        "alpha.manual": {
+            "config": {
+                "force_invalid": True,
+                "force_invalid_reason": "operator hold",
+            },
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            },
+        },
+    }
+
+    runner.update_source("alpha", config={"enabled": True, "interval": 1})
+
+    listed = runner.list_sources()
+    assert listed["alpha"]["enabled"] is True
+    assert listed["alpha"]["running"] is True
+    assert runner.base_client.config_updates == [
+        (
+            "alpha.temp",
+            {
+                "force_invalid": False,
+                "force_invalid_reason": "",
+            },
+        )
+    ]
+
+
+def test_source_runner_disable_preserves_non_runner_force_invalid_reason(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.create_source("alpha", "fake", config={"enabled": False})
+
+    runner.base_client.config_updates.clear()
+    runner.base_client.describe_payload = {
+        "alpha.temp": {
+            "config": {
+                "force_invalid": True,
+                "force_invalid_reason": "operator hold",
+            },
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            },
+        },
+        "alpha.other": {
+            "config": {},
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            },
+        },
+    }
+
+    runner.update_source("alpha", config={"enabled": False, "interval": 2})
+
+    assert runner.base_client.config_updates == [
+        (
+            "alpha.other",
+            {
+                "force_invalid": True,
+                "force_invalid_reason": runner_module.DISABLED_PARAMETER_REASON,
+            },
+        )
+    ]
+
+
+def test_source_runner_start_all_skips_redundant_owned_parameter_sync(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    cfg_path = runner._config_path_for_name("alpha")
+    cfg_path.write_text(
+        json.dumps({"name": "alpha", "source_type": "fake", "config": {"enabled": False}}),
+        encoding="utf-8",
+    )
+    runner.load_config_dir()
+
+    sync_calls = {"count": 0}
+
+    def _count_sync(_record, *, enabled: bool):
+        _ = enabled
+        sync_calls["count"] += 1
+        return 0
+
+    monkeypatch.setattr(runner, "_set_owned_parameters_enabled_state", _count_sync)
+
+    runner.start_all()
+    runner.start_all()
+
+    assert sync_calls["count"] == 1
+
+
+def test_source_runner_create_source_reports_owned_parameter_sync_failure_nonfatally(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+
+    def _raise_sync(_record, *, enabled: bool):
+        _ = enabled
+        raise RuntimeError("describe failed")
+
+    monkeypatch.setattr(runner, "_set_owned_parameters_enabled_state", _raise_sync)
+
+    runner.create_source("alpha", "fake", config={"interval": 1})
+
+    listed = runner.list_sources()
+    assert listed["alpha"]["running"] is True
+    assert "describe failed" in str(listed["alpha"]["error"])
+    assert runner.stats()["source_errors"]["alpha"] == "describe failed"
+
+
+def test_source_runner_update_source_reports_owned_parameter_sync_failure_nonfatally(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.create_source("alpha", "fake", config={"interval": 1})
+
+    def _raise_sync(_record, *, enabled: bool):
+        _ = enabled
+        raise RuntimeError("describe failed")
+
+    monkeypatch.setattr(runner, "_set_owned_parameters_enabled_state", _raise_sync)
+
+    runner.update_source("alpha", config={"interval": 2})
+
+    listed = runner.list_sources()
+    assert listed["alpha"]["running"] is True
+    assert "describe failed" in str(listed["alpha"]["error"])
+    assert runner.get_source_record("alpha")["config"] == {"interval": 2}
 
 
 def test_source_runner_write_record_cleans_tmp_on_failure(tmp_path: Path, monkeypatch) -> None:

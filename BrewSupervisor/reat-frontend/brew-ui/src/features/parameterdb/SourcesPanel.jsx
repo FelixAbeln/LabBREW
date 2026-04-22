@@ -454,6 +454,7 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
   const [modal, setModal] = useState(null); // null | {mode:'create'|'edit', record?:...}
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [toggleBusy, setToggleBusy] = useState('');
   const [error, setError] = useState('');
 
   const reload = useCallback(async () => {
@@ -490,6 +491,25 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
       setError(err?.message ?? 'Delete failed');
     } finally {
       setDeleting(null);
+    }
+  }
+
+  async function handleToggleEnabled(name, record) {
+    if (!name || !record || toggleBusy) {
+      return;
+    }
+    const nextEnabled = !(record.enabled !== false);
+    setToggleBusy(name);
+    try {
+      await updateSource(fermenterId, name, {
+        ...(record.config ?? {}),
+        enabled: nextEnabled,
+      });
+      await reload();
+    } catch (err) {
+      setError(err?.message ?? 'Toggle failed');
+    } finally {
+      setToggleBusy('');
     }
   }
 
@@ -532,6 +552,9 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
                 const links = sourceSummary?.feedsFrom ?? [];
                 const publishes = sourceSummary?.publishedParams ?? [];
                 const sourceType = sourceSummary?.sourceType || rec.source_type;
+                const enabled = rec.enabled !== false;
+                const running = Boolean(rec.running);
+                const statusLabel = running ? 'running' : 'stopped';
                 return (
                   <tr key={name}>
                     <td className="pdb-cell-name">{name}</td>
@@ -539,10 +562,10 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
                     <td>
                       <span className="pdb-status-indicator">
                         <span
-                          className={`pdb-status-dot ${rec.running ? 'pdb-status-ok' : 'pdb-status-off'}`}
+                          className={`pdb-status-dot ${running ? 'pdb-status-ok' : 'pdb-status-off'}`}
                           aria-hidden="true"
                         />
-                        <span>{rec.running ? 'running' : 'stopped'}</span>
+                        <span>{statusLabel}</span>
                       </span>
                     </td>
                     <td className="pdb-cell-deps">
@@ -559,6 +582,13 @@ export function SourcesPanel({ fermenterId, parameterNames, params, graph }) {
                       {JSON.stringify(rec.config).slice(0, 80)}
                     </td>
                     <td className="pdb-cell-actions">
+                      <button
+                        className="pdb-btn-ghost pdb-btn-sm"
+                        disabled={toggleBusy === name || deleting === name}
+                        onClick={() => handleToggleEnabled(name, rec)}
+                      >
+                        {toggleBusy === name ? '…' : (enabled ? 'Disable' : 'Enable')}
+                      </button>
                       <button className="pdb-btn-ghost pdb-btn-sm"
                         onClick={() => setModal({ mode: 'edit', record: { name, ...rec, source_type: sourceType } })}>Edit</button>
                       <button className="pdb-btn-danger pdb-btn-sm"

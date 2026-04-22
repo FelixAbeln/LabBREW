@@ -780,7 +780,7 @@
   background: #374151;
 }
 .pdb-status-ok  { background: #10b981; }
-.pdb-status-off { background: #374151; }
+.pdb-status-off { background: #ef4444; }
 
 .pdb-source-module {
   margin-bottom: 14px;

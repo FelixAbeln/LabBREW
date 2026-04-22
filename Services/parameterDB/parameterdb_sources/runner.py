@@ -18,6 +18,18 @@ from .loader import DataSourceRegistry
 from .repository import FileSourceConfigRepository, SourceConfigRepository, SourceRecord
 
 
+DISABLED_PARAMETER_REASON = "datasource disabled"
+
+
+def _config_enabled(config: dict[str, Any]) -> bool:
+    raw = config.get("enabled", True)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        return bool(raw)
+    return str(raw).strip().lower() not in {"", "0", "false", "off", "no", "disabled"}
+
+
 @dataclass(slots=True)
 class SourceInstance:
     record: SourceRecord
@@ -47,6 +59,77 @@ class SourceRunner:
         self.records: dict[str, SourceRecord] = {}
         self.instances: dict[str, SourceInstance] = {}
         self._source_errors: dict[str, str] = {}
+        self._owned_param_sync_state: dict[str, bool] = {}
+
+    def _set_owned_parameters_enabled_state(
+        self, record: SourceRecord, *, enabled: bool
+    ) -> int:
+        updated = 0
+        session = self.base_client.session()
+        try:
+            session.connect()
+            described = session.describe()
+            if not isinstance(described, dict):
+                return 0
+            for param_name, param_record in described.items():
+                if not isinstance(param_record, dict):
+                    continue
+                metadata = param_record.get("metadata")
+                if not isinstance(metadata, dict):
+                    continue
+                if str(metadata.get("created_by") or "") != "data_source":
+                    continue
+                if str(metadata.get("owner") or "") != record.name:
+                    continue
+                metadata_source_type = str(metadata.get("source_type") or "").strip()
+                if metadata_source_type and metadata_source_type != record.source_type:
+                    continue
+
+                config = param_record.get("config")
+                if not isinstance(config, dict):
+                    config = {}
+
+                if enabled:
+                    if not bool(config.get("force_invalid", False)):
+                        continue
+                    if str(config.get("force_invalid_reason") or "").strip() != DISABLED_PARAMETER_REASON:
+                        continue
+                    session.update_config(
+                        str(param_name),
+                        force_invalid=False,
+                        force_invalid_reason="",
+                    )
+                else:
+                    existing_reason = str(config.get("force_invalid_reason") or "").strip()
+                    if bool(config.get("force_invalid", False)) and existing_reason and existing_reason != DISABLED_PARAMETER_REASON:
+                        continue
+                    session.update_config(
+                        str(param_name),
+                        force_invalid=True,
+                        force_invalid_reason=DISABLED_PARAMETER_REASON,
+                    )
+                updated += 1
+        finally:
+            session.close()
+        return updated
+
+    def _sync_owned_parameters_enabled_state(
+        self, record: SourceRecord, *, enabled: bool
+    ) -> None:
+        try:
+            self._set_owned_parameters_enabled_state(record, enabled=enabled)
+        except Exception as exc:
+            LOGGER.warning(
+                "Failed to sync owned parameter invalidation for source '%s': %s",
+                record.name,
+                exc,
+            )
+            with self._lock:
+                self._source_errors[record.name] = str(exc)
+        else:
+            with self._lock:
+                self._source_errors.pop(record.name, None)
+                self._owned_param_sync_state[record.name] = enabled
 
     def _record_from_payload(
         self, payload: dict[str, Any], *, storage_ref: str
@@ -164,11 +247,20 @@ class SourceRunner:
         return loaded
 
     def start_all(self) -> None:
+        sync_actions: list[tuple[SourceRecord, bool]] = []
         with self._lock:
             for record in sorted(self.records.values(), key=lambda item: item.name):
+                if not _config_enabled(record.config):
+                    self._stop_instance_locked(record.name)
+                    self._source_errors.pop(record.name, None)
+                    if self._owned_param_sync_state.get(record.name) is not False:
+                        sync_actions.append((record, False))
+                    continue
                 try:
                     self._start_instance_locked(record)
                     self._source_errors.pop(record.name, None)
+                    if self._owned_param_sync_state.get(record.name) is not True:
+                        sync_actions.append((record, True))
                 except Exception as exc:
                     LOGGER.warning(
                         "Failed to start source '%s': %s; skipping",
@@ -176,6 +268,8 @@ class SourceRunner:
                         exc,
                     )
                     self._source_errors[record.name] = str(exc)
+        for record, enabled in sync_actions:
+            self._sync_owned_parameters_enabled_state(record, enabled=enabled)
 
     def stop_all(self) -> None:
         with self._lock:
@@ -192,6 +286,7 @@ class SourceRunner:
                     "name": record.name,
                     "source_type": record.source_type,
                     "config": dict(record.config),
+                    "enabled": _config_enabled(record.config),
                     "running": name in self.instances and self.instances[name].thread.is_alive(),
                     "config_path": record.storage_ref,
                     "error": self._source_errors.get(name),
@@ -221,6 +316,7 @@ class SourceRunner:
                 "name": record.name,
                 "source_type": record.source_type,
                 "config": dict(record.config),
+                "enabled": _config_enabled(record.config),
                 "config_path": record.storage_ref,
                 "running": name in self.instances and self.instances[name].thread.is_alive(),
             }
@@ -254,14 +350,19 @@ class SourceRunner:
             storage_ref="",
         )
         self.registry.get(source_type)
+        enabled = _config_enabled(record.config)
         with self._lock:
             if name in self.records:
                 raise ValueError(f"Source '{name}' already exists")
             self._write_record(record)
             self.records[name] = record
-            self._start_instance_locked(record)
+            if enabled:
+                self._start_instance_locked(record)
+        self._sync_owned_parameters_enabled_state(record, enabled=enabled)
 
     def update_source(self, name: str, *, config: dict[str, Any]) -> None:
+        updated: SourceRecord | None = None
+        enabled = False
         with self._lock:
             existing = self.records.get(name)
             if existing is None:
@@ -272,10 +373,13 @@ class SourceRunner:
                 config=dict(config),
                 storage_ref=existing.storage_ref,
             )
+            enabled = _config_enabled(updated.config)
             self._stop_instance_locked(name)
             self._write_record(updated)
             self.records[name] = updated
-            self._start_instance_locked(updated)
+            if enabled:
+                self._start_instance_locked(updated)
+        self._sync_owned_parameters_enabled_state(updated, enabled=enabled)
 
     def _delete_owned_parameters(self, record: SourceRecord) -> int:
         removed = 0
@@ -313,4 +417,5 @@ class SourceRunner:
             if delete_owned_parameters:
                 self._delete_owned_parameters(record)
             self.records.pop(name, None)
+            self._owned_param_sync_state.pop(name, None)
             self.repository.delete_record(name)

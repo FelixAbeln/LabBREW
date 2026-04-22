@@ -203,6 +203,8 @@ function ControlFieldWidget({ type, controlProps }) {
     ? controlProps.controlDrafts[valueTarget]
     : control?.value_target_current_value;
   const currentOwner = String(control?.current_owner || '').trim();
+  const parameterInvalid = Boolean(control?.parameter_invalid);
+  const parameterInvalidReason = String(control?.parameter_invalid_reason || '').trim();
   const normalizedOwner = currentOwner.toLowerCase();
   const safetyLocked = Boolean(control?.safety_locked) || normalizedOwner === 'safety';
   const isServiceOwned = Boolean(currentOwner && currentOwner !== 'operator');
@@ -217,8 +219,8 @@ function ControlFieldWidget({ type, controlProps }) {
         : 'Apply';
 
   return (
-    <div className="workspace-module-panel workspace-module-panel-control control-device-card">
-      <div className={`control-item-row control-item-row--stacked${isServiceOwned ? ' control-item-row--service-owned' : ''}`}>
+    <div className={`workspace-module-panel workspace-module-panel-control control-device-card${parameterInvalid ? ' control-device-card--invalid' : ''}`}>
+      <div className={`control-item-row control-item-row--stacked${isServiceOwned ? ' control-item-row--service-owned' : ''}${parameterInvalid ? ' control-item-row--parameter-invalid' : ''}`}>
         <div className="control-item-meta">
           <strong>{String(control?.label || target || 'Control')}</strong>
           <div className="small-text control-item-target">{target || '-'}</div>
@@ -226,14 +228,18 @@ function ControlFieldWidget({ type, controlProps }) {
             Current: {controlTextValue(widget === 'number_button' ? (control?.value_target_current_value ?? control?.current_value) : control?.current_value)}
             {control?.unit ? ` ${control.unit}` : ''}
           </div>
-          {isServiceOwned ? (
+          {parameterInvalid ? (
+            <div className="control-owner-banner control-invalid-badge" role="status">
+              <strong>Invalid{parameterInvalidReason ? `: ${parameterInvalidReason}` : ''}</strong>
+            </div>
+          ) : isServiceOwned ? (
             <div className="control-owner-banner" role="status" aria-live="polite">
               <strong>Owned: {currentOwner}</strong>
             </div>
           ) : null}
         </div>
         <div className="control-item-inputs">
-          {!requiresTakeover && (widget === 'number_button') ? (
+          {parameterInvalid ? null : !requiresTakeover && (widget === 'number_button') ? (
             <>
               <input
                 className="data-control"
@@ -243,6 +249,7 @@ function ControlFieldWidget({ type, controlProps }) {
                 max={control?.value_write?.max}
                 value={valueDraft ?? ''}
                 onChange={(event) => controlProps?.onDraftChange?.(valueTarget, event.target.value)}
+                disabled={parameterInvalid}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault();
@@ -250,16 +257,16 @@ function ControlFieldWidget({ type, controlProps }) {
                   }
                 }}
               />
-              <button className="warning-button" disabled={!target || !valueTarget || isWriting || controlProps?.controlUiLoading} onClick={() => controlProps?.onWrite?.(control)}>
+              <button className="warning-button" disabled={!target || !valueTarget || isWriting || controlProps?.controlUiLoading || parameterInvalid} onClick={() => controlProps?.onWrite?.(control)}>
                 {isWriting ? 'Sending…' : actionLabel}
               </button>
             </>
           ) : !requiresTakeover && (widget === 'button' || writeKind === 'pulse') ? (
-            <button className="warning-button" disabled={!target || isWriting || controlProps?.controlUiLoading} onClick={() => controlProps?.onWrite?.(control, true)}>
+            <button className="warning-button" disabled={!target || isWriting || controlProps?.controlUiLoading || parameterInvalid} onClick={() => controlProps?.onWrite?.(control, true)}>
               {isWriting ? 'Sending…' : actionLabel}
             </button>
           ) : !requiresTakeover && (widget === 'toggle' || writeKind === 'bool') ? (
-            <button className={`toggle-button ${controlBoolValue(control?.current_value) ? 'is-resume' : 'is-pause'}`} disabled={!target || isWriting || controlProps?.controlUiLoading} onClick={() => controlProps?.onWrite?.(control, !controlBoolValue(control?.current_value))}>
+            <button className={`toggle-button ${controlBoolValue(control?.current_value) ? 'is-resume' : 'is-pause'}`} disabled={!target || isWriting || controlProps?.controlUiLoading || parameterInvalid} onClick={() => controlProps?.onWrite?.(control, !controlBoolValue(control?.current_value))}>
               {isWriting ? 'Writing…' : actionLabel}
             </button>
           ) : !requiresTakeover ? (
@@ -272,6 +279,7 @@ function ControlFieldWidget({ type, controlProps }) {
                 max={control?.write?.max}
                 value={draftValue ?? ''}
                 onChange={(event) => controlProps?.onDraftChange?.(target, event.target.value)}
+                disabled={parameterInvalid}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault();
@@ -279,12 +287,12 @@ function ControlFieldWidget({ type, controlProps }) {
                   }
                 }}
               />
-              <button className="primary-button" disabled={!target || isWriting || controlProps?.controlUiLoading} onClick={() => controlProps?.onWrite?.(control)}>
+              <button className="primary-button" disabled={!target || isWriting || controlProps?.controlUiLoading || parameterInvalid} onClick={() => controlProps?.onWrite?.(control)}>
                 {isWriting ? 'Writing…' : actionLabel}
               </button>
             </>
           ) : null}
-          {requiresTakeover && canTakeControl ? (
+          {requiresTakeover && canTakeControl && !parameterInvalid ? (
             <button
               className="warning-button control-takeover-button"
               disabled={!target || isWriting || controlProps?.controlUiLoading}
@@ -293,7 +301,7 @@ function ControlFieldWidget({ type, controlProps }) {
               {isWriting ? 'Taking…' : 'Take control'}
             </button>
           ) : null}
-          {requiresTakeover && !canTakeControl ? (
+          {requiresTakeover && !canTakeControl && !parameterInvalid ? (
             <div className="small-text warning">
               {control?.safety_locked
                 ? 'Safety lock active; takeover disabled.'

@@ -88,7 +88,10 @@ export function ParameterList({
               const paramDeps = deps[name] ?? [];
               const usedBy = entries.filter(([n]) => (deps[n] ?? []).includes(name)).map(([n]) => n);
               const writesTo = writes[name] ?? [];
-              const isInvalid = Boolean(rec?.state?.invalid_config);
+              const isInvalid = Boolean(rec?.state?.invalid_config) || rec?.state?.parameter_valid === false || Boolean(rec?.state?.parameter_force_invalid);
+              const displayValue = isInvalid
+                ? '—'
+                : (rec.value === null || rec.value === undefined ? '—' : String(rec.value));
               const isPinned = pinnedTargets instanceof Set ? pinnedTargets.has(name) : false;
               const pinBusy = pinBusyTarget === name;
 
@@ -106,7 +109,7 @@ export function ParameterList({
                   </td>
                   <td className="pdb-cell-value">
                     <span className="pdb-value-str">
-                      {rec.value === null || rec.value === undefined ? '—' : String(rec.value)}
+                      {displayValue}
                     </span>
                   </td>
                   <td className="pdb-cell-deps">

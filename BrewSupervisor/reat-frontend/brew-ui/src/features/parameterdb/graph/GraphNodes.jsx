@@ -6,10 +6,11 @@ const NODE_H = 72;
 
 export function ParameterNode({ data, selected }) {
   const { name, paramType, value, scanIndex, hasWarning, invalidConfig } = data;
+  const invalidState = invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid);
   const color = typeColor(paramType);
-  const accent = invalidConfig ? '#ef4444' : color;
+  const accent = invalidState ? '#ef4444' : color;
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;
-  const valStr = value === null || value === undefined ? '—' : String(value).slice(0, 18);
+  const valStr = invalidState ? '—' : (value === null || value === undefined ? '—' : String(value).slice(0, 18));
   const isActive = selected || data.isSelected;
   const isRelated = data.isRelated;
   const isDimmed = data.isDimmed;
@@ -18,7 +19,7 @@ export function ParameterNode({ data, selected }) {
     isActive ? 'is-active' : '',
     isRelated ? 'is-related' : '',
     isDimmed ? 'is-dimmed' : '',
-    invalidConfig ? 'is-invalid' : '',
+    invalidState ? 'is-invalid' : '',
     hasWarning ? 'has-warning' : '',
   ].filter(Boolean).join(' ');
 
@@ -52,7 +53,7 @@ export function ParameterNode({ data, selected }) {
         <span style={{ fontSize: 11, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {valStr}
         </span>
-        {invalidConfig && <span title="Invalid parameter configuration" style={{ fontSize: 12, flex: '0 0 auto' }}>⛔</span>}
+        {invalidState && <span title="Parameter invalid" style={{ fontSize: 12, flex: '0 0 auto' }}>⛔</span>}
         {hasWarning && <span title="Graph warning" style={{ fontSize: 12, flex: '0 0 auto' }}>⚠️</span>}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ background: accent, width: 8, height: 8 }} />

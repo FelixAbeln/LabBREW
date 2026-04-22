@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createParam, fetchParamTypeUi, setParamValue, updateParamConfig, updateParamMetadata } from './loaders.js';
 import { SchemaForm } from './SchemaForm.jsx';
-import { buildFormData, buildSections, collectJsonFieldKeys, collectRequiredPaths, getByPath, setByPath } from './schemaUtils.js';
+import { buildFormData, buildSections, collectFloatFieldKeys, collectJsonFieldKeys, collectRequiredPaths, getByPath, setByPath } from './schemaUtils.js';
 
 export function ParameterEditModal({ mode, record, fermenterId, paramTypes, parameterNames, onClose, onSaved }) {
   const isCreate = mode === 'create';
@@ -56,9 +56,24 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
       const next = JSON.parse(JSON.stringify(current));
       if (Array.isArray(rawValue)) setByPath(next, field.key, rawValue);
       else if (field.type === 'int') setByPath(next, field.key, rawValue === '' ? null : Number.parseInt(rawValue, 10));
-      else if (field.type === 'float') setByPath(next, field.key, rawValue === '' ? null : Number.parseFloat(rawValue));
+      else if (field.type === 'float') {
+        // Keep raw string while user is mid-typing (e.g. "-" or "1.") to avoid NaN
+        const isIncomplete = rawValue === '-' || rawValue === '.' || rawValue.endsWith('.');
+        setByPath(next, field.key, rawValue === '' ? null : isIncomplete ? rawValue : Number.parseFloat(rawValue));
+      }
       else if (field.type === 'parameter_ref_list') setByPath(next, field.key, String(rawValue).split(',').map((item) => item.trim()).filter(Boolean));
       else setByPath(next, field.key, rawValue);
+
+      if (field.key === 'config.force_invalid') {
+        const checked = Boolean(rawValue);
+        const reason = String(getByPath(next, 'config.force_invalid_reason') ?? '').trim();
+        if (!checked) {
+          setByPath(next, 'config.force_invalid_reason', '');
+        } else if (!reason) {
+          setByPath(next, 'config.force_invalid_reason', 'manual');
+        }
+      }
+
       return next;
     });
     setErrors((current) => {
@@ -81,6 +96,12 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
       }
     });
 
+    // Coerce any float fields still holding an incomplete string (e.g. "-") to null before saving
+    collectFloatFieldKeys(sections).forEach((key) => {
+      const v = getByPath(next, key);
+      if (typeof v === 'string') setByPath(next, key, v === '' ? null : (Number.isFinite(Number.parseFloat(v)) ? Number.parseFloat(v) : null));
+    });
+
     collectRequiredPaths(schemaUi, sections).forEach((key) => {
       const value = getByPath(next, key);
       if (value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length)) {
@@ -89,6 +110,15 @@ export function ParameterEditModal({ mode, record, fermenterId, paramTypes, para
     });
 
     if (!paramType) nextErrors.parameter_type = 'Type is required';
+
+    const forceInvalid = Boolean(getByPath(next, 'config.force_invalid'));
+    const forceInvalidReason = String(getByPath(next, 'config.force_invalid_reason') ?? '').trim();
+    if (!forceInvalid) {
+      setByPath(next, 'config.force_invalid_reason', '');
+    } else if (!forceInvalidReason) {
+      setByPath(next, 'config.force_invalid_reason', 'manual');
+    }
+
     return { next, nextErrors };
   }
 

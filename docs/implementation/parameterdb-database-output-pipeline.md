@@ -6,13 +6,19 @@ The **Database Output Pipeline** is a centralized system for transforming and di
 
 The pipeline executes in this order for each parameter scan:
 1. **Calibration**: Apply mathematical transformation to plugin output
-2. **Transducer Mapping**: Optionally map calibrated value through selected transducer range
+2. **Transducer Mapping**: Optionally transform calibrated value using selected transducer equation
 3. **Mirror**: Write transformed value to target parameters
 4. *(timeshift is now metadata-only for post-processing)*
 
+Composed runtime value:
+
+$$
+y = f_{transducer}(f_{channel}(x))
+$$
+
 ## Configuration Fields
 
-All ParameterDB parameters support these four database-owned fields in the "Database Output Pipeline" section:
+All ParameterDB parameters support these database-owned fields in the "Database Output Pipeline" section:
 
 ### mirror_to
 
@@ -46,20 +52,32 @@ Each scan cycle:
 **Default**: `""` (empty, disabled)  
 **Runtime Behavior**: Applied after calibration, before mirror writes
 
-Specifies a transducer mapping from the transducer catalog. When set, the calibrated value is treated as transducer input and mapped linearly from `[input_min, input_max]` to `[output_min, output_max]`.
+Specifies a transducer mapping from the transducer catalog. When set, the calibrated value is treated as transducer input and transformed by the configured equation.
 
-Mapping formula:
+Transducer equation example:
 
-$$
-r = \frac{x - input_{min}}{input_{max} - input_{min}}\quad\text{and}\quad y = output_{min} + r\cdot(output_{max} - output_{min})
-$$
+```
+equation: "0.12*x**2 + 1.8*x + 0.4"
+```
 
-If transducer `clamp` is enabled (default), output is clamped to the output range.
+Transducer limits are configured on the transducer definition itself:
+
+```json
+{
+  "name": "pressure_10bar",
+  "equation": "2*x",
+  "min_limit": 0.0,
+  "max_limit": 10.0
+}
+```
+
+Transducer equation symbols are restricted to `x` and `value`.
 
 **Errors:**
 - Unknown transducer name
 - Non-numeric input value
-- Invalid transducer input range (`input_min == input_max`)
+- Missing transducer equation
+- Invalid transducer equation
 
 On any of these, pipeline fails for that scan attempt and `last_error` is populated.
 
@@ -218,6 +236,8 @@ After pipeline execution, parameters report state:
 
 ### transducer_id state
 - `transducer_id: str` — Selected transducer name
+- `transducer_equation: str` — Equation applied in transducer stage
+- `transducer_symbols: list[str]` — Symbols used by equation transducer
 - `transducer_input: float` — Value entering transducer mapping
 - `transducer_output: float` — Value after mapping
 - `transducer_input_unit: str` — Transducer input unit metadata
@@ -225,6 +245,38 @@ After pipeline execution, parameters report state:
 
 ### timeshift state
 - (Cleared on each scan; timeshift is metadata-only)
+
+### range validation state
+- `channel_limit_min: float | null` — Configured lower bound after channel calibration
+- `channel_limit_max: float | null` — Configured upper bound after channel calibration
+- `channel_limit_in_range: bool` — Whether calibrated channel value is in configured range
+- `channel_limit_violation: str` — Populated when channel value is out of range
+- `transducer_limit_min: float | null` — Lower bound from selected transducer definition
+- `transducer_limit_max: float | null` — Upper bound from selected transducer definition
+- `transducer_limit_in_range: bool` — Whether transducer output is in configured range
+- `transducer_limit_violation: str` — Populated when transducer output is out of range
+- `parameter_valid: bool` — Overall validity (`False` if either stage check fails)
+- `parameter_invalid_reasons: list[str]` — Stage names that failed (`channel`, `transducer`)
+
+---
+
+### channel_min / channel_max
+
+**Type**: Number (optional)  
+**Default**: unset  
+**Runtime Behavior**: Checked after `calibration_equation` output is computed
+
+When configured, the calibrated channel value is validated against `[channel_min, channel_max]`. Violations do not stop the pipeline but mark the parameter invalid at the channel stage.
+
+---
+
+### force_invalid / force_invalid_reason
+
+**Type**: Boolean / String (optional)  
+**Default**: `false` / `""`  
+**Runtime Behavior**: If `force_invalid` is true, parameter scan is skipped for that cycle and parameter remains invalid
+
+Use this for operator or datasource-driven invalidation from the database side.
 
 ---
 

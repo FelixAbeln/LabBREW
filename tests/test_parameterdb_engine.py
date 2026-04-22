@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import Services.parameterDB.parameterdb_service.engine as engine_module
 from Services.parameterDB.parameterdb_service.engine import ScanEngine
 from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase
 from Services.parameterDB.parameterdb_service.store import ParameterStore
+from Services.parameterDB.parameterdb_service.transducers import TransducerCatalog
 
 
 class FakeBroker:
@@ -130,6 +132,132 @@ def test_scan_engine_records_scan_errors_as_disconnected_state() -> None:
     record = store.get_record("temp")
     assert record.state["connected"] is False
     assert record.state["last_error"] == "scan failed"
+
+
+def test_scan_engine_skips_force_invalid_parameter() -> None:
+    store = ParameterStore()
+    param = FakeParameter("temp", value=10.0, scan_value=12.5)
+    param.update_config(force_invalid=True, force_invalid_reason="datasource offline")
+    store.add(param)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    record = store.get_record("temp")
+    assert record.value == 10.0
+    assert record.state["parameter_force_invalid"] is True
+    assert record.state["parameter_valid"] is False
+    assert record.state["parameter_invalid_reasons"] == ["manual"]
+    assert record.state["parameter_force_invalid_reason"] == "datasource offline"
+    assert record.state["connected"] is False
+
+
+def test_scan_engine_recovers_after_force_invalid_is_cleared() -> None:
+    store = ParameterStore()
+    param = FakeParameter("temp", value=10.0, scan_value=12.5)
+    param.update_config(force_invalid=True, force_invalid_reason="datasource disabled")
+    store.add(param)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    first = store.get_record("temp")
+    assert first.value == 10.0
+    assert first.state["parameter_valid"] is False
+    assert first.state["parameter_invalid_reasons"] == ["manual"]
+
+    param.update_config(force_invalid=False, force_invalid_reason="")
+    engine.scan_once(dt=0.1)
+
+    second = store.get_record("temp")
+    assert second.value == 12.5
+    assert second.state.get("parameter_force_invalid") is None
+    assert second.state.get("parameter_force_invalid_reason") is None
+    assert second.state.get("parameter_invalid_reasons") is None
+    assert second.state.get("parameter_valid") is True
+    assert second.state["connected"] is True
+
+
+def test_scan_engine_skips_parameter_marked_invalid_by_state() -> None:
+    class InvalidatingParameter(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=1.0)
+            self.scan_calls = 0
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(2.0)
+            self.state["parameter_valid"] = False
+            self.state["parameter_invalid_reasons"] = ["datasource"]
+
+    store = ParameterStore()
+    param = InvalidatingParameter("temp")
+    store.add(param)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+    first = store.get_record("temp")
+    assert first.value == 2.0
+    assert first.state["parameter_valid"] is False
+
+    engine.scan_once(dt=0.1)
+    second = store.get_record("temp")
+    assert second.value == 2.0
+    assert param.scan_calls == 1
+    assert second.state["connected"] is False
+
+
+def test_scan_engine_skips_dependents_of_invalid_parameter_and_recovers() -> None:
+    class InvalidatingSource(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=1.0)
+            self.scan_calls = 0
+            self.should_invalidate = True
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(2.0)
+            if self.should_invalidate:
+                self.state["parameter_valid"] = False
+                self.state["parameter_invalid_reasons"] = ["datasource"]
+
+    class DependentParameter(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=10.0, deps=["source"])
+            self.scan_calls = 0
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(20.0)
+
+    store = ParameterStore()
+    source = InvalidatingSource("source")
+    dependent = DependentParameter("derived")
+    store.add(source)
+    store.add(dependent)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    first = store.get_record("derived")
+    assert dependent.scan_calls == 0
+    assert first.value == 10.0
+    assert first.state["parameter_valid"] is False
+    assert first.state["parameter_invalid_reasons"] == ["dependency"]
+    assert first.state["dependency_invalid_parameters"] == ["source"]
+    assert first.state["connected"] is False
+
+    source.should_invalidate = False
+    source.state.pop("parameter_valid", None)
+    source.state.pop("parameter_invalid_reasons", None)
+
+    engine.scan_once(dt=0.1)
+
+    second = store.get_record("derived")
+    assert dependent.scan_calls == 1
+    assert second.value == 20.0
+    assert second.state["connected"] is True
+    assert "dependency_invalid_parameters" not in second.state
 
 
 def test_scan_engine_init_and_desired_period_variants() -> None:
@@ -361,3 +489,77 @@ def test_scan_engine_database_pipeline_skips_on_plugin_error() -> None:
 
     assert store.get_value("target") == 9.0
     assert store.get_record("bad").state["last_error"] == "scan failed"
+
+
+def test_scan_engine_caches_compiled_transducer_expression_until_equation_changes(monkeypatch) -> None:
+    store = ParameterStore()
+    param = FakeParameter("sensor.pressure", value=2.0, scan_value=2.0)
+    param.update_config(transducer_id="gain")
+    store.add(param)
+
+    transducers = TransducerCatalog(path=None)
+    transducers.create(
+        {
+            "name": "gain",
+            "equation": "2*x",
+            "input_unit": "V",
+            "output_unit": "bar",
+        }
+    )
+
+    compile_calls = {"count": 0}
+    original_compile_expression = engine_module.compile_expression
+
+    def counting_compile_expression(expression: str, *, required: bool = False):
+        compile_calls["count"] += 1
+        return original_compile_expression(expression, required=required)
+
+    monkeypatch.setattr(engine_module, "compile_expression", counting_compile_expression)
+
+    engine = ScanEngine(period_s=0.01, store=store, transducers=transducers)
+    engine.scan_once(dt=0.1)
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 1
+    assert store.get_record("sensor.pressure").value == 4.0
+
+    transducers.update(
+        "gain",
+        {
+            "equation": "3*x",
+        },
+    )
+
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 2
+    assert store.get_record("sensor.pressure").value == 6.0
+
+
+def test_scan_engine_caches_compiled_calibration_expression_until_equation_changes(monkeypatch) -> None:
+    store = ParameterStore()
+    param = FakeParameter("sensor.temp", value=2.0, scan_value=2.0)
+    param.update_config(calibration_equation="2*x")
+    store.add(param)
+
+    compile_calls = {"count": 0}
+    original_compile_expression = engine_module.compile_expression
+
+    def counting_compile_expression(expression: str, *, required: bool = False):
+        compile_calls["count"] += 1
+        return original_compile_expression(expression, required=required)
+
+    monkeypatch.setattr(engine_module, "compile_expression", counting_compile_expression)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 1
+    assert store.get_record("sensor.temp").value == 4.0
+
+    param.update_config(calibration_equation="3*x")
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 2
+    assert store.get_record("sensor.temp").value == 6.0

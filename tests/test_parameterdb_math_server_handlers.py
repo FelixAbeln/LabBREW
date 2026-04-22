@@ -280,13 +280,9 @@ def test_transducer_pipeline_maps_value_after_calibration() -> None:
         {
             "transducer": {
                 "name": "volt_to_pressure",
-                "input_min": 0.0,
-                "input_max": 10.0,
-                "output_min": 0.0,
-                "output_max": 6.0,
+                "equation": "0.6*x",
                 "input_unit": "V",
                 "output_unit": "bar",
-                "clamp": True,
             }
         }
     )
@@ -309,13 +305,57 @@ def test_transducer_pipeline_maps_value_after_calibration() -> None:
     records = server.api_describe({})
     state = records["sensor.volt"]["state"]
 
-    # calibration: 5 + 1 = 6V; transducer: 6/10 * 6bar = 3.6bar
+    # calibration: 5 + 1 = 6V; transducer equation: 0.6 * 6 = 3.6bar
     assert records["sensor.volt"]["value"] == pytest.approx(3.6, abs=1e-9)
     assert state.get("transducer_id") == "volt_to_pressure"
     assert state.get("transducer_input") == 6.0
     assert state.get("transducer_output") == pytest.approx(3.6, abs=1e-9)
+    assert state.get("transducer_equation") == "0.6*x"
+    assert state.get("transducer_symbols") == ["x"]
     assert state.get("transducer_input_unit") == "V"
     assert state.get("transducer_output_unit") == "bar"
+
+
+def test_transducer_pipeline_supports_equation_mode_after_calibration() -> None:
+    server = _build_server_with_math()
+
+    created = server.api_create_transducer(
+        {
+            "transducer": {
+                "name": "eq_quad",
+                "equation": "x**2 + 1",
+                "input_unit": "V",
+                "output_unit": "kPa",
+                "description": "quadratic fit",
+            }
+        }
+    )
+    assert created["name"] == "eq_quad"
+    assert created["equation"] == "x**2 + 1"
+
+    assert server.api_create_parameter(
+        {
+            "name": "sensor.eq",
+            "parameter_type": "static",
+            "value": 2.0,
+            "config": {
+                "calibration_equation": "x + 1",
+                "transducer_id": "eq_quad",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    records = server.api_describe({})
+    state = records["sensor.eq"]["state"]
+
+    # calibration: 2 + 1 = 3; transducer equation: 3**2 + 1 = 10
+    assert records["sensor.eq"]["value"] == pytest.approx(10.0, abs=1e-9)
+    assert state.get("transducer_equation") == "x**2 + 1"
+    assert state.get("transducer_symbols") == ["x"]
+    assert state.get("transducer_input") == pytest.approx(3.0, abs=1e-9)
+    assert state.get("transducer_output") == pytest.approx(10.0, abs=1e-9)
 
 
 def test_transducer_pipeline_additive_mapping_does_not_accumulate_between_scans() -> None:
@@ -325,13 +365,9 @@ def test_transducer_pipeline_additive_mapping_does_not_accumulate_between_scans(
         {
             "transducer": {
                 "name": "wide_gain",
-                "input_min": 0.0,
-                "input_max": 10.0,
-                "output_min": 0.0,
-                "output_max": 100.0,
+                "equation": "10*x",
                 "input_unit": "V",
                 "output_unit": "u",
-                "clamp": False,
             }
         }
     )
@@ -369,13 +405,9 @@ def test_transducer_pipeline_reapplies_from_manual_raw_write_not_cached_output()
         {
             "transducer": {
                 "name": "gain10",
-                "input_min": 0.0,
-                "input_max": 10.0,
-                "output_min": 0.0,
-                "output_max": 100.0,
+                "equation": "10*x",
                 "input_unit": "V",
                 "output_unit": "u",
-                "clamp": False,
             }
         }
     )
@@ -408,13 +440,9 @@ def test_pipeline_calibration_plus_transducer_does_not_accumulate_between_scans(
         {
             "transducer": {
                 "name": "combo_gain",
-                "input_min": 0.0,
-                "input_max": 10.0,
-                "output_min": 0.0,
-                "output_max": 100.0,
+                "equation": "10*x",
                 "input_unit": "V",
                 "output_unit": "u",
-                "clamp": False,
             }
         }
     )
@@ -432,7 +460,7 @@ def test_pipeline_calibration_plus_transducer_does_not_accumulate_between_scans(
         }
     ) is True
 
-    # First scan: (1 + 1) -> 2, then transducer 2/10*100 = 20.
+    # First scan: (1 + 1) -> 2, then transducer equation 10*2 = 20.
     server.engine.scan_once(dt=0.1)
     assert server.api_get_value({"name": "sensor.combo"}) == pytest.approx(20.0, abs=1e-9)
 
@@ -443,8 +471,114 @@ def test_pipeline_calibration_plus_transducer_does_not_accumulate_between_scans(
     # Fresh raw input should still apply exactly once.
     assert server.api_set_value({"name": "sensor.combo", "value": 2.0}) is True
     server.engine.scan_once(dt=0.1)
-    # (2 + 1) -> 3, then 3/10*100 = 30.
+    # (2 + 1) -> 3, then 10*3 = 30.
     assert server.api_get_value({"name": "sensor.combo"}) == pytest.approx(30.0, abs=1e-9)
+
+
+def test_pipeline_marks_transducer_limit_invalid_independently() -> None:
+    server = _build_server_with_math()
+
+    server.api_create_transducer(
+        {
+            "transducer": {
+                "name": "gain2",
+                "equation": "2*x",
+                "min_limit": 0.0,
+                "max_limit": 9.0,
+                "input_unit": "V",
+                "output_unit": "bar",
+            }
+        }
+    )
+
+    assert server.api_create_parameter(
+        {
+            "name": "sensor.pressure",
+            "parameter_type": "static",
+            "value": 5.0,
+            "config": {
+                "calibration_equation": "x",
+                "transducer_id": "gain2",
+                "channel_min": 0.0,
+                "channel_max": 10.0,
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    record = server.api_describe({})["sensor.pressure"]
+    state = record["state"]
+
+    # Channel is valid (5V), transducer output is invalid (10bar > 9bar).
+    assert state.get("channel_limit_in_range") is True
+    assert state.get("transducer_limit_in_range") is False
+    assert "transducer_limit_violation" in state
+    assert state.get("parameter_valid") is False
+    assert state.get("parameter_invalid_reasons") == ["transducer"]
+
+    server.api_update_transducer(
+        {
+            "name": "gain2",
+            "transducer": {
+                "equation": "2*x",
+                "input_unit": "V",
+                "output_unit": "bar",
+            },
+        }
+    )
+
+    server.engine.scan_once(dt=0.1)
+    recovered = server.api_describe({})["sensor.pressure"]
+    recovered_state = recovered["state"]
+    assert recovered_state.get("transducer_limit_in_range") is True
+    assert "transducer_limit_violation" not in recovered_state
+    assert recovered_state.get("parameter_valid") is True
+    assert "parameter_invalid_reasons" not in recovered_state
+
+
+def test_pipeline_marks_channel_limit_invalid_independently() -> None:
+    server = _build_server_with_math()
+
+    server.api_create_transducer(
+        {
+            "transducer": {
+                "name": "gain_half",
+                "equation": "0.5*x",
+                "min_limit": 0.0,
+                "max_limit": 10.0,
+                "input_unit": "V",
+                "output_unit": "bar",
+            }
+        }
+    )
+
+    assert server.api_create_parameter(
+        {
+            "name": "sensor.channel",
+            "parameter_type": "static",
+            "value": 11.0,
+            "config": {
+                "calibration_equation": "x",
+                "transducer_id": "gain_half",
+                "channel_min": 0.0,
+                "channel_max": 10.0,
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    record = server.api_describe({})["sensor.channel"]
+    state = record["state"]
+
+    # Channel is invalid (11V > 10V), transducer output is valid (5.5bar).
+    assert state.get("channel_limit_in_range") is False
+    assert "channel_limit_violation" in state
+    assert state.get("transducer_limit_in_range") is True
+    assert "transducer_limit_violation" not in state
+    assert state.get("parameter_valid") is False
+    assert state.get("parameter_invalid_reasons") == ["channel"]
 
 
 def test_pipeline_failure_clears_stale_pipeline_state_details() -> None:
@@ -493,13 +627,9 @@ def test_transducer_crud_handlers() -> None:
         {
             "transducer": {
                 "name": "t1",
-                "input_min": 0,
-                "input_max": 10,
-                "output_min": 4,
-                "output_max": 20,
+                "equation": "2*x + 4",
                 "input_unit": "V",
                 "output_unit": "mA",
-                "clamp": True,
             }
         }
     )
@@ -508,17 +638,18 @@ def test_transducer_crud_handlers() -> None:
         {
             "name": "t1",
             "transducer": {
-                "output_max": 24,
+                "equation": "2*x + 6",
                 "description": "updated",
             },
         }
     )
-    assert updated["output_max"] == 24.0
+    assert updated["equation"] == "2*x + 6"
     assert updated["description"] == "updated"
 
     listed = server.api_list_transducers({})
     assert len(listed) == 1
     assert listed[0]["name"] == "t1"
+    assert listed[0]["equation"] == "2*x + 6"
 
     assert server.api_delete_transducer({"name": "t1"}) is True
     assert server.api_list_transducers({}) == []
