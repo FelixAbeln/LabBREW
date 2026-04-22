@@ -513,6 +513,8 @@ def test_get_datasource_contract_snapshot_builds_datasource_orphan_and_manual_ca
     assert len(snap["datasources"]) == 1
     assert snap["datasources"][0]["name"] == "brewtools"
     assert snap["datasources"][0]["control_count"] == 1
+    assert snap["datasources"][0]["parameters"][0]["parameter_invalid"] is False
+    assert "state" not in snap["datasources"][0]["parameters"][0]
     assert snap["ui_cards"][0]["app"]["kind"] == "sections"
     assert snap["ui_cards"][0]["app"]["sections"][0]["items"][0]["control_id"] == "source-temp"
     assert snap["orphan_parameters"][0]["name"] == "orphan.param"
@@ -1021,6 +1023,12 @@ def test_datasource_contract_snapshot_discovers_command_and_control_parameters()
     assert controls["src.count"]["safety_locked"] is False
     assert controls["src.count"]["parameter_invalid"] is True
     assert controls["src.count"]["parameter_invalid_reason"] == "manual"
+    datasource_parameter = next(
+        item for item in snapshot["datasources"][0]["parameters"] if item["name"] == "src.count"
+    )
+    assert datasource_parameter["parameter_invalid"] is True
+    assert datasource_parameter["parameter_invalid_reason"] == "manual"
+    assert "state" not in datasource_parameter
     assert controls["src.label"]["widget"] == "text"
     assert controls["src.label"]["write"] == {"kind": "string"}
 

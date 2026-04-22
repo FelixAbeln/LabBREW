@@ -260,6 +260,41 @@ def test_source_runner_enable_clears_runner_managed_invalid_reason_only(tmp_path
     ]
 
 
+def test_source_runner_create_source_reports_owned_parameter_sync_failure_nonfatally(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+
+    def _raise_sync(_record, *, enabled: bool):
+        _ = enabled
+        raise RuntimeError("describe failed")
+
+    monkeypatch.setattr(runner, "_set_owned_parameters_enabled_state", _raise_sync)
+
+    runner.create_source("alpha", "fake", config={"interval": 1})
+
+    listed = runner.list_sources()
+    assert listed["alpha"]["running"] is True
+    assert "describe failed" in str(listed["alpha"]["error"])
+    assert runner.stats()["source_errors"]["alpha"] == "describe failed"
+
+
+def test_source_runner_update_source_reports_owned_parameter_sync_failure_nonfatally(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.create_source("alpha", "fake", config={"interval": 1})
+
+    def _raise_sync(_record, *, enabled: bool):
+        _ = enabled
+        raise RuntimeError("describe failed")
+
+    monkeypatch.setattr(runner, "_set_owned_parameters_enabled_state", _raise_sync)
+
+    runner.update_source("alpha", config={"interval": 2})
+
+    listed = runner.list_sources()
+    assert listed["alpha"]["running"] is True
+    assert "describe failed" in str(listed["alpha"]["error"])
+    assert runner.get_source_record("alpha")["config"] == {"interval": 2}
+
+
 def test_source_runner_write_record_cleans_tmp_on_failure(tmp_path: Path, monkeypatch) -> None:
     runner, _, _ = _build_runner(tmp_path, monkeypatch)
     record = serviceDS.SourceRecord(

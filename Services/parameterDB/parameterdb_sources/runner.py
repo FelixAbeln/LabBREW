@@ -109,6 +109,23 @@ class SourceRunner:
             session.close()
         return updated
 
+    def _sync_owned_parameters_enabled_state(
+        self, record: SourceRecord, *, enabled: bool
+    ) -> None:
+        try:
+            self._set_owned_parameters_enabled_state(record, enabled=enabled)
+        except Exception as exc:
+            LOGGER.warning(
+                "Failed to sync owned parameter invalidation for source '%s': %s",
+                record.name,
+                exc,
+            )
+            with self._lock:
+                self._source_errors[record.name] = str(exc)
+        else:
+            with self._lock:
+                self._source_errors.pop(record.name, None)
+
     def _record_from_payload(
         self, payload: dict[str, Any], *, storage_ref: str
     ) -> SourceRecord:
@@ -245,7 +262,7 @@ class SourceRunner:
                     )
                     self._source_errors[record.name] = str(exc)
         for record, enabled in sync_actions:
-            self._set_owned_parameters_enabled_state(record, enabled=enabled)
+            self._sync_owned_parameters_enabled_state(record, enabled=enabled)
 
     def stop_all(self) -> None:
         with self._lock:
@@ -334,7 +351,7 @@ class SourceRunner:
             self.records[name] = record
             if enabled:
                 self._start_instance_locked(record)
-        self._set_owned_parameters_enabled_state(record, enabled=enabled)
+        self._sync_owned_parameters_enabled_state(record, enabled=enabled)
 
     def update_source(self, name: str, *, config: dict[str, Any]) -> None:
         updated: SourceRecord | None = None
@@ -355,7 +372,7 @@ class SourceRunner:
             self.records[name] = updated
             if enabled:
                 self._start_instance_locked(updated)
-        self._set_owned_parameters_enabled_state(updated, enabled=enabled)
+        self._sync_owned_parameters_enabled_state(updated, enabled=enabled)
 
     def _delete_owned_parameters(self, record: SourceRecord) -> int:
         removed = 0

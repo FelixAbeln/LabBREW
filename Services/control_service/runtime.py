@@ -611,6 +611,10 @@ class ControlRuntime:
         def _parameter_invalid_info(param: dict[str, Any] | None) -> tuple[bool, str | None]:
             if not isinstance(param, dict):
                 return False, None
+            direct_invalid = bool(param.get("parameter_invalid"))
+            direct_reason = str(param.get("parameter_invalid_reason") or "").strip()
+            if direct_invalid:
+                return True, direct_reason or None
             state = param.get("state")
             if not isinstance(state, dict):
                 return False, None
@@ -698,15 +702,17 @@ class ControlRuntime:
             source_name = str(metadata.get("owner", "")).strip()
             source_type = str(metadata.get("source_type", "")).strip()
             mapped_controls = controls_by_target.get(parameter_name, [])
+            parameter_invalid, parameter_invalid_reason = _parameter_invalid_info(record)
             item = {
                 "name": parameter_name,
                 "parameter_type": record.get("parameter_type"),
                 "value": record.get("value"),
-                "state": dict(record.get("state") or {}),
                 "role": metadata.get("role"),
                 "unit": metadata.get("unit"),
                 "device": metadata.get("device"),
                 "source_type": source_type or None,
+                "parameter_invalid": parameter_invalid,
+                "parameter_invalid_reason": parameter_invalid_reason,
                 "metadata": metadata,
                 "mapped_controls": mapped_controls,
             }
