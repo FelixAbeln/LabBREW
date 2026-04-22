@@ -34,8 +34,8 @@ DB_OWNED_SCHEMA_PROPERTIES = {
     "timeshift": {"type": "number"},
     "calibration_equation": {"type": "string"},
     "transducer_id": {"type": "string"},
-    "channel_min": {"type": "number"},
-    "channel_max": {"type": "number"},
+    "channel_min": {"type": ["number", "null"]},
+    "channel_max": {"type": ["number", "null"]},
     "force_invalid": {"type": "boolean"},
     "force_invalid_reason": {"type": "string"},
 }
