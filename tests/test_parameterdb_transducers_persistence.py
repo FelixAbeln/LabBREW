@@ -251,6 +251,8 @@ def test_postgres_transducer_update_can_clear_optional_limits(monkeypatch) -> No
         "volt_to_pressure",
         {
             "equation": "0.8*x",
+            "min_limit": None,
+            "max_limit": None,
             "input_unit": "V",
             "output_unit": "bar",
             "description": "",
@@ -264,6 +266,49 @@ def test_postgres_transducer_update_can_clear_optional_limits(monkeypatch) -> No
     assert fetched is not None
     assert "min_limit" not in fetched
     assert "max_limit" not in fetched
+
+
+def test_postgres_transducer_update_preserves_omitted_fields(monkeypatch) -> None:
+    state: dict[str, object] = {"rows": []}
+    config = PostgresPersistenceConfig(
+        host="db.internal",
+        port=5432,
+        database="labbrew",
+        username="brew",
+        password="secret",
+        table_prefix="fermenter_a",
+    )
+
+    monkeypatch.setattr(
+        "Services.parameterDB.parameterdb_service.transducers.connect_postgres",
+        lambda _config: FakePostgresConnection(state),
+    )
+
+    catalog = PostgresTransducerCatalog(config)
+    catalog.create(
+        {
+            "name": "volt_to_pressure",
+            "equation": "0.6*x",
+            "min_limit": 0.0,
+            "max_limit": 10.0,
+            "input_unit": "V",
+            "output_unit": "bar",
+            "description": "original",
+        }
+    )
+
+    updated = catalog.update(
+        "volt_to_pressure",
+        {
+            "equation": "0.8*x",
+        },
+    )
+
+    assert updated["input_unit"] == "V"
+    assert updated["output_unit"] == "bar"
+    assert updated["description"] == "original"
+    assert updated["min_limit"] == 0.0
+    assert updated["max_limit"] == 10.0
 
 
 def test_json_transducer_catalog_still_file_backed(tmp_path) -> None:
@@ -301,6 +346,8 @@ def test_json_transducer_update_can_clear_optional_limits(tmp_path) -> None:
         "t1",
         {
             "equation": "x",
+            "min_limit": None,
+            "max_limit": None,
             "input_unit": "V",
             "output_unit": "bar",
             "description": "Has limits",
@@ -314,6 +361,36 @@ def test_json_transducer_update_can_clear_optional_limits(tmp_path) -> None:
     assert fetched is not None
     assert "min_limit" not in fetched
     assert "max_limit" not in fetched
+
+
+def test_json_transducer_update_preserves_omitted_fields(tmp_path) -> None:
+    path = tmp_path / "transducers.json"
+    catalog = TransducerCatalog(path)
+
+    catalog.create(
+        {
+            "name": "t1",
+            "equation": "x",
+            "min_limit": 0.0,
+            "max_limit": 5.0,
+            "input_unit": "V",
+            "output_unit": "bar",
+            "description": "Has limits",
+        }
+    )
+
+    updated = catalog.update(
+        "t1",
+        {
+            "equation": "x + 1",
+        },
+    )
+
+    assert updated["input_unit"] == "V"
+    assert updated["output_unit"] == "bar"
+    assert updated["description"] == "Has limits"
+    assert updated["min_limit"] == 0.0
+    assert updated["max_limit"] == 5.0
 
 
 def test_json_transducer_catalog_rejects_unsupported_format_version(tmp_path) -> None:

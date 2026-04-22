@@ -75,9 +75,11 @@ class TransducerCatalog:
         if not key:
             raise ValueError("Transducer name is required")
         with self._lock:
-            if self._items.get(key) is None:
+            existing = self._items.get(key)
+            if existing is None:
                 raise ValueError(f"Unknown transducer '{key}'")
-            payload = dict(changes or {})
+            payload = dict(existing)
+            payload.update(dict(changes or {}))
             # Keep endpoint path authoritative for identity.
             payload["name"] = key
             item = _normalize_transducer_payload(payload)
@@ -186,7 +188,10 @@ class PostgresTransducerCatalog:
                     row = cursor.fetchone()
                     if row is None:
                         raise ValueError(f"Unknown transducer '{key}'")
-                    payload = dict(changes or {})
+                    payload = _normalize_transducer_payload(
+                        dict(json.loads(row[0]) or {})
+                    )
+                    payload.update(dict(changes or {}))
                     payload["name"] = key
                     item = _normalize_transducer_payload(payload)
                     cursor.execute(
