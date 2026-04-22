@@ -857,7 +857,10 @@ class ScanEngine:
                 param.state["connected"] = False
             elif parameter_invalid:
                 param.state["last_error"] = ""
-                param.state["connected"] = False
+                param.state["connected"] = True
+                param.state["last_sync"] = datetime.fromtimestamp(
+                    now, tz=UTC
+                ).isoformat()
             else:
                 param.state["last_error"] = ""
                 param.state["connected"] = True
