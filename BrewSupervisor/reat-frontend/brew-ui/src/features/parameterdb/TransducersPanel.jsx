@@ -40,6 +40,8 @@ function TransducerModal({ mode, initial, onClose, onSave }) {
   }
 
   async function handleSave() {
+    const hadMinLimit = !isCreate && Object.prototype.hasOwnProperty.call(initial || {}, 'min_limit');
+    const hadMaxLimit = !isCreate && Object.prototype.hasOwnProperty.call(initial || {}, 'max_limit');
     const next = {
       ...draft,
       name: String(draft.name || '').trim(),
@@ -51,8 +53,14 @@ function TransducerModal({ mode, initial, onClose, onSave }) {
       description: String(draft.description || '').trim(),
     }
 
-    if (next.min_limit === '') delete next.min_limit;
-    if (next.max_limit === '') delete next.max_limit;
+    if (next.min_limit === '') {
+      if (hadMinLimit) next.min_limit = null;
+      else delete next.min_limit;
+    }
+    if (next.max_limit === '') {
+      if (hadMaxLimit) next.max_limit = null;
+      else delete next.max_limit;
+    }
 
     if (!next.name) {
       setError('Name is required');
