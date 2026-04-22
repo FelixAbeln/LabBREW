@@ -59,6 +59,7 @@ class SourceRunner:
         self.records: dict[str, SourceRecord] = {}
         self.instances: dict[str, SourceInstance] = {}
         self._source_errors: dict[str, str] = {}
+        self._owned_param_sync_state: dict[str, bool] = {}
 
     def _set_owned_parameters_enabled_state(
         self, record: SourceRecord, *, enabled: bool
@@ -99,6 +100,9 @@ class SourceRunner:
                         force_invalid_reason="",
                     )
                 else:
+                    existing_reason = str(config.get("force_invalid_reason") or "").strip()
+                    if bool(config.get("force_invalid", False)) and existing_reason and existing_reason != DISABLED_PARAMETER_REASON:
+                        continue
                     session.update_config(
                         str(param_name),
                         force_invalid=True,
@@ -125,6 +129,7 @@ class SourceRunner:
         else:
             with self._lock:
                 self._source_errors.pop(record.name, None)
+                self._owned_param_sync_state[record.name] = enabled
 
     def _record_from_payload(
         self, payload: dict[str, Any], *, storage_ref: str
@@ -248,12 +253,14 @@ class SourceRunner:
                 if not _config_enabled(record.config):
                     self._stop_instance_locked(record.name)
                     self._source_errors.pop(record.name, None)
-                    sync_actions.append((record, False))
+                    if self._owned_param_sync_state.get(record.name) is not False:
+                        sync_actions.append((record, False))
                     continue
                 try:
                     self._start_instance_locked(record)
                     self._source_errors.pop(record.name, None)
-                    sync_actions.append((record, True))
+                    if self._owned_param_sync_state.get(record.name) is not True:
+                        sync_actions.append((record, True))
                 except Exception as exc:
                     LOGGER.warning(
                         "Failed to start source '%s': %s; skipping",
@@ -410,4 +417,5 @@ class SourceRunner:
             if delete_owned_parameters:
                 self._delete_owned_parameters(record)
             self.records.pop(name, None)
+            self._owned_param_sync_state.pop(name, None)
             self.repository.delete_record(name)

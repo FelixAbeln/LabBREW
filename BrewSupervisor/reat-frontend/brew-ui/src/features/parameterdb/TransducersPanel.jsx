@@ -78,6 +78,10 @@ function TransducerModal({ mode, initial, onClose, onSave }) {
       setError('Max Limit must be numeric');
       return;
     }
+    if (next.min_limit !== undefined && next.min_limit !== null && next.max_limit !== undefined && next.max_limit !== null && Number(next.min_limit) > Number(next.max_limit)) {
+      setError('Input min and max must satisfy min <= max');
+      return;
+    }
 
     setSaving(true);
     try {

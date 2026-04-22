@@ -260,6 +260,70 @@ def test_source_runner_enable_clears_runner_managed_invalid_reason_only(tmp_path
     ]
 
 
+def test_source_runner_disable_preserves_non_runner_force_invalid_reason(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    runner.create_source("alpha", "fake", config={"enabled": False})
+
+    runner.base_client.config_updates.clear()
+    runner.base_client.describe_payload = {
+        "alpha.temp": {
+            "config": {
+                "force_invalid": True,
+                "force_invalid_reason": "operator hold",
+            },
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            },
+        },
+        "alpha.other": {
+            "config": {},
+            "metadata": {
+                "created_by": "data_source",
+                "owner": "alpha",
+                "source_type": "fake",
+            },
+        },
+    }
+
+    runner.update_source("alpha", config={"enabled": False, "interval": 2})
+
+    assert runner.base_client.config_updates == [
+        (
+            "alpha.other",
+            {
+                "force_invalid": True,
+                "force_invalid_reason": runner_module.DISABLED_PARAMETER_REASON,
+            },
+        )
+    ]
+
+
+def test_source_runner_start_all_skips_redundant_owned_parameter_sync(tmp_path: Path, monkeypatch) -> None:
+    runner, _, _ = _build_runner(tmp_path, monkeypatch)
+    cfg_path = runner._config_path_for_name("alpha")
+    cfg_path.write_text(
+        json.dumps({"name": "alpha", "source_type": "fake", "config": {"enabled": False}}),
+        encoding="utf-8",
+    )
+    runner.load_config_dir()
+
+    sync_calls = {"count": 0}
+
+    def _count_sync(_record, *, enabled: bool):
+        _ = enabled
+        sync_calls["count"] += 1
+        return 0
+
+    monkeypatch.setattr(runner, "_set_owned_parameters_enabled_state", _count_sync)
+
+    runner.start_all()
+    runner.start_all()
+
+    assert sync_calls["count"] == 1
+
+
 def test_source_runner_create_source_reports_owned_parameter_sync_failure_nonfatally(tmp_path: Path, monkeypatch) -> None:
     runner, _, _ = _build_runner(tmp_path, monkeypatch)
 
