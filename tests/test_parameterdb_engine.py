@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import Services.parameterDB.parameterdb_service.engine as engine_module
 from Services.parameterDB.parameterdb_service.engine import ScanEngine
 from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase
 from Services.parameterDB.parameterdb_service.store import ParameterStore
+from Services.parameterDB.parameterdb_service.transducers import TransducerCatalog
 
 
 class FakeBroker:
@@ -487,3 +489,77 @@ def test_scan_engine_database_pipeline_skips_on_plugin_error() -> None:
 
     assert store.get_value("target") == 9.0
     assert store.get_record("bad").state["last_error"] == "scan failed"
+
+
+def test_scan_engine_caches_compiled_transducer_expression_until_equation_changes(monkeypatch) -> None:
+    store = ParameterStore()
+    param = FakeParameter("sensor.pressure", value=2.0, scan_value=2.0)
+    param.update_config(transducer_id="gain")
+    store.add(param)
+
+    transducers = TransducerCatalog(path=None)
+    transducers.create(
+        {
+            "name": "gain",
+            "equation": "2*x",
+            "input_unit": "V",
+            "output_unit": "bar",
+        }
+    )
+
+    compile_calls = {"count": 0}
+    original_compile_expression = engine_module.compile_expression
+
+    def counting_compile_expression(expression: str, *, required: bool = False):
+        compile_calls["count"] += 1
+        return original_compile_expression(expression, required=required)
+
+    monkeypatch.setattr(engine_module, "compile_expression", counting_compile_expression)
+
+    engine = ScanEngine(period_s=0.01, store=store, transducers=transducers)
+    engine.scan_once(dt=0.1)
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 1
+    assert store.get_record("sensor.pressure").value == 4.0
+
+    transducers.update(
+        "gain",
+        {
+            "equation": "3*x",
+        },
+    )
+
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 2
+    assert store.get_record("sensor.pressure").value == 6.0
+
+
+def test_scan_engine_caches_compiled_calibration_expression_until_equation_changes(monkeypatch) -> None:
+    store = ParameterStore()
+    param = FakeParameter("sensor.temp", value=2.0, scan_value=2.0)
+    param.update_config(calibration_equation="2*x")
+    store.add(param)
+
+    compile_calls = {"count": 0}
+    original_compile_expression = engine_module.compile_expression
+
+    def counting_compile_expression(expression: str, *, required: bool = False):
+        compile_calls["count"] += 1
+        return original_compile_expression(expression, required=required)
+
+    monkeypatch.setattr(engine_module, "compile_expression", counting_compile_expression)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 1
+    assert store.get_record("sensor.temp").value == 4.0
+
+    param.update_config(calibration_equation="3*x")
+    engine.scan_once(dt=0.1)
+
+    assert compile_calls["count"] == 2
+    assert store.get_record("sensor.temp").value == 6.0

@@ -647,6 +647,33 @@ class ControlRuntime:
                 deduped.append(reason)
             return True, ", ".join(deduped)
 
+        def _merge_parameter_invalid_info(
+            *params: dict[str, Any] | None,
+        ) -> tuple[bool, str | None]:
+            reasons: list[str] = []
+            for param in params:
+                invalid, reason = _parameter_invalid_info(param)
+                if not invalid:
+                    continue
+                text = str(reason or "").strip()
+                if text:
+                    reasons.extend(part.strip() for part in text.split(",") if part.strip())
+                else:
+                    reasons.append("invalid")
+
+            if not reasons:
+                return False, None
+
+            deduped: list[str] = []
+            seen: set[str] = set()
+            for reason in reasons:
+                key = reason.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(reason)
+            return True, ", ".join(deduped)
+
         for control in resolved_controls:
             if not isinstance(control, dict):
                 continue
@@ -774,7 +801,10 @@ class ControlRuntime:
                     vt_param = (
                         parameters_by_name.get(value_target) if value_target else None
                     )
-                    parameter_invalid, parameter_invalid_reason = _parameter_invalid_info(param)
+                    parameter_invalid, parameter_invalid_reason = _merge_parameter_invalid_info(
+                        param,
+                        vt_param,
+                    )
                     item: dict[str, Any] = {
                         "id": control.get("id") or map_item.get("id") or target,
                         "label": map_item.get("label")
@@ -831,10 +861,15 @@ class ControlRuntime:
                     meta_widget_hint = str(meta.get("widget_hint") or "").strip()
                     meta_value_target = _normalize_target(meta.get("value_target"))
                     extra: dict[str, Any] = {}
+                    parameter_invalid, parameter_invalid_reason = _parameter_invalid_info(parameter)
                     if meta_widget_hint == "number_button" and meta_value_target:
                         widget = "number_button"
                         write = {"kind": "pulse", "value": True}
                         vt_param = parameters_by_name.get(meta_value_target)
+                        parameter_invalid, parameter_invalid_reason = _merge_parameter_invalid_info(
+                            parameter,
+                            vt_param,
+                        )
                         extra = {
                             "value_target": meta_value_target,
                             "value_write": {

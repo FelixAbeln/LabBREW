@@ -70,6 +70,7 @@ class ScanEngine:
         self._write_target_map: dict[str, list[str]] = {}
         self._pipeline_cache_lock = threading.RLock()
         self._calibration_cache: dict[str, CompiledExpression | None] = {}
+        self._transducer_expr_cache: dict[str, tuple[str, CompiledExpression]] = {}
         self._calibration_input_cache: dict[str, Any] = {}
         self._calibration_output_cache: dict[str, Any] = {}
         self._transducer_input_cache: dict[str, Any] = {}
@@ -401,7 +402,13 @@ class ScanEngine:
             raise ValueError(f"transducer '{transducer_id}' requires a non-empty equation")
 
         try:
-            compiled = compile_expression(equation, required=True)
+            with self._pipeline_cache_lock:
+                cached = self._transducer_expr_cache.get(transducer_id)
+                if cached is not None and cached[0] == equation:
+                    compiled = cached[1]
+                else:
+                    compiled = compile_expression(equation, required=True)
+                    self._transducer_expr_cache[transducer_id] = (equation, compiled)
             mapped = evaluate_expression(
                 compiled.tree,
                 {
