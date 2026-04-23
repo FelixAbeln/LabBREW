@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FermenterSidebar } from '../fermenters/FermenterSidebar';
 import { FermenterTabsHeader } from '../fermenters/FermenterTabsHeader';
 
@@ -26,6 +26,7 @@ export function AppShell({
 }) {
   const sidebarDockRef = useRef(null);
   const [dismissedError, setDismissedError] = useState('');
+  const [sidebarPeek, setSidebarPeek] = useState(false);
 
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
@@ -34,6 +35,7 @@ export function AppShell({
       return false;
     }
   });
+  const showFermenterSidebar = Array.isArray(fermenters) && fermenters.length > 1;
 
   useEffect(() => {
     try {
@@ -44,7 +46,7 @@ export function AppShell({
   }, [sidebarHidden]);
 
   useEffect(() => {
-    if (sidebarHidden) return undefined;
+    if (!showFermenterSidebar || sidebarHidden) return undefined;
 
     function handleOutsideClick(event) {
       const dock = sidebarDockRef.current;
@@ -61,9 +63,34 @@ export function AppShell({
     return () => {
       window.removeEventListener('click', handleOutsideClick);
     };
-  }, [sidebarHidden]);
+  }, [showFermenterSidebar, sidebarHidden]);
 
   const visibleError = error && error !== dismissedError ? error : '';
+
+  useLayoutEffect(() => {
+    if (!showFermenterSidebar) {
+      setSidebarPeek(false);
+      setSidebarHidden(true);
+      return undefined;
+    }
+
+    setSidebarHidden(true);
+    setSidebarPeek(true);
+    const timeoutId = window.setTimeout(() => setSidebarPeek(false), 950);
+    return () => window.clearTimeout(timeoutId);
+  }, [showFermenterSidebar]);
+
+  useEffect(() => {
+    if (!showFermenterSidebar) return;
+    if (!sidebarHidden) {
+      setSidebarPeek(false);
+    }
+  }, [showFermenterSidebar, sidebarHidden]);
+
+  useEffect(() => {
+    if (showFermenterSidebar) return;
+    setSidebarHidden(true);
+  }, [showFermenterSidebar]);
 
   return (
     <div className="app-shell">
@@ -95,28 +122,30 @@ export function AppShell({
         </div>
       )}
 
-      <div ref={sidebarDockRef} className={`sidebar-dock ${sidebarHidden ? 'is-collapsed' : ''}`}>
-        <div className="sidebar-dock-panel">
-          <FermenterSidebar
-            fermenters={fermenters}
-            selectedId={selected?.id || null}
-            onSelect={onSelect}
-          />
-          <button
-            className="sidebar-dock-toggle"
-            type="button"
-            onClick={() => setSidebarHidden((current) => !current)}
-            aria-label={sidebarHidden ? 'Expand fermenter sidebar' : 'Collapse fermenter sidebar'}
-            title={sidebarHidden ? 'Show fermenters' : 'Hide fermenters'}
-          >
-            <span className="sidebar-dock-toggle-menu" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </span>
-          </button>
+      {showFermenterSidebar ? (
+        <div ref={sidebarDockRef} className={`sidebar-dock ${sidebarHidden ? 'is-collapsed' : 'is-open'} ${sidebarPeek ? 'is-peeking' : ''}`}>
+          <div className="sidebar-dock-panel">
+            <FermenterSidebar
+              fermenters={fermenters}
+              selectedId={selected?.id || null}
+              onSelect={onSelect}
+            />
+            <button
+              className="sidebar-dock-toggle"
+              type="button"
+              onClick={() => setSidebarHidden((current) => !current)}
+              aria-label={sidebarHidden ? 'Expand fermenter sidebar' : 'Collapse fermenter sidebar'}
+              title={sidebarHidden ? 'Show fermenters' : 'Hide fermenters'}
+            >
+              <span className="sidebar-dock-toggle-menu" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="main-grid">
         <section className={`content-column ${selected ? '' : 'content-column-empty'}`.trim()}>

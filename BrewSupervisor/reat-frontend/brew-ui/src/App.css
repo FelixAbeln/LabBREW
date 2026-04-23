@@ -136,6 +136,10 @@ input {
   opacity: 0.98;
 }
 
+.sidebar-dock.is-peeking .sidebar-dock-panel {
+  animation: fermenter-sidebar-peek 900ms ease;
+}
+
 /* Prevent the hidden (off-canvas) part of the collapsed sidebar from stealing clicks. */
 .sidebar-dock.is-collapsed {
   pointer-events: none;
@@ -935,6 +939,18 @@ input {
   }
   100% {
     transform: translateX(calc(var(--drawer-width) - 34px));
+  }
+}
+
+@keyframes fermenter-sidebar-peek {
+  0% {
+    transform: translateX(calc(-1 * var(--drawer-width) + 34px));
+  }
+  45% {
+    transform: translateX(calc(-1 * var(--drawer-width) + 92px));
+  }
+  100% {
+    transform: translateX(calc(-1 * var(--drawer-width) + 34px));
   }
 }
 
