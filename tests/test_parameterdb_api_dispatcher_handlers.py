@@ -81,6 +81,18 @@ class StubServer:
     def api_subscribe(self, _request_handler, *, req_id, payload):
         return {"handler": "subscribe", "req_id": req_id, "payload": payload}
 
+    def api_list_transducers(self, payload):
+        return {"handler": "list_transducers", "payload": payload}
+
+    def api_create_transducer(self, payload):
+        return {"handler": "create_transducer", "payload": payload}
+
+    def api_update_transducer(self, payload):
+        return {"handler": "update_transducer", "payload": payload}
+
+    def api_delete_transducer(self, payload):
+        return {"handler": "delete_transducer", "payload": payload}
+
 
 
 def test_dispatcher_register_dispatch_and_streaming_lookup() -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,23 @@ from .base import DataSourceSpec
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _load_py_module(path: str | Path) -> Any:
+    module_path = Path(path)
+    module_name = f"source_{module_path.stem}_{abs(hash(str(module_path.resolve())))}"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load module from '{module_path}'")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
 
 
 def _call_ui_spec_provider(provider: Any, *, record: dict[str, Any] | None, mode: str | None) -> Any:

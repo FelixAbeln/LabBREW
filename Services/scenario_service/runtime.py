@@ -828,7 +828,18 @@ class ScenarioRuntime:
                         for target in (runner_status.get("owned_targets") or [])
                         if str(target).strip()
                     ]
-                    still_blocked = self._wait_for_targets_release(blocked_targets)
+                    try:
+                        still_blocked = self._wait_for_targets_release(blocked_targets)
+                    except Exception as exc:  # noqa: BLE001
+                        self._append_event(
+                            f"Queue: failed to verify control ownership before stepping: {exc}"
+                        )
+                        self._persist_locked()
+                        return {
+                            "ok": False,
+                            "error": f"Failed to verify control ownership: {exc}",
+                            "state": runner_state,
+                        }
                     if still_blocked:
                         self._append_event(
                             "Queue: timed out waiting for control release before stepping; queue blocked"

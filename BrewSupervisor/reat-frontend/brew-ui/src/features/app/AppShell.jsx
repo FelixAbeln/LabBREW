@@ -25,6 +25,7 @@ export function AppShell({
   children,
 }) {
   const sidebarDockRef = useRef(null);
+  const previousShowFermenterSidebarRef = useRef(false);
   const [dismissedError, setDismissedError] = useState('');
   const [sidebarPeek, setSidebarPeek] = useState(false);
 
@@ -68,17 +69,28 @@ export function AppShell({
   const visibleError = error && error !== dismissedError ? error : '';
 
   useLayoutEffect(() => {
+    const wasShowingSidebar = previousShowFermenterSidebarRef.current;
+    previousShowFermenterSidebarRef.current = showFermenterSidebar;
+
     if (!showFermenterSidebar) {
       setSidebarPeek(false);
       setSidebarHidden(true);
       return undefined;
     }
 
-    setSidebarHidden(true);
+    if (wasShowingSidebar) {
+      return undefined;
+    }
+
+    if (!sidebarHidden) {
+      setSidebarPeek(false);
+      return undefined;
+    }
+
     setSidebarPeek(true);
     const timeoutId = window.setTimeout(() => setSidebarPeek(false), 950);
     return () => window.clearTimeout(timeoutId);
-  }, [showFermenterSidebar]);
+  }, [showFermenterSidebar, sidebarHidden]);
 
   useEffect(() => {
     if (!showFermenterSidebar) return;
