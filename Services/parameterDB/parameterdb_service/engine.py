@@ -723,6 +723,8 @@ class ScanEngine:
             try:
                 dep_param = self.store._get_runtime_param(dep)
             except KeyError:
+                # Missing dependency references are configuration-invalid for scan.
+                invalid.append(dep)
                 continue
             if dep_param.state.get("parameter_valid") is False:
                 invalid.append(dep)

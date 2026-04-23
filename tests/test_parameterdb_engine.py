@@ -260,6 +260,32 @@ def test_scan_engine_skips_dependents_of_invalid_parameter_and_recovers() -> Non
     assert "dependency_invalid_parameters" not in second.state
 
 
+def test_scan_engine_marks_parameter_invalid_when_dependency_is_missing() -> None:
+    class DependentParameter(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=10.0, deps=["missing.dep"])
+            self.scan_calls = 0
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(20.0)
+
+    store = ParameterStore()
+    dependent = DependentParameter("derived")
+    store.add(dependent)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    record = store.get_record("derived")
+    assert dependent.scan_calls == 0
+    assert record.value == 10.0
+    assert record.state["parameter_valid"] is False
+    assert record.state["parameter_invalid_reasons"] == ["dependency"]
+    assert record.state["dependency_invalid_parameters"] == ["missing.dep"]
+    assert record.state["connected"] is False
+
+
 def test_scan_engine_init_and_desired_period_variants() -> None:
     engine = ScanEngine(period_s=0.01, mode="invalid", target_utilization=5.0, min_period_s=-1.0, max_period_s=0.001)
 
