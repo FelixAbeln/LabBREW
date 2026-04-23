@@ -715,18 +715,20 @@ class ScanEngine:
             self._write_target_map = write_target_map
             self._cached_store_revision = rev
 
-    def _invalid_dependency_names(self, param_name: str) -> list[str]:
+    def _dependency_status(self, param_name: str) -> tuple[list[str], list[str]]:
         with self._graph_lock:
             deps = list(self._dependency_map.get(param_name, ()))
+        missing: list[str] = []
         invalid: list[str] = []
         for dep in deps:
             try:
                 dep_param = self.store._get_runtime_param(dep)
             except KeyError:
+                missing.append(dep)
                 continue
             if dep_param.state.get("parameter_valid") is False:
                 invalid.append(dep)
-        return invalid
+        return missing, invalid
 
     def get_scan_order(self) -> list[str]:
         self._rebuild_graph_if_needed()
@@ -794,12 +796,15 @@ class ScanEngine:
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
 
-            invalid_dependencies = self._invalid_dependency_names(name)
-            if invalid_dependencies:
+            missing_dependencies, invalid_dependencies = self._dependency_status(name)
+            if missing_dependencies or invalid_dependencies:
                 self.invalidate_database_pipeline_runtime(name)
+                dependency_failures = list(
+                    dict.fromkeys([*missing_dependencies, *invalid_dependencies])
+                )
                 param.state["parameter_valid"] = False
                 param.state["parameter_invalid_reasons"] = ["dependency"]
-                param.state["dependency_invalid_parameters"] = invalid_dependencies
+                param.state["dependency_invalid_parameters"] = dependency_failures
                 param.state["last_error"] = ""
                 param.state["connected"] = False
                 new_value = param.get_value()
@@ -847,6 +852,7 @@ class ScanEngine:
                         param.state["last_error"] = pipeline_error
                 else:
                     self.invalidate_database_pipeline_runtime(name)
+
             new_value = param.get_value()
             error_text = str(param.state.get("last_error", "") or "").strip()
             parameter_invalid = param.state.get("parameter_valid") is False

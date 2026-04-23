@@ -72,7 +72,11 @@ def test_api_condition_parameter_reports_missing_source() -> None:
 
     assert server.api_get_value({"name": "reactor.ready"}) is True
     records = server.api_describe({})
-    assert records["reactor.ready"]["state"]["last_error"] == "Missing value for missing.signal"
+    state = records["reactor.ready"]["state"]
+    assert state["parameter_valid"] is False
+    assert state["parameter_invalid_reasons"] == ["dependency"]
+    assert state["dependency_invalid_parameters"] == ["missing.signal"]
+    assert state["last_error"] == ""
 
 
 def test_api_condition_parameter_honors_hold_time(monkeypatch) -> None:

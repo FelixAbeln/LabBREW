@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import threading
 import time
 import zipfile
@@ -1203,7 +1204,13 @@ class TestScenarioRuntimeScriptedRunner:
 
 def _load_real_lbpkg(path: str) -> dict:
     """Load a .lbpkg and return the manifest + artifacts as a payload dict."""
-    with open(path, "rb") as fh:
+    pkg_path = Path(path)
+    if not pkg_path.exists():
+        if str(os.getenv("CI", "")).strip().lower() in {"1", "true", "yes", "on"}:
+            pytest.fail(f"Scenario package required in CI but not found: {path}")
+        pytest.skip(f"Scenario package not available in workspace: {path}")
+
+    with open(pkg_path, "rb") as fh:
         raw = fh.read()
     with zipfile.ZipFile(io.BytesIO(raw)) as zf:
         manifest = msgpack.unpackb(zf.read("scenario.package.msgpack"), raw=False)

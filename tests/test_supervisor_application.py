@@ -7,6 +7,8 @@ from Supervisor.application.supervisor import TopologySupervisor
 
 def _build_supervisor_stub() -> TopologySupervisor:
     supervisor = object.__new__(TopologySupervisor)
+    supervisor.node_id = "test-node"
+    supervisor.node_name = "Test Node"
     supervisor._repo_status_cache = {
         "checked_at": 123.0,
         "status": {

@@ -83,4 +83,8 @@ def test_api_lowpass_parameter_missing_source_sets_error_and_keeps_output() -> N
 
     assert server.api_get_value({"name": "signal_lp"}) == 3.0
     records = server.api_describe({})
-    assert "missing source parameter" in records["signal_lp"]["state"]["last_error"]
+    state = records["signal_lp"]["state"]
+    assert state["parameter_valid"] is False
+    assert state["parameter_invalid_reasons"] == ["dependency"]
+    assert state["dependency_invalid_parameters"] == ["signal"]
+    assert state["last_error"] == ""

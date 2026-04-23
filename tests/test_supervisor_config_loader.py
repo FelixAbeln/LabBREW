@@ -147,8 +147,8 @@ services:
         YamlTopologyLoader().load(config_path, agent_port=9000)
 
     assert str(exc2.value) == (
-        "Service 'schedule_service'.backends['database.local'] uses url_flag with external HTTP capability "
-        "that does not target Supervisor Agent port 9000"
+      "Service 'scenario_service'.backends['database.local'] uses url_flag with external HTTP capability "
+      "that does not target Supervisor Agent port 9000"
     )
 
 

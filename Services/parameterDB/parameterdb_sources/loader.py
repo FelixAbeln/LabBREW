@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import hashlib
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,25 @@ from .base import DataSourceSpec
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _load_py_module(path: str | Path) -> Any:
+    module_path = Path(path)
+    resolved_path = str(module_path.resolve(strict=False)).casefold()
+    stable_suffix = hashlib.sha1(resolved_path.encode("utf-8")).hexdigest()[:12]
+    module_name = f"source_{module_path.stem}_{stable_suffix}"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load module from '{module_path}'")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
 
 
 def _call_ui_spec_provider(provider: Any, *, record: dict[str, Any] | None, mode: str | None) -> Any:
@@ -228,6 +249,13 @@ def _extract_ui_actions(ui_module: Any | None) -> Any | None:
     return None
 
 
+def _is_package_import_failure(exc: ModuleNotFoundError, module_name: str) -> bool:
+    missing = str(getattr(exc, "name", "") or "").strip()
+    if not missing:
+        return False
+    return module_name == missing or module_name.startswith(f"{missing}.")
+
+
 def load_source_folder(
     folder: str | Path, registry: DataSourceRegistry
 ) -> LoadedSourceType:
@@ -239,12 +267,32 @@ def load_source_folder(
     if not service_file.exists():
         raise FileNotFoundError(f"Missing service.py in '{path}'")
 
-    module_base = _folder_to_module_base(path)
-
-    service_module = importlib.import_module(f"{module_base}.service")
-    ui_module = (
-        importlib.import_module(f"{module_base}.ui") if ui_file.exists() else None
-    )
+    try:
+        module_base = _folder_to_module_base(path)
+    except ValueError:
+        # Fallback for datasource folders that are not importable Python packages.
+        service_module = _load_py_module(service_file)
+        ui_module = _load_py_module(ui_file) if ui_file.exists() else None
+    else:
+        service_module_name = f"{module_base}.service"
+        ui_module_name = f"{module_base}.ui"
+        try:
+            service_module = importlib.import_module(service_module_name)
+        except ModuleNotFoundError as exc:
+            if not _is_package_import_failure(exc, service_module_name):
+                raise
+            service_module = _load_py_module(service_file)
+            ui_module = _load_py_module(ui_file) if ui_file.exists() else None
+        else:
+            if ui_file.exists():
+                try:
+                    ui_module = importlib.import_module(ui_module_name)
+                except ModuleNotFoundError as exc:
+                    if not _is_package_import_failure(exc, ui_module_name):
+                        raise
+                    ui_module = _load_py_module(ui_file)
+            else:
+                ui_module = None
 
     spec = getattr(service_module, "SOURCE", None)
     if spec is None:

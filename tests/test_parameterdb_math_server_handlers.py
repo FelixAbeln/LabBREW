@@ -81,8 +81,11 @@ def test_api_math_parameter_missing_symbol_sets_error_and_keeps_output() -> None
     assert server.api_get_value({"name": "linked_density"}) == 9.0
 
     records = server.api_describe({})
-    error_text = records["density_math"]["state"]["last_error"]
-    assert "missing parameters in equation" in error_text
+    state = records["density_math"]["state"]
+    assert state["parameter_valid"] is False
+    assert state["parameter_invalid_reasons"] == ["dependency"]
+    assert state["dependency_invalid_parameters"] == ["density"]
+    assert state["last_error"] == ""
 
 
 def test_api_math_parameter_supports_dotted_parameter_names() -> None:
@@ -146,7 +149,11 @@ def test_db_pipeline_recovers_after_calibration_error_and_applies_mirror() -> No
     )
     server.engine.scan_once(dt=0.1)
     records = server.api_describe({})
-    assert "missing parameters in calibration equation" in records["brewcan.temperature.0"]["state"]["last_error"]
+    state = records["brewcan.temperature.0"]["state"]
+    assert state["parameter_valid"] is False
+    assert state["parameter_invalid_reasons"] == ["dependency"]
+    assert state["dependency_invalid_parameters"] == ["missing_param"]
+    assert state["last_error"] == ""
     assert server.api_get_value({"name": "brewcan.temperature.comp"}) == 0.0
 
     # Fix equation; pipeline should recover on the next scan and apply both
@@ -522,6 +529,8 @@ def test_pipeline_marks_transducer_limit_invalid_independently() -> None:
             "name": "gain2",
             "transducer": {
                 "equation": "2*x",
+                "min_limit": None,
+                "max_limit": None,
                 "input_unit": "V",
                 "output_unit": "bar",
             },
@@ -615,7 +624,10 @@ def test_pipeline_failure_clears_stale_pipeline_state_details() -> None:
     server.engine.scan_once(dt=0.1)
     second = server.api_describe({})["src.temp"]
 
-    assert "missing parameters in calibration equation" in second["state"]["last_error"]
+    assert second["state"]["parameter_valid"] is False
+    assert second["state"]["parameter_invalid_reasons"] == ["dependency"]
+    assert second["state"]["dependency_invalid_parameters"] == ["missing_param"]
+    assert second["state"]["last_error"] == ""
     assert "calibration_input" not in second["state"]
     assert "calibration_output" not in second["state"]
 
