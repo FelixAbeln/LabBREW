@@ -99,11 +99,6 @@ export function AppShell({
     }
   }, [showFermenterSidebar, sidebarHidden]);
 
-  useEffect(() => {
-    if (showFermenterSidebar) return;
-    setSidebarHidden(true);
-  }, [showFermenterSidebar]);
-
   return (
     <div className="app-shell">
       <header className="app-header">
