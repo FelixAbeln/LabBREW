@@ -257,12 +257,18 @@ def load_source_folder(
     if not service_file.exists():
         raise FileNotFoundError(f"Missing service.py in '{path}'")
 
-    module_base = _folder_to_module_base(path)
-
-    service_module = importlib.import_module(f"{module_base}.service")
-    ui_module = (
-        importlib.import_module(f"{module_base}.ui") if ui_file.exists() else None
-    )
+    service_module = None
+    ui_module = None
+    try:
+        module_base = _folder_to_module_base(path)
+        service_module = importlib.import_module(f"{module_base}.service")
+        ui_module = (
+            importlib.import_module(f"{module_base}.ui") if ui_file.exists() else None
+        )
+    except (ValueError, ModuleNotFoundError):
+        # Fallback for datasource folders that are not importable Python packages.
+        service_module = _load_py_module(service_file)
+        ui_module = _load_py_module(ui_file) if ui_file.exists() else None
 
     spec = getattr(service_module, "SOURCE", None)
     if spec is None:
