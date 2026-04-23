@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import hashlib
 import logging
 import sys
 from dataclasses import dataclass
@@ -16,7 +17,9 @@ LOGGER = logging.getLogger(__name__)
 
 def _load_py_module(path: str | Path) -> Any:
     module_path = Path(path)
-    module_name = f"source_{module_path.stem}_{abs(hash(str(module_path.resolve())))}"
+    resolved_path = str(module_path.resolve(strict=False)).casefold()
+    stable_suffix = hashlib.sha1(resolved_path.encode("utf-8")).hexdigest()[:12]
+    module_name = f"source_{module_path.stem}_{stable_suffix}"
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load module from '{module_path}'")
