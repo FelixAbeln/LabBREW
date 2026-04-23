@@ -67,3 +67,22 @@ def test_extract_ui_spec_none_and_load_source_folder_missing_source(monkeypatch,
 
     with pytest.raises(ValueError, match="must define SOURCE"):
         loader.load_source_folder(folder, loader.DataSourceRegistry())
+
+
+def test_load_source_folder_does_not_mask_dependency_module_not_found(monkeypatch, tmp_path: Path) -> None:
+    folder = tmp_path / "Services" / "parameterDB" / "sourceDefs" / "dep_missing"
+    folder.mkdir(parents=True)
+    (folder / "service.py").write_text("# marker\n", encoding="utf-8")
+
+    def _raise_missing_dependency(_name: str):
+        raise ModuleNotFoundError("No module named 'third_party_dep'", name="third_party_dep")
+
+    monkeypatch.setattr(loader.importlib, "import_module", _raise_missing_dependency)
+
+    def _unexpected_fallback(_path):
+        raise AssertionError("fallback loader should not run for dependency import errors")
+
+    monkeypatch.setattr(loader, "_load_py_module", _unexpected_fallback)
+
+    with pytest.raises(ModuleNotFoundError, match="third_party_dep"):
+        loader.load_source_folder(folder, loader.DataSourceRegistry())

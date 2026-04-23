@@ -246,6 +246,13 @@ def _extract_ui_actions(ui_module: Any | None) -> Any | None:
     return None
 
 
+def _is_package_import_failure(exc: ModuleNotFoundError, module_name: str) -> bool:
+    missing = str(getattr(exc, "name", "") or "").strip()
+    if not missing:
+        return False
+    return module_name == missing or module_name.startswith(f"{missing}.")
+
+
 def load_source_folder(
     folder: str | Path, registry: DataSourceRegistry
 ) -> LoadedSourceType:
@@ -257,18 +264,32 @@ def load_source_folder(
     if not service_file.exists():
         raise FileNotFoundError(f"Missing service.py in '{path}'")
 
-    service_module = None
-    ui_module = None
     try:
         module_base = _folder_to_module_base(path)
-        service_module = importlib.import_module(f"{module_base}.service")
-        ui_module = (
-            importlib.import_module(f"{module_base}.ui") if ui_file.exists() else None
-        )
-    except (ValueError, ModuleNotFoundError):
+    except ValueError:
         # Fallback for datasource folders that are not importable Python packages.
         service_module = _load_py_module(service_file)
         ui_module = _load_py_module(ui_file) if ui_file.exists() else None
+    else:
+        service_module_name = f"{module_base}.service"
+        ui_module_name = f"{module_base}.ui"
+        try:
+            service_module = importlib.import_module(service_module_name)
+        except ModuleNotFoundError as exc:
+            if not _is_package_import_failure(exc, service_module_name):
+                raise
+            service_module = _load_py_module(service_file)
+            ui_module = _load_py_module(ui_file) if ui_file.exists() else None
+        else:
+            if ui_file.exists():
+                try:
+                    ui_module = importlib.import_module(ui_module_name)
+                except ModuleNotFoundError as exc:
+                    if not _is_package_import_failure(exc, ui_module_name):
+                        raise
+                    ui_module = _load_py_module(ui_file)
+            else:
+                ui_module = None
 
     spec = getattr(service_module, "SOURCE", None)
     if spec is None:
