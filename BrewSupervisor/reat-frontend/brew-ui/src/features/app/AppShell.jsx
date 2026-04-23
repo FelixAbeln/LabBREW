@@ -129,7 +129,7 @@ export function AppShell({
       )}
 
       {showFermenterSidebar ? (
-        <div ref={sidebarDockRef} className={`sidebar-dock ${sidebarHidden ? 'is-collapsed' : 'is-open'} ${sidebarPeek ? 'is-peeking' : ''}`}>
+        <div ref={sidebarDockRef} className={`sidebar-dock ${sidebarHidden ? 'is-collapsed' : ''} ${sidebarPeek ? 'is-peeking' : ''}`.trim()}>
           <div className="sidebar-dock-panel">
             <FermenterSidebar
               fermenters={fermenters}
