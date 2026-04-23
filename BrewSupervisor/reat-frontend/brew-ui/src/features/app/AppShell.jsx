@@ -74,7 +74,6 @@ export function AppShell({
 
     if (!showFermenterSidebar) {
       setSidebarPeek(false);
-      setSidebarHidden(true);
       return undefined;
     }
 
