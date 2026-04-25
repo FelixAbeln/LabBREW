@@ -119,6 +119,7 @@ class DataRecordingRuntime:
                 current_time = time.time()
                 sleep_time = _IDLE_SLEEP_INTERVAL  # Default: 100ms when not recording
                 sample_due = False
+                target_interval: float | None = None
 
                 # Phase 1: check under lock whether a sample is due this cycle.
                 # _validity_last_refresh is also read here so all reads/writes of
@@ -159,6 +160,15 @@ class DataRecordingRuntime:
                     # even when describe() returns no usable data or fails.
                     if refresh_due:
                         self._refresh_validity_cache()
+
+                    # Recompute sleep after refresh I/O so slow describe() calls do not
+                    # add an extra stale fixed sleep from earlier in the loop.
+                    if target_interval is not None:
+                        elapsed_since_sample = time.time() - last_write_time
+                        sleep_time = max(
+                            _MIN_SAMPLE_SLEEP,
+                            target_interval - elapsed_since_sample,
+                        )
 
                 time.sleep(sleep_time)
 
