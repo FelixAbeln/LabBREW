@@ -36,7 +36,7 @@ class FakeBackend:
         return {name: data.get(name) for name in names}
 
     def get_value(self, name: str):
-        return self._values.get(name)
+        return self._snapshot.get(name)
 
     def describe(self) -> dict:
         if self._describe_raises is not None:
