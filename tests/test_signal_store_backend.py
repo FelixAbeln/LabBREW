@@ -11,8 +11,10 @@ class _FakeClient:
         self.raise_set = False
         self.raise_get = False
         self.raise_snapshot = False
+        self.raise_snapshot_names = False
         self.raise_describe = False
         self.raise_create = False
+        self.snapshot_names_calls = 0
         self.last_created = None
 
     def ping(self):
@@ -40,6 +42,12 @@ class _FakeClient:
         if self.raise_snapshot:
             raise RuntimeError("snapshot failed")
         return dict(self.values)
+
+    def snapshot_names(self, names):
+        self.snapshot_names_calls += 1
+        if self.raise_snapshot_names:
+            raise RuntimeError("snapshot_names failed")
+        return {name: self.values.get(name) for name in names}
 
     def describe(self):
         if self.raise_describe:
@@ -77,6 +85,37 @@ def test_backend_success_paths_with_client(monkeypatch) -> None:
     assert backend.describe() == {"items": 3}
 
 
+def test_backend_snapshot_falls_back_when_snapshot_names_unavailable(monkeypatch) -> None:
+    class _NoSnapshotNamesClient:
+        def __init__(self):
+            self.values = {"alpha": 10, "beta": 20}
+
+        def ping(self):
+            return "pong"
+
+        def get_value(self, name, default=None):
+            return self.values.get(name, default)
+
+        def set_value(self, name, value):
+            self.values[name] = value
+            return True
+
+        def snapshot(self):
+            return dict(self.values)
+
+        def describe(self):
+            return {"items": len(self.values)}
+
+        def create_parameter(self, *_args, **_kwargs):
+            return None
+
+    fake = _NoSnapshotNamesClient()
+    monkeypatch.setattr(backend_module, "SignalSession", lambda **_kwargs: fake)
+    backend = SignalStoreBackend()
+
+    assert backend.snapshot(["alpha", "missing"]) == {"alpha": 10, "missing": None}
+
+
 def test_backend_tolerates_client_exceptions(monkeypatch) -> None:
     fake = _FakeClient()
     fake.raise_ping = True
@@ -96,3 +135,24 @@ def test_backend_tolerates_client_exceptions(monkeypatch) -> None:
     backend.ensure_parameter("x")
     assert backend.full_snapshot() == {}
     assert backend.describe() == {}
+
+
+def test_backend_snapshot_short_circuits_empty_names(monkeypatch) -> None:
+    fake = _FakeClient()
+    fake.raise_snapshot_names = True
+    monkeypatch.setattr(backend_module, "SignalSession", lambda **_kwargs: fake)
+    backend = SignalStoreBackend()
+
+    assert backend.snapshot([]) == {}
+    assert fake.snapshot_names_calls == 0
+
+
+def test_backend_snapshot_falls_back_when_snapshot_names_raises(monkeypatch) -> None:
+    fake = _FakeClient()
+    fake.values = {"alpha": 10, "beta": 20}
+    fake.raise_snapshot_names = True
+    monkeypatch.setattr(backend_module, "SignalSession", lambda **_kwargs: fake)
+    backend = SignalStoreBackend()
+
+    assert backend.snapshot(["alpha", "missing"]) == {"alpha": 10, "missing": None}
+    assert fake.snapshot_names_calls == 1

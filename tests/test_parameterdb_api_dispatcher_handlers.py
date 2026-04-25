@@ -33,6 +33,9 @@ class StubServer:
     def api_snapshot(self, payload):
         return {"handler": "snapshot", "payload": payload}
 
+    def api_snapshot_names(self, payload):
+        return {"handler": "snapshot_names", "payload": payload}
+
     def api_export_snapshot(self, payload):
         return {"handler": "export_snapshot", "payload": payload}
 
@@ -140,6 +143,7 @@ def test_register_general_handlers_wires_expected_commands() -> None:
     assert server.dispatcher.dispatch("ping", {}) == "pong"
     assert server.dispatcher.dispatch("stats", {})["handler"] == "stats"
     assert server.dispatcher.dispatch("snapshot", {})["handler"] == "snapshot"
+    assert server.dispatcher.dispatch("snapshot_names", {"names": ["alpha"]})["handler"] == "snapshot_names"
     assert server.dispatcher.dispatch("export_snapshot", {})["handler"] == "export_snapshot"
     assert server.dispatcher.dispatch("import_snapshot", {"snapshot": {}})["handler"] == "import_snapshot"
     assert server.dispatcher.dispatch("describe", {})["handler"] == "describe"

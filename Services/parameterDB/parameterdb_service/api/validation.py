@@ -125,6 +125,19 @@ def validate_import_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_snapshot_names(payload: dict[str, Any]) -> dict[str, Any]:
+    names = payload.get("names")
+    if not isinstance(names, list):
+        raise ValidationError("Field 'names' must be a list of non-empty strings")
+    if not names:
+        raise ValidationError("Field 'names' must be a non-empty list")
+    if any(not isinstance(name, str) or not name.strip() for name in names):
+        raise ValidationError("Field 'names' must be a list of non-empty strings")
+    return {
+        "names": list(names),
+    }
+
+
 def validate_create_transducer(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "transducer": require_dict(payload, "transducer"),

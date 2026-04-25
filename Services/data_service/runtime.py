@@ -32,6 +32,8 @@ from .storage.writer import FileWriter, FileWriterFactory
 # Sleep durations for the recording loop
 _IDLE_SLEEP_INTERVAL = 0.1  # 100ms when not recording (reduces idle CPU usage)
 _MIN_SAMPLE_SLEEP = 0.0005  # 0.5ms minimum sleep floor to prevent busy-waiting
+_VALIDITY_REFRESH_INTERVAL_S = 0.5  # Re-check parameter validity at most 2 Hz
+_VALIDITY_REFRESH_FAILURE_LOG_INTERVAL_S = 10.0
 _PARQUET_VALIDATION_ATTEMPTS = 4
 _PARQUET_VALIDATION_RETRY_SLEEP_S = 0.02
 DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
@@ -94,6 +96,13 @@ class DataRecordingRuntime:
         self._loadsteps_archive_path: str = ""
         self._loadsteps_archive_format: str = "jsonl"
 
+        # Validity cache: keyed by param name, True = valid, False = invalid.
+        # Refreshed periodically (not per-sample) to keep the recording hot path cheap.
+        self._validity_cache: dict[str, bool] = {}
+        self._validity_last_refresh: float = 0.0
+        self._validity_refresh_failures_since_log: int = 0
+        self._validity_refresh_last_log: float = 0.0
+
     def run(self) -> None:
         """Main runtime loop - runs in background thread."""
         self._running = True
@@ -109,28 +118,66 @@ class DataRecordingRuntime:
             try:
                 current_time = time.time()
                 sleep_time = _IDLE_SLEEP_INTERVAL  # Default: 100ms when not recording
+                sample_due = False
+                target_interval: float | None = None
 
-                # Synchronize shared measurement/loadstep state with API handlers.
+                # Phase 1: check under lock whether a sample is due this cycle.
+                # _validity_last_refresh is also read here so all reads/writes of
+                # that field are under the same lock, avoiding races with measure_start().
+                refresh_due = False
                 with self._lock:
                     if self._recording and self.config:
-                        # Calculate time since last recording
                         elapsed = current_time - last_write_time
                         target_interval = 1.0 / self.config.hz
-
                         if elapsed >= target_interval:
-                            self._record_sample()
-                            last_write_time = current_time
-
-                            # Check and finalize completed loadsteps
-                            self._check_loadsteps()
-
-                            # Sleep until the next sample is due
+                            sample_due = True
+                            refresh_due = (
+                                time.monotonic() - self._validity_last_refresh
+                                >= _VALIDITY_REFRESH_INTERVAL_S
+                            )
                             sleep_time = target_interval
                         else:
-                            # Sleep for remaining time until the next sample
                             sleep_time = max(
                                 _MIN_SAMPLE_SLEEP, target_interval - elapsed
                             )
+
+                if sample_due:
+                    recorded_sample = False
+                    # Phase 2: record the due sample first so backend I/O for validity
+                    # refresh cannot delay the hot sampling path for this cycle.
+                    with self._lock:
+                        if self._recording and self.config:
+                            self._record_sample()
+                            last_write_time = time.time()
+                            self._check_loadsteps()
+                            recorded_sample = True
+
+                    # Phase 3 (outside lock): refresh validity cache after sampling.
+                    # measure_start() resets _validity_last_refresh to 0.0, so the
+                    # first eligible sample still triggers an immediate refresh attempt,
+                    # but refreshed validity applies to subsequent samples instead of
+                    # delaying the sample that is already due.
+                    # _validity_last_refresh is updated inside _refresh_validity_cache()
+                    # under self._lock in a finally block, so retries remain throttled
+                    # even when describe() returns no usable data or fails.
+                    if refresh_due and recorded_sample:
+                        with self._lock:
+                            still_recording = bool(self._recording and self.config)
+                        if still_recording:
+                            self._refresh_validity_cache()
+
+                    # Recompute sleep after any post-sample refresh work so slow
+                    # refresh I/O does not add an extra full interval of delay.
+                    with self._lock:
+                        if self._recording and self.config:
+                            target_interval = 1.0 / self.config.hz
+                            elapsed_since_write = time.time() - last_write_time
+                            sleep_time = max(
+                                _MIN_SAMPLE_SLEEP,
+                                target_interval - elapsed_since_write,
+                            )
+                        else:
+                            sleep_time = _IDLE_SLEEP_INTERVAL
 
                 time.sleep(sleep_time)
 
@@ -311,6 +358,10 @@ class DataRecordingRuntime:
             self._active_loadsteps = []
             self._completed_loadsteps = []
             self._missing_parameters = set()
+            self._validity_cache = {}
+            self._validity_last_refresh = 0.0  # Force a refresh attempt on/after the first due sample (already under lock)
+            self._validity_refresh_failures_since_log = 0
+            self._validity_refresh_last_log = 0.0
             self._initialize_loadstep_archive_file()
 
             return {
@@ -542,6 +593,114 @@ class DataRecordingRuntime:
                 "parameters": params,
             }
 
+    def _refresh_validity_cache(self) -> None:
+        """Refresh validity cache from parameterDB. Called outside the recording lock.
+
+        On success, both the cache and _validity_last_refresh are updated together
+        under self._lock so the run loop (which reads the timestamp under the same
+        lock) never observes a stale timestamp paired with a fresh cache.
+        time.monotonic() is used so the interval is not affected by wall-clock
+        adjustments, and the timestamp is captured *after* the I/O completes so
+        slow describe() calls don't compress the next refresh window.
+        """
+        new_cache: dict[str, bool] | None = None
+        try:
+            with self._lock:
+                configured_params = list(self.config.parameters) if self.config else []
+                existing_cache = dict(self._validity_cache)
+                recording = self._recording
+
+            described = self.backend.describe()
+            if not described:
+                if not self.backend.connected():
+                    raise ConnectionError(
+                        "parameterDB backend unavailable during describe()"
+                    )
+                if recording and existing_cache:
+                    raise RuntimeError(
+                        "parameterDB describe() returned an empty mapping while "
+                        "recording was active and the backend reported connected"
+                    )
+
+            new_cache_data: dict[str, bool] = {}
+            for name in configured_params:
+                payload = described.get(name)
+                if isinstance(payload, dict):
+                    state = payload.get("state")
+                    if isinstance(state, dict):
+                        new_cache_data[name] = (
+                            state.get("parameter_valid") is not False
+                        )
+                    else:
+                        # Preserve the last known validity when describe() returns a
+                        # partial mapping or unusable entry for this parameter.
+                        # If there is no prior value, keep the existing default
+                        # "unknown/treated as valid" behavior.
+                        new_cache_data[name] = existing_cache.get(name, True)
+                else:
+                    # Preserve the last known validity when describe() returns a
+                    # partial mapping or unusable entry for this parameter.
+                    # If there is no prior value, keep the existing default
+                    # "unknown/treated as valid" behavior.
+                    new_cache_data[name] = existing_cache.get(name, True)
+
+            new_cache = new_cache_data
+        except (OSError, ConnectionError, RuntimeError) as exc:
+            # Expected when parameterDB is temporarily unreachable — keep the
+            # existing cache and carry on so recording is not interrupted.
+            self._log_validity_refresh_failure(exc)
+        except Exception:
+            # Unexpected coding error — log prominently so it is not silently lost.
+            import traceback
+            print(f"[data_service] unexpected error in validity refresh:\n{traceback.format_exc()}")
+        finally:
+            # Always record refresh *attempt* time so describe() returning empty data
+            # or transient failures do not trigger per-sample retry storms.
+            # Timestamp is taken here (at completion) so slow describe() I/O does
+            # not shorten the next refresh window.
+            refreshed_at = time.monotonic()
+            with self._lock:
+                # Update both cache and timestamp atomically under one lock so the run
+                # loop never observes a fresh cache paired with a stale timestamp.
+                if new_cache is not None:
+                    self._validity_cache = new_cache
+                    self._validity_refresh_failures_since_log = 0
+                    self._validity_refresh_last_log = 0.0
+                self._validity_last_refresh = refreshed_at
+
+    def _log_validity_refresh_failure(self, exc: Exception) -> None:
+        """Rate-limit repeated expected refresh failures to reduce log spam."""
+        now = time.monotonic()
+        should_log = False
+        suppressed = 0
+        with self._lock:
+            if self._validity_refresh_last_log <= 0.0:
+                should_log = True
+                self._validity_refresh_last_log = now
+                self._validity_refresh_failures_since_log = 0
+            else:
+                prior_failures = self._validity_refresh_failures_since_log
+                self._validity_refresh_failures_since_log += 1
+                if (
+                    (now - self._validity_refresh_last_log)
+                    >= _VALIDITY_REFRESH_FAILURE_LOG_INTERVAL_S
+                ):
+                    should_log = True
+                    # "suppressed" should count only previously unlogged failures,
+                    # not the current failure that is being logged now.
+                    suppressed = prior_failures
+                    self._validity_refresh_failures_since_log = 0
+                    self._validity_refresh_last_log = now
+
+        if should_log:
+            if suppressed:
+                print(
+                    "[data_service] validity refresh failed (will retry): "
+                    f"{exc} ({suppressed} similar failures suppressed)"
+                )
+            else:
+                print(f"[data_service] validity refresh failed (will retry): {exc}")
+
     def _record_sample(self) -> None:
         """Record a single sample of all configured parameters."""
         try:
@@ -551,10 +710,14 @@ class DataRecordingRuntime:
                 "data": {},
             }
 
-            # Read current values from parameterDB
+            # Fetch only configured parameter values in one round-trip.
+            snapshot = self.backend.snapshot(self.config.parameters)
             for param in self.config.parameters:
-                value = self.backend.get_value(param)
-                if value is None:
+                value = snapshot.get(param)
+                if self._validity_cache.get(param) is False:
+                    # Parameter is currently invalid; record None rather than stale data.
+                    value = None
+                elif value is None:
                     self._missing_parameters.add(param)
                 sample["data"][param] = value
 
