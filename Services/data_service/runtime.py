@@ -161,14 +161,18 @@ class DataRecordingRuntime:
                     if refresh_due:
                         self._refresh_validity_cache()
 
-                    # Recompute sleep after refresh I/O so slow describe() calls do not
-                    # add an extra stale fixed sleep from earlier in the loop.
-                    if target_interval is not None:
-                        elapsed_since_sample = time.time() - last_write_time
-                        sleep_time = max(
-                            _MIN_SAMPLE_SLEEP,
-                            target_interval - elapsed_since_sample,
-                        )
+                    # Recompute sleep after any post-sample refresh work so slow
+                    # refresh I/O does not add an extra full interval of delay.
+                    with self._lock:
+                        if self._recording and self.config:
+                            target_interval = 1.0 / self.config.hz
+                            elapsed_since_write = time.time() - last_write_time
+                            sleep_time = max(
+                                _MIN_SAMPLE_SLEEP,
+                                target_interval - elapsed_since_write,
+                            )
+                        else:
+                            sleep_time = _IDLE_SLEEP_INTERVAL
 
                 time.sleep(sleep_time)
 
@@ -605,9 +609,17 @@ class DataRecordingRuntime:
             for name in configured_params:
                 payload = described.get(name)
                 if isinstance(payload, dict):
-                    new_cache_data[name] = (
-                        payload.get("state", {}).get("parameter_valid") is not False
-                    )
+                    state = payload.get("state")
+                    if isinstance(state, dict):
+                        new_cache_data[name] = (
+                            state.get("parameter_valid") is not False
+                        )
+                    else:
+                        # Preserve the last known validity when describe() returns a
+                        # partial mapping or unusable entry for this parameter.
+                        # If there is no prior value, keep the existing default
+                        # "unknown/treated as valid" behavior.
+                        new_cache_data[name] = existing_cache.get(name, True)
                 else:
                     # Preserve the last known validity when describe() returns a
                     # partial mapping or unusable entry for this parameter.
