@@ -601,6 +601,10 @@ class DataRecordingRuntime:
         new_cache: dict[str, bool] | None = None
         try:
             described = self.backend.describe()
+            if not described and not self.backend.connected():
+                raise ConnectionError(
+                    "parameterDB backend unavailable during describe()"
+                )
             with self._lock:
                 configured_params = list(self.config.parameters) if self.config else []
                 existing_cache = dict(self._validity_cache)
@@ -662,13 +666,16 @@ class DataRecordingRuntime:
                 self._validity_refresh_last_log = now
                 self._validity_refresh_failures_since_log = 0
             else:
+                prior_failures = self._validity_refresh_failures_since_log
                 self._validity_refresh_failures_since_log += 1
                 if (
                     (now - self._validity_refresh_last_log)
                     >= _VALIDITY_REFRESH_FAILURE_LOG_INTERVAL_S
                 ):
                     should_log = True
-                    suppressed = self._validity_refresh_failures_since_log
+                    # "suppressed" should count only previously unlogged failures,
+                    # not the current failure that is being logged now.
+                    suppressed = prior_failures
                     self._validity_refresh_failures_since_log = 0
                     self._validity_refresh_last_log = now
 

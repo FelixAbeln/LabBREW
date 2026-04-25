@@ -664,4 +664,33 @@ def test_refresh_validity_cache_logs_suppressed_count_on_periodic_reminder(monke
 
     failures = [msg for msg in messages if "validity refresh failed (will retry)" in msg]
     assert len(failures) == 2
-    assert "3 similar failures suppressed" in failures[1]
+    assert "2 similar failures suppressed" in failures[1]
+
+
+def test_refresh_validity_cache_logs_when_describe_is_empty_and_backend_disconnected(
+    tmp_path: Path, monkeypatch
+) -> None:
+    backend = FakeBackend(
+        connected=False,
+        snapshot={"x": 5.0},
+        describe_result={},
+    )
+    runtime = _runtime(backend)
+    _setup_and_start(runtime, tmp_path, ["x"])
+
+    messages: list[str] = []
+
+    def _capture_print(*args, **_kwargs) -> None:
+        messages.append(" ".join(str(arg) for arg in args))
+
+    monkeypatch.setattr("builtins.print", _capture_print)
+    monkeypatch.setattr(
+        "Services.data_service.runtime._VALIDITY_REFRESH_FAILURE_LOG_INTERVAL_S",
+        3600.0,
+    )
+
+    runtime._refresh_validity_cache()
+    runtime._refresh_validity_cache()
+
+    failures = [msg for msg in messages if "validity refresh failed (will retry)" in msg]
+    assert len(failures) == 1
