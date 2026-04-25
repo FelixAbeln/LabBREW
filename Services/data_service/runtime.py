@@ -32,6 +32,7 @@ from .storage.writer import FileWriter, FileWriterFactory
 # Sleep durations for the recording loop
 _IDLE_SLEEP_INTERVAL = 0.1  # 100ms when not recording (reduces idle CPU usage)
 _MIN_SAMPLE_SLEEP = 0.0005  # 0.5ms minimum sleep floor to prevent busy-waiting
+_VALIDITY_REFRESH_INTERVAL_S = 0.5  # Re-check parameter validity at most 2 Hz
 _PARQUET_VALIDATION_ATTEMPTS = 4
 _PARQUET_VALIDATION_RETRY_SLEEP_S = 0.02
 DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
@@ -94,6 +95,11 @@ class DataRecordingRuntime:
         self._loadsteps_archive_path: str = ""
         self._loadsteps_archive_format: str = "jsonl"
 
+        # Validity cache: keyed by param name, True = valid, False = invalid.
+        # Refreshed periodically (not per-sample) to keep the recording hot path cheap.
+        self._validity_cache: dict[str, bool] = {}
+        self._validity_last_refresh: float = 0.0
+
     def run(self) -> None:
         """Main runtime loop - runs in background thread."""
         self._running = True
@@ -109,6 +115,7 @@ class DataRecordingRuntime:
             try:
                 current_time = time.time()
                 sleep_time = _IDLE_SLEEP_INTERVAL  # Default: 100ms when not recording
+                refresh_validity = False
 
                 # Synchronize shared measurement/loadstep state with API handlers.
                 with self._lock:
@@ -126,11 +133,21 @@ class DataRecordingRuntime:
 
                             # Sleep until the next sample is due
                             sleep_time = target_interval
+
+                            # Flag a validity refresh if due (network I/O done outside lock)
+                            if current_time - self._validity_last_refresh >= _VALIDITY_REFRESH_INTERVAL_S:
+                                self._validity_last_refresh = current_time
+                                refresh_validity = True
                         else:
                             # Sleep for remaining time until the next sample
                             sleep_time = max(
                                 _MIN_SAMPLE_SLEEP, target_interval - elapsed
                             )
+
+                # Refresh validity cache outside the lock so network I/O does not
+                # block concurrent API calls during the hot recording path.
+                if refresh_validity:
+                    self._refresh_validity_cache()
 
                 time.sleep(sleep_time)
 
@@ -311,6 +328,8 @@ class DataRecordingRuntime:
             self._active_loadsteps = []
             self._completed_loadsteps = []
             self._missing_parameters = set()
+            self._validity_cache = {}
+            self._validity_last_refresh = 0.0  # Force a refresh on the first sample
             self._initialize_loadstep_archive_file()
 
             return {
@@ -542,6 +561,20 @@ class DataRecordingRuntime:
                 "parameters": params,
             }
 
+    def _refresh_validity_cache(self) -> None:
+        """Refresh validity cache from parameterDB. Called outside the recording lock."""
+        try:
+            described = self.backend.describe()
+            new_cache: dict[str, bool] = {
+                name: info.get("state", {}).get("parameter_valid") is not False
+                for name, info in described.items()
+                if isinstance(info, dict)
+            }
+            with self._lock:
+                self._validity_cache = new_cache
+        except Exception:
+            pass
+
     def _record_sample(self) -> None:
         """Record a single sample of all configured parameters."""
         try:
@@ -551,11 +584,15 @@ class DataRecordingRuntime:
                 "data": {},
             }
 
-            # Read current values from parameterDB
+            # Fetch all values in a single round-trip instead of one call per parameter.
+            snapshot = self.backend.full_snapshot()
             for param in self.config.parameters:
-                value = self.backend.get_value(param)
+                value = snapshot.get(param)
                 if value is None:
                     self._missing_parameters.add(param)
+                elif self._validity_cache.get(param) is False:
+                    # Parameter is currently invalid; record None rather than stale data.
+                    value = None
                 sample["data"][param] = value
 
             # Store in circular buffer
