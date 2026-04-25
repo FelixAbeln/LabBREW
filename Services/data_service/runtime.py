@@ -151,7 +151,7 @@ class DataRecordingRuntime:
                     with self._lock:
                         if self._recording and self.config:
                             self._record_sample()
-                            last_write_time = current_time
+                            last_write_time = time.time()
                             self._check_loadsteps()
 
                 time.sleep(sleep_time)
