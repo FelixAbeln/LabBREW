@@ -134,7 +134,7 @@ def validate_snapshot_names(payload: dict[str, Any]) -> dict[str, Any]:
     if any(not isinstance(name, str) or not name.strip() for name in names):
         raise ValidationError("Field 'names' must be a list of non-empty strings")
     return {
-        "names": names,
+        "names": list(names),
     }
 
 
