@@ -649,7 +649,7 @@ class DataRecordingRuntime:
             # Expected when parameterDB is temporarily unreachable — keep the
             # existing cache and carry on so recording is not interrupted.
             self._log_validity_refresh_failure(exc)
-        except Exception as exc:
+        except Exception:
             # Unexpected coding error — log prominently so it is not silently lost.
             import traceback
             print(f"[data_service] unexpected error in validity refresh:\n{traceback.format_exc()}")
