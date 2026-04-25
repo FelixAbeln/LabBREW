@@ -118,7 +118,6 @@ class DataRecordingRuntime:
                 sample_due = False
 
                 # Phase 1: check under lock whether a sample is due this cycle.
-                # Phase 1: check under lock whether a sample is due this cycle.
                 # _validity_last_refresh is also read here so all reads/writes of
                 # that field are under the same lock, avoiding races with measure_start().
                 refresh_due = False
