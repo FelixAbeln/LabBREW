@@ -118,12 +118,20 @@ class DataRecordingRuntime:
                 sample_due = False
 
                 # Phase 1: check under lock whether a sample is due this cycle.
+                # Phase 1: check under lock whether a sample is due this cycle.
+                # _validity_last_refresh is also read here so all reads/writes of
+                # that field are under the same lock, avoiding races with measure_start().
+                refresh_due = False
                 with self._lock:
                     if self._recording and self.config:
                         elapsed = current_time - last_write_time
                         target_interval = 1.0 / self.config.hz
                         if elapsed >= target_interval:
                             sample_due = True
+                            refresh_due = (
+                                time.monotonic() - self._validity_last_refresh
+                                >= _VALIDITY_REFRESH_INTERVAL_S
+                            )
                             sleep_time = target_interval
                         else:
                             sleep_time = max(
@@ -134,9 +142,10 @@ class DataRecordingRuntime:
                     # Phase 2 (outside lock): refresh validity cache when empty or due.
                     # This guarantees the very first sample uses a populated cache, and
                     # subsequent refreshes happen before the sample they gate — not after.
-                    if current_time - self._validity_last_refresh >= _VALIDITY_REFRESH_INTERVAL_S:
+                    # _validity_last_refresh is updated inside _refresh_validity_cache()
+                    # under self._lock after the I/O succeeds.
+                    if refresh_due:
                         self._refresh_validity_cache()
-                        self._validity_last_refresh = current_time
 
                     # Phase 3: record sample and maintain loadsteps under lock.
                     with self._lock:
@@ -325,7 +334,7 @@ class DataRecordingRuntime:
             self._completed_loadsteps = []
             self._missing_parameters = set()
             self._validity_cache = {}
-            self._validity_last_refresh = 0.0  # Force a refresh on the first sample
+            self._validity_last_refresh = 0.0  # Force a refresh before the first sample (already under lock)
             self._initialize_loadstep_archive_file()
 
             return {
@@ -558,7 +567,15 @@ class DataRecordingRuntime:
             }
 
     def _refresh_validity_cache(self) -> None:
-        """Refresh validity cache from parameterDB. Called outside the recording lock."""
+        """Refresh validity cache from parameterDB. Called outside the recording lock.
+
+        On success, both the cache and _validity_last_refresh are updated together
+        under self._lock so the run loop (which reads the timestamp under the same
+        lock) never observes a stale timestamp paired with a fresh cache.
+        time.monotonic() is used so the interval is not affected by wall-clock
+        adjustments, and the timestamp is captured *after* the I/O completes so
+        slow describe() calls don't compress the next refresh window.
+        """
         try:
             described = self.backend.describe()
             new_cache: dict[str, bool] = {
@@ -568,6 +585,7 @@ class DataRecordingRuntime:
             }
             with self._lock:
                 self._validity_cache = new_cache
+                self._validity_last_refresh = time.monotonic()
         except (OSError, ConnectionError, RuntimeError) as exc:
             # Expected when parameterDB is temporarily unreachable — keep the
             # existing cache and carry on so recording is not interrupted.

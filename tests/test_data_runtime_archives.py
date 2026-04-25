@@ -10,10 +10,20 @@ from Services.data_service.runtime import DataRecordingRuntime
 
 
 class FakeBackend:
-    def __init__(self, *, connected: bool = True, snapshot: dict | None = None, values: dict | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        connected: bool = True,
+        snapshot: dict | None = None,
+        values: dict | None = None,
+        describe_result: dict | None = None,
+        describe_raises: Exception | None = None,
+    ) -> None:
         self._connected = connected
         self._snapshot = dict(snapshot or {})
         self._values = dict(values or {})
+        self._describe_result = describe_result  # None = not configured
+        self._describe_raises = describe_raises
 
     def connected(self) -> bool:
         return self._connected
@@ -24,6 +34,10 @@ class FakeBackend:
     def get_value(self, name: str):
         return self._values.get(name)
 
+    def describe(self) -> dict:
+        if self._describe_raises is not None:
+            raise self._describe_raises
+        return dict(self._describe_result) if self._describe_result is not None else {}
 
 def _runtime(backend: FakeBackend) -> DataRecordingRuntime:
     runtime = DataRecordingRuntime()
@@ -490,3 +504,104 @@ def test_recovery_sweep_repairs_corrupt_parquet_using_sibling_jsonl(tmp_path: Pa
             "repaired-session.jsonl",
             "repaired-session.loadsteps.jsonl",
         ]
+
+
+# ---------------------------------------------------------------------------
+# Validity-cache / _record_sample unit tests
+# ---------------------------------------------------------------------------
+
+def _setup_and_start(runtime: DataRecordingRuntime, tmp_path, parameters: list[str]) -> None:
+    runtime.setup_measurement(
+        parameters=parameters,
+        hz=10.0,
+        output_dir=str(tmp_path),
+        output_format="jsonl",
+        session_name="validity-test",
+    )
+    runtime.measure_start()
+
+
+def test_record_sample_records_none_for_invalid_parameter_not_as_missing(tmp_path: Path) -> None:
+    """An invalid parameter must be written as None, not tracked in missing_parameters."""
+    backend = FakeBackend(
+        snapshot={"valid.temp": 25.0, "bad.temp": 99.0},
+        describe_result={
+            "valid.temp": {"state": {"parameter_valid": True}},
+            "bad.temp": {"state": {"parameter_valid": False}},
+        },
+    )
+    runtime = _runtime(backend)
+    _setup_and_start(runtime, tmp_path, ["valid.temp", "bad.temp"])
+
+    runtime._refresh_validity_cache()
+    runtime._record_sample()
+
+    sample = runtime._measurement_data[-1]
+    assert sample["data"]["valid.temp"] == 25.0, "valid parameter value should be preserved"
+    assert sample["data"]["bad.temp"] is None, "invalid parameter should be recorded as None"
+    assert "bad.temp" not in runtime._missing_parameters, "invalid param must not appear in missing_parameters"
+
+
+def test_record_sample_preserves_values_for_all_valid_parameters(tmp_path: Path) -> None:
+    """All valid parameters in the snapshot should pass through unchanged."""
+    backend = FakeBackend(
+        snapshot={"a": 1.0, "b": 2.0},
+        describe_result={
+            "a": {"state": {"parameter_valid": True}},
+            "b": {"state": {}},  # no parameter_valid key → treated as valid
+        },
+    )
+    runtime = _runtime(backend)
+    _setup_and_start(runtime, tmp_path, ["a", "b"])
+
+    runtime._refresh_validity_cache()
+    runtime._record_sample()
+
+    sample = runtime._measurement_data[-1]
+    assert sample["data"]["a"] == 1.0
+    assert sample["data"]["b"] == 2.0
+    assert runtime._missing_parameters == set()
+
+
+def test_record_sample_uses_stale_cache_when_describe_fails(tmp_path: Path) -> None:
+    """If describe() raises, the existing cache is kept and recording continues."""
+    backend = FakeBackend(
+        snapshot={"x": 5.0},
+        describe_result={"x": {"state": {"parameter_valid": True}}},
+    )
+    runtime = _runtime(backend)
+    _setup_and_start(runtime, tmp_path, ["x"])
+
+    # Prime the cache with a successful refresh.
+    runtime._refresh_validity_cache()
+    assert runtime._validity_cache.get("x") is True
+
+    # Now make describe() fail and attempt another refresh.
+    backend._describe_raises = OSError("backend down")
+    runtime._refresh_validity_cache()
+
+    # Cache should still contain the previously fetched data.
+    assert runtime._validity_cache.get("x") is True
+
+    # Recording should still work correctly using the stale cache.
+    runtime._record_sample()
+    sample = runtime._measurement_data[-1]
+    assert sample["data"]["x"] == 5.0
+
+
+def test_record_sample_with_empty_describe_treats_all_params_as_valid(tmp_path: Path) -> None:
+    """Empty describe result (e.g. backend not yet populated) should not null out values."""
+    backend = FakeBackend(
+        snapshot={"y": 7.0},
+        describe_result={},
+    )
+    runtime = _runtime(backend)
+    _setup_and_start(runtime, tmp_path, ["y"])
+
+    runtime._refresh_validity_cache()
+    runtime._record_sample()
+
+    sample = runtime._measurement_data[-1]
+    # y is not in the cache (empty describe) → validity_cache.get("y") returns None,
+    # which is not False, so the value should be passed through.
+    assert sample["data"]["y"] == 7.0
