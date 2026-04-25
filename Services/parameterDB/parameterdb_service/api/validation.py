@@ -127,10 +127,12 @@ def validate_import_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
 
 def validate_snapshot_names(payload: dict[str, Any]) -> dict[str, Any]:
     names = payload.get("names")
-    if not isinstance(names, list) or not names:
-        raise ValidationError("Field 'names' must be a non-empty list of non-empty strings")
+    if not isinstance(names, list):
+        raise ValidationError("Field 'names' must be a list of non-empty strings")
     if any(not isinstance(name, str) or not name.strip() for name in names):
-        raise ValidationError("Field 'names' must be a non-empty list of non-empty strings")
+        raise ValidationError("Field 'names' must be a list of non-empty strings")
+    if not names:
+        return {}
     return {
         "names": names,
     }
