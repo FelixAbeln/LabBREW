@@ -586,8 +586,11 @@ class DataRecordingRuntime:
 
             # If describe() returns no usable data (for example because the backend
             # swallowed a transient error and returned {}), keep the existing cache
-            # rather than clearing it.
+            # rather than clearing it, but still record the refresh attempt so
+            # retries remain throttled.
             if not new_cache:
+                with self._lock:
+                    self._validity_last_refresh = time.monotonic()
                 return
 
             with self._lock:
