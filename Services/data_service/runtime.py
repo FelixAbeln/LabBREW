@@ -623,11 +623,11 @@ class DataRecordingRuntime:
             snapshot = self.backend.snapshot(self.config.parameters)
             for param in self.config.parameters:
                 value = snapshot.get(param)
-                if value is None:
-                    self._missing_parameters.add(param)
-                elif self._validity_cache.get(param) is False:
+                if self._validity_cache.get(param) is False:
                     # Parameter is currently invalid; record None rather than stale data.
                     value = None
+                elif value is None:
+                    self._missing_parameters.add(param)
                 sample["data"][param] = value
 
             # Store in circular buffer
