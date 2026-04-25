@@ -15,13 +15,11 @@ class FakeBackend:
         *,
         connected: bool = True,
         snapshot: dict | None = None,
-        values: dict | None = None,
         describe_result: dict | None = None,
         describe_raises: Exception | None = None,
     ) -> None:
         self._connected = connected
         self._snapshot = dict(snapshot or {})
-        self._values = dict(values or {})
         self._describe_result = describe_result  # None = not configured
         self._describe_raises = describe_raises
 
@@ -68,7 +66,7 @@ def test_setup_measurement_reports_missing_parameters_warning(tmp_path: Path) ->
 def test_runtime_records_samples_tracks_missing_parameters_and_finalizes_archive(tmp_path: Path) -> None:
     extra_file = tmp_path / "notes.txt"
     extra_file.write_text("sidecar", encoding="utf-8")
-    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}, values={"temp": 21.5}))
+    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}))
 
     setup = runtime.setup_measurement(
         parameters=["temp", "missing"],
@@ -103,7 +101,7 @@ def test_runtime_records_samples_tracks_missing_parameters_and_finalizes_archive
 
 
 def test_archive_includes_inline_payload_members(tmp_path: Path) -> None:
-    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}, values={"temp": 21.0}))
+    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}))
     package_json = '{"id":"pkg-1","name":"Scenario"}'
     setup = runtime.setup_measurement(
         parameters=["temp"],
@@ -162,7 +160,7 @@ def test_archive_auto_includes_parameterdb_runtime_context_payloads(tmp_path: Pa
         def describe(self) -> dict:
             return {"service": "parameterdb", "status": "ok"}
 
-    runtime = _runtime(BackendWithRuntimeContext(snapshot={"temp": 20.0}, values={"temp": 21.0}))
+    runtime = _runtime(BackendWithRuntimeContext(snapshot={"temp": 20.0}))
     setup = runtime.setup_measurement(
         parameters=["temp"],
         hz=5.0,
@@ -194,7 +192,7 @@ def test_archive_auto_includes_parameterdb_runtime_context_payloads(tmp_path: Pa
 def test_setup_measurement_remaps_session_scoped_include_file_to_stamped_name(
     tmp_path: Path,
 ) -> None:
-    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}, values={"temp": 21.0}))
+    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}))
     requested_log = tmp_path / "lager-1h-test-plan.run.log"
 
     setup = runtime.setup_measurement(
@@ -265,7 +263,7 @@ def test_setup_measurement_validation_and_backend_guardrails(tmp_path: Path) -> 
 
 
 def test_setup_measurement_empty_snapshot_and_parquet_fallback_warning(tmp_path: Path, monkeypatch) -> None:
-    runtime = _runtime(FakeBackend(snapshot={}, values={"x": 1.0}))
+    runtime = _runtime(FakeBackend(snapshot={}))
     monkeypatch.setattr("Services.data_service.runtime.importlib.util.find_spec", lambda _name: None)
 
     result = runtime.setup_measurement(
@@ -283,7 +281,7 @@ def test_setup_measurement_empty_snapshot_and_parquet_fallback_warning(tmp_path:
 
 
 def test_measure_start_stop_and_loadstep_error_paths(tmp_path: Path) -> None:
-    runtime = _runtime(FakeBackend(snapshot={"x": 1.0}, values={"x": 1.0}))
+    runtime = _runtime(FakeBackend(snapshot={"x": 1.0}))
 
     assert runtime.measure_start()["ok"] is False
     assert runtime.measure_stop()["ok"] is False
@@ -304,7 +302,7 @@ def test_measure_start_stop_and_loadstep_error_paths(tmp_path: Path) -> None:
 
 
 def test_measure_stop_without_writer_returns_basic_success(tmp_path: Path) -> None:
-    runtime = _runtime(FakeBackend(snapshot={"x": 1.0}, values={"x": 2.0}))
+    runtime = _runtime(FakeBackend(snapshot={"x": 1.0}))
     runtime.setup_measurement(
         parameters=["x"],
         hz=2.0,
@@ -439,7 +437,7 @@ def test_measure_stop_recovers_corrupt_parquet_to_jsonl_archive(tmp_path: Path) 
             self.path.write_bytes(b"PAR1BROKEN")
             return str(self.path)
 
-    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}, values={"temp": 21.5}))
+    runtime = _runtime(FakeBackend(snapshot={"temp": 20.0}))
     setup = runtime.setup_measurement(
         parameters=["temp"],
         hz=2.0,
