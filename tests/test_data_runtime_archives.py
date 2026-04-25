@@ -609,6 +609,6 @@ def test_record_sample_with_empty_describe_treats_all_params_as_valid(tmp_path: 
     runtime._record_sample()
 
     sample = runtime._measurement_data[-1]
-    # y is not in the cache (empty describe) → validity_cache.get("y") returns None,
-    # which is not False, so the value should be passed through.
+    # With an empty describe result, configured parameters are treated as valid
+    # and cached as True, so the value should be passed through unchanged.
     assert sample["data"]["y"] == 7.0
