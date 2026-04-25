@@ -151,6 +151,13 @@ class ParameterStore:
         with self._lock:
             return {name: p.get_value() for name, p in self._params.items()}
 
+    def snapshot_names(self, names: list[str]) -> dict[str, Any]:
+        with self._lock:
+            return {
+                name: (self._params[name].get_value() if name in self._params else None)
+                for name in names
+            }
+
     # ----------------------------
     # Narrow internal runtime API
     # ----------------------------

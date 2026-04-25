@@ -90,6 +90,17 @@ class SignalStoreBackend:
             return False
 
     def snapshot(self, names: list[str]) -> dict[str, Any]:
+        if self._client is None:
+            return {name: None for name in names}
+        try:
+            with self._lock:
+                snapshot_names = getattr(self._client, "snapshot_names", None)
+                if callable(snapshot_names):
+                    payload = snapshot_names(list(names or []))
+                    if isinstance(payload, dict):
+                        return dict(payload)
+        except Exception:
+            pass
         return {name: self.get_value(name) for name in names}
 
     def full_snapshot(self) -> dict[str, Any]:

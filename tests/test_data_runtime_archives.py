@@ -31,6 +31,10 @@ class FakeBackend:
     def full_snapshot(self) -> dict:
         return dict(self._snapshot)
 
+    def snapshot(self, names: list[str]) -> dict:
+        data = dict(self._snapshot)
+        return {name: data.get(name) for name in names}
+
     def get_value(self, name: str):
         return self._values.get(name)
 
@@ -575,6 +579,7 @@ def test_record_sample_uses_stale_cache_when_describe_fails(tmp_path: Path) -> N
     # Prime the cache with a successful refresh.
     runtime._refresh_validity_cache()
     assert runtime._validity_cache.get("x") is True
+    previous_refresh = runtime._validity_last_refresh
 
     # Now make describe() fail and attempt another refresh.
     backend._describe_raises = OSError("backend down")
@@ -582,6 +587,7 @@ def test_record_sample_uses_stale_cache_when_describe_fails(tmp_path: Path) -> N
 
     # Cache should still contain the previously fetched data.
     assert runtime._validity_cache.get("x") is True
+    assert runtime._validity_last_refresh >= previous_refresh
 
     # Recording should still work correctly using the stale cache.
     runtime._record_sample()
@@ -599,6 +605,7 @@ def test_record_sample_with_empty_describe_treats_all_params_as_valid(tmp_path: 
     _setup_and_start(runtime, tmp_path, ["y"])
 
     runtime._refresh_validity_cache()
+    assert runtime._validity_last_refresh > 0.0
     runtime._record_sample()
 
     sample = runtime._measurement_data[-1]

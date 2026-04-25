@@ -125,6 +125,12 @@ def validate_import_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_snapshot_names(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "names": optional_list_of_str(payload, "names"),
+    }
+
+
 def validate_create_transducer(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "transducer": require_dict(payload, "transducer"),

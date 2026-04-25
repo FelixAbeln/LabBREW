@@ -118,7 +118,6 @@ class DataRecordingRuntime:
                 sample_due = False
 
                 # Phase 1: check under lock whether a sample is due this cycle.
-                # Phase 1: check under lock whether a sample is due this cycle.
                 # _validity_last_refresh is also read here so all reads/writes of
                 # that field are under the same lock, avoiding races with measure_start().
                 refresh_due = False
@@ -576,9 +575,11 @@ class DataRecordingRuntime:
         adjustments, and the timestamp is captured *after* the I/O completes so
         slow describe() calls don't compress the next refresh window.
         """
+        refreshed_at = time.monotonic()
         try:
             described = self.backend.describe()
-            configured_params = set(self.config.parameters)
+            with self._lock:
+                configured_params = list(self.config.parameters) if self.config else []
             new_cache: dict[str, bool] = {
                 name: described[name].get("state", {}).get("parameter_valid") is not False
                 for name in configured_params
@@ -588,12 +589,9 @@ class DataRecordingRuntime:
             # If describe() returns no usable data (for example because the backend
             # swallowed a transient error and returned {}), keep the existing cache
             # rather than clearing it.
-            if not new_cache:
-                return
-
-            with self._lock:
-                self._validity_cache = new_cache
-                self._validity_last_refresh = time.monotonic()
+            if new_cache:
+                with self._lock:
+                    self._validity_cache = new_cache
         except (OSError, ConnectionError, RuntimeError) as exc:
             # Expected when parameterDB is temporarily unreachable — keep the
             # existing cache and carry on so recording is not interrupted.
@@ -602,6 +600,11 @@ class DataRecordingRuntime:
             # Unexpected coding error — log prominently so it is not silently lost.
             import traceback
             print(f"[data_service] unexpected error in validity refresh:\n{traceback.format_exc()}")
+        finally:
+            # Always record refresh *attempt* time so describe() returning empty data
+            # or transient failures do not trigger per-sample retry storms.
+            with self._lock:
+                self._validity_last_refresh = refreshed_at
 
     def _record_sample(self) -> None:
         """Record a single sample of all configured parameters."""
@@ -612,8 +615,8 @@ class DataRecordingRuntime:
                 "data": {},
             }
 
-            # Fetch all values in a single round-trip instead of one call per parameter.
-            snapshot = self.backend.full_snapshot()
+            # Fetch only configured parameter values in one round-trip.
+            snapshot = self.backend.snapshot(self.config.parameters)
             for param in self.config.parameters:
                 value = snapshot.get(param)
                 if value is None:

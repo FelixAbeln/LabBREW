@@ -18,6 +18,7 @@ class SupportsSignalRequests(Protocol):
     def stats(self) -> dict[str, Any]: ...
     def graph_info(self) -> dict[str, Any]: ...
     def snapshot(self) -> dict[str, Any]: ...
+    def snapshot_names(self, names: list[str]) -> dict[str, Any]: ...
     def export_snapshot(self) -> dict[str, Any]: ...
     def import_snapshot(
         self,
@@ -163,6 +164,9 @@ class _BaseClient:
 
     def snapshot(self) -> dict[str, Any]:
         return self._request("snapshot")
+
+    def snapshot_names(self, names: list[str]) -> dict[str, Any]:
+        return self._request("snapshot_names", {"names": list(names or [])})
 
     def export_snapshot(self) -> dict[str, Any]:
         return self._request("export_snapshot")

@@ -24,6 +24,7 @@ from .api.validation import (
     validate_import_snapshot,
     validate_load_parameter_type_folder,
     validate_set_value,
+    validate_snapshot_names,
     validate_subscribe,
     validate_update_transducer,
     validate_update_changes,
@@ -121,6 +122,10 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
     def api_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_empty_ok(payload)
         return self.engine.store.snapshot()
+
+    def api_snapshot_names(self, payload: dict[str, Any]) -> dict[str, Any]:
+        clean = validate_snapshot_names(payload)
+        return self.engine.store.snapshot_names(clean["names"])
 
     def api_export_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_export_snapshot(payload)
