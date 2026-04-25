@@ -142,6 +142,7 @@ class DataRecordingRuntime:
                             )
 
                 if sample_due:
+                    recorded_sample = False
                     # Phase 2: record the due sample first so backend I/O for validity
                     # refresh cannot delay the hot sampling path for this cycle.
                     with self._lock:
@@ -149,6 +150,7 @@ class DataRecordingRuntime:
                             self._record_sample()
                             last_write_time = time.time()
                             self._check_loadsteps()
+                            recorded_sample = True
 
                     # Phase 3 (outside lock): refresh validity cache after sampling.
                     # measure_start() resets _validity_last_refresh to 0.0, so the
@@ -158,8 +160,11 @@ class DataRecordingRuntime:
                     # _validity_last_refresh is updated inside _refresh_validity_cache()
                     # under self._lock in a finally block, so retries remain throttled
                     # even when describe() returns no usable data or fails.
-                    if refresh_due:
-                        self._refresh_validity_cache()
+                    if refresh_due and recorded_sample:
+                        with self._lock:
+                            still_recording = bool(self._recording and self.config)
+                        if still_recording:
+                            self._refresh_validity_cache()
 
                     # Recompute sleep after any post-sample refresh work so slow
                     # refresh I/O does not add an extra full interval of delay.
