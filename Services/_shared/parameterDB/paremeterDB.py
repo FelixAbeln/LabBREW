@@ -98,7 +98,8 @@ class SignalStoreBackend:
                 if callable(snapshot_names):
                     payload = snapshot_names(list(names or []))
                     if isinstance(payload, dict):
-                        return dict(payload)
+                        # Normalize response to include exactly the requested names.
+                        return {name: payload.get(name) for name in names}
         except Exception:
             pass
         payload = self.full_snapshot()
