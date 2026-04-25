@@ -115,39 +115,35 @@ class DataRecordingRuntime:
             try:
                 current_time = time.time()
                 sleep_time = _IDLE_SLEEP_INTERVAL  # Default: 100ms when not recording
-                refresh_validity = False
+                sample_due = False
 
-                # Synchronize shared measurement/loadstep state with API handlers.
+                # Phase 1: check under lock whether a sample is due this cycle.
                 with self._lock:
                     if self._recording and self.config:
-                        # Calculate time since last recording
                         elapsed = current_time - last_write_time
                         target_interval = 1.0 / self.config.hz
-
                         if elapsed >= target_interval:
-                            self._record_sample()
-                            last_write_time = current_time
-
-                            # Check and finalize completed loadsteps
-                            self._check_loadsteps()
-
-                            # Sleep until the next sample is due
+                            sample_due = True
                             sleep_time = target_interval
-
-                            # Flag a validity refresh if due (network I/O done outside lock)
-                            if current_time - self._validity_last_refresh >= _VALIDITY_REFRESH_INTERVAL_S:
-                                self._validity_last_refresh = current_time
-                                refresh_validity = True
                         else:
-                            # Sleep for remaining time until the next sample
                             sleep_time = max(
                                 _MIN_SAMPLE_SLEEP, target_interval - elapsed
                             )
 
-                # Refresh validity cache outside the lock so network I/O does not
-                # block concurrent API calls during the hot recording path.
-                if refresh_validity:
-                    self._refresh_validity_cache()
+                if sample_due:
+                    # Phase 2 (outside lock): refresh validity cache when empty or due.
+                    # This guarantees the very first sample uses a populated cache, and
+                    # subsequent refreshes happen before the sample they gate — not after.
+                    if current_time - self._validity_last_refresh >= _VALIDITY_REFRESH_INTERVAL_S:
+                        self._refresh_validity_cache()
+                        self._validity_last_refresh = current_time
+
+                    # Phase 3: record sample and maintain loadsteps under lock.
+                    with self._lock:
+                        if self._recording and self.config:
+                            self._record_sample()
+                            last_write_time = current_time
+                            self._check_loadsteps()
 
                 time.sleep(sleep_time)
 
@@ -572,8 +568,14 @@ class DataRecordingRuntime:
             }
             with self._lock:
                 self._validity_cache = new_cache
-        except Exception:
-            pass
+        except (OSError, ConnectionError, RuntimeError) as exc:
+            # Expected when parameterDB is temporarily unreachable — keep the
+            # existing cache and carry on so recording is not interrupted.
+            print(f"[data_service] validity refresh failed (will retry): {exc}")
+        except Exception as exc:
+            # Unexpected coding error — log prominently so it is not silently lost.
+            import traceback
+            print(f"[data_service] unexpected error in validity refresh:\n{traceback.format_exc()}")
 
     def _record_sample(self) -> None:
         """Record a single sample of all configured parameters."""
