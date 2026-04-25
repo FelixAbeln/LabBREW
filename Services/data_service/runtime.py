@@ -160,6 +160,19 @@ class DataRecordingRuntime:
                     if refresh_due:
                         self._refresh_validity_cache()
 
+                    # Recompute sleep after any post-sample refresh work so slow
+                    # refresh I/O does not add an extra full interval of delay.
+                    with self._lock:
+                        if self._recording and self.config:
+                            target_interval = 1.0 / self.config.hz
+                            elapsed_since_write = time.time() - last_write_time
+                            sleep_time = max(
+                                _MIN_SAMPLE_SLEEP,
+                                target_interval - elapsed_since_write,
+                            )
+                        else:
+                            sleep_time = _IDLE_SLEEP_INTERVAL
+
                 time.sleep(sleep_time)
 
             except Exception as e:
