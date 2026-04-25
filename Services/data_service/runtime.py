@@ -33,6 +33,7 @@ from .storage.writer import FileWriter, FileWriterFactory
 _IDLE_SLEEP_INTERVAL = 0.1  # 100ms when not recording (reduces idle CPU usage)
 _MIN_SAMPLE_SLEEP = 0.0005  # 0.5ms minimum sleep floor to prevent busy-waiting
 _VALIDITY_REFRESH_INTERVAL_S = 0.5  # Re-check parameter validity at most 2 Hz
+_VALIDITY_REFRESH_FAILURE_LOG_INTERVAL_S = 10.0
 _PARQUET_VALIDATION_ATTEMPTS = 4
 _PARQUET_VALIDATION_RETRY_SLEEP_S = 0.02
 DEFAULT_MEASUREMENTS_DIR = default_measurements_dir()
@@ -99,6 +100,8 @@ class DataRecordingRuntime:
         # Refreshed periodically (not per-sample) to keep the recording hot path cheap.
         self._validity_cache: dict[str, bool] = {}
         self._validity_last_refresh: float = 0.0
+        self._validity_refresh_failures_since_log: int = 0
+        self._validity_refresh_last_log: float = 0.0
 
     def run(self) -> None:
         """Main runtime loop - runs in background thread."""
@@ -336,6 +339,8 @@ class DataRecordingRuntime:
             self._missing_parameters = set()
             self._validity_cache = {}
             self._validity_last_refresh = 0.0  # Force a refresh before the first sample (already under lock)
+            self._validity_refresh_failures_since_log = 0
+            self._validity_refresh_last_log = 0.0
             self._initialize_loadstep_archive_file()
 
             return {
@@ -602,7 +607,7 @@ class DataRecordingRuntime:
         except (OSError, ConnectionError, RuntimeError) as exc:
             # Expected when parameterDB is temporarily unreachable — keep the
             # existing cache and carry on so recording is not interrupted.
-            print(f"[data_service] validity refresh failed (will retry): {exc}")
+            self._log_validity_refresh_failure(exc)
         except Exception as exc:
             # Unexpected coding error — log prominently so it is not silently lost.
             import traceback
@@ -618,7 +623,39 @@ class DataRecordingRuntime:
                 # loop never observes a fresh cache paired with a stale timestamp.
                 if new_cache is not None:
                     self._validity_cache = new_cache
+                    self._validity_refresh_failures_since_log = 0
+                    self._validity_refresh_last_log = 0.0
                 self._validity_last_refresh = refreshed_at
+
+    def _log_validity_refresh_failure(self, exc: Exception) -> None:
+        """Rate-limit repeated expected refresh failures to reduce log spam."""
+        now = time.monotonic()
+        should_log = False
+        suppressed = 0
+        with self._lock:
+            if self._validity_refresh_last_log <= 0.0:
+                should_log = True
+                self._validity_refresh_last_log = now
+                self._validity_refresh_failures_since_log = 0
+            else:
+                self._validity_refresh_failures_since_log += 1
+                if (
+                    (now - self._validity_refresh_last_log)
+                    >= _VALIDITY_REFRESH_FAILURE_LOG_INTERVAL_S
+                ):
+                    should_log = True
+                    suppressed = self._validity_refresh_failures_since_log
+                    self._validity_refresh_failures_since_log = 0
+                    self._validity_refresh_last_log = now
+
+        if should_log:
+            if suppressed:
+                print(
+                    "[data_service] validity refresh failed (will retry): "
+                    f"{exc} ({suppressed} similar failures suppressed)"
+                )
+            else:
+                print(f"[data_service] validity refresh failed (will retry): {exc}")
 
     def _record_sample(self) -> None:
         """Record a single sample of all configured parameters."""

@@ -14,6 +14,7 @@ class _FakeClient:
         self.raise_snapshot_names = False
         self.raise_describe = False
         self.raise_create = False
+        self.snapshot_names_calls = 0
         self.last_created = None
 
     def ping(self):
@@ -43,6 +44,7 @@ class _FakeClient:
         return dict(self.values)
 
     def snapshot_names(self, names):
+        self.snapshot_names_calls += 1
         if self.raise_snapshot_names:
             raise RuntimeError("snapshot_names failed")
         return {name: self.values.get(name) for name in names}
@@ -133,3 +135,13 @@ def test_backend_tolerates_client_exceptions(monkeypatch) -> None:
     backend.ensure_parameter("x")
     assert backend.full_snapshot() == {}
     assert backend.describe() == {}
+
+
+def test_backend_snapshot_short_circuits_empty_names(monkeypatch) -> None:
+    fake = _FakeClient()
+    fake.raise_snapshot_names = True
+    monkeypatch.setattr(backend_module, "SignalSession", lambda **_kwargs: fake)
+    backend = SignalStoreBackend()
+
+    assert backend.snapshot([]) == {}
+    assert fake.snapshot_names_calls == 0
