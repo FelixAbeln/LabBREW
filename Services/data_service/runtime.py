@@ -596,10 +596,16 @@ class DataRecordingRuntime:
                     self._validity_cache = new_cache
         except (OSError, ConnectionError, RuntimeError) as exc:
             # Expected when parameterDB is temporarily unreachable — keep the
-            # existing cache and carry on so recording is not interrupted.
+            # existing cache and carry on so recording is not interrupted, but
+            # still record the refresh attempt so retries remain throttled.
+            with self._lock:
+                self._validity_last_refresh = time.monotonic()
             print(f"[data_service] validity refresh failed (will retry): {exc}")
         except Exception as exc:
-            # Unexpected coding error — log prominently so it is not silently lost.
+            # Unexpected coding error — log prominently so it is not silently lost,
+            # and still record the refresh attempt so retries remain throttled.
+            with self._lock:
+                self._validity_last_refresh = time.monotonic()
             import traceback
             print(f"[data_service] unexpected error in validity refresh:\n{traceback.format_exc()}")
         finally:
