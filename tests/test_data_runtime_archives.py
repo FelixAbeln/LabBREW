@@ -639,3 +639,29 @@ def test_refresh_validity_cache_rate_limits_expected_failure_logs(tmp_path: Path
 
     failures = [msg for msg in messages if "validity refresh failed (will retry)" in msg]
     assert len(failures) == 1
+
+
+def test_refresh_validity_cache_logs_suppressed_count_on_periodic_reminder(monkeypatch) -> None:
+    runtime = _runtime(FakeBackend())
+    messages: list[str] = []
+
+    def _capture_print(*args, **_kwargs) -> None:
+        messages.append(" ".join(str(arg) for arg in args))
+
+    timeline = iter([100.0, 101.0, 102.0, 106.0])
+
+    monkeypatch.setattr("builtins.print", _capture_print)
+    monkeypatch.setattr("Services.data_service.runtime.time.monotonic", lambda: next(timeline))
+    monkeypatch.setattr(
+        "Services.data_service.runtime._VALIDITY_REFRESH_FAILURE_LOG_INTERVAL_S",
+        5.0,
+    )
+
+    runtime._log_validity_refresh_failure(OSError("backend down"))
+    runtime._log_validity_refresh_failure(OSError("backend down"))
+    runtime._log_validity_refresh_failure(OSError("backend down"))
+    runtime._log_validity_refresh_failure(OSError("backend down"))
+
+    failures = [msg for msg in messages if "validity refresh failed (will retry)" in msg]
+    assert len(failures) == 2
+    assert "3 similar failures suppressed" in failures[1]

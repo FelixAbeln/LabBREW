@@ -145,3 +145,14 @@ def test_backend_snapshot_short_circuits_empty_names(monkeypatch) -> None:
 
     assert backend.snapshot([]) == {}
     assert fake.snapshot_names_calls == 0
+
+
+def test_backend_snapshot_falls_back_when_snapshot_names_raises(monkeypatch) -> None:
+    fake = _FakeClient()
+    fake.values = {"alpha": 10, "beta": 20}
+    fake.raise_snapshot_names = True
+    monkeypatch.setattr(backend_module, "SignalSession", lambda **_kwargs: fake)
+    backend = SignalStoreBackend()
+
+    assert backend.snapshot(["alpha", "missing"]) == {"alpha": 10, "missing": None}
+    assert fake.snapshot_names_calls == 1
