@@ -578,18 +578,17 @@ class DataRecordingRuntime:
         """
         try:
             described = self.backend.describe()
+            configured_params = set(self.config.parameters)
             new_cache: dict[str, bool] = {
-                name: info.get("state", {}).get("parameter_valid") is not False
-                for name, info in described.items()
-                if isinstance(info, dict)
+                name: described[name].get("state", {}).get("parameter_valid") is not False
+                for name in configured_params
+                if isinstance(described.get(name), dict)
             }
 
             # If describe() returns no usable data (for example because the backend
             # swallowed a transient error and returned {}), keep the existing cache
             # rather than clearing it.
-            configured_params = set(self.config.parameters)
-            has_configured_validity = any(name in configured_params for name in new_cache)
-            if not has_configured_validity:
+            if not new_cache:
                 return
 
             with self._lock:
