@@ -138,11 +138,13 @@ class DataRecordingRuntime:
                             )
 
                 if sample_due:
-                    # Phase 2 (outside lock): refresh validity cache when empty or due.
-                    # This guarantees the very first sample uses a populated cache, and
-                    # subsequent refreshes happen before the sample they gate — not after.
+                    # Phase 2 (outside lock): refresh validity cache when the
+                    # time-based gate says refresh is due.
+                    # measure_start() resets _validity_last_refresh to 0.0, so the
+                    # first eligible sample triggers an immediate refresh attempt.
                     # _validity_last_refresh is updated inside _refresh_validity_cache()
-                    # under self._lock after the I/O succeeds.
+                    # under self._lock in a finally block, so retries remain throttled
+                    # even when describe() returns no usable data or fails.
                     if refresh_due:
                         self._refresh_validity_cache()
 
