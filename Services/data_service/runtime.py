@@ -581,18 +581,24 @@ class DataRecordingRuntime:
             described = self.backend.describe()
             with self._lock:
                 configured_params = list(self.config.parameters) if self.config else []
-            new_cache: dict[str, bool] = {
-                name: described[name].get("state", {}).get("parameter_valid") is not False
-                for name in configured_params
-                if isinstance(described.get(name), dict)
-            }
+                existing_cache = dict(self._validity_cache)
 
-            # If describe() returns no usable data (for example because the backend
-            # swallowed a transient error and returned {}), keep the existing cache
-            # rather than clearing it.
-            if new_cache:
-                with self._lock:
-                    self._validity_cache = new_cache
+            new_cache: dict[str, bool] = {}
+            for name in configured_params:
+                payload = described.get(name)
+                if isinstance(payload, dict):
+                    new_cache[name] = (
+                        payload.get("state", {}).get("parameter_valid") is not False
+                    )
+                else:
+                    # Preserve the last known validity when describe() returns a
+                    # partial mapping or unusable entry for this parameter.
+                    # If there is no prior value, keep the existing default
+                    # "unknown/treated as valid" behavior.
+                    new_cache[name] = existing_cache.get(name, True)
+
+            with self._lock:
+                self._validity_cache = new_cache
         except (OSError, ConnectionError, RuntimeError) as exc:
             # Expected when parameterDB is temporarily unreachable — keep the
             # existing cache and carry on so recording is not interrupted.
