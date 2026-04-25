@@ -92,11 +92,14 @@ class SignalStoreBackend:
     def snapshot(self, names: list[str]) -> dict[str, Any]:
         if self._client is None:
             return {name: None for name in names}
+        # Short-circuit empty names to avoid unnecessary round-trip and exception.
+        if not names:
+            return {}
         try:
             with self._lock:
                 snapshot_names = getattr(self._client, "snapshot_names", None)
                 if callable(snapshot_names):
-                    payload = snapshot_names(list(names or []))
+                    payload = snapshot_names(list(names))
                     if isinstance(payload, dict):
                         # Normalize response to include exactly the requested names.
                         return {name: payload.get(name) for name in names}

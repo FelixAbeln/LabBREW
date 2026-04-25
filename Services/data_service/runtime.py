@@ -577,17 +577,18 @@ class DataRecordingRuntime:
         adjustments, and the timestamp is captured *after* the I/O completes so
         slow describe() calls don't compress the next refresh window.
         """
+        new_cache: dict[str, bool] | None = None
         try:
             described = self.backend.describe()
             with self._lock:
                 configured_params = list(self.config.parameters) if self.config else []
                 existing_cache = dict(self._validity_cache)
 
-            new_cache: dict[str, bool] = {}
+            new_cache_data: dict[str, bool] = {}
             for name in configured_params:
                 payload = described.get(name)
                 if isinstance(payload, dict):
-                    new_cache[name] = (
+                    new_cache_data[name] = (
                         payload.get("state", {}).get("parameter_valid") is not False
                     )
                 else:
@@ -595,10 +596,9 @@ class DataRecordingRuntime:
                     # partial mapping or unusable entry for this parameter.
                     # If there is no prior value, keep the existing default
                     # "unknown/treated as valid" behavior.
-                    new_cache[name] = existing_cache.get(name, True)
+                    new_cache_data[name] = existing_cache.get(name, True)
 
-            with self._lock:
-                self._validity_cache = new_cache
+            new_cache = new_cache_data
         except (OSError, ConnectionError, RuntimeError) as exc:
             # Expected when parameterDB is temporarily unreachable — keep the
             # existing cache and carry on so recording is not interrupted.
@@ -614,6 +614,10 @@ class DataRecordingRuntime:
             # not shorten the next refresh window.
             refreshed_at = time.monotonic()
             with self._lock:
+                # Update both cache and timestamp atomically under one lock so the run
+                # loop never observes a fresh cache paired with a stale timestamp.
+                if new_cache is not None:
+                    self._validity_cache = new_cache
                 self._validity_last_refresh = refreshed_at
 
     def _record_sample(self) -> None:
