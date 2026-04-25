@@ -577,7 +577,6 @@ class DataRecordingRuntime:
         adjustments, and the timestamp is captured *after* the I/O completes so
         slow describe() calls don't compress the next refresh window.
         """
-        refreshed_at = time.monotonic()
         try:
             described = self.backend.describe()
             with self._lock:
@@ -596,21 +595,18 @@ class DataRecordingRuntime:
                     self._validity_cache = new_cache
         except (OSError, ConnectionError, RuntimeError) as exc:
             # Expected when parameterDB is temporarily unreachable — keep the
-            # existing cache and carry on so recording is not interrupted, but
-            # still record the refresh attempt so retries remain throttled.
-            with self._lock:
-                self._validity_last_refresh = time.monotonic()
+            # existing cache and carry on so recording is not interrupted.
             print(f"[data_service] validity refresh failed (will retry): {exc}")
         except Exception as exc:
-            # Unexpected coding error — log prominently so it is not silently lost,
-            # and still record the refresh attempt so retries remain throttled.
-            with self._lock:
-                self._validity_last_refresh = time.monotonic()
+            # Unexpected coding error — log prominently so it is not silently lost.
             import traceback
             print(f"[data_service] unexpected error in validity refresh:\n{traceback.format_exc()}")
         finally:
             # Always record refresh *attempt* time so describe() returning empty data
             # or transient failures do not trigger per-sample retry storms.
+            # Timestamp is taken here (at completion) so slow describe() I/O does
+            # not shorten the next refresh window.
+            refreshed_at = time.monotonic()
             with self._lock:
                 self._validity_last_refresh = refreshed_at
 
