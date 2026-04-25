@@ -359,7 +359,7 @@ class DataRecordingRuntime:
             self._completed_loadsteps = []
             self._missing_parameters = set()
             self._validity_cache = {}
-            self._validity_last_refresh = 0.0  # Force a refresh before the first sample (already under lock)
+            self._validity_last_refresh = 0.0  # Force a refresh attempt on/after the first due sample (already under lock)
             self._validity_refresh_failures_since_log = 0
             self._validity_refresh_last_log = 0.0
             self._initialize_loadstep_archive_file()
