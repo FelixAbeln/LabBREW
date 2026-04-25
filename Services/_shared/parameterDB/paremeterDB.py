@@ -105,8 +105,14 @@ class SignalStoreBackend:
                         return {name: payload.get(name) for name in names}
         except Exception:
             pass
-        payload = self.full_snapshot()
-        return {name: payload.get(name) for name in names}
+        try:
+            with self._lock:
+                return {
+                    name: self._client.get_value(name, None)
+                    for name in names
+                }
+        except Exception:
+            return {name: None for name in names}
 
     def full_snapshot(self) -> dict[str, Any]:
         if self._client is None:
