@@ -166,7 +166,9 @@ class _BaseClient:
         return self._request("snapshot")
 
     def snapshot_names(self, names: list[str]) -> dict[str, Any]:
-        return self._request("snapshot_names", {"names": list(names or [])})
+        if not names:
+            raise ValueError("names must be a non-empty list")
+        return self._request("snapshot_names", {"names": list(names)})
 
     def export_snapshot(self) -> dict[str, Any]:
         return self._request("export_snapshot")
