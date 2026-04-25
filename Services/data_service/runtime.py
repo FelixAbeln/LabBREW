@@ -608,9 +608,17 @@ class DataRecordingRuntime:
             for name in configured_params:
                 payload = described.get(name)
                 if isinstance(payload, dict):
-                    new_cache_data[name] = (
-                        payload.get("state", {}).get("parameter_valid") is not False
-                    )
+                    state = payload.get("state")
+                    if isinstance(state, dict):
+                        new_cache_data[name] = (
+                            state.get("parameter_valid") is not False
+                        )
+                    else:
+                        # Preserve the last known validity when describe() returns a
+                        # partial mapping or unusable entry for this parameter.
+                        # If there is no prior value, keep the existing default
+                        # "unknown/treated as valid" behavior.
+                        new_cache_data[name] = existing_cache.get(name, True)
                 else:
                     # Preserve the last known validity when describe() returns a
                     # partial mapping or unusable entry for this parameter.
