@@ -583,6 +583,15 @@ class DataRecordingRuntime:
                 for name, info in described.items()
                 if isinstance(info, dict)
             }
+
+            # If describe() returns no usable data (for example because the backend
+            # swallowed a transient error and returned {}), keep the existing cache
+            # rather than clearing it.
+            configured_params = set(self.config.parameters)
+            has_configured_validity = any(name in configured_params for name in new_cache)
+            if not has_configured_validity:
+                return
+
             with self._lock:
                 self._validity_cache = new_cache
                 self._validity_last_refresh = time.monotonic()
