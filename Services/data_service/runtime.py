@@ -138,22 +138,24 @@ class DataRecordingRuntime:
                             )
 
                 if sample_due:
-                    # Phase 2 (outside lock): refresh validity cache when the
-                    # time-based gate says refresh is due.
-                    # measure_start() resets _validity_last_refresh to 0.0, so the
-                    # first eligible sample triggers an immediate refresh attempt.
-                    # _validity_last_refresh is updated inside _refresh_validity_cache()
-                    # under self._lock in a finally block, so retries remain throttled
-                    # even when describe() returns no usable data or fails.
-                    if refresh_due:
-                        self._refresh_validity_cache()
-
-                    # Phase 3: record sample and maintain loadsteps under lock.
+                    # Phase 2: record the due sample first so backend I/O for validity
+                    # refresh cannot delay the hot sampling path for this cycle.
                     with self._lock:
                         if self._recording and self.config:
                             self._record_sample()
                             last_write_time = time.time()
                             self._check_loadsteps()
+
+                    # Phase 3 (outside lock): refresh validity cache after sampling.
+                    # measure_start() resets _validity_last_refresh to 0.0, so the
+                    # first eligible sample still triggers an immediate refresh attempt,
+                    # but refreshed validity applies to subsequent samples instead of
+                    # delaying the sample that is already due.
+                    # _validity_last_refresh is updated inside _refresh_validity_cache()
+                    # under self._lock in a finally block, so retries remain throttled
+                    # even when describe() returns no usable data or fails.
+                    if refresh_due:
+                        self._refresh_validity_cache()
 
                 time.sleep(sleep_time)
 
