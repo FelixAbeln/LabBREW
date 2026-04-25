@@ -20,6 +20,7 @@ from Services.parameterDB.parameterdb_service.api.validation import (
     validate_get_value,
     validate_load_parameter_type_folder,
     validate_set_value,
+    validate_snapshot_names,
     validate_subscribe,
     validate_update_changes,
 )
@@ -114,3 +115,27 @@ def test_payload_validators_reject_invalid_shapes() -> None:
         validate_subscribe({"send_initial": "yes"})
     with pytest.raises(ValidationError, match="Field 'max_queue' must be an integer"):
         validate_subscribe({"max_queue": "large"})
+
+
+def test_validate_snapshot_names_accepts_valid_input() -> None:
+    assert validate_snapshot_names({"names": ["param1"]}) == {"names": ["param1"]}
+    assert validate_snapshot_names({"names": ["param1", "param2", "param3"]}) == {
+        "names": ["param1", "param2", "param3"]
+    }
+
+
+def test_validate_snapshot_names_rejects_invalid_input() -> None:
+    # Empty list
+    with pytest.raises(ValidationError, match="Field 'names' must be a non-empty list"):
+        validate_snapshot_names({"names": []})
+    # Not a list
+    with pytest.raises(ValidationError, match="Field 'names' must be a list of non-empty strings"):
+        validate_snapshot_names({"names": "param1"})
+    # List with non-strings
+    with pytest.raises(ValidationError, match="Field 'names' must be a list of non-empty strings"):
+        validate_snapshot_names({"names": ["param1", 2]})
+    # List with blank strings
+    with pytest.raises(ValidationError, match="Field 'names' must be a list of non-empty strings"):
+        validate_snapshot_names({"names": ["param1", ""]})
+    with pytest.raises(ValidationError, match="Field 'names' must be a list of non-empty strings"):
+        validate_snapshot_names({"names": ["param1", "   "]})
