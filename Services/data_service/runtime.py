@@ -605,14 +605,22 @@ class DataRecordingRuntime:
         """
         new_cache: dict[str, bool] | None = None
         try:
-            described = self.backend.describe()
-            if not described and not self.backend.connected():
-                raise ConnectionError(
-                    "parameterDB backend unavailable during describe()"
-                )
             with self._lock:
                 configured_params = list(self.config.parameters) if self.config else []
                 existing_cache = dict(self._validity_cache)
+                recording = self._recording
+
+            described = self.backend.describe()
+            if not described:
+                if not self.backend.connected():
+                    raise ConnectionError(
+                        "parameterDB backend unavailable during describe()"
+                    )
+                if recording and existing_cache:
+                    raise RuntimeError(
+                        "parameterDB describe() returned an empty mapping while "
+                        "recording was active and the backend reported connected"
+                    )
 
             new_cache_data: dict[str, bool] = {}
             for name in configured_params:
