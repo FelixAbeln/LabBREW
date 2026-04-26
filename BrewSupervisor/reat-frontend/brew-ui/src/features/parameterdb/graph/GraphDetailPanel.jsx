@@ -1,4 +1,3 @@
-import React from 'react';
 import { sourceColor, typeColor } from './graphModel.js';
 
 export function GraphDetailPanel({ selected, graph, onClear }) {

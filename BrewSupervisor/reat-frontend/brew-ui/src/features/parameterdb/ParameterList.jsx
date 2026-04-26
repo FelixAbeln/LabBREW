@@ -129,7 +129,7 @@ export function ParameterList({
                     {hasSignal ? (
                       <span
                         className={pipelineActive ? 'pdb-signal-str' : 'pdb-signal-str pdb-signal-passthrough'}
-                        title={pipelineActive ? 'Raw signal before pipeline' : 'Signal (no pipeline active)'}
+                        title={pipelineActive ? 'Raw signal before pipeline' : 'Signal equals displayed value (passthrough)'}
                       >{displaySignal}</span>
                     ) : (
                       <span className="pdb-cell-nil">—</span>

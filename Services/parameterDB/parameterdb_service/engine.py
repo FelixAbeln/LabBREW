@@ -820,12 +820,10 @@ class ScanEngine:
                         param.state["parameter_invalid_reasons"] = reasons
                         param.state["last_error"] = ""
                         param.state["connected"] = False
-                        new_value = param.get_value()
                         param.state["signal_value"] = param.get_signal_value()
                         self._mark_mirror_targets_stale(name, dict(param.config))
-                        self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
-                        self.store.publish_scan_state(param.name, dict(param.state))
-                        continue
+                        # Do not skip the rest of the loop here: polling-style datasources
+                        # need scan() to run so they can refresh the signal and recover.
                     else:
                         # Fresh signal — clear any previous datasource_silent reason.
                         reasons = list(param.state.get("parameter_invalid_reasons") or [])
