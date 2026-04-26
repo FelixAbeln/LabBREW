@@ -82,7 +82,7 @@ export function ParameterList({
           </thead>
           <tbody>
             {visible.length === 0 && (
-              <tr><td colSpan={8} className="pdb-empty">No parameters found</td></tr>
+              <tr><td colSpan={9} className="pdb-empty">No parameters found</td></tr>
             )}
             {visible.map(([name, rec]) => {
               const scanIdx = scanOrder.indexOf(name);

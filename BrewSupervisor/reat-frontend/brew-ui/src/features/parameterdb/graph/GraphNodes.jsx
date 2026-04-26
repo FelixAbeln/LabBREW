@@ -1,8 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
-import { sourceColor, typeColor } from './graphModel.js';
-
-const NODE_W = 220;
-const NODE_H = 86;
+import { NODE_W, PARAM_NODE_H, SOURCE_NODE_H, sourceColor, typeColor } from './graphModel.js';
 
 export function ParameterNode({ data, selected }) {
   const { name, paramType, value, signalValue, signal_value, scanIndex, hasWarning, invalidConfig } = data;
@@ -37,7 +34,7 @@ export function ParameterNode({ data, selected }) {
   return (
     <div
       className={nodeClassName}
-      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${NODE_H}px` }}
+      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${PARAM_NODE_H}px` }}
     >
       <Handle type="target" position={Position.Top} style={{ background: accent, width: 8, height: 8 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -91,7 +88,7 @@ export function SourceNode({ data, selected }) {
     <div
       style={{
         width: NODE_W,
-        minHeight: NODE_H,
+        minHeight: SOURCE_NODE_H,
         border: `2px dashed ${isActive ? '#fff' : color}`,
         borderRadius: 8,
         background: isActive ? '#221b11' : isRelated ? '#1c160d' : '#16110b',

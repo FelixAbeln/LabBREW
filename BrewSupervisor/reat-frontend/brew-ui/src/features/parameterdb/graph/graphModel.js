@@ -1,8 +1,8 @@
 import dagre from '@dagrejs/dagre';
 
-const NODE_W = 220;
-const PARAM_NODE_H = 86;
-const SOURCE_NODE_H = 72;
+export const NODE_W = 220;
+export const PARAM_NODE_H = 86;
+export const SOURCE_NODE_H = 72;
 
 const TYPE_COLORS = {
   static: '#3b82f6',
