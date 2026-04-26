@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from Services.parameterDB.parameterdb_service.plugin_api import ParameterBase
-from Services.parameterDB.parameterdb_service.store import ParameterStore
+from Services.parameterDB.parameterdb_service.store import ParameterStore, _values_equal
 
 
 class FakeBroker:
@@ -21,6 +21,29 @@ class FakeParameter(ParameterBase):
 
     def scan(self, _ctx) -> None:
         return None
+
+
+class _AmbiguousEqResult:
+    def __bool__(self) -> bool:
+        raise ValueError("ambiguous truth value")
+
+
+class _WeirdEqElement:
+    def __eq__(self, _other: object) -> _AmbiguousEqResult:  # pragma: no cover - behavior is in bool()
+        return _AmbiguousEqResult()
+
+
+def test_values_equal_supports_common_builtin_containers() -> None:
+    assert _values_equal({"a": [1, 2]}, {"a": [1, 2]}) is True
+    assert _values_equal([1, 2, 3], [1, 2, 3]) is True
+    assert _values_equal((1, 2), (1, 2)) is True
+    assert _values_equal({"x", "y"}, {"x", "y"}) is True
+    assert _values_equal({"a": 1}, {"a": 2}) is False
+
+
+def test_values_equal_preserves_type_changes_and_falls_back_on_ambiguous_eq() -> None:
+    assert _values_equal(1, True) is False
+    assert _values_equal([_WeirdEqElement()], [_WeirdEqElement()]) is False
 
 
 def test_store_add_set_update_and_remove_publish_events() -> None:
@@ -48,14 +71,16 @@ def test_store_add_set_update_and_remove_publish_events() -> None:
     assert broker.events[3]["metadata"] == {"actor": "pytest"}
 
 
-def test_store_only_bumps_revision_when_value_changes() -> None:
+def test_store_external_set_value_bumps_revision_even_if_value_is_unchanged() -> None:
+    """The default external set_value path bumps the revision even when the
+    assigned value is unchanged; scan-originated updates are handled separately."""
     store = ParameterStore()
     store.add(FakeParameter("pump.speed", value=100.0))
     revision_after_add = store.revision()
 
     store.set_value("pump.speed", 100.0)
 
-    assert store.revision() == revision_after_add
+    assert store.revision() > revision_after_add
     assert store.snapshot() == {"pump.speed": 100.0}
     assert store.records()["pump.speed"]["value"] == 100.0
 

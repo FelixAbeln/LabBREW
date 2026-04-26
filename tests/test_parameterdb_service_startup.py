@@ -202,6 +202,25 @@ def test_build_service_skips_restore_when_snapshot_persistence_disabled(monkeypa
     assert called["restore"] == 0
 
 
+def test_build_service_defaults_transducer_path_to_storage_root(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(service_module, "ScanEngine", FakeEngine)
+    monkeypatch.setattr(service_module, "SignalTCPServer", FakeServer)
+    monkeypatch.setattr(service_module, "SnapshotManager", FakeSnapshotManager)
+    monkeypatch.setattr(service_module, "AuditLogger", FakeAuditLogger)
+    monkeypatch.setattr(service_module, "autodiscover_plugins", lambda *_: [])
+    monkeypatch.setattr(service_module, "restore_snapshot_into_store", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(service_module, "storage_root", lambda: tmp_path)
+
+    engine, _server, _registry, _loaded, _snapshots, _restored_count, _audit_logger = service_module.build_service(
+        restore_snapshot=False,
+        enable_snapshot_persistence=False,
+    )
+
+    expected_path = (tmp_path / "parameterdb_transducers.json").resolve()
+    assert type(engine.transducers).__name__ == "TransducerCatalog"
+    assert engine.transducers.path == expected_path
+
+
 
 def test_main_boots_then_shutdowns_on_keyboard_interrupt(monkeypatch) -> None:
     fake_engine = FakeEngine(0.05, store=None, transducers=None, mode="fixed", target_utilization=0.7, min_period_s=0.002, max_period_s=0.05)

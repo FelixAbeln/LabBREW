@@ -530,6 +530,17 @@
   letter-spacing: 0.03em;
 }
 
+.pdb-stale-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  color: #f59e0b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pdb-tr-stale td { background: #2a2010; }
+.pdb-tr-stale:hover td { background: #32281a; }
+
 .pdb-scan-idx {
   font-size: 11px;
   color: #475569;
@@ -540,6 +551,18 @@
   font-family: monospace;
   font-size: 12px;
   color: #e2e8f0;
+}
+
+/* Signal column: highlighted (amber) when pipeline has transformed the value */
+.pdb-signal-str {
+  font-family: monospace;
+  font-size: 12px;
+  color: #f59e0b;
+}
+
+/* Signal column: dimmed when signal passes through unchanged (no active pipeline) */
+.pdb-signal-str.pdb-signal-passthrough {
+  color: #475569;
 }
 
 .pdb-dep-chip {

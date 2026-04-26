@@ -6,6 +6,7 @@ from .._shared.storage_paths import (
     default_parameterdb_audit_path,
     default_parameterdb_snapshot_path,
     default_parameterdb_transducers_path,
+    storage_root,
 )
 from .parameterdb_service.engine import ScanEngine
 from .parameterdb_service.event_broker import EventBroker
@@ -57,7 +58,7 @@ def build_service(
     if audit_log_path is None:
         audit_log_path = default_parameterdb_audit_path()
     if transducers_path is None:
-        transducers_path = default_parameterdb_transducers_path()
+        transducers_path = str((storage_root() / "parameterdb_transducers.json").resolve())
 
     resolved_persistence_kind, postgres_config = (
         resolve_snapshot_persistence_settings(

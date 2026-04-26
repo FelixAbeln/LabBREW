@@ -27,12 +27,12 @@ def test_derivative_plugin_evaluates_rate_without_plugin_side_mirroring() -> Non
     )
 
     param.scan(_ctx(store, dt=1.0))
-    assert float(param.get_value()) == 0.0
+    assert float(param.get_signal_value()) == 0.0
 
     store.set_value("reactor.temp", 13.0)
     param.scan(_ctx(store, dt=2.0))
 
-    assert float(param.get_value()) == 1.5
+    assert float(param.get_signal_value()) == 1.5
     assert float(store.get_value("reactor.temp_rate")) == 0.0
     assert param.state["source"] == "reactor.temp"
     assert param.state["delta"] == 3.0
@@ -52,11 +52,11 @@ def test_derivative_plugin_holds_last_output_between_source_updates() -> None:
     param.scan(_ctx(store, dt=1.0))
     store.set_value("reactor.temp", 12.0)
     param.scan(_ctx(store, dt=2.0))
-    assert float(param.get_value()) == 1.0
+    assert float(param.get_signal_value()) == 1.0
 
     # No new source change: keep last slope output instead of dropping to 0 immediately.
     param.scan(_ctx(store, dt=0.5))
-    assert float(param.get_value()) == 1.0
+    assert float(param.get_signal_value()) == 1.0
     assert param.state["updated_on_change"] is False
 
 
@@ -76,17 +76,17 @@ def test_derivative_plugin_window_mode_uses_trailing_time_window() -> None:
     )
 
     param.scan(_ctx(store, dt=1.0))
-    assert float(param.get_value()) == 0.0
+    assert float(param.get_signal_value()) == 0.0
 
     store.set_value("reactor.temp", 12.0)
     param.scan(_ctx(store, dt=1.0))
-    assert float(param.get_value()) == 2.0
+    assert float(param.get_signal_value()) == 2.0
     assert param.state["mode"] == "window"
     assert param.state["window_s"] == 2.0
 
     store.set_value("reactor.temp", 16.0)
     param.scan(_ctx(store, dt=1.0))
-    assert float(param.get_value()) == 3.0
+    assert float(param.get_signal_value()) == 3.0
     assert param.state["history_sample_count"] >= 2
     assert param.state["history_span_s"] == 2.0
 
@@ -113,7 +113,7 @@ def test_derivative_plugin_non_numeric_source_sets_error_and_keeps_value() -> No
 
     param.scan(_ctx(store, dt=1.0))
 
-    assert float(param.get_value()) == 7.0
+    assert float(param.get_signal_value()) == 7.0
     assert "non-numeric source parameter" in param.state["last_error"]
 
 
@@ -135,7 +135,7 @@ def test_derivative_plugin_reenable_resets_baseline() -> None:
     param.scan(_ctx(store, dt=1.0))
     store.set_value("reactor.temp", 20.0)
     param.scan(_ctx(store, dt=1.0))
-    assert float(param.get_value()) == 10.0
+    assert float(param.get_signal_value()) == 10.0
 
     store.set_value("logic.enable", False)
     param.scan(_ctx(store, dt=1.0))
@@ -146,7 +146,7 @@ def test_derivative_plugin_reenable_resets_baseline() -> None:
     param.scan(_ctx(store, dt=1.0))
 
     assert param.state["enabled"] is True
-    assert float(param.get_value()) == 0.0
+    assert float(param.get_signal_value()) == 0.0
 
 
 def test_derivative_plugin_default_config_and_schema_contract() -> None:

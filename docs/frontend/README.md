@@ -35,7 +35,7 @@ The LabBREW frontend is a React-based browser UI that gives you a real-time wind
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) ≥ 18
+- [Node.js](https://nodejs.org/) ≥ 20
 - The LabBREW backend must be reachable on the same machine or network (see [Quick Start](#quick-start-with-the-backend))
 
 ### Install and run the development server

@@ -28,12 +28,12 @@ def test_lowpass_plugin_filters_source_without_plugin_side_mirroring() -> None:
     )
 
     param.scan(_ctx(store, dt=0.1))
-    assert float(param.get_value()) == 10.0
+    assert float(param.get_signal_value()) == 10.0
 
     store.set_value("signal", 20.0)
     param.scan(_ctx(store, dt=1.0))
 
-    assert float(param.get_value()) == 15.0
+    assert float(param.get_signal_value()) == 15.0
     assert float(store.get_value("signal.filtered")) == 0.0
     assert param.state["alpha"] == 0.5
     assert param.state["last_error"] == ""
@@ -67,7 +67,7 @@ def test_lowpass_plugin_disable_reenable_resets_to_current_input() -> None:
     param.scan(_ctx(store, dt=0.1))
     store.set_value("signal", 20.0)
     param.scan(_ctx(store, dt=1.0))
-    assert float(param.get_value()) > 10.0
+    assert float(param.get_signal_value()) > 10.0
 
     store.set_value("filter.enable", False)
     param.scan(_ctx(store, dt=1.0))
@@ -77,7 +77,7 @@ def test_lowpass_plugin_disable_reenable_resets_to_current_input() -> None:
     store.set_value("filter.enable", True)
     param.scan(_ctx(store, dt=0.1))
 
-    assert float(param.get_value()) == 50.0
+    assert float(param.get_signal_value()) == 50.0
 
 
 def test_lowpass_plugin_non_numeric_source_sets_error_and_keeps_value() -> None:
@@ -89,7 +89,7 @@ def test_lowpass_plugin_non_numeric_source_sets_error_and_keeps_value() -> None:
 
     param.scan(_ctx(store, dt=0.1))
 
-    assert float(param.get_value()) == 7.0
+    assert float(param.get_signal_value()) == 7.0
     assert "non-numeric source parameter" in param.state["last_error"]
 
 

@@ -28,15 +28,15 @@ def test_median_plugin_filters_without_plugin_side_mirroring() -> None:
     )
 
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 10.0
+    assert float(param.get_signal_value()) == 10.0
 
     store.set_value("signal", 100.0)
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 55.0
+    assert float(param.get_signal_value()) == 55.0
 
     store.set_value("signal", 12.0)
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 12.0
+    assert float(param.get_signal_value()) == 12.0
     assert float(store.get_value("signal.med")) == 0.0
     assert param.state["samples"] == [10.0, 100.0, 12.0]
     assert param.state["last_error"] == ""
@@ -70,7 +70,7 @@ def test_median_plugin_disable_reenable_resets_window() -> None:
     param.scan(_ctx(store))
     store.set_value("signal", 100.0)
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 55.0
+    assert float(param.get_signal_value()) == 55.0
 
     store.set_value("filter.enable", False)
     param.scan(_ctx(store))
@@ -80,7 +80,7 @@ def test_median_plugin_disable_reenable_resets_window() -> None:
     store.set_value("filter.enable", True)
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 7.0
+    assert float(param.get_signal_value()) == 7.0
     assert param.state["samples"] == [7.0]
 
 
@@ -93,7 +93,7 @@ def test_median_plugin_non_numeric_source_sets_error_and_keeps_value() -> None:
 
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 7.0
+    assert float(param.get_signal_value()) == 7.0
     assert "non-numeric source parameter" in param.state["last_error"]
 
 

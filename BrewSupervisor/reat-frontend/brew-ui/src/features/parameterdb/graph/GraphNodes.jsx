@@ -1,16 +1,22 @@
 import { Handle, Position } from '@xyflow/react';
-import { sourceColor, typeColor } from './graphModel.js';
-
-const NODE_W = 220;
-const NODE_H = 72;
+import { NODE_W, PARAM_NODE_H, SOURCE_NODE_H, sourceColor, typeColor } from './graphModel.js';
+import { isInvalidState, isStaleOnlyState } from '../stateFlags.js';
 
 export function ParameterNode({ data, selected }) {
-  const { name, paramType, value, scanIndex, hasWarning, invalidConfig } = data;
-  const invalidState = invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid);
+  const { name, paramType, value, signalValue, signal_value, scanIndex, hasWarning, invalidConfig } = data;
+  const rawSignal = signalValue ?? signal_value;
+  const hasInvalidOverride = Boolean(data?.state?.parameter_force_invalid);
+  const isStaleOnly = isStaleOnlyState(data?.state, { hasInvalidOverride });
+  const invalidState = isInvalidState(data?.state, { invalidConfig, hasInvalidOverride });
   const color = typeColor(paramType);
-  const accent = invalidState ? '#ef4444' : color;
+  const accent = invalidState ? '#ef4444' : (isStaleOnly ? '#f59e0b' : color);
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;
   const valStr = invalidState ? '—' : (value === null || value === undefined ? '—' : String(value).slice(0, 18));
+  // Show raw signal: highlighted when pipeline has changed the value, dimmed when passthrough
+  const hasSignal = !invalidState && rawSignal !== undefined && rawSignal !== null;
+  const isPrimitive = (v) => v === null || typeof v !== 'object';
+  const pipelineActive = hasSignal && isPrimitive(rawSignal) && isPrimitive(value) && rawSignal !== value;
+  const sigStr = hasSignal ? String(rawSignal).slice(0, 18) : null;
   const isActive = selected || data.isSelected;
   const isRelated = data.isRelated;
   const isDimmed = data.isDimmed;
@@ -20,13 +26,14 @@ export function ParameterNode({ data, selected }) {
     isRelated ? 'is-related' : '',
     isDimmed ? 'is-dimmed' : '',
     invalidState ? 'is-invalid' : '',
+    isStaleOnly ? 'is-stale' : '',
     hasWarning ? 'has-warning' : '',
   ].filter(Boolean).join(' ');
 
   return (
     <div
       className={nodeClassName}
-      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${NODE_H}px` }}
+      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${PARAM_NODE_H}px` }}
     >
       <Handle type="target" position={Position.Top} style={{ background: accent, width: 8, height: 8 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -54,8 +61,17 @@ export function ParameterNode({ data, selected }) {
           {valStr}
         </span>
         {invalidState && <span title="Parameter invalid" style={{ fontSize: 12, flex: '0 0 auto' }}>⛔</span>}
+        {isStaleOnly && <span title="Parameter stale" style={{ fontSize: 12, flex: '0 0 auto' }}>⏸</span>}
         {hasWarning && <span title="Graph warning" style={{ fontSize: 12, flex: '0 0 auto' }}>⚠️</span>}
       </div>
+      {sigStr && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+          <span style={{ fontSize: 9, color: '#64748b', flex: '0 0 auto' }}>raw</span>
+          <span style={{ fontSize: 10, color: pipelineActive ? '#f59e0b' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {sigStr}
+          </span>
+        </div>
+      )}
       <Handle type="source" position={Position.Bottom} style={{ background: accent, width: 8, height: 8 }} />
     </div>
   );
@@ -71,7 +87,7 @@ export function SourceNode({ data, selected }) {
     <div
       style={{
         width: NODE_W,
-        minHeight: NODE_H,
+        minHeight: SOURCE_NODE_H,
         border: `2px dashed ${isActive ? '#fff' : color}`,
         borderRadius: 8,
         background: isActive ? '#221b11' : isRelated ? '#1c160d' : '#16110b',

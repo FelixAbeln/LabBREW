@@ -27,7 +27,7 @@ def test_condition_plugin_evaluates_rule_style_condition_to_boolean() -> None:
 
     param.scan(_ctx(store))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert param.state["logic_kind"] == "condition"
     assert param.state["condition_kind"] == "atomic"
     assert param.state["source"] == "reactor.temp"
@@ -89,7 +89,7 @@ def test_condition_plugin_sets_missing_value_error_and_keeps_existing_value() ->
 
     param.scan(_ctx(ParameterStore()))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert param.state["matched"] is False
     assert param.state["last_error"] == "Missing value for missing.input"
 
@@ -109,7 +109,7 @@ def test_condition_plugin_composite_missing_value_keeps_previous_output() -> Non
 
     param.scan(_ctx(store))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert param.state["matched"] is False
     assert "Missing value for" in param.state["last_error"]
 
@@ -129,13 +129,13 @@ def test_condition_plugin_honors_for_s_hold_time(monkeypatch) -> None:
     )
 
     param.scan(_ctx(store))
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
     assert param.state["matched"] is False
 
     now["t"] = 102.2
     param.scan(_ctx(store))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert param.state["matched"] is True
     assert param.state["required_for_s"] == 2.0
 
@@ -157,7 +157,7 @@ def test_condition_plugin_elapsed_and_condition_dsl_honors_both_parts(monkeypatc
     )
 
     param.scan(_ctx(store))
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
     assert param.state["logic_kind"] == "all_of"
     assert param.state["sources"] == ["brewcan.density.0"]
     assert param.state["matched"] is False
@@ -165,13 +165,13 @@ def test_condition_plugin_elapsed_and_condition_dsl_honors_both_parts(monkeypatc
     now["t"] = 909.0
     param.scan(_ctx(store))
 
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
     assert param.state["matched"] is False
 
     now["t"] = 1030.0
     param.scan(_ctx(store))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert param.state["matched"] is True
     assert param.state["elapsed_s"] >= 1020.0
 
@@ -198,28 +198,28 @@ def test_condition_plugin_rising_and_falling_event_dsl(monkeypatch) -> None:
 
     rising_param.scan(_ctx(store))
     falling_param.scan(_ctx(store))
-    assert rising_param.get_value() is False
-    assert falling_param.get_value() is False
+    assert rising_param.get_signal_value() is False
+    assert falling_param.get_signal_value() is False
 
     store.set_value("signal", 1)
     now["t"] = 11.0
     rising_param.scan(_ctx(store))
     falling_param.scan(_ctx(store))
-    assert rising_param.get_value() is True
-    assert falling_param.get_value() is False
+    assert rising_param.get_signal_value() is True
+    assert falling_param.get_signal_value() is False
 
     now["t"] = 12.0
     rising_param.scan(_ctx(store))
     falling_param.scan(_ctx(store))
-    assert rising_param.get_value() is False
-    assert falling_param.get_value() is False
+    assert rising_param.get_signal_value() is False
+    assert falling_param.get_signal_value() is False
 
     store.set_value("signal", 0)
     now["t"] = 13.0
     rising_param.scan(_ctx(store))
     falling_param.scan(_ctx(store))
-    assert rising_param.get_value() is False
-    assert falling_param.get_value() is True
+    assert rising_param.get_signal_value() is False
+    assert falling_param.get_signal_value() is True
 
 
 def test_condition_plugin_pulse_event_dsl_holds_for_window(monkeypatch) -> None:
@@ -237,20 +237,20 @@ def test_condition_plugin_pulse_event_dsl_holds_for_window(monkeypatch) -> None:
     )
 
     param.scan(_ctx(store))
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
 
     store.set_value("signal", 1)
     now["t"] = 101.0
     param.scan(_ctx(store))
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
 
     now["t"] = 102.5
     param.scan(_ctx(store))
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
 
     now["t"] = 103.2
     param.scan(_ctx(store))
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
 
 
 def test_condition_plugin_elapsed_timer_resets_after_re_enable(monkeypatch) -> None:
@@ -271,11 +271,11 @@ def test_condition_plugin_elapsed_timer_resets_after_re_enable(monkeypatch) -> N
     )
 
     param.scan(_ctx(store))
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
 
     now["t"] = 109.0
     param.scan(_ctx(store))
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
 
     store.set_value("logic.enable", False)
     now["t"] = 109.1
@@ -286,11 +286,11 @@ def test_condition_plugin_elapsed_timer_resets_after_re_enable(monkeypatch) -> N
     now["t"] = 115.0
     param.scan(_ctx(store))
     assert param.state["enabled"] is True
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
 
     now["t"] = 125.2
     param.scan(_ctx(store))
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert param.state["matched"] is True
 
 
@@ -312,7 +312,7 @@ def test_condition_plugin_reports_invalid_condition_config() -> None:
 
     param.scan(_ctx(ParameterStore()))
 
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
     assert param.state["invalid_config"] is True
     assert "Invalid wait syntax" in param.state["last_error"]
 
@@ -341,7 +341,7 @@ def test_condition_plugin_reports_invalid_negative_pulse_hold_seconds() -> None:
 
     param.scan(_ctx(ParameterStore()))
 
-    assert param.get_value() is False
+    assert param.get_signal_value() is False
     assert "Invalid pulse hold seconds" in param.state["last_error"]
 
 
@@ -364,7 +364,7 @@ def test_condition_plugin_legacy_dict_condition_still_works() -> None:
 
     param.scan(_ctx(store))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert param.state["logic_kind"] == "condition"
     assert param.state["condition_kind"] == "atomic"
 
@@ -386,7 +386,7 @@ def test_condition_plugin_does_not_mirror_during_direct_plugin_scan() -> None:
 
     param.scan(_ctx(store))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert store.get_value("relay.on") is False
 
 
@@ -406,5 +406,5 @@ def test_condition_plugin_direct_scan_does_not_record_mirror_targets() -> None:
 
     param.scan(_ctx(store))
 
-    assert param.get_value() is True
+    assert param.get_signal_value() is True
     assert "missing_output_targets" not in param.state

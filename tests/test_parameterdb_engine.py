@@ -197,11 +197,16 @@ def test_scan_engine_skips_parameter_marked_invalid_by_state() -> None:
     engine = ScanEngine(period_s=0.01, store=store)
     engine.scan_once(dt=0.1)
     first = store.get_record("temp")
+    # Plugin wrote signal=2.0 then marked itself invalid; pipeline is skipped.
+    # get_value() falls back to the signal (pending pipeline), so value == signal.
+    assert first.signal_value == 2.0
     assert first.value == 2.0
     assert first.state["parameter_valid"] is False
 
     engine.scan_once(dt=0.1)
     second = store.get_record("temp")
+    # Second scan is skipped entirely (parameter already invalid).
+    assert second.signal_value == 2.0
     assert second.value == 2.0
     assert param.scan_calls == 1
     assert second.state["connected"] is False
@@ -284,6 +289,181 @@ def test_scan_engine_marks_parameter_invalid_when_dependency_is_missing() -> Non
     assert record.state["parameter_invalid_reasons"] == ["dependency"]
     assert record.state["dependency_invalid_parameters"] == ["missing.dep"]
     assert record.state["connected"] is False
+
+
+def test_scan_engine_marks_and_clears_datasource_silent(monkeypatch) -> None:
+    store = ParameterStore()
+    source = FakeParameter("source", value=1.0, scan_value=2.0)
+    source.update_config(stale_timeout_s=1.0)
+    store.add(source)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+
+    ages = iter([5.0, 0.0])
+    monkeypatch.setattr(source, "get_signal_age_s", lambda: next(ages))
+
+    engine.scan_once(dt=0.1)
+    stale = store.get_record("source")
+    assert stale.state["parameter_valid"] is False
+    assert stale.state["parameter_invalid_reasons"] == ["datasource_silent"]
+    assert stale.state["connected"] is False
+    assert stale.state["last_error"] == ""
+
+    engine.scan_once(dt=0.1)
+    recovered = store.get_record("source")
+    assert recovered.state.get("parameter_valid") is True
+    assert recovered.state.get("parameter_invalid_reasons") is None
+    assert recovered.state["connected"] is True
+    assert recovered.value == 2.0
+
+
+def test_scan_engine_propagates_dependency_stale_and_recovers(monkeypatch) -> None:
+    class DependentParameter(FakeParameter):
+        def __init__(self, name: str) -> None:
+            super().__init__(name, value=10.0, deps=["source"])
+            self.scan_calls = 0
+
+        def scan(self, _ctx) -> None:
+            self.scan_calls += 1
+            self.set_value(20.0)
+
+    store = ParameterStore()
+    source = FakeParameter("source", value=1.0, scan_value=2.0)
+    source.update_config(stale_timeout_s=1.0)
+    dependent = DependentParameter("derived")
+    store.add(source)
+    store.add(dependent)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+
+    ages = iter([5.0, 0.0])
+    monkeypatch.setattr(source, "get_signal_age_s", lambda: next(ages))
+
+    engine.scan_once(dt=0.1)
+    first = store.get_record("derived")
+    assert dependent.scan_calls == 0
+    assert first.state["parameter_valid"] is False
+    assert first.state["parameter_invalid_reasons"] == ["dependency_stale"]
+    assert first.state["dependency_stale_parameters"] == ["source"]
+    assert first.state["connected"] is False
+
+    engine.scan_once(dt=0.1)
+    second = store.get_record("derived")
+    assert dependent.scan_calls == 1
+    assert second.value == 20.0
+    assert second.state.get("parameter_invalid_reasons") is None
+    assert "dependency_stale_parameters" not in second.state
+    assert second.state["connected"] is True
+
+
+def test_scan_engine_marks_mirror_target_stale_when_source_invalid() -> None:
+    store = ParameterStore()
+    source = StatefulParameter(
+        "source",
+        value=1.0,
+        scan_value=2.0,
+        initial_state={
+            "parameter_valid": False,
+            "parameter_invalid_reasons": ["datasource"],
+        },
+    )
+    source.update_config(mirror_to=["mirror.target"])
+    mirror_target = FakeParameter("mirror.target", value=10.0)
+    store.add(source)
+    store.add(mirror_target)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    target = store.get_record("mirror.target")
+    assert target.state["parameter_valid"] is False
+    assert "mirror_source_invalid" in target.state["parameter_invalid_reasons"]
+    assert target.state["mirror_source"] == "source"
+
+
+def test_scan_engine_clears_mirror_target_stale_when_source_recovers() -> None:
+    store = ParameterStore()
+    source = StatefulParameter(
+        "source",
+        value=1.0,
+        scan_value=3.0,
+        initial_state={
+            "parameter_valid": False,
+            "parameter_invalid_reasons": ["datasource"],
+        },
+    )
+    source.update_config(mirror_to=["mirror.target"])
+    mirror_target = FakeParameter("mirror.target", value=10.0)
+    store.add(source)
+    store.add(mirror_target)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine.scan_once(dt=0.1)
+
+    # Recover source and run another cycle.
+    source.state.pop("parameter_valid", None)
+    source.state.pop("parameter_invalid_reasons", None)
+    engine.scan_once(dt=0.1)
+
+    target = store.get_record("mirror.target")
+    assert target.value == 3.0
+    assert target.state.get("mirror_source") is None
+    assert target.state.get("parameter_invalid_reasons") is None
+    assert target.state.get("parameter_valid") is None
+
+
+def test_scan_engine_does_not_republish_unchanged_mirror_stale_state() -> None:
+    broker = FakeBroker()
+    store = ParameterStore(event_broker=broker)
+    source = StatefulParameter("source", value=1.0, scan_value=2.0)
+    source.update_config(mirror_to=["mirror.target"])
+    mirror_target = FakeParameter("mirror.target", value=10.0)
+    store.add(source)
+    store.add(mirror_target)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine._mark_mirror_targets_stale("source", dict(source.config))
+    first_count = sum(
+        1
+        for event in broker.events
+        if event.get("event") == "state_changed"
+        and event.get("name") == "mirror.target"
+    )
+
+    engine._mark_mirror_targets_stale("source", dict(source.config))
+    second_count = sum(
+        1
+        for event in broker.events
+        if event.get("event") == "state_changed"
+        and event.get("name") == "mirror.target"
+    )
+
+    assert first_count == 1
+    assert second_count == 1
+
+
+def test_clear_mirror_targets_stale_respects_mirror_source_owner() -> None:
+    store = ParameterStore()
+    source = StatefulParameter("source", value=1.0, scan_value=2.0)
+    source.update_config(mirror_to=["mirror.target"])
+    mirror_target = FakeParameter("mirror.target", value=10.0)
+    mirror_target.state.update(
+        {
+            "parameter_valid": False,
+            "parameter_invalid_reasons": ["mirror_source_invalid"],
+            "mirror_source": "other.source",
+        }
+    )
+    store.add(source)
+    store.add(mirror_target)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine._clear_mirror_targets_stale("source", dict(source.config))
+
+    target = store.get_record("mirror.target")
+    assert target.state.get("mirror_source") == "other.source"
+    assert target.state.get("parameter_invalid_reasons") == ["mirror_source_invalid"]
+    assert target.state.get("parameter_valid") is False
 
 
 def test_scan_engine_init_and_desired_period_variants() -> None:

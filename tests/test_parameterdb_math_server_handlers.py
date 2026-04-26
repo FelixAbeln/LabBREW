@@ -546,6 +546,31 @@ def test_pipeline_marks_transducer_limit_invalid_independently() -> None:
     assert "parameter_invalid_reasons" not in recovered_state
 
 
+def test_pipeline_marks_unknown_transducer_as_invalid() -> None:
+    server = _build_server_with_math()
+
+    assert server.api_create_parameter(
+        {
+            "name": "sensor.raw",
+            "parameter_type": "static",
+            "value": 12.0,
+            "config": {
+                "calibration_equation": "x + 1",
+                "transducer_id": "missing.transducer",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    record = server.api_describe({})["sensor.raw"]
+    state = record["state"]
+
+    assert state.get("parameter_valid") is False
+    assert state.get("parameter_invalid_reasons") == ["transducer"]
+    assert "unknown transducer 'missing.transducer'" in str(state.get("last_error") or "")
+
+
 def test_pipeline_marks_channel_limit_invalid_independently() -> None:
     server = _build_server_with_math()
 
@@ -630,6 +655,47 @@ def test_pipeline_failure_clears_stale_pipeline_state_details() -> None:
     assert second["state"]["last_error"] == ""
     assert "calibration_input" not in second["state"]
     assert "calibration_output" not in second["state"]
+
+
+def test_api_set_value_clears_prior_pipeline_runtime_state_until_next_scan() -> None:
+    server = _build_server_with_math()
+
+    assert server.api_create_parameter(
+        {
+            "name": "src.temp",
+            "parameter_type": "static",
+            "value": 10.0,
+            "config": {
+                "calibration_equation": "x + 5",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    scanned = server.api_describe({})["src.temp"]
+    assert scanned["value"] == 15.0
+    assert scanned["signal_value"] == 10.0
+    assert scanned["state"].get("calibration_output") == 15.0
+
+    publish_broker = EventBroker()
+    server.engine.store.attach_event_broker(publish_broker)
+    _token, events, _size = publish_broker.subscribe(names=["src.temp"])
+    assert server.api_set_value({"name": "src.temp", "value": 40.0}) is True
+    emitted = [events.get_nowait(), events.get_nowait()]
+    state_event = next(item for item in emitted if item["event"] == "state_changed")
+    assert state_event["name"] == "src.temp"
+    assert state_event["state"]["signal_value"] == 40.0
+
+    pending = server.api_describe({})["src.temp"]
+
+    # Pipeline is pending after external signal write, so value falls back to raw.
+    assert pending["value"] == 40.0
+    assert pending["signal_value"] == 40.0
+    assert "calibration_input" not in pending["state"]
+    assert "calibration_output" not in pending["state"]
+    assert "parameter_valid" not in pending["state"]
+    assert "parameter_invalid_reasons" not in pending["state"]
 
 
 def test_transducer_crud_handlers() -> None:
