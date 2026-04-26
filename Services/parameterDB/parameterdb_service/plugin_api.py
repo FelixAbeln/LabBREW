@@ -44,19 +44,30 @@ class ParameterBase(ABC):
         self.name = name
         self.config = dict(config or {})
         # self.value holds the raw signal: what the plugin writes during scan().
-        # Plugins continue to write self.value directly or via set_value().
-        self.value = value
+        # Direct assignments to self.value are supported and routed through the
+        # property setter so signal timestamps and pipeline state stay in sync.
+        self._value: Any = None
         # self._pipeline_value holds the post-pipeline output.
         # Set to _PIPELINE_PENDING until the engine processes this parameter.
         # get_value() falls back to the raw signal while pending, so writes
         # are immediately readable without the engine pre-writing the pipeline.
         self._pipeline_value: Any = _PIPELINE_PENDING
-        # Monotonic timestamp of the last set_value() call.
+        # Monotonic timestamp of the last signal write.
         # Used by the engine for datasource silence detection (stale_timeout_s).
         self._last_signal_time: float = time.monotonic()
+        self.value = value
         self.state: dict[str, Any] = {}
         self.metadata = dict(metadata or {})
 
+    @property
+    def value(self) -> Any:
+        return self._value
+
+    @value.setter
+    def value(self, value: Any) -> None:
+        self._value = value
+        self._pipeline_value = _PIPELINE_PENDING
+        self._last_signal_time = time.monotonic()
     def on_added(self, _store: ParameterStore) -> None:
         return None
 
