@@ -7,9 +7,13 @@ const NODE_H = 86;
 export function ParameterNode({ data, selected }) {
   const { name, paramType, value, signalValue, signal_value, scanIndex, hasWarning, invalidConfig } = data;
   const rawSignal = signalValue ?? signal_value;
-  const invalidState = invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid);
+  const reasons = data?.state?.parameter_invalid_reasons ?? [];
+  const isStaleOnly = data?.state?.parameter_valid === false
+    && reasons.length > 0
+    && reasons.every((r) => r === 'mirror_source_invalid' || r === 'datasource_silent' || r === 'dependency_stale');
+  const invalidState = !isStaleOnly && (invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid));
   const color = typeColor(paramType);
-  const accent = invalidState ? '#ef4444' : color;
+  const accent = invalidState ? '#ef4444' : (isStaleOnly ? '#f59e0b' : color);
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;
   const valStr = invalidState ? '—' : (value === null || value === undefined ? '—' : String(value).slice(0, 18));
   // Show raw signal: highlighted when pipeline has changed the value, dimmed when passthrough
@@ -26,6 +30,7 @@ export function ParameterNode({ data, selected }) {
     isRelated ? 'is-related' : '',
     isDimmed ? 'is-dimmed' : '',
     invalidState ? 'is-invalid' : '',
+    isStaleOnly ? 'is-stale' : '',
     hasWarning ? 'has-warning' : '',
   ].filter(Boolean).join(' ');
 
@@ -60,6 +65,7 @@ export function ParameterNode({ data, selected }) {
           {valStr}
         </span>
         {invalidState && <span title="Parameter invalid" style={{ fontSize: 12, flex: '0 0 auto' }}>⛔</span>}
+        {isStaleOnly && <span title="Parameter stale" style={{ fontSize: 12, flex: '0 0 auto' }}>⏸</span>}
         {hasWarning && <span title="Graph warning" style={{ fontSize: 12, flex: '0 0 auto' }}>⚠️</span>}
       </div>
       {sigStr && (

@@ -84,10 +84,20 @@ class ScanEngine:
                 t = self.store._get_runtime_param(target)
             except KeyError:
                 continue
-            reasons = list(t.state.get("parameter_invalid_reasons") or [])
-            if _MIRROR_STALE_REASON not in reasons:
-                reasons.append(_MIRROR_STALE_REASON)
-            t.state["parameter_invalid_reasons"] = reasons
+            old_reasons = list(t.state.get("parameter_invalid_reasons") or [])
+            new_reasons = list(old_reasons)
+            if _MIRROR_STALE_REASON not in new_reasons:
+                new_reasons.append(_MIRROR_STALE_REASON)
+
+            changed = (
+                old_reasons != new_reasons
+                or t.state.get("parameter_valid") is not False
+                or t.state.get("mirror_source") != source_name
+            )
+            if not changed:
+                continue
+
+            t.state["parameter_invalid_reasons"] = new_reasons
             t.state["parameter_valid"] = False
             t.state["mirror_source"] = source_name
             self.store.publish_scan_state(target, dict(t.state))
@@ -99,12 +109,18 @@ class ScanEngine:
                 t = self.store._get_runtime_param(target)
             except KeyError:
                 continue
-            reasons = [r for r in (t.state.get("parameter_invalid_reasons") or []) if r != _MIRROR_STALE_REASON]
-            if not reasons:
+            old_reasons = list(t.state.get("parameter_invalid_reasons") or [])
+            new_reasons = [r for r in old_reasons if r != _MIRROR_STALE_REASON]
+            had_mirror_source = "mirror_source" in t.state
+            changed = old_reasons != new_reasons or had_mirror_source
+            if not changed:
+                continue
+
+            if not new_reasons:
                 t.state.pop("parameter_invalid_reasons", None)
                 t.state.pop("parameter_valid", None)
             else:
-                t.state["parameter_invalid_reasons"] = reasons
+                t.state["parameter_invalid_reasons"] = new_reasons
             t.state.pop("mirror_source", None)
             self.store.publish_scan_state(target, dict(t.state))
 
