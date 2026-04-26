@@ -632,6 +632,39 @@ def test_pipeline_failure_clears_stale_pipeline_state_details() -> None:
     assert "calibration_output" not in second["state"]
 
 
+def test_api_set_value_clears_prior_pipeline_runtime_state_until_next_scan() -> None:
+    server = _build_server_with_math()
+
+    assert server.api_create_parameter(
+        {
+            "name": "src.temp",
+            "parameter_type": "static",
+            "value": 10.0,
+            "config": {
+                "calibration_equation": "x + 5",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    scanned = server.api_describe({})["src.temp"]
+    assert scanned["value"] == 15.0
+    assert scanned["signal_value"] == 10.0
+    assert scanned["state"].get("calibration_output") == 15.0
+
+    assert server.api_set_value({"name": "src.temp", "value": 40.0}) is True
+    pending = server.api_describe({})["src.temp"]
+
+    # Pipeline is pending after external signal write, so value falls back to raw.
+    assert pending["value"] == 40.0
+    assert pending["signal_value"] == 40.0
+    assert "calibration_input" not in pending["state"]
+    assert "calibration_output" not in pending["state"]
+    assert "parameter_valid" not in pending["state"]
+    assert "parameter_invalid_reasons" not in pending["state"]
+
+
 def test_transducer_crud_handlers() -> None:
     server = _build_server_with_math()
 
