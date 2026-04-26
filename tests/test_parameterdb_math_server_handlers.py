@@ -653,7 +653,15 @@ def test_api_set_value_clears_prior_pipeline_runtime_state_until_next_scan() -> 
     assert scanned["signal_value"] == 10.0
     assert scanned["state"].get("calibration_output") == 15.0
 
+    publish_broker = EventBroker()
+    server.engine.store.attach_event_broker(publish_broker)
+    _token, events, _size = publish_broker.subscribe(names=["src.temp"])
     assert server.api_set_value({"name": "src.temp", "value": 40.0}) is True
+    emitted = [events.get_nowait(), events.get_nowait()]
+    state_event = next(item for item in emitted if item["event"] == "state_changed")
+    assert state_event["name"] == "src.temp"
+    assert state_event["state"]["signal_value"] == 40.0
+
     pending = server.api_describe({})["src.temp"]
 
     # Pipeline is pending after external signal write, so value falls back to raw.
