@@ -99,7 +99,7 @@ export function ParameterList({
               const displayValue = isInvalid
                 ? '—'
                 : (rec.value === null || rec.value === undefined ? '—' : String(rec.value));
-              const hasSignal = !isInvalid && !isStaleOnly && rec.signal_value !== undefined && rec.signal_value !== null;
+              const hasSignal = !isInvalid && rec.signal_value !== undefined && rec.signal_value !== null;
               const isPrimitive = (v) => v === null || typeof v !== 'object';
               const pipelineActive = hasSignal && isPrimitive(rec.signal_value) && isPrimitive(rec.value) && rec.signal_value !== rec.value;
               const displaySignal = hasSignal ? String(rec.signal_value) : '—';
