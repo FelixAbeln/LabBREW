@@ -783,7 +783,9 @@ class ScanEngine:
             param.state.pop("dependency_stale_parameters", None)
 
             invalid_reasons = param.state.get("parameter_invalid_reasons") or []
-            _recoverable_reasons = _PIPELINE_INVALID_REASONS.union(_STALE_REASONS)
+            _recoverable_reasons = _PIPELINE_INVALID_REASONS.union(
+                _STALE_REASONS.difference({"mirror_source_invalid"})
+            )
             is_recoverable_invalid_only = bool(invalid_reasons) and set(invalid_reasons).issubset(_recoverable_reasons)
             if param.state.get("parameter_valid") is False and invalid_reasons and not is_recoverable_invalid_only:
                 # Skip evaluation when a parameter is already marked invalid by datasource/runtime.
