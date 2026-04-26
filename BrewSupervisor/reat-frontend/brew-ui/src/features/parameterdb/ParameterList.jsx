@@ -92,7 +92,7 @@ export function ParameterList({
               const reasons = rec?.state?.parameter_invalid_reasons ?? [];
               const isStaleOnly = rec?.state?.parameter_valid === false
                 && reasons.length > 0
-                && reasons.every(r => r === 'mirror_source_invalid' || r === 'datasource_silent');
+                && reasons.every(r => r === 'mirror_source_invalid' || r === 'datasource_silent' || r === 'dependency_stale');
               const isInvalid = !isStaleOnly && (Boolean(rec?.state?.invalid_config) || rec?.state?.parameter_valid === false || Boolean(rec?.state?.parameter_force_invalid));
               const displayValue = isInvalid
                 ? '—'
@@ -112,7 +112,13 @@ export function ParameterList({
                   <td>
                     <span className="pdb-type-badge">{rec.parameter_type}</span>
                     {isInvalid && <span className="pdb-invalid-tag">invalid</span>}
-                    {isStaleOnly && <span className="pdb-stale-tag" title={reasons.includes('datasource_silent') ? 'Datasource stopped sending' : `Mirror source invalid: ${rec?.state?.mirror_source ?? '?'}`}>stale</span>}
+                    {isStaleOnly && <span className="pdb-stale-tag" title={
+                      reasons.includes('dependency_stale')
+                        ? `Upstream stale: ${(rec?.state?.dependency_stale_parameters ?? []).join(', ') || '?'}`
+                        : reasons.includes('datasource_silent')
+                          ? 'Datasource stopped sending'
+                          : `Mirror source invalid: ${rec?.state?.mirror_source ?? '?'}`
+                    }>stale</span>}
                   </td>
                   <td className="pdb-cell-num">
                     {scanIdx >= 0 ? <span className="pdb-scan-idx">#{scanIdx}</span> : '—'}

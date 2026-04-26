@@ -43,19 +43,31 @@ class ParameterBase(ABC):
     ) -> None:
         self.name = name
         self.config = dict(config or {})
-        # self.value holds the raw signal: what the plugin writes during scan().
-        # Plugins continue to write self.value directly or via set_value().
-        self.value = value
+        # self._value holds the raw signal: what the plugin writes during scan().
+        # Plugins can write self.value directly or via set_value();
+        # the property setter tracks freshness in _last_signal_time for stale detection.
+        self._value = value
         # self._pipeline_value holds the post-pipeline output.
         # Set to _PIPELINE_PENDING until the engine processes this parameter.
         # get_value() falls back to the raw signal while pending, so writes
         # are immediately readable without the engine pre-writing the pipeline.
         self._pipeline_value: Any = _PIPELINE_PENDING
-        # Monotonic timestamp of the last set_value() call.
+        # Monotonic timestamp of the last signal write (direct or via set_value()).
         # Used by the engine for datasource silence detection (stale_timeout_s).
         self._last_signal_time: float = time.monotonic()
         self.state: dict[str, Any] = {}
         self.metadata = dict(metadata or {})
+
+    @property
+    def value(self) -> Any:
+        """Raw signal value written by the plugin."""
+        return self._value
+
+    @value.setter
+    def value(self, val: Any) -> None:
+        """Write raw signal and reset freshness timer."""
+        self._value = val
+        self._last_signal_time = time.monotonic()
 
     def on_added(self, _store: ParameterStore) -> None:
         return None
@@ -66,10 +78,10 @@ class ParameterBase(ABC):
     def set_value(self, value: Any) -> None:
         """Write the raw signal value.  Called by plugins during scan().
         Resets the pipeline to pending so get_value() falls back to this
-        signal until the engine applies its pipeline stage."""
+        signal until the engine applies its pipeline stage.
+        Note: the value property setter also updates _last_signal_time."""
         self.value = value
         self._pipeline_value = _PIPELINE_PENDING
-        self._last_signal_time = time.monotonic()
 
     def get_signal_age_s(self) -> float:
         """Return seconds since the last set_value() call (monotonic clock)."""
@@ -89,7 +101,7 @@ class ParameterBase(ABC):
 
     def get_signal_value(self) -> Any:
         """Return the raw signal value written by the plugin during scan()."""
-        return self.value
+        return self._value
 
     def dependencies(self) -> list[str]:
         """Parameters this object reads from during scan()."""

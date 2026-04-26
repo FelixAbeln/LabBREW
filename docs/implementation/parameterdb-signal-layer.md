@@ -27,7 +27,26 @@ Each scan cycle follows this sequence:
 7. Engine mirrors Value to any mirror_to targets
 ```
 
+**Important**: Plugins write the Signal by either calling `param.set_value(measurement)` or directly assigning `param.value = measurement`. Both approaches reset the freshness timer (_last_signal_time), which is used for datasource silence detection (stale_timeout_s).
+
 Between scans, if an external write (`store.set_value()`) arrives — for example a manual override from the UI — it writes the Signal and resets the pipeline to *pending*. `get_value()` falls back to the raw Signal until the next scan cycle processes it through the pipeline.
+
+---
+
+## Stale Detection (Datasource Silence)
+
+When a datasource stops sending updates, a parameter configured with `stale_timeout_s` will be marked as stale (amber warning) rather than invalid (red error). This indicates the last known value is present but potentially outdated.
+
+**Configuration** (in parameter config):
+```json
+{
+  "stale_timeout_s": 30
+}
+```
+
+If no Signal write occurs for more than 30 seconds, the parameter is marked with `datasource_silent` reason and shows as amber "STALE" in the UI. Staleness propagates to downstream parameters as `dependency_stale` — the whole dependency chain goes amber if an upstream sensor stops sending.
+
+Stale parameters recover automatically when Signal writes resume.
 
 ---
 

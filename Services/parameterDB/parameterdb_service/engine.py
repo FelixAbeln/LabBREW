@@ -21,6 +21,9 @@ UTC = timezone.utc
 _PIPELINE_INVALID_REASONS = frozenset({"channel", "transducer"})
 _MIRROR_STALE_REASON = "mirror_source_invalid"
 _DATASOURCE_SILENT_REASON = "datasource_silent"
+# Reasons that represent amber/stale state rather than true invalidity.
+# A dependency whose only invalid reasons are in this set propagates stale, not invalid.
+_STALE_REASONS = frozenset({_MIRROR_STALE_REASON, _DATASOURCE_SILENT_REASON, "dependency_stale"})
 
 
 @dataclass(slots=True)
@@ -634,11 +637,12 @@ class ScanEngine:
             self._write_target_map = write_target_map
             self._cached_store_revision = rev
 
-    def _dependency_status(self, param_name: str) -> tuple[list[str], list[str]]:
+    def _dependency_status(self, param_name: str) -> tuple[list[str], list[str], list[str]]:
         with self._graph_lock:
             deps = list(self._dependency_map.get(param_name, ()))
         missing: list[str] = []
         invalid: list[str] = []
+        stale: list[str] = []
         for dep in deps:
             try:
                 dep_param = self.store._get_runtime_param(dep)
@@ -646,8 +650,12 @@ class ScanEngine:
                 missing.append(dep)
                 continue
             if dep_param.state.get("parameter_valid") is False:
-                invalid.append(dep)
-        return missing, invalid
+                reasons = set(dep_param.state.get("parameter_invalid_reasons") or [])
+                if reasons and reasons.issubset(_STALE_REASONS):
+                    stale.append(dep)
+                else:
+                    invalid.append(dep)
+        return missing, invalid, stale
 
     def get_scan_order(self) -> list[str]:
         self._rebuild_graph_if_needed()
@@ -717,7 +725,7 @@ class ScanEngine:
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
 
-            missing_dependencies, invalid_dependencies = self._dependency_status(name)
+            missing_dependencies, invalid_dependencies, stale_dependencies = self._dependency_status(name)
             if missing_dependencies or invalid_dependencies:
                 self._clear_database_pipeline_state(param)
                 dependency_failures = list(
@@ -726,6 +734,7 @@ class ScanEngine:
                 param.state["parameter_valid"] = False
                 param.state["parameter_invalid_reasons"] = ["dependency"]
                 param.state["dependency_invalid_parameters"] = dependency_failures
+                param.state.pop("dependency_stale_parameters", None)
                 param.state["last_error"] = ""
                 param.state["connected"] = False
                 new_value = param.get_value()
@@ -735,10 +744,26 @@ class ScanEngine:
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
 
-            if param.state.get("parameter_invalid_reasons") == ["dependency"]:
+            if stale_dependencies:
+                self._clear_database_pipeline_state(param)
+                param.state["parameter_valid"] = False
+                param.state["parameter_invalid_reasons"] = ["dependency_stale"]
+                param.state["dependency_stale_parameters"] = stale_dependencies
+                param.state.pop("dependency_invalid_parameters", None)
+                param.state["last_error"] = ""
+                param.state["connected"] = False
+                new_value = param.get_value()
+                param.state["signal_value"] = param.get_signal_value()
+                self._mark_mirror_targets_stale(name, dict(param.config))
+                self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
+                self.store.publish_scan_state(param.name, dict(param.state))
+                continue
+
+            if param.state.get("parameter_invalid_reasons") in (["dependency"], ["dependency_stale"]):
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
             param.state.pop("dependency_invalid_parameters", None)
+            param.state.pop("dependency_stale_parameters", None)
 
             invalid_reasons = param.state.get("parameter_invalid_reasons") or []
             is_pipeline_invalid_only = bool(invalid_reasons) and set(invalid_reasons).issubset(_PIPELINE_INVALID_REASONS)

@@ -110,10 +110,13 @@ class ParameterStore:
     def set_value(self, name: str, value: Any, *, source: str = "external") -> None:
         with self._lock:
             param = self._params[name]
-            # Write the raw signal. set_value() resets the pipeline to pending —
-            # that IS the change signal. Always publish; no comparison needed.
+            old = param.get_value()
             param.set_value(value)
             new = param.get_value()
+            # For scan/mirror writes, only publish if the value actually changed.
+            # This avoids event spam when mirrors repeatedly write the same value.
+            if source == "scan" and _values_equal(old, new):
+                return
             rev = self._touch_unlocked()
         self._publish({
             "event": "value_changed",
