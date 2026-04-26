@@ -5,17 +5,17 @@ const NODE_W = 220;
 const NODE_H = 72;
 
 export function ParameterNode({ data, selected }) {
-  const { name, paramType, value, signal_value, scanIndex, hasWarning, invalidConfig } = data;
+  const { name, paramType, value, signalValue, scanIndex, hasWarning, invalidConfig } = data;
   const invalidState = invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid);
   const color = typeColor(paramType);
   const accent = invalidState ? '#ef4444' : color;
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;
   const valStr = invalidState ? '—' : (value === null || value === undefined ? '—' : String(value).slice(0, 18));
   // Show raw signal: highlighted when pipeline has changed the value, dimmed when passthrough
-  const hasSignal = !invalidState && signal_value !== undefined && signal_value !== null;
+  const hasSignal = !invalidState && signalValue !== undefined && signalValue !== null;
   const isPrimitive = (v) => v === null || typeof v !== 'object';
-  const pipelineActive = hasSignal && isPrimitive(signal_value) && isPrimitive(value) && signal_value !== value;
-  const sigStr = hasSignal ? String(signal_value).slice(0, 18) : null;
+  const pipelineActive = hasSignal && isPrimitive(signalValue) && isPrimitive(value) && signalValue !== value;
+  const sigStr = hasSignal ? String(signalValue).slice(0, 18) : null;
   const isActive = selected || data.isSelected;
   const isRelated = data.isRelated;
   const isDimmed = data.isDimmed;
