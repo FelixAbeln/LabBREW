@@ -551,6 +551,13 @@ class ScanEngine:
 
         return None
 
+    def _classify_pipeline_error_reason(self, config: dict[str, Any], error_text: str) -> str:
+        transducer_id = str(config.get("transducer_id") or "").strip()
+        text = str(error_text or "").lower()
+        if transducer_id and "transducer" in text:
+            return "transducer"
+        return "channel"
+
     def _desired_period_s(self, elapsed_s: float) -> float:
         if self.mode == "adaptive":
             adaptive_period = (
@@ -862,6 +869,11 @@ class ScanEngine:
                     pipeline_error = self._apply_database_pipeline(name, param)
                     if pipeline_error:
                         param.state["last_error"] = pipeline_error
+                        param.state["parameter_valid"] = False
+                        param.state["parameter_invalid_reasons"] = [
+                            self._classify_pipeline_error_reason(dict(param.config), pipeline_error)
+                        ]
+                        self._mark_mirror_targets_stale(name, dict(param.config))
 
             new_value = param.get_value()
             error_text = str(param.state.get("last_error", "") or "").strip()

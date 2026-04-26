@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { deleteParam } from './loaders.js';
 import { ParameterEditModal } from './ParameterEditModal.jsx';
+import { isInvalidState, isStaleOnlyState } from './stateFlags.js';
 
 export function ParameterList({
   fermenterId,
@@ -91,11 +92,11 @@ export function ParameterList({
               const writesTo = writes[name] ?? [];
               const reasons = rec?.state?.parameter_invalid_reasons ?? [];
               const hasInvalidOverride = Boolean(rec?.state?.invalid_config) || Boolean(rec?.state?.parameter_force_invalid);
-              const isStaleOnly = !hasInvalidOverride
-                && rec?.state?.parameter_valid === false
-                && reasons.length > 0
-                && reasons.every(r => r === 'mirror_source_invalid' || r === 'datasource_silent' || r === 'dependency_stale');
-              const isInvalid = hasInvalidOverride || (!isStaleOnly && rec?.state?.parameter_valid === false);
+              const isStaleOnly = isStaleOnlyState(rec?.state, { hasInvalidOverride });
+              const isInvalid = isInvalidState(rec?.state, {
+                invalidConfig: Boolean(rec?.state?.invalid_config),
+                hasInvalidOverride,
+              });
               const displayValue = isInvalid
                 ? '—'
                 : (rec.value === null || rec.value === undefined ? '—' : String(rec.value));

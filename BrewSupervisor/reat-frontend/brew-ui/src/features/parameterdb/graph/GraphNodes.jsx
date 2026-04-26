@@ -1,14 +1,13 @@
 import { Handle, Position } from '@xyflow/react';
 import { NODE_W, PARAM_NODE_H, SOURCE_NODE_H, sourceColor, typeColor } from './graphModel.js';
+import { isInvalidState, isStaleOnlyState } from '../stateFlags.js';
 
 export function ParameterNode({ data, selected }) {
   const { name, paramType, value, signalValue, signal_value, scanIndex, hasWarning, invalidConfig } = data;
   const rawSignal = signalValue ?? signal_value;
-  const reasons = data?.state?.parameter_invalid_reasons ?? [];
-  const isStaleOnly = data?.state?.parameter_valid === false
-    && reasons.length > 0
-    && reasons.every((r) => r === 'mirror_source_invalid' || r === 'datasource_silent' || r === 'dependency_stale');
-  const invalidState = !isStaleOnly && (invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid));
+  const hasInvalidOverride = Boolean(data?.state?.parameter_force_invalid);
+  const isStaleOnly = isStaleOnlyState(data?.state, { hasInvalidOverride });
+  const invalidState = isInvalidState(data?.state, { invalidConfig, hasInvalidOverride });
   const color = typeColor(paramType);
   const accent = invalidState ? '#ef4444' : (isStaleOnly ? '#f59e0b' : color);
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;

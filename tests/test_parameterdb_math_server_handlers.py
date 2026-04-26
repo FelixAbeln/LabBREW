@@ -546,6 +546,31 @@ def test_pipeline_marks_transducer_limit_invalid_independently() -> None:
     assert "parameter_invalid_reasons" not in recovered_state
 
 
+def test_pipeline_marks_unknown_transducer_as_invalid() -> None:
+    server = _build_server_with_math()
+
+    assert server.api_create_parameter(
+        {
+            "name": "sensor.raw",
+            "parameter_type": "static",
+            "value": 12.0,
+            "config": {
+                "calibration_equation": "x + 1",
+                "transducer_id": "missing.transducer",
+            },
+            "metadata": {},
+        }
+    ) is True
+
+    server.engine.scan_once(dt=0.1)
+    record = server.api_describe({})["sensor.raw"]
+    state = record["state"]
+
+    assert state.get("parameter_valid") is False
+    assert state.get("parameter_invalid_reasons") == ["transducer"]
+    assert "unknown transducer 'missing.transducer'" in str(state.get("last_error") or "")
+
+
 def test_pipeline_marks_channel_limit_invalid_independently() -> None:
     server = _build_server_with_math()
 
