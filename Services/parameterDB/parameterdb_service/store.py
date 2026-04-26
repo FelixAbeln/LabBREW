@@ -8,25 +8,25 @@ from .plugin_api import ParameterBase, ParameterRecord
 
 
 _SCALAR_TYPES = (int, float, bool, str, bytes, type(None))
+_SAFE_CONTAINER_TYPES = (dict, list, tuple, set, frozenset)
+_SAFE_COMPARABLE_TYPES = _SCALAR_TYPES + _SAFE_CONTAINER_TYPES
 
 
 def _values_equal(a: Any, b: Any) -> bool:
     """Return True when a and b should be considered the same value.
 
-    For simple scalar types (int, float, bool, str, bytes, None) a normal
-    equality check is performed — this covers the vast majority of sensor
-    readings and suppresses redundant publish events efficiently.
+    For simple scalars and common built-in containers (dict/list/tuple/set/
+    frozenset), run a normal equality check to suppress redundant events for
+    stable payloads (for example dict/list scan values that have not changed).
 
-    For all other types (dict, list, objects, numpy arrays, …) we conservatively
-    return False so that a publish/revision bump always happens.  This avoids
-    missing change events for mutable containers, types with exotic ``__eq__``
-    implementations, or anything where ``bool(a == b)`` may raise (e.g. numpy
-    arrays).
+    For all other types, conservatively return False so that a publish/revision
+    bump still happens. This avoids relying on custom ``__eq__`` implementations
+    that may be ambiguous or unsafe.
     """
-    if not (isinstance(a, _SCALAR_TYPES) and isinstance(b, _SCALAR_TYPES)):
-        return False
     # Preserve type-level changes (e.g. 1 -> True) as real changes.
     if type(a) is not type(b):
+        return False
+    if not (isinstance(a, _SAFE_COMPARABLE_TYPES) and isinstance(b, _SAFE_COMPARABLE_TYPES)):
         return False
     try:
         return bool(a == b)
