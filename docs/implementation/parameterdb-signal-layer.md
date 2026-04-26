@@ -78,11 +78,11 @@ SIGNAL        VALUE
 1.0489...     1.0489...
 ```
 
-The Signal is grey (`#475569`) when Signal == Value. This means:
+The Signal is grey (`#475569`) when Signal == Value. This indicates that, for this reading, the pipeline did not change the numeric result. Commonly, this happens when:
 - No `calibration_equation` is configured, **and**
 - No `transducer_id` is configured
 
-The signal is passing through the pipeline unchanged. Both columns show the same number.
+It can also happen when a configured calibration/transducer pipeline is effectively a passthrough or otherwise produces the same numeric result. In all cases, both columns show the same number.
 
 ---
 
