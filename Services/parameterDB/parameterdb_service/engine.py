@@ -829,7 +829,7 @@ class ScanEngine:
                     signal_age = param.get_signal_age_s()
                     reasons = list(param.state.get("parameter_invalid_reasons") or [])
                     if signal_age > datasource_stale_timeout_s:
-                        # Freshly scanned but still stale: keep pipeline output pending and
+                        # Freshly scanned but still stale: clear cached pipeline state and
                         # mark amber stale until a new signal write arrives.
                         self._clear_database_pipeline_state(param)
                         reasons = [r for r in reasons if r != _DATASOURCE_SILENT_REASON]
