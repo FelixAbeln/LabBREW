@@ -783,7 +783,9 @@ class ScanEngine:
             param.state.pop("dependency_stale_parameters", None)
 
             invalid_reasons = param.state.get("parameter_invalid_reasons") or []
-            _recoverable_reasons = _PIPELINE_INVALID_REASONS.union(_STALE_REASONS)
+            _recoverable_reasons = _PIPELINE_INVALID_REASONS.union(
+                _STALE_REASONS.difference({"mirror_source_invalid"})
+            )
             is_recoverable_invalid_only = bool(invalid_reasons) and set(invalid_reasons).issubset(_recoverable_reasons)
             if param.state.get("parameter_valid") is False and invalid_reasons and not is_recoverable_invalid_only:
                 # Skip evaluation when a parameter is already marked invalid by datasource/runtime.
@@ -796,7 +798,10 @@ class ScanEngine:
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
 
-            if is_recoverable_invalid_only:
+            preserve_mirror_source_invalid = bool(param.state.get("mirror_source")) or (
+                "mirror_source_invalid" in invalid_reasons
+            )
+            if is_recoverable_invalid_only and not preserve_mirror_source_invalid:
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
 
@@ -805,10 +810,13 @@ class ScanEngine:
             datasource_stale_timeout_s: float | None = None
             _stale_cfg = param.config.get("stale_timeout_s")
             if _stale_cfg is not None:
-                try:
-                    _stale_timeout = float(_stale_cfg)
-                except (TypeError, ValueError):
+                if isinstance(_stale_cfg, bool):
                     _stale_timeout = None
+                else:
+                    try:
+                        _stale_timeout = float(_stale_cfg)
+                    except (TypeError, ValueError):
+                        _stale_timeout = None
                 if _stale_timeout is not None and _stale_timeout > 0:
                     datasource_stale_timeout_s = _stale_timeout
 
@@ -824,7 +832,7 @@ class ScanEngine:
                     signal_age = param.get_signal_age_s()
                     reasons = list(param.state.get("parameter_invalid_reasons") or [])
                     if signal_age > datasource_stale_timeout_s:
-                        # Freshly scanned but still stale: keep pipeline output pending and
+                        # Freshly scanned but still stale: clear cached pipeline state and
                         # mark amber stale until a new signal write arrives.
                         self._clear_database_pipeline_state(param)
                         reasons = [r for r in reasons if r != _DATASOURCE_SILENT_REASON]
