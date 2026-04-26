@@ -7,6 +7,30 @@ from .event_broker import EventBroker
 from .plugin_api import ParameterBase, ParameterRecord
 
 
+_SCALAR_TYPES = (int, float, bool, str, bytes, type(None))
+
+
+def _values_equal(a: Any, b: Any) -> bool:
+    """Return True when a and b should be considered the same value.
+
+    For simple scalar types (int, float, bool, str, bytes, None) a normal
+    equality check is performed — this covers the vast majority of sensor
+    readings and suppresses redundant publish events efficiently.
+
+    For all other types (dict, list, objects, numpy arrays, …) we conservatively
+    return False so that a publish/revision bump always happens.  This avoids
+    missing change events for mutable containers, types with exotic ``__eq__``
+    implementations, or anything where ``bool(a == b)`` may raise (e.g. numpy
+    arrays).
+    """
+    if not (isinstance(a, _SCALAR_TYPES) and isinstance(b, _SCALAR_TYPES)):
+        return False
+    try:
+        return bool(a == b)
+    except Exception:
+        return False
+
+
 class ParameterStore:
     """
     Thread-safe parameter store.
@@ -57,6 +81,7 @@ class ParameterStore:
             "name": record.name,
             "parameter_type": record.parameter_type,
             "value": record.value,
+            "signal_value": record.signal_value,
             "config": record.config,
             "state": record.state,
             "metadata": record.metadata,
@@ -85,23 +110,29 @@ class ParameterStore:
     def set_value(self, name: str, value: Any, *, source: str = "external") -> None:
         with self._lock:
             param = self._params[name]
-            old = param.get_value()
+            # Write the raw signal. set_value() resets the pipeline to pending —
+            # that IS the change signal. Always publish; no comparison needed.
             param.set_value(value)
             new = param.get_value()
-            rev = self._touch_unlocked() if old != new else self._revision
-        if old != new:
-            self._publish({
-                "event": "value_changed",
-                "name": name,
-                "value": new,
-                "source": str(source or "external"),
-                "store_revision": rev,
-            })
+            rev = self._touch_unlocked()
+        self._publish({
+            "event": "value_changed",
+            "name": name,
+            "value": new,
+            "source": str(source or "external"),
+            "store_revision": rev,
+        })
 
     def get_value(self, name: str, default: Any = None) -> Any:
         with self._lock:
             param = self._params.get(name)
             return default if param is None else param.get_value()
+
+    def get_signal_value(self, name: str, default: Any = None) -> Any:
+        """Return the raw signal value (pre-pipeline) for the named parameter."""
+        with self._lock:
+            param = self._params.get(name)
+            return default if param is None else param.get_signal_value()
 
     def update_config(self, name: str, **changes: Any) -> None:
         with self._lock:
@@ -137,6 +168,7 @@ class ParameterStore:
                 name: {
                     "parameter_type": record.parameter_type,
                     "value": record.value,
+                    "signal_value": record.signal_value,
                     "config": record.config,
                     "state": record.state,
                     "metadata": record.metadata,
@@ -150,6 +182,11 @@ class ParameterStore:
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {name: p.get_value() for name, p in self._params.items()}
+
+    def signal_snapshot(self) -> dict[str, Any]:
+        """Return a dict mapping every parameter name to its raw signal value."""
+        with self._lock:
+            return {name: p.get_signal_value() for name, p in self._params.items()}
 
     def snapshot_names(self, names: list[str]) -> dict[str, Any]:
         with self._lock:
@@ -187,7 +224,7 @@ class ParameterStore:
         return param
 
     def publish_scan_value_if_changed(self, name: str, old: Any, new: Any) -> None:
-        if old != new:
+        if not _values_equal(old, new):
             with self._lock:
                 rev = self._touch_unlocked()
             self._publish({

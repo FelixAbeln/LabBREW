@@ -72,6 +72,7 @@ export function ParameterList({
               <th>Name</th>
               <th>Type</th>
               <th>Scan #</th>
+              <th>Signal</th>
               <th>Value</th>
               <th>Depends on</th>
               <th>Used by</th>
@@ -88,24 +89,43 @@ export function ParameterList({
               const paramDeps = deps[name] ?? [];
               const usedBy = entries.filter(([n]) => (deps[n] ?? []).includes(name)).map(([n]) => n);
               const writesTo = writes[name] ?? [];
-              const isInvalid = Boolean(rec?.state?.invalid_config) || rec?.state?.parameter_valid === false || Boolean(rec?.state?.parameter_force_invalid);
+              const reasons = rec?.state?.parameter_invalid_reasons ?? [];
+              const isStaleOnly = rec?.state?.parameter_valid === false
+                && reasons.length > 0
+                && reasons.every(r => r === 'mirror_source_invalid' || r === 'datasource_silent');
+              const isInvalid = !isStaleOnly && (Boolean(rec?.state?.invalid_config) || rec?.state?.parameter_valid === false || Boolean(rec?.state?.parameter_force_invalid));
               const displayValue = isInvalid
                 ? '—'
                 : (rec.value === null || rec.value === undefined ? '—' : String(rec.value));
+              const hasSignal = !isInvalid && !isStaleOnly && rec.signal_value !== undefined && rec.signal_value !== null;
+              const isPrimitive = (v) => v === null || typeof v !== 'object';
+              const pipelineActive = hasSignal && isPrimitive(rec.signal_value) && isPrimitive(rec.value) && rec.signal_value !== rec.value;
+              const displaySignal = hasSignal ? String(rec.signal_value) : '—';
               const isPinned = pinnedTargets instanceof Set ? pinnedTargets.has(name) : false;
               const pinBusy = pinBusyTarget === name;
 
               return (
-                <tr key={name} className={`pdb-tr ${isInvalid ? 'pdb-tr-invalid' : ''}`}>
+                <tr key={name} className={`pdb-tr ${isInvalid ? 'pdb-tr-invalid' : ''} ${isStaleOnly ? 'pdb-tr-stale' : ''}`}>
                   <td className="pdb-cell-name">
                     <code className={`pdb-param-name ${isInvalid ? 'pdb-param-name-invalid' : ''}`}>{name}</code>
                   </td>
                   <td>
                     <span className="pdb-type-badge">{rec.parameter_type}</span>
                     {isInvalid && <span className="pdb-invalid-tag">invalid</span>}
+                    {isStaleOnly && <span className="pdb-stale-tag" title={reasons.includes('datasource_silent') ? 'Datasource stopped sending' : `Mirror source invalid: ${rec?.state?.mirror_source ?? '?'}`}>stale</span>}
                   </td>
                   <td className="pdb-cell-num">
                     {scanIdx >= 0 ? <span className="pdb-scan-idx">#{scanIdx}</span> : '—'}
+                  </td>
+                  <td className="pdb-cell-value">
+                    {hasSignal ? (
+                      <span
+                        className={pipelineActive ? 'pdb-signal-str' : 'pdb-signal-str pdb-signal-passthrough'}
+                        title={pipelineActive ? 'Raw signal before pipeline' : 'Signal (no pipeline active)'}
+                      >{displaySignal}</span>
+                    ) : (
+                      <span className="pdb-cell-nil">—</span>
+                    )}
                   </td>
                   <td className="pdb-cell-value">
                     <span className="pdb-value-str">

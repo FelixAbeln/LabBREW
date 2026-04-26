@@ -48,14 +48,16 @@ def test_store_add_set_update_and_remove_publish_events() -> None:
     assert broker.events[3]["metadata"] == {"actor": "pytest"}
 
 
-def test_store_only_bumps_revision_when_value_changes() -> None:
+def test_store_always_bumps_revision_on_set_value() -> None:
+    """Every explicit set_value call bumps the revision — the pending sentinel
+    is the change signal, so no value comparison is needed."""
     store = ParameterStore()
     store.add(FakeParameter("pump.speed", value=100.0))
     revision_after_add = store.revision()
 
     store.set_value("pump.speed", 100.0)
 
-    assert store.revision() == revision_after_add
+    assert store.revision() > revision_after_add
     assert store.snapshot() == {"pump.speed": 100.0}
     assert store.records()["pump.speed"]["value"] == 100.0
 

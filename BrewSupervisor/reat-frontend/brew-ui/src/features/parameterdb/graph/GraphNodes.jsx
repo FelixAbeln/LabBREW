@@ -5,12 +5,17 @@ const NODE_W = 220;
 const NODE_H = 72;
 
 export function ParameterNode({ data, selected }) {
-  const { name, paramType, value, scanIndex, hasWarning, invalidConfig } = data;
+  const { name, paramType, value, signal_value, scanIndex, hasWarning, invalidConfig } = data;
   const invalidState = invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid);
   const color = typeColor(paramType);
   const accent = invalidState ? '#ef4444' : color;
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;
   const valStr = invalidState ? '—' : (value === null || value === undefined ? '—' : String(value).slice(0, 18));
+  // Show raw signal: highlighted when pipeline has changed the value, dimmed when passthrough
+  const hasSignal = !invalidState && signal_value !== undefined && signal_value !== null;
+  const isPrimitive = (v) => v === null || typeof v !== 'object';
+  const pipelineActive = hasSignal && isPrimitive(signal_value) && isPrimitive(value) && signal_value !== value;
+  const sigStr = hasSignal ? String(signal_value).slice(0, 18) : null;
   const isActive = selected || data.isSelected;
   const isRelated = data.isRelated;
   const isDimmed = data.isDimmed;
@@ -26,7 +31,7 @@ export function ParameterNode({ data, selected }) {
   return (
     <div
       className={nodeClassName}
-      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${NODE_H}px` }}
+      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${NODE_H + (sigStr ? 14 : 0)}px` }}
     >
       <Handle type="target" position={Position.Top} style={{ background: accent, width: 8, height: 8 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -56,6 +61,14 @@ export function ParameterNode({ data, selected }) {
         {invalidState && <span title="Parameter invalid" style={{ fontSize: 12, flex: '0 0 auto' }}>⛔</span>}
         {hasWarning && <span title="Graph warning" style={{ fontSize: 12, flex: '0 0 auto' }}>⚠️</span>}
       </div>
+      {sigStr && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+          <span style={{ fontSize: 9, color: '#64748b', flex: '0 0 auto' }}>raw</span>
+          <span style={{ fontSize: 10, color: pipelineActive ? '#f59e0b' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {sigStr}
+          </span>
+        </div>
+      )}
       <Handle type="source" position={Position.Bottom} style={{ background: accent, width: 8, height: 8 }} />
     </div>
   );

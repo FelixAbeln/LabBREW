@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import math
 import threading
 import time
@@ -19,8 +18,9 @@ from .store import ParameterStore
 from .transducers import PostgresTransducerCatalog, TransducerCatalog
 
 UTC = timezone.utc
-_DB_PIPELINE_APPLIED_FLAG = "__db_pipeline_applied"
 _PIPELINE_INVALID_REASONS = frozenset({"channel", "transducer"})
+_MIRROR_STALE_REASON = "mirror_source_invalid"
+_DATASOURCE_SILENT_REASON = "datasource_silent"
 
 
 @dataclass(slots=True)
@@ -69,12 +69,41 @@ class ScanEngine:
         self._dependency_map: dict[str, list[str]] = {}
         self._write_target_map: dict[str, list[str]] = {}
         self._pipeline_cache_lock = threading.RLock()
+        # Caches for compiled expression objects only — not for parameter values.
+        # The signal-layer design makes value-level caching unnecessary.
         self._calibration_cache: dict[str, CompiledExpression | None] = {}
         self._transducer_expr_cache: dict[str, tuple[str, CompiledExpression]] = {}
-        self._calibration_input_cache: dict[str, Any] = {}
-        self._calibration_output_cache: dict[str, Any] = {}
-        self._transducer_input_cache: dict[str, Any] = {}
-        self._transducer_output_cache: dict[str, Any] = {}
+
+    def _mark_mirror_targets_stale(self, source_name: str, config: dict) -> None:
+        """Mark mirror targets as stale when their source param is invalid/skipped."""
+        for target in self._database_mirror_targets(source_name, config):
+            try:
+                t = self.store._get_runtime_param(target)
+            except KeyError:
+                continue
+            reasons = list(t.state.get("parameter_invalid_reasons") or [])
+            if _MIRROR_STALE_REASON not in reasons:
+                reasons.append(_MIRROR_STALE_REASON)
+            t.state["parameter_invalid_reasons"] = reasons
+            t.state["parameter_valid"] = False
+            t.state["mirror_source"] = source_name
+            self.store.publish_scan_state(target, dict(t.state))
+
+    def _clear_mirror_targets_stale(self, source_name: str, config: dict) -> None:
+        """Clear the stale marker from mirror targets when source recovers."""
+        for target in self._database_mirror_targets(source_name, config):
+            try:
+                t = self.store._get_runtime_param(target)
+            except KeyError:
+                continue
+            reasons = [r for r in (t.state.get("parameter_invalid_reasons") or []) if r != _MIRROR_STALE_REASON]
+            if not reasons:
+                t.state.pop("parameter_invalid_reasons", None)
+                t.state.pop("parameter_valid", None)
+            else:
+                t.state["parameter_invalid_reasons"] = reasons
+            t.state.pop("mirror_source", None)
+            self.store.publish_scan_state(target, dict(t.state))
 
     def _clear_database_pipeline_state(self, param) -> None:
         for key in (
@@ -89,8 +118,6 @@ class ScanEngine:
             "transducer_output",
             "transducer_input_unit",
             "transducer_output_unit",
-            "parameter_force_invalid",
-            "parameter_force_invalid_reason",
             "channel_limit_min",
             "channel_limit_max",
             "channel_limit_in_range",
@@ -105,71 +132,20 @@ class ScanEngine:
             "missing_output_targets",
             "timeshift",
             "timeshift_buffer_length",
-            _DB_PIPELINE_APPLIED_FLAG,
         ):
             param.state.pop(key, None)
 
-    def invalidate_database_pipeline_runtime(self, param_name: str) -> None:
-        """Invalidate per-parameter pipeline caches after manual/external writes."""
-        with self._pipeline_cache_lock:
-            self._calibration_input_cache.pop(param_name, None)
-            self._calibration_output_cache.pop(param_name, None)
-            self._transducer_input_cache.pop(param_name, None)
-            self._transducer_output_cache.pop(param_name, None)
-        with contextlib.suppress(Exception):
-            param = self.store._get_runtime_param(param_name)
-            self._clear_database_pipeline_state(param)
-
     def _prune_runtime_caches(self, names: set[str]) -> None:
-        with self._pipeline_cache_lock:
-            for cache in (
-                self._calibration_cache,
-                self._calibration_input_cache,
-                self._calibration_output_cache,
-                self._transducer_input_cache,
-                self._transducer_output_cache,
-            ):
-                stale = [name for name in cache if name not in names]
-                for name in stale:
-                    cache.pop(name, None)
+        """Prune stale compiled-expression caches for removed parameters.
 
-    def _resolve_calibration_input(
-        self,
-        param_name: str,
-        current_value: Any,
-        *,
-        allow_cached_input: bool,
-        transducer_enabled: bool,
-    ) -> Any:
-        """Return stable calibration input to avoid repeated accumulation.
-
-        For passive parameters (e.g. static values updated externally), scan() may
-        leave the previously calibrated value untouched. If we calibrate that value
-        again every cycle, equations like `x + offset` drift upward forever.
-
-        Rule:
-        - If current value still equals our last calibrated output, reuse the last
-          raw input value.
-        - Otherwise treat current value as fresh raw input.
+        _calibration_cache is keyed by parameter name — prune when a parameter
+        is removed.  _transducer_expr_cache is keyed by transducer ID (not
+        parameter name) and must NOT be pruned here.
         """
-        if (
-            allow_cached_input
-        ):
-            with self._pipeline_cache_lock:
-                cached_output = None
-                if transducer_enabled:
-                    cached_output = self._transducer_output_cache.get(param_name)
-                if cached_output is None:
-                    cached_output = self._calibration_output_cache.get(param_name)
-                if (
-                    param_name in self._calibration_input_cache
-                    and cached_output is not None
-                    and current_value == cached_output
-                ):
-                    return self._calibration_input_cache[param_name]
         with self._pipeline_cache_lock:
-            self._calibration_input_cache[param_name] = current_value
-        return current_value
+            stale = [name for name in self._calibration_cache if name not in names]
+            for name in stale:
+                self._calibration_cache.pop(name, None)
 
     def _database_mirror_targets(self, param_name: str, config: dict[str, Any]) -> list[str]:
         def _normalize_targets(raw_value: Any) -> list[str]:
@@ -188,35 +164,6 @@ class ScanEngine:
         if mirror_to_present:
             return _normalize_targets(config.get("mirror_to"))
         return _normalize_targets(config.get("output_params"))
-
-    def _resolve_transducer_input(
-        self,
-        param_name: str,
-        current_value: Any,
-        *,
-        allow_cached_input: bool,
-    ) -> Any:
-        """Return stable transducer input to avoid repeated remapping drift.
-
-        For passive parameters, stored value can already be previous mapped output.
-        Re-applying equation output as raw input can cause runaway growth.
-
-        Reuse cached pre-transducer input only when the previous cycle applied the
-        pipeline and the current value still equals last mapped output.
-        """
-        if (
-            allow_cached_input
-        ):
-            with self._pipeline_cache_lock:
-                if (
-                    param_name in self._transducer_input_cache
-                    and param_name in self._transducer_output_cache
-                    and current_value == self._transducer_output_cache[param_name]
-                ):
-                    return self._transducer_input_cache[param_name]
-        with self._pipeline_cache_lock:
-            self._transducer_input_cache[param_name] = current_value
-        return current_value
 
     def _database_calibration_compiled(self, param_name: str, config: dict[str, Any]) -> CompiledExpression | None:
         equation = str(config.get("calibration_equation") or "").strip()
@@ -322,6 +269,8 @@ class ScanEngine:
                 missing.append(target)
                 continue
             written.append(target)
+        # Source is healthy and writing — clear any stale marker set in prior cycles.
+        self._clear_mirror_targets_stale(name, config)
         state: dict[str, Any] = {"output_targets": written}
         if missing:
             state["missing_output_targets"] = missing
@@ -433,43 +382,38 @@ class ScanEngine:
         return mapped, state
 
     def _apply_database_pipeline(self, param_name: str, param) -> str | None:
+        """Apply calibration → transducer → mirror pipeline stages.
+
+        Always reads the raw signal value written by the plugin (get_signal_value),
+        applies all transforms deterministically, then writes the result via
+        set_pipeline_value.  No value-level caching is used — the signal layer makes
+        that unnecessary and keeps the pipeline fully deterministic every cycle.
+        """
         config = dict(param.config)
-        value = param.get_value()
+        # Always start from the raw signal written by the plugin this cycle.
+        signal = param.get_signal_value()
         equation = str(config.get("calibration_equation") or "").strip()
         transducer_id = str(config.get("transducer_id") or "").strip()
-        allow_cached_input = bool(param.state.get(_DB_PIPELINE_APPLIED_FLAG))
 
         # Clear prior-cycle pipeline details so failed attempts cannot leak stale state.
         self._clear_database_pipeline_state(param)
-
-        base_value = value
-        if equation:
-            base_value = self._resolve_calibration_input(
-                param_name,
-                value,
-                allow_cached_input=allow_cached_input,
-                transducer_enabled=bool(transducer_id),
-            )
 
         try:
             calibrated, calibration_state = self._apply_calibration_equation(
                 param_name=param_name,
                 config=config,
-                base_value=base_value,
+                base_value=signal,
             )
         except Exception as exc:
-            self.invalidate_database_pipeline_runtime(param_name)
             return str(exc)
 
         try:
             channel_min = self._optional_limit(config, "channel_min")
             channel_max = self._optional_limit(config, "channel_max")
         except Exception as exc:
-            self.invalidate_database_pipeline_runtime(param_name)
             return str(exc)
 
         if channel_min is not None and channel_max is not None and channel_min > channel_max:
-            self.invalidate_database_pipeline_runtime(param_name)
             return "channel_min must be <= channel_max"
         channel_reason: str | None = None
         if channel_min is None and channel_max is None:
@@ -482,7 +426,6 @@ class ScanEngine:
             try:
                 calibrated_float = float(calibrated)
             except (TypeError, ValueError) as exc:
-                self.invalidate_database_pipeline_runtime(param_name)
                 return f"calibrated value must be numeric for limit checks: {exc}"
 
             channel_limit_state, _channel_ok, channel_reason = self._evaluate_stage_limits(
@@ -492,22 +435,13 @@ class ScanEngine:
                 max_limit=channel_max,
             )
 
-        pre_transducer_value = calibrated
-        if transducer_id:
-            pre_transducer_value = self._resolve_transducer_input(
-                param_name,
-                calibrated,
-                allow_cached_input=allow_cached_input,
-            )
-
         try:
             transformed, transducer_state = self._apply_transducer_mapping(
                 param_name=param_name,
                 config=config,
-                base_value=pre_transducer_value,
+                base_value=calibrated,
             )
         except Exception as exc:
-            self.invalidate_database_pipeline_runtime(param_name)
             return str(exc)
 
         transducer_min: float | None = None
@@ -523,7 +457,6 @@ class ScanEngine:
             try:
                 transformed_float = float(transformed)
             except (TypeError, ValueError) as exc:
-                self.invalidate_database_pipeline_runtime(param_name)
                 return f"transformed value must be numeric for limit checks: {exc}"
             transducer_limit_state, _transducer_ok, transducer_reason = self._evaluate_stage_limits(
                 stage="transducer",
@@ -538,19 +471,8 @@ class ScanEngine:
                 "transducer_limit_in_range": True,
             }
 
-        param.set_value(transformed)
-        with self._pipeline_cache_lock:
-            if equation:
-                self._calibration_output_cache[param_name] = calibrated
-            else:
-                self._calibration_input_cache.pop(param_name, None)
-                self._calibration_output_cache.pop(param_name, None)
-
-            if transducer_id:
-                self._transducer_output_cache[param_name] = transformed
-            else:
-                self._transducer_input_cache.pop(param_name, None)
-                self._transducer_output_cache.pop(param_name, None)
+        # Commit the pipeline output.  The signal (param.value) is unchanged.
+        param.set_pipeline_value(transformed)
 
         if calibration_state:
             param.state.update(calibration_state)
@@ -602,9 +524,6 @@ class ScanEngine:
         else:
             param.state.pop("output_targets", None)
             param.state.pop("missing_output_targets", None)
-
-        if equation or transducer_id:
-            param.state[_DB_PIPELINE_APPLIED_FLAG] = True
 
         return None
 
@@ -768,7 +687,7 @@ class ScanEngine:
             force_invalid = bool(param.config.get("force_invalid", False))
             force_invalid_reason = str(param.config.get("force_invalid_reason") or "").strip()
             if force_invalid:
-                self.invalidate_database_pipeline_runtime(name)
+                self._clear_database_pipeline_state(param)
                 param.state["parameter_force_invalid"] = True
                 if force_invalid_reason:
                     param.state["parameter_force_invalid_reason"] = force_invalid_reason
@@ -779,6 +698,8 @@ class ScanEngine:
                 param.state["last_error"] = ""
                 param.state["connected"] = False
                 new_value = param.get_value()
+                param.state["signal_value"] = param.get_signal_value()
+                self._mark_mirror_targets_stale(name, dict(param.config))
                 self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
@@ -798,7 +719,7 @@ class ScanEngine:
 
             missing_dependencies, invalid_dependencies = self._dependency_status(name)
             if missing_dependencies or invalid_dependencies:
-                self.invalidate_database_pipeline_runtime(name)
+                self._clear_database_pipeline_state(param)
                 dependency_failures = list(
                     dict.fromkeys([*missing_dependencies, *invalid_dependencies])
                 )
@@ -808,6 +729,8 @@ class ScanEngine:
                 param.state["last_error"] = ""
                 param.state["connected"] = False
                 new_value = param.get_value()
+                param.state["signal_value"] = param.get_signal_value()
+                self._mark_mirror_targets_stale(name, dict(param.config))
                 self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
@@ -824,6 +747,8 @@ class ScanEngine:
                 param.state["last_error"] = ""
                 param.state["connected"] = False
                 new_value = param.get_value()
+                param.state["signal_value"] = param.get_signal_value()
+                self._mark_mirror_targets_stale(name, dict(param.config))
                 self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
@@ -832,12 +757,46 @@ class ScanEngine:
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
 
+            # Datasource silence detection (opt-in via stale_timeout_s in param config).
+            # If the signal has not been updated within the timeout, mark the parameter
+            # as datasource_silent so the UI shows it amber/stale rather than computing.
+            _stale_cfg = param.config.get("stale_timeout_s")
+            if _stale_cfg is not None:
+                try:
+                    _stale_timeout = float(_stale_cfg)
+                except (TypeError, ValueError):
+                    _stale_timeout = None
+                if _stale_timeout is not None and _stale_timeout > 0:
+                    _signal_age = param.get_signal_age_s()
+                    if _signal_age > _stale_timeout:
+                        self._clear_database_pipeline_state(param)
+                        param.state["parameter_valid"] = False
+                        reasons = list(param.state.get("parameter_invalid_reasons") or [])
+                        if _DATASOURCE_SILENT_REASON not in reasons:
+                            reasons.append(_DATASOURCE_SILENT_REASON)
+                        param.state["parameter_invalid_reasons"] = reasons
+                        new_value = param.get_value()
+                        param.state["signal_value"] = param.get_signal_value()
+                        self._mark_mirror_targets_stale(name, dict(param.config))
+                        self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
+                        self.store.publish_scan_state(param.name, dict(param.state))
+                        continue
+                    else:
+                        # Fresh signal — clear any previous datasource_silent reason.
+                        reasons = list(param.state.get("parameter_invalid_reasons") or [])
+                        if _DATASOURCE_SILENT_REASON in reasons:
+                            reasons = [r for r in reasons if r != _DATASOURCE_SILENT_REASON]
+                            if not reasons:
+                                param.state.pop("parameter_invalid_reasons", None)
+                                param.state.pop("parameter_valid", None)
+                            else:
+                                param.state["parameter_invalid_reasons"] = reasons
+
             # Reset previous-cycle error so scan/pipeline can recover when config is fixed.
             param.state.pop("last_error", None)
             try:
                 param.scan(ctx)
             except Exception as exc:
-                self.invalidate_database_pipeline_runtime(name)
                 param.state["last_error"] = str(exc)
                 param.state["connected"] = False
             else:
@@ -850,8 +809,6 @@ class ScanEngine:
                     pipeline_error = self._apply_database_pipeline(name, param)
                     if pipeline_error:
                         param.state["last_error"] = pipeline_error
-                else:
-                    self.invalidate_database_pipeline_runtime(name)
 
             new_value = param.get_value()
             error_text = str(param.state.get("last_error", "") or "").strip()
@@ -873,6 +830,7 @@ class ScanEngine:
                 param.state["last_sync"] = datetime.fromtimestamp(
                     now, tz=UTC
                 ).isoformat()
+            param.state["signal_value"] = param.get_signal_value()
             self.store.publish_scan_value_if_changed(param.name, old_value, new_value)
             self.store.publish_scan_state(param.name, dict(param.state))
 

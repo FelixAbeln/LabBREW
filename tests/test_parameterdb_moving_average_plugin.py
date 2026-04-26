@@ -30,15 +30,15 @@ def test_moving_average_plugin_filters_without_plugin_side_mirroring() -> None:
     )
 
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 10.0
+    assert float(param.get_signal_value()) == 10.0
 
     store.set_value("signal", 20.0)
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 15.0
+    assert float(param.get_signal_value()) == 15.0
 
     store.set_value("signal", 40.0)
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 70.0 / 3.0
+    assert float(param.get_signal_value()) == 70.0 / 3.0
     assert float(store.get_value("signal.avg")) == 0.0
     assert param.state["samples"] == [10.0, 20.0, 40.0]
     assert param.state["last_error"] == ""
@@ -72,7 +72,7 @@ def test_moving_average_plugin_disable_reenable_resets_window() -> None:
     param.scan(_ctx(store))
     store.set_value("signal", 20.0)
     param.scan(_ctx(store))
-    assert float(param.get_value()) == 15.0
+    assert float(param.get_signal_value()) == 15.0
 
     store.set_value("filter.enable", False)
     param.scan(_ctx(store))
@@ -82,7 +82,7 @@ def test_moving_average_plugin_disable_reenable_resets_window() -> None:
     store.set_value("filter.enable", True)
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 100.0
+    assert float(param.get_signal_value()) == 100.0
     assert param.state["samples"] == [100.0]
 
 
@@ -95,7 +95,7 @@ def test_moving_average_plugin_non_numeric_source_sets_error_and_keeps_value() -
 
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 7.0
+    assert float(param.get_signal_value()) == 7.0
     assert "non-numeric source parameter" in param.state["last_error"]
 
 

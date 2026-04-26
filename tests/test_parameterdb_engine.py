@@ -197,11 +197,16 @@ def test_scan_engine_skips_parameter_marked_invalid_by_state() -> None:
     engine = ScanEngine(period_s=0.01, store=store)
     engine.scan_once(dt=0.1)
     first = store.get_record("temp")
+    # Plugin wrote signal=2.0 then marked itself invalid; pipeline is skipped.
+    # get_value() falls back to the signal (pending pipeline), so value == signal.
+    assert first.signal_value == 2.0
     assert first.value == 2.0
     assert first.state["parameter_valid"] is False
 
     engine.scan_once(dt=0.1)
     second = store.get_record("temp")
+    # Second scan is skipped entirely (parameter already invalid).
+    assert second.signal_value == 2.0
     assert second.value == 2.0
     assert param.scan_calls == 1
     assert second.state["connected"] is False

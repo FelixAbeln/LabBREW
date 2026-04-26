@@ -28,7 +28,7 @@ def test_math_plugin_evaluates_equation_without_plugin_side_mirroring() -> None:
 
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 1.234
+    assert float(param.get_signal_value()) == 1.234
     assert float(store.get_value("linked_density")) == 0.0
     assert param.state["symbols"] == ["density"]
     assert "last_error" not in param.state
@@ -65,7 +65,7 @@ def test_math_plugin_sets_error_when_symbol_missing_and_keeps_existing_outputs()
 
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 5.0
+    assert float(param.get_signal_value()) == 5.0
     assert float(store.get_value("mirror")) == 7.0
     assert "missing parameters in equation" in str(param.state.get("last_error", ""))
 
@@ -76,7 +76,7 @@ def test_math_plugin_sets_error_for_invalid_equation_syntax() -> None:
 
     param.scan(_ctx(ParameterStore()))
 
-    assert float(param.get_value()) == 1.0
+    assert float(param.get_signal_value()) == 1.0
     assert "invalid equation syntax" in str(param.state.get("last_error", ""))
 
 
@@ -107,7 +107,7 @@ def test_math_plugin_supports_dotted_parameter_names() -> None:
 
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 1.056
+    assert float(param.get_signal_value()) == 1.056
     assert param.state["symbols"] == ["brewcan.density.0"]
     assert "last_error" not in param.state
 
@@ -128,6 +128,6 @@ def test_math_plugin_dotted_alias_does_not_collide_with_user_identifier() -> Non
 
     param.scan(_ctx(store))
 
-    assert float(param.get_value()) == 101.05
+    assert float(param.get_signal_value()) == 101.05
     assert param.dependencies() == ["__p0", "brewcan.density.0"]
     assert "last_error" not in param.state
