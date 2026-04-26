@@ -99,13 +99,20 @@ class ScanEngine:
                 t = self.store._get_runtime_param(target)
             except KeyError:
                 continue
-            reasons = [r for r in (t.state.get("parameter_invalid_reasons") or []) if r != _MIRROR_STALE_REASON]
-            if not reasons:
-                t.state.pop("parameter_invalid_reasons", None)
-                t.state.pop("parameter_valid", None)
-            else:
-                t.state["parameter_invalid_reasons"] = reasons
-            t.state.pop("mirror_source", None)
+            existing_reasons = list(t.state.get("parameter_invalid_reasons") or [])
+            has_stale_reason = _MIRROR_STALE_REASON in existing_reasons
+            has_mirror_source = "mirror_source" in t.state
+            if not has_stale_reason and not has_mirror_source:
+                continue
+            if has_stale_reason:
+                reasons = [r for r in existing_reasons if r != _MIRROR_STALE_REASON]
+                if not reasons:
+                    t.state.pop("parameter_invalid_reasons", None)
+                    t.state.pop("parameter_valid", None)
+                else:
+                    t.state["parameter_invalid_reasons"] = reasons
+            if has_mirror_source:
+                t.state.pop("mirror_source", None)
             self.store.publish_scan_state(target, dict(t.state))
 
     def _clear_database_pipeline_state(self, param) -> None:
