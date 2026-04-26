@@ -93,6 +93,7 @@ class ScanEngine:
                 old_reasons != new_reasons
                 or t.state.get("parameter_valid") is not False
                 or t.state.get("mirror_source") != source_name
+                or t.state.get("connected") is not False
             )
             if not changed:
                 continue
@@ -100,6 +101,7 @@ class ScanEngine:
             t.state["parameter_invalid_reasons"] = new_reasons
             t.state["parameter_valid"] = False
             t.state["mirror_source"] = source_name
+            t.state["connected"] = False
             self.store.publish_scan_state(target, dict(t.state))
 
     def _clear_mirror_targets_stale(self, source_name: str, config: dict) -> None:
@@ -120,8 +122,10 @@ class ScanEngine:
             if not new_reasons:
                 t.state.pop("parameter_invalid_reasons", None)
                 t.state.pop("parameter_valid", None)
+                t.state["connected"] = True
             else:
                 t.state["parameter_invalid_reasons"] = new_reasons
+                t.state["connected"] = False
             t.state.pop("mirror_source", None)
             self.store.publish_scan_state(target, dict(t.state))
 
