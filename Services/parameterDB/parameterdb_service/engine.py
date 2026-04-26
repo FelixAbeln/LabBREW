@@ -796,7 +796,10 @@ class ScanEngine:
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
 
-            if is_recoverable_invalid_only:
+            preserve_mirror_source_invalid = bool(param.state.get("mirror_source")) or (
+                "mirror_source_invalid" in invalid_reasons
+            )
+            if is_recoverable_invalid_only and not preserve_mirror_source_invalid:
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
 
