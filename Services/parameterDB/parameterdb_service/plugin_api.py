@@ -82,7 +82,6 @@ class ParameterBase(ABC):
         signal until the engine applies its pipeline stage.
         Note: the value property setter also updates _last_signal_time."""
         self.value = value
-        self._pipeline_value = _PIPELINE_PENDING
 
     def get_signal_age_s(self) -> float:
         """Return seconds since the last signal write (monotonic clock)."""

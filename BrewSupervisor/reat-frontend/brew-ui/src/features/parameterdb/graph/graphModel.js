@@ -143,7 +143,6 @@ export function buildGraph(params, graph) {
       paramType: rec.parameter_type ?? 'unknown',
       value: rec.value,
       signalValue: rec.signal_value,
-      signal_value: rec.signal_value,
       scanIndex: scanOrder.indexOf(name) >= 0 ? scanOrder.indexOf(name) : null,
       hasWarning: warnSet.has(name),
       invalidConfig: Boolean(rec?.state?.invalid_config),
