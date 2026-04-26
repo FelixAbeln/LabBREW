@@ -68,7 +68,6 @@ class ParameterBase(ABC):
         """Write raw signal and reset freshness timer."""
         self._value = val
         self._last_signal_time = time.monotonic()
-
     def on_added(self, _store: ParameterStore) -> None:
         return None
 
