@@ -322,6 +322,7 @@ class SignalTCPServer(socketserver.ThreadingTCPServer):
         # state subscribers do not see stale calibration/transducer metadata.
         param = self.engine.store._get_runtime_param(clean["name"])
         self.engine._clear_database_pipeline_state(param)
+        param.state["signal_value"] = param.get_signal_value()
         self.engine.store.publish_scan_state(clean["name"], dict(param.state))
 
         if self.audit_log.audit_external_writes:
