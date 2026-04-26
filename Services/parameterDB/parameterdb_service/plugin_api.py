@@ -68,6 +68,7 @@ class ParameterBase(ABC):
         """Write raw signal and reset freshness timer."""
         self._value = val
         self._last_signal_time = time.monotonic()
+
     def on_added(self, _store: ParameterStore) -> None:
         return None
 
@@ -83,7 +84,7 @@ class ParameterBase(ABC):
         self._pipeline_value = _PIPELINE_PENDING
 
     def get_signal_age_s(self) -> float:
-        """Return seconds since the last set_value() call (monotonic clock)."""
+        """Return seconds since the last signal write (monotonic clock)."""
         return time.monotonic() - self._last_signal_time
 
     def set_pipeline_value(self, value: Any) -> None:

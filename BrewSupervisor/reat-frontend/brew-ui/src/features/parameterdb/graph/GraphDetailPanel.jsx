@@ -1,7 +1,9 @@
+import React from 'react';
 import { sourceColor, typeColor } from './graphModel.js';
 
 export function GraphDetailPanel({ selected, graph, onClear }) {
   if (!selected) return null;
+  const rawSignal = selected.signal_value ?? selected.signalValue;
 
   const isSourceNode = selected.kind === 'source';
   const deps = graph?.dependencies?.[selected.name] ?? [];
@@ -63,13 +65,13 @@ export function GraphDetailPanel({ selected, graph, onClear }) {
               <span className="pdb-detail-key">Value</span>
               <span className="pdb-detail-val">{String(selected.value)}</span>
             </div>
-            {selected.signal_value !== undefined && selected.signal_value !== null && (() => {
+            {rawSignal !== undefined && rawSignal !== null && (() => {
               const isPrimitive = (v) => v === null || typeof v !== 'object';
-              const pipelineActive = isPrimitive(selected.signal_value) && isPrimitive(selected.value) && selected.signal_value !== selected.value;
+              const pipelineActive = isPrimitive(rawSignal) && isPrimitive(selected.value) && rawSignal !== selected.value;
               return (
                 <div className="pdb-detail-row">
                   <span className="pdb-detail-key" style={{ color: '#64748b' }}>Signal (raw)</span>
-                  <span className="pdb-detail-val" style={{ color: pipelineActive ? '#f59e0b' : '#475569' }}>{String(selected.signal_value)}</span>
+                  <span className="pdb-detail-val" style={{ color: pipelineActive ? '#f59e0b' : '#475569' }}>{String(rawSignal)}</span>
                 </div>
               );
             })()}

@@ -25,6 +25,9 @@ def _values_equal(a: Any, b: Any) -> bool:
     """
     if not (isinstance(a, _SCALAR_TYPES) and isinstance(b, _SCALAR_TYPES)):
         return False
+    # Preserve type-level changes (e.g. 1 -> True) as real changes.
+    if type(a) is not type(b):
+        return False
     try:
         return bool(a == b)
     except Exception:

@@ -766,8 +766,9 @@ class ScanEngine:
             param.state.pop("dependency_stale_parameters", None)
 
             invalid_reasons = param.state.get("parameter_invalid_reasons") or []
-            is_pipeline_invalid_only = bool(invalid_reasons) and set(invalid_reasons).issubset(_PIPELINE_INVALID_REASONS)
-            if param.state.get("parameter_valid") is False and invalid_reasons and not is_pipeline_invalid_only:
+            _recoverable_reasons = _PIPELINE_INVALID_REASONS.union(_STALE_REASONS)
+            is_recoverable_invalid_only = bool(invalid_reasons) and set(invalid_reasons).issubset(_recoverable_reasons)
+            if param.state.get("parameter_valid") is False and invalid_reasons and not is_recoverable_invalid_only:
                 # Skip evaluation when a parameter is already marked invalid by datasource/runtime.
                 param.state["last_error"] = ""
                 param.state["connected"] = False
@@ -778,7 +779,7 @@ class ScanEngine:
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
 
-            if is_pipeline_invalid_only:
+            if is_recoverable_invalid_only:
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
 
@@ -800,6 +801,8 @@ class ScanEngine:
                         if _DATASOURCE_SILENT_REASON not in reasons:
                             reasons.append(_DATASOURCE_SILENT_REASON)
                         param.state["parameter_invalid_reasons"] = reasons
+                        param.state["last_error"] = ""
+                        param.state["connected"] = False
                         new_value = param.get_value()
                         param.state["signal_value"] = param.get_signal_value()
                         self._mark_mirror_targets_stale(name, dict(param.config))

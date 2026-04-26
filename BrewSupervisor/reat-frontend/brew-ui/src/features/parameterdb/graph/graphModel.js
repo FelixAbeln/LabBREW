@@ -1,7 +1,8 @@
 import dagre from '@dagrejs/dagre';
 
 const NODE_W = 220;
-const NODE_H = 72;
+const PARAM_NODE_H = 86;
+const SOURCE_NODE_H = 72;
 
 const TYPE_COLORS = {
   static: '#3b82f6',
@@ -104,14 +105,18 @@ function applyLayout(nodes, edges) {
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: 'TB', ranksep: 70, nodesep: 30, marginx: 20, marginy: 20 });
 
-  nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  nodes.forEach((n) => {
+    const height = n.type === 'source' ? SOURCE_NODE_H : PARAM_NODE_H;
+    g.setNode(n.id, { width: NODE_W, height });
+  });
   edges.forEach((e) => g.setEdge(e.source, e.target, {}, e.id));
 
   dagre.layout(g);
 
   return nodes.map((n) => {
+    const height = n.type === 'source' ? SOURCE_NODE_H : PARAM_NODE_H;
     const pos = g.node(n.id);
-    return { ...n, position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 } };
+    return { ...n, position: { x: pos.x - NODE_W / 2, y: pos.y - height / 2 } };
   });
 }
 
@@ -138,6 +143,7 @@ export function buildGraph(params, graph) {
       paramType: rec.parameter_type ?? 'unknown',
       value: rec.value,
       signalValue: rec.signal_value,
+      signal_value: rec.signal_value,
       scanIndex: scanOrder.indexOf(name) >= 0 ? scanOrder.indexOf(name) : null,
       hasWarning: warnSet.has(name),
       invalidConfig: Boolean(rec?.state?.invalid_config),

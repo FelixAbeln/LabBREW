@@ -2,20 +2,21 @@ import { Handle, Position } from '@xyflow/react';
 import { sourceColor, typeColor } from './graphModel.js';
 
 const NODE_W = 220;
-const NODE_H = 72;
+const NODE_H = 86;
 
 export function ParameterNode({ data, selected }) {
-  const { name, paramType, value, signal_value, scanIndex, hasWarning, invalidConfig } = data;
+  const { name, paramType, value, signalValue, signal_value, scanIndex, hasWarning, invalidConfig } = data;
+  const rawSignal = signalValue ?? signal_value;
   const invalidState = invalidConfig || data?.state?.parameter_valid === false || Boolean(data?.state?.parameter_force_invalid);
   const color = typeColor(paramType);
   const accent = invalidState ? '#ef4444' : color;
   const shortName = name.length > 26 ? '…' + name.slice(-24) : name;
   const valStr = invalidState ? '—' : (value === null || value === undefined ? '—' : String(value).slice(0, 18));
   // Show raw signal: highlighted when pipeline has changed the value, dimmed when passthrough
-  const hasSignal = !invalidState && signal_value !== undefined && signal_value !== null;
+  const hasSignal = !invalidState && rawSignal !== undefined && rawSignal !== null;
   const isPrimitive = (v) => v === null || typeof v !== 'object';
-  const pipelineActive = hasSignal && isPrimitive(signal_value) && isPrimitive(value) && signal_value !== value;
-  const sigStr = hasSignal ? String(signal_value).slice(0, 18) : null;
+  const pipelineActive = hasSignal && isPrimitive(rawSignal) && isPrimitive(value) && rawSignal !== value;
+  const sigStr = hasSignal ? String(rawSignal).slice(0, 18) : null;
   const isActive = selected || data.isSelected;
   const isRelated = data.isRelated;
   const isDimmed = data.isDimmed;
@@ -31,7 +32,7 @@ export function ParameterNode({ data, selected }) {
   return (
     <div
       className={nodeClassName}
-      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${NODE_H + (sigStr ? 14 : 0)}px` }}
+      style={{ '--pdb-accent': accent, '--pdb-node-w': `${NODE_W}px`, '--pdb-node-h': `${NODE_H}px` }}
     >
       <Handle type="target" position={Position.Top} style={{ background: accent, width: 8, height: 8 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
