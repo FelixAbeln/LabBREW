@@ -90,14 +90,16 @@ export function ParameterList({
               const usedBy = entries.filter(([n]) => (deps[n] ?? []).includes(name)).map(([n]) => n);
               const writesTo = writes[name] ?? [];
               const reasons = rec?.state?.parameter_invalid_reasons ?? [];
-              const isStaleOnly = rec?.state?.parameter_valid === false
+              const hasInvalidOverride = Boolean(rec?.state?.invalid_config) || Boolean(rec?.state?.parameter_force_invalid);
+              const isStaleOnly = !hasInvalidOverride
+                && rec?.state?.parameter_valid === false
                 && reasons.length > 0
                 && reasons.every(r => r === 'mirror_source_invalid' || r === 'datasource_silent' || r === 'dependency_stale');
-              const isInvalid = !isStaleOnly && (Boolean(rec?.state?.invalid_config) || rec?.state?.parameter_valid === false || Boolean(rec?.state?.parameter_force_invalid));
+              const isInvalid = hasInvalidOverride || (!isStaleOnly && rec?.state?.parameter_valid === false);
               const displayValue = isInvalid
                 ? '—'
                 : (rec.value === null || rec.value === undefined ? '—' : String(rec.value));
-              const hasSignal = !isInvalid && !isStaleOnly && rec.signal_value !== undefined && rec.signal_value !== null;
+              const hasSignal = !isInvalid && rec.signal_value !== undefined && rec.signal_value !== null;
               const isPrimitive = (v) => v === null || typeof v !== 'object';
               const pipelineActive = hasSignal && isPrimitive(rec.signal_value) && isPrimitive(rec.value) && rec.signal_value !== rec.value;
               const displaySignal = hasSignal ? String(rec.signal_value) : '—';

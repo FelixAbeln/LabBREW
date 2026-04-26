@@ -111,8 +111,8 @@ class ScanEngine:
                 continue
             old_reasons = list(t.state.get("parameter_invalid_reasons") or [])
             new_reasons = [r for r in old_reasons if r != _MIRROR_STALE_REASON]
-            had_mirror_source = "mirror_source" in t.state
-            changed = old_reasons != new_reasons or had_mirror_source
+            has_mirror_source = "mirror_source" in t.state
+            changed = old_reasons != new_reasons or has_mirror_source
             if not changed:
                 continue
 
@@ -121,7 +121,8 @@ class ScanEngine:
                 t.state.pop("parameter_valid", None)
             else:
                 t.state["parameter_invalid_reasons"] = new_reasons
-            t.state.pop("mirror_source", None)
+            if has_mirror_source:
+                t.state.pop("mirror_source", None)
             self.store.publish_scan_state(target, dict(t.state))
 
     def _clear_database_pipeline_state(self, param) -> None:
