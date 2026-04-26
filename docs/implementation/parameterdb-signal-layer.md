@@ -35,7 +35,9 @@ Between scans, if an external write (`store.set_value()`) arrives — for exampl
 
 ## Stale Detection (Datasource Silence)
 
-When a datasource stops sending updates, a parameter configured with `stale_timeout_s` will be marked as stale (amber warning) rather than invalid (red error). This indicates the last known value is present but potentially outdated.
+When a datasource stops sending updates, a parameter configured with `stale_timeout_s` will be marked as stale and rendered amber in the UI rather than red (invalid). This indicates the last known value is present but potentially outdated.
+
+> **Implementation note**: stale is still represented internally as `parameter_valid = False` with a stale reason (`datasource_silent`, `dependency_stale`, or `mirror_source_invalid`). The distinction from a hard invalid is the reason set — the UI renders amber based on the reason, not the flag alone. API consumers calling `describe()` should check `parameter_invalid_reasons` to distinguish stale from genuinely invalid.
 
 **Configuration** (in parameter config):
 ```json
