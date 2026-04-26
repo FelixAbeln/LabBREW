@@ -1,12 +1,4 @@
 {
   "format_version": 1,
-  "transducers": [
-    {
-      "description": "",
-      "equation": "x/10",
-      "input_unit": "V",
-      "name": "test",
-      "output_unit": "T"
-    }
-  ]
+  "transducers": []
 }
