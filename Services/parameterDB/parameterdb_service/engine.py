@@ -810,10 +810,13 @@ class ScanEngine:
             datasource_stale_timeout_s: float | None = None
             _stale_cfg = param.config.get("stale_timeout_s")
             if _stale_cfg is not None:
-                try:
-                    _stale_timeout = float(_stale_cfg)
-                except (TypeError, ValueError):
+                if isinstance(_stale_cfg, bool):
                     _stale_timeout = None
+                else:
+                    try:
+                        _stale_timeout = float(_stale_cfg)
+                    except (TypeError, ValueError):
+                        _stale_timeout = None
                 if _stale_timeout is not None and _stale_timeout > 0:
                     datasource_stale_timeout_s = _stale_timeout
 
