@@ -65,9 +65,10 @@ class ParameterBase(ABC):
 
     @value.setter
     def value(self, val: Any) -> None:
-        """Write raw signal and reset freshness timer."""
+        """Write raw signal, reset freshness timer, and mark pipeline pending."""
         self._value = val
         self._last_signal_time = time.monotonic()
+        self._pipeline_value = _PIPELINE_PENDING
 
     def on_added(self, _store: ParameterStore) -> None:
         return None
