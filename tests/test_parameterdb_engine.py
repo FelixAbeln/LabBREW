@@ -442,6 +442,30 @@ def test_scan_engine_does_not_republish_unchanged_mirror_stale_state() -> None:
     assert second_count == 1
 
 
+def test_clear_mirror_targets_stale_respects_mirror_source_owner() -> None:
+    store = ParameterStore()
+    source = StatefulParameter("source", value=1.0, scan_value=2.0)
+    source.update_config(mirror_to=["mirror.target"])
+    mirror_target = FakeParameter("mirror.target", value=10.0)
+    mirror_target.state.update(
+        {
+            "parameter_valid": False,
+            "parameter_invalid_reasons": ["mirror_source_invalid"],
+            "mirror_source": "other.source",
+        }
+    )
+    store.add(source)
+    store.add(mirror_target)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    engine._clear_mirror_targets_stale("source", dict(source.config))
+
+    target = store.get_record("mirror.target")
+    assert target.state.get("mirror_source") == "other.source"
+    assert target.state.get("parameter_invalid_reasons") == ["mirror_source_invalid"]
+    assert target.state.get("parameter_valid") is False
+
+
 def test_scan_engine_init_and_desired_period_variants() -> None:
     engine = ScanEngine(period_s=0.01, mode="invalid", target_utilization=5.0, min_period_s=-1.0, max_period_s=0.001)
 

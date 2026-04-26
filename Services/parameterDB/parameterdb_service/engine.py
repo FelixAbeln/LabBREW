@@ -109,10 +109,11 @@ class ScanEngine:
                 t = self.store._get_runtime_param(target)
             except KeyError:
                 continue
+            if t.state.get("mirror_source") != source_name:
+                continue
             old_reasons = list(t.state.get("parameter_invalid_reasons") or [])
             new_reasons = [r for r in old_reasons if r != _MIRROR_STALE_REASON]
-            has_mirror_source = "mirror_source" in t.state
-            changed = old_reasons != new_reasons or has_mirror_source
+            changed = old_reasons != new_reasons or "mirror_source" in t.state
             if not changed:
                 continue
 
@@ -121,8 +122,7 @@ class ScanEngine:
                 t.state.pop("parameter_valid", None)
             else:
                 t.state["parameter_invalid_reasons"] = new_reasons
-            if has_mirror_source:
-                t.state.pop("mirror_source", None)
+            t.state.pop("mirror_source", None)
             self.store.publish_scan_state(target, dict(t.state))
 
     def _clear_database_pipeline_state(self, param) -> None:
@@ -800,9 +800,9 @@ class ScanEngine:
                 param.state.pop("parameter_valid", None)
                 param.state.pop("parameter_invalid_reasons", None)
 
-            # Datasource silence detection (opt-in via stale_timeout_s in param config).
-            # If the signal has not been updated within the timeout, mark the parameter
-            # as datasource_silent so the UI shows it amber/stale rather than computing.
+            # Parse datasource silence timeout once; evaluate freshness after scan()
+            # so polling-style plugins can refresh signal and recover in the same cycle.
+            datasource_stale_timeout_s: float | None = None
             _stale_cfg = param.config.get("stale_timeout_s")
             if _stale_cfg is not None:
                 try:
@@ -810,30 +810,7 @@ class ScanEngine:
                 except (TypeError, ValueError):
                     _stale_timeout = None
                 if _stale_timeout is not None and _stale_timeout > 0:
-                    _signal_age = param.get_signal_age_s()
-                    if _signal_age > _stale_timeout:
-                        self._clear_database_pipeline_state(param)
-                        param.state["parameter_valid"] = False
-                        reasons = list(param.state.get("parameter_invalid_reasons") or [])
-                        if _DATASOURCE_SILENT_REASON not in reasons:
-                            reasons.append(_DATASOURCE_SILENT_REASON)
-                        param.state["parameter_invalid_reasons"] = reasons
-                        param.state["last_error"] = ""
-                        param.state["connected"] = False
-                        param.state["signal_value"] = param.get_signal_value()
-                        self._mark_mirror_targets_stale(name, dict(param.config))
-                        # Do not skip the rest of the loop here: polling-style datasources
-                        # need scan() to run so they can refresh the signal and recover.
-                    else:
-                        # Fresh signal — clear any previous datasource_silent reason.
-                        reasons = list(param.state.get("parameter_invalid_reasons") or [])
-                        if _DATASOURCE_SILENT_REASON in reasons:
-                            reasons = [r for r in reasons if r != _DATASOURCE_SILENT_REASON]
-                            if not reasons:
-                                param.state.pop("parameter_invalid_reasons", None)
-                                param.state.pop("parameter_valid", None)
-                            else:
-                                param.state["parameter_invalid_reasons"] = reasons
+                    datasource_stale_timeout_s = _stale_timeout
 
             # Reset previous-cycle error so scan/pipeline can recover when config is fixed.
             param.state.pop("last_error", None)
@@ -843,6 +820,27 @@ class ScanEngine:
                 param.state["last_error"] = str(exc)
                 param.state["connected"] = False
             else:
+                if datasource_stale_timeout_s is not None:
+                    signal_age = param.get_signal_age_s()
+                    reasons = list(param.state.get("parameter_invalid_reasons") or [])
+                    if signal_age > datasource_stale_timeout_s:
+                        # Freshly scanned but still stale: keep pipeline output pending and
+                        # mark amber stale until a new signal write arrives.
+                        self._clear_database_pipeline_state(param)
+                        reasons = [r for r in reasons if r != _DATASOURCE_SILENT_REASON]
+                        reasons.append(_DATASOURCE_SILENT_REASON)
+                        param.state["parameter_valid"] = False
+                        param.state["parameter_invalid_reasons"] = reasons
+                        self._mark_mirror_targets_stale(name, dict(param.config))
+                    elif _DATASOURCE_SILENT_REASON in reasons:
+                        reasons = [r for r in reasons if r != _DATASOURCE_SILENT_REASON]
+                        if not reasons:
+                            param.state.pop("parameter_invalid_reasons", None)
+                            if param.state.get("parameter_valid") is False:
+                                param.state.pop("parameter_valid", None)
+                        else:
+                            param.state["parameter_invalid_reasons"] = reasons
+
                 plugin_marked_invalid = param.state.get("parameter_valid") is False and bool(param.state.get("parameter_invalid_reasons"))
                 pre_pipeline_error = str(param.state.get("last_error", "") or "").strip()
                 if plugin_marked_invalid:
@@ -862,8 +860,9 @@ class ScanEngine:
                 param.state["last_error"] = ""
                 param.state["connected"] = False
             elif parameter_invalid:
+                invalid_reasons = set(param.state.get("parameter_invalid_reasons") or [])
                 param.state["last_error"] = ""
-                param.state["connected"] = True
+                param.state["connected"] = not bool(invalid_reasons) or not invalid_reasons.issubset(_STALE_REASONS)
                 param.state["last_sync"] = datetime.fromtimestamp(
                     now, tz=UTC
                 ).isoformat()
