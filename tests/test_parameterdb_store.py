@@ -48,9 +48,9 @@ def test_store_add_set_update_and_remove_publish_events() -> None:
     assert broker.events[3]["metadata"] == {"actor": "pytest"}
 
 
-def test_store_always_bumps_revision_on_set_value() -> None:
-    """Every explicit set_value call bumps the revision — the pending sentinel
-    is the change signal, so no value comparison is needed."""
+def test_store_external_set_value_bumps_revision_even_if_value_is_unchanged() -> None:
+    """The default external set_value path bumps the revision even when the
+    assigned value is unchanged; scan-originated updates are handled separately."""
     store = ParameterStore()
     store.add(FakeParameter("pump.speed", value=100.0))
     revision_after_add = store.revision()
