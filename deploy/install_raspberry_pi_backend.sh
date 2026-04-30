@@ -733,17 +733,21 @@ write_systemd_unit() {
   cat > "$UNIT_FILE" <<EOF
 [Unit]
 Description=LabBREW backend supervisor
-After=network-online.target
-Wants=network-online.target
+After=network-online.target avahi-daemon.service bluetooth.service dbus.service
+Wants=network-online.target avahi-daemon.service bluetooth.service dbus.service
+RequiresMountsFor=$INSTALL_DIR
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 User=$RUN_USER
 Group=$RUN_GROUP
 WorkingDirectory=$INSTALL_DIR
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 60); do if /sbin/ip -4 -o addr show scope global up | /bin/grep -q .; then exit 0; fi; /bin/sleep 1; done; exit 1'
 ExecStart=$WRAPPER_PATH
 Restart=always
-RestartSec=5
+RestartSec=10
+TimeoutStartSec=180
 Environment=PYTHONUNBUFFERED=1
 
 [Install]

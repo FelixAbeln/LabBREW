@@ -54,7 +54,10 @@ class TopologySupervisor:
         self.planner = StartupPlanner()
         self.runner = ProcessRunner(self.root_dir, self.log_dir)
         self.discovery = DiscoveryPublisher(
-            node_id=node_id, node_name=node_name, port=agent_port
+            node_id=node_id,
+            node_name=node_name,
+            port=agent_port,
+            advertise_host=advertise_host,
         )
         self.agent_api = AgentApiServer(
             host=agent_host,

@@ -16,6 +16,15 @@ SERVICE_TYPE = "_fcs._tcp.local."
 
 
 def _local_ip() -> str:
+    # Prefer directly enumerated host addresses before route probing.
+    try:
+        _, _, host_addresses = socket.gethostbyname_ex(socket.gethostname())
+        for candidate in host_addresses:
+            if candidate and not candidate.startswith("127."):
+                return candidate
+    except OSError:
+        pass
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.connect(("8.8.8.8", 80))
@@ -25,6 +34,33 @@ def _local_ip() -> str:
     finally:
         sock.close()
     return ip
+
+
+def _resolve_advertise_ip(advertise_host: str | None) -> str:
+    raw_host = str(advertise_host or "").strip()
+    if not raw_host:
+        return _local_ip()
+
+    try:
+        socket.inet_aton(raw_host)
+        return raw_host
+    except OSError:
+        pass
+
+    try:
+        resolved = socket.getaddrinfo(raw_host, None, socket.AF_INET, socket.SOCK_DGRAM)
+    except OSError:
+        return _local_ip()
+
+    for entry in resolved:
+        sockaddr = entry[4]
+        if not sockaddr:
+            continue
+        candidate = str(sockaddr[0] or "").strip()
+        if candidate:
+            return candidate
+
+    return _local_ip()
 
 
 def _hostname() -> str:
@@ -63,18 +99,12 @@ class MdnsAdvertiser:
     node_name: str
     port: int
     api_path: str = "/agent/info"
+    advertise_host: str | None = None
     services: tuple[str, ...] = ()
     zeroconf: Any | None = field(init=False, default=None)
     info: Any | None = field(init=False, default=None)
 
-    def __post_init__(self) -> None:
-        self.zeroconf = Zeroconf() if Zeroconf is not None else None
-
-    def start(self) -> bool:
-        if self.zeroconf is None or ServiceInfo is None:
-            return False
-
-        ip = _local_ip()
+    def _service_info(self, *, ip: str, services: tuple[str, ...]) -> Any:
         host = _hostname()
         instance_name = f"{self.node_id}.{SERVICE_TYPE}"
         server_name = f"{host}.local."
@@ -84,11 +114,11 @@ class MdnsAdvertiser:
             b"role": b"fermenter_agent",
             b"proto": b"http",
             b"api": self.api_path.encode(),
-            b"services": ",".join(self.services).encode(),
+            b"services": ",".join(services).encode(),
             b"hostname": host.encode(),
         }
 
-        self.info = ServiceInfo(
+        return ServiceInfo(
             type_=SERVICE_TYPE,
             name=instance_name,
             addresses=[socket.inet_aton(ip)],
@@ -96,6 +126,16 @@ class MdnsAdvertiser:
             properties=props,
             server=server_name,
         )
+
+    def __post_init__(self) -> None:
+        self.zeroconf = Zeroconf() if Zeroconf is not None else None
+
+    def start(self) -> bool:
+        if self.zeroconf is None or ServiceInfo is None:
+            return False
+
+        ip = _resolve_advertise_ip(self.advertise_host)
+        self.info = self._service_info(ip=ip, services=self.services)
         self.zeroconf.register_service(self.info)
         return True
 
@@ -103,16 +143,8 @@ class MdnsAdvertiser:
         if self.zeroconf is None or self.info is None:
             return False
         self.services = services
-        props = dict(self.info.properties or {})
-        props[b"services"] = ",".join(self.services).encode()
-        self.info = ServiceInfo(
-            type_=self.info.type,
-            name=self.info.name,
-            addresses=self.info.addresses,
-            port=self.info.port,
-            properties=props,
-            server=self.info.server,
-        )
+        ip = _resolve_advertise_ip(self.advertise_host)
+        self.info = self._service_info(ip=ip, services=self.services)
         self.zeroconf.update_service(self.info)
         return True
 

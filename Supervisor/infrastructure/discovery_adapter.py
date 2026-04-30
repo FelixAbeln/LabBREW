@@ -31,12 +31,19 @@ class NullAdvertiser:
 
 class DiscoveryPublisher:
     def __init__(
-        self, *, node_id: str, node_name: str, port: int, api_path: str = "/agent/info"
+        self,
+        *,
+        node_id: str,
+        node_name: str,
+        port: int,
+        api_path: str = "/agent/info",
+        advertise_host: str | None = None,
     ) -> None:
         self.node_id = node_id
         self.node_name = node_name
         self.port = port
         self.api_path = api_path
+        self.advertise_host = advertise_host
         self._advertiser: Advertiser | None = None
 
     def publish_node(self, services: tuple[str, ...]) -> None:
@@ -49,6 +56,7 @@ class DiscoveryPublisher:
                 node_name=self.node_name,
                 port=self.port,
                 api_path=self.api_path,
+                advertise_host=self.advertise_host,
                 services=services,
             )
             self._advertiser.start()
