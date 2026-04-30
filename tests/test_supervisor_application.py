@@ -92,10 +92,11 @@ def test_summary_uses_cached_repo_status_without_refresh() -> None:
     "localhost",
     "127.0.0.1",
     "127.1.2.3",
-    "::1",           # IPv6 loopback
-    "fe80::1",       # link-local IPv6
-    "192.168.1.1/24",  # CIDR notation — not a valid IP literal
-    "1",             # integer string accepted by ip_address() but non-canonical
+    "::1",             # IPv6 loopback
+    "fe80::1",         # link-local IPv6
+    "2001:db8::1",     # IPv6 literal with :
+    "192.168.1.1/24",  # CIDR notation (contains /)
+    "1",               # integer string accepted by ip_address() but non-canonical
 ])
 def test_normalize_mdns_advertise_host_rejects_unusable(value) -> None:
     assert _normalize_mdns_advertise_host(value) is None
@@ -107,6 +108,17 @@ def test_normalize_mdns_advertise_host_rejects_unusable(value) -> None:
     "172.16.0.5",
 ])
 def test_normalize_mdns_advertise_host_accepts_routable_ipv4(value) -> None:
+    assert _normalize_mdns_advertise_host(value) == value
+
+
+@pytest.mark.parametrize("value", [
+    "pi-fermenter-01.local",
+    "fermenter.example.com",
+    "brew-node-02",
+])
+def test_normalize_mdns_advertise_host_passes_through_hostname(value) -> None:
+    # Hostnames are passed through without pre-resolving so boot-time DNS
+    # failures do not silently drop a user-configured advertise host.
     assert _normalize_mdns_advertise_host(value) == value
 
 

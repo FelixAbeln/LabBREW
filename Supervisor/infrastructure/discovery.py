@@ -17,8 +17,10 @@ SERVICE_TYPE = "_fcs._tcp.local."
 
 
 def _is_usable_ipv4(candidate: str) -> bool:
-    """Return True only for a canonical dotted-quad IPv4 that is routable and
-    reachable by remote hosts (not unspecified, loopback, or link-local)."""
+    """Return True only for a canonical dotted-quad IPv4 that is not
+    unspecified (0.0.0.0), loopback (127.*), or link-local (169.254.*).
+    Other ranges such as private/RFC-1918 are accepted since they are
+    reachable within typical lab/home network deployments."""
     try:
         parsed = ipaddress.IPv4Address(candidate)
     except ValueError:

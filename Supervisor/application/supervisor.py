@@ -54,16 +54,16 @@ def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
     except ValueError:
         pass
 
-    # Treat as a hostname: verify it resolves to at least one usable IPv4.
-    try:
-        infos = socket.getaddrinfo(value, None, socket.AF_INET, socket.SOCK_DGRAM)
-    except OSError:
+    # Non-IP string: treat as a hostname and pass through for later DNS
+    # resolution inside the mDNS advertiser (avoids silent failure when DNS
+    # is not yet available at boot time).
+    if value.lower() == "localhost":
+        # Always loopback — not reachable from remote hosts.
         return None
-    for entry in infos:
-        sockaddr = entry[4]
-        if sockaddr:
-            return value  # Hostname resolves — pass through for later resolution.
-    return None
+    if ":" in value or "/" in value:
+        # IPv6 literal or CIDR notation — not a valid hostname for this advertiser.
+        return None
+    return value
 
 
 class TopologySupervisor:
