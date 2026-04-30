@@ -743,7 +743,7 @@ Type=simple
 User=$RUN_USER
 Group=$RUN_GROUP
 WorkingDirectory=$INSTALL_DIR
-ExecStartPre=/bin/bash -c 'for i in $(seq 1 60); do if /sbin/ip -4 -o addr show scope global up | /bin/grep -q .; then exit 0; fi; /bin/sleep 1; done; exit 1'
+ExecStartPre=/bin/bash -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin; IP_BIN=$(command -v ip || true); if [ -z "$IP_BIN" ]; then exit 1; fi; for i in $(seq 1 60); do if "$IP_BIN" -4 -o addr show scope global up | /bin/grep -q .; then exit 0; fi; /bin/sleep 1; done; exit 1'
 ExecStart=$WRAPPER_PATH
 Restart=always
 RestartSec=10
