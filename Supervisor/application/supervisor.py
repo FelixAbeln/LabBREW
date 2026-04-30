@@ -25,6 +25,18 @@ OPTIONAL_RUNTIME_PACKAGES: tuple[str, ...] = (
 )
 
 
+def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
+    value = str(advertise_host or "").strip()
+    if not value:
+        return None
+    lowered = value.lower()
+    if lowered in {"0.0.0.0", "::", "localhost"}:
+        return None
+    if lowered.startswith("127."):
+        return None
+    return value
+
+
 class TopologySupervisor:
     def __init__(
         self,
@@ -53,11 +65,12 @@ class TopologySupervisor:
         self.resolver = CapabilityResolver()
         self.planner = StartupPlanner()
         self.runner = ProcessRunner(self.root_dir, self.log_dir)
+        mdns_advertise_host = _normalize_mdns_advertise_host(advertise_host)
         self.discovery = DiscoveryPublisher(
             node_id=node_id,
             node_name=node_name,
             port=agent_port,
-            advertise_host=advertise_host,
+            advertise_host=mdns_advertise_host,
         )
         self.agent_api = AgentApiServer(
             host=agent_host,

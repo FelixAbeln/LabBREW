@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import socket
 from dataclasses import dataclass, field
 from typing import Any
@@ -37,13 +38,24 @@ def _local_ip() -> str:
 
 
 def _resolve_advertise_ip(advertise_host: str | None) -> str:
+    def _is_usable_ipv4(candidate: str) -> bool:
+        try:
+            parsed = ipaddress.ip_address(candidate)
+        except ValueError:
+            return False
+        if parsed.version != 4:
+            return False
+        return not (parsed.is_unspecified or parsed.is_loopback)
+
     raw_host = str(advertise_host or "").strip()
     if not raw_host:
         return _local_ip()
 
     try:
         socket.inet_aton(raw_host)
-        return raw_host
+        if _is_usable_ipv4(raw_host):
+            return raw_host
+        return _local_ip()
     except OSError:
         pass
 
@@ -57,7 +69,7 @@ def _resolve_advertise_ip(advertise_host: str | None) -> str:
         if not sockaddr:
             continue
         candidate = str(sockaddr[0] or "").strip()
-        if candidate:
+        if candidate and _is_usable_ipv4(candidate):
             return candidate
 
     return _local_ip()
