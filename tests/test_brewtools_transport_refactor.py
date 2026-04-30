@@ -222,6 +222,59 @@ def test_discover_peak_gateways_emits_one_candidate_per_can_bus(monkeypatch) -> 
     assert all(item.selectable is True for item in result)
 
 
+def test_discover_peak_gateways_caps_reported_can_count(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._gateway_hosts",
+        lambda _payload, _record: ["192.168.5.36"],
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._arp_mac_table",
+        lambda: {"192.168.5.36": "00-11-22-33-44-55"},
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._json_device_identity",
+        lambda _host, timeout_s: (
+            True,
+            "PCAN-Ethernet Gateway DR",
+            "SN:26869",
+            {
+                "identity_product_name": "PCAN-Ethernet Gateway DR",
+                "identity_order_no": "IPEH-004010",
+                "identity_serial_no": "26869",
+                "identity_source": "json_device",
+                "identity_can_count": 999,
+            },
+            "",
+        ),
+    )
+
+    result, warning = discover_peak_gateways({"max_can_count": 8}, None)
+
+    assert len(result) == 8
+    assert [item.channel for item in result] == list(range(8))
+    assert "capped to 8" in warning
+
+
+def test_discover_peak_gateways_surfaces_probe_exception_warning(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._gateway_hosts",
+        lambda _payload, _record: ["192.168.5.36"],
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._arp_mac_table",
+        lambda: {},
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._json_device_identity",
+        lambda _host, timeout_s: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    result, warning = discover_peak_gateways({}, None)
+
+    assert result == []
+    assert "PCAN probe failed for 192.168.5.36: boom" in warning
+
+
 def test_parse_gateway_packet_rejects_crc_frame_shorter_than_header_plus_crc() -> None:
     packet = bytearray(31)
     struct.pack_into(">H", packet, 0, 31)

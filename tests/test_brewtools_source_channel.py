@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsSource
+from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsCanSourceError
 from Services.parameterDB.sourceDefs.brewtools.transports.base import RawCanFrame
 
 
@@ -56,3 +59,26 @@ def test_receive_frames_filters_to_configured_channel() -> None:
 
     # Only the frame from channel 1 should pass through.
     assert len(results) == 1
+
+
+@pytest.mark.parametrize("bad_channel", [-1, 256, 999])
+def test_brewtools_build_raw_frame_rejects_out_of_range_channel(bad_channel: int) -> None:
+    source = BrewtoolsSource(
+        "brewcan",
+        _FakeClient(),
+        config={"transport": "pcan_gateway_udp", "channel": bad_channel},
+    )
+
+    with pytest.raises(BrewtoolsCanSourceError, match="range 0..255"):
+        source._build_raw_frame(0x123, b"\x01")
+
+
+def test_brewtools_build_raw_frame_rejects_non_integer_channel() -> None:
+    source = BrewtoolsSource(
+        "brewcan",
+        _FakeClient(),
+        config={"transport": "pcan_gateway_udp", "channel": "abc"},
+    )
+
+    with pytest.raises(BrewtoolsCanSourceError, match="expected an integer"):
+        source._build_raw_frame(0x123, b"\x01")

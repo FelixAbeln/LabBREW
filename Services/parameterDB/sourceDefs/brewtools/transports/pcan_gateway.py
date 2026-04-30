@@ -205,16 +205,22 @@ def discover_peak_gateways(
     bind_host = str(payload.get("gateway_bind_host") or "0.0.0.0").strip() or "0.0.0.0"
     timeout_s = float(payload.get("probe_timeout_s") or 0.5)
     worker_count = max(1, min(64, int(payload.get("probe_workers") or 32)))
+    max_can_count = max(1, min(64, int(payload.get("max_can_count") or 8)))
     include_unmatched_hosts = bool(payload.get("include_unmatched_hosts", False))
 
     hosts = _gateway_hosts(payload, record)
     arp_table = _arp_mac_table()
     out: list[TransportDiscoveryCandidate] = []
+    warnings: list[str] = []
 
-    def _probe_host(host: str) -> list[TransportDiscoveryCandidate]:
+    def _probe_host(host: str) -> tuple[list[TransportDiscoveryCandidate], str]:
         is_json_match, device_label, sn_text, json_identity, failure_reason = _json_device_identity(host, timeout_s=min(timeout_s, 0.8))
         if is_json_match:
-            can_count = max(1, int(json_identity.get("identity_can_count") or 1))
+            reported_can_count = max(1, int(json_identity.get("identity_can_count") or 1))
+            can_count = min(reported_can_count, max_can_count)
+            warning = ""
+            if reported_can_count > max_can_count:
+                warning = f"PCAN host {host} reported CAN_count={reported_can_count}; capped to {max_can_count}"
             candidates: list[TransportDiscoveryCandidate] = []
             for channel in range(can_count):
                 sub_parts = [f"CAN {channel}", device_label]
@@ -236,7 +242,7 @@ def discover_peak_gateways(
                         extra={"identity_mac_oui": _mac_oui(arp_table.get(host, "")), **json_identity},
                     )
                 )
-            return candidates
+            return candidates, warning
 
         return [
             TransportDiscoveryCandidate(
@@ -252,22 +258,25 @@ def discover_peak_gateways(
                 error=failure_reason or "JSON device identity is not PCAN/PEAK",
                 extra={"identity_mac_oui": _mac_oui(arp_table.get(host, ""))},
             )
-        ]
+        ], ""
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = [executor.submit(_probe_host, host) for host in hosts]
+        futures = {executor.submit(_probe_host, host): host for host in hosts}
         for future in as_completed(futures):
+            host = futures[future]
             try:
-                items = future.result()
+                items, warning = future.result()
+                if warning:
+                    warnings.append(warning)
                 for item in items or []:
                     if item is not None and (item.selectable or include_unmatched_hosts):
                         out.append(item)
-            except Exception:
-                pass
+            except Exception as exc:
+                warnings.append(f"PCAN probe failed for {host}: {exc}")
 
     out.sort(key=lambda item: (str(item.gateway_host or ""), int(item.channel or 0), str(item.title or "")))
 
-    return out, ""
+    return out, "; ".join(warnings)
 
 
 def _payload_len_from_dlc(dlc: int, is_fd: bool) -> int:

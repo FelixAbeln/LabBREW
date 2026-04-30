@@ -145,7 +145,18 @@ class BrewtoolsSource(DataSourceBase):
                 self._set_error(f"Disconnect failed: {exc}")
 
     def _configured_channel(self) -> int:
-        return int(self.config.get("channel", 0) or 0)
+        raw_channel = self.config.get("channel", 0)
+        try:
+            channel = int(raw_channel or 0)
+        except (TypeError, ValueError) as exc:
+            raise BrewtoolsCanSourceError(
+                f"Invalid channel '{raw_channel}': expected an integer in range 0..255"
+            ) from exc
+        if not 0 <= channel <= 255:
+            raise BrewtoolsCanSourceError(
+                f"Invalid channel '{channel}': expected range 0..255"
+            )
+        return channel
 
     def _build_raw_frame(self, arb_id: int, data: bytes) -> RawCanFrame:
         return RawCanFrame(
