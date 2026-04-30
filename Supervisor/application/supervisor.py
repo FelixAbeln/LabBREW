@@ -29,7 +29,6 @@ def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
     """Return the value if it is safe to hand to the mDNS advertiser (IPv4
     only), or None to let the advertiser auto-detect a routable address."""
     import ipaddress
-    import socket
 
     value = str(advertise_host or "").strip()
     if not value:
