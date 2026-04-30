@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import pytest
 from types import SimpleNamespace
 
-from Supervisor.application.supervisor import TopologySupervisor
+from Supervisor.application.supervisor import TopologySupervisor, _normalize_mdns_advertise_host
 
 
 def _build_supervisor_stub() -> TopologySupervisor:
@@ -76,3 +77,38 @@ def test_summary_uses_cached_repo_status_without_refresh() -> None:
     assert summary["repo_update"]["outdated"] is True
     assert summary["repo_update"]["local_revision"] == "abc123"
     assert summary["repo_update"]["remote_revision"] == "def456"
+
+
+# ---------------------------------------------------------------------------
+# _normalize_mdns_advertise_host
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("value", [
+    None,
+    "",
+    "  ",
+    "0.0.0.0",
+    "::",
+    "localhost",
+    "127.0.0.1",
+    "127.1.2.3",
+    "::1",           # IPv6 loopback
+    "fe80::1",       # link-local IPv6
+    "192.168.1.1/24",  # CIDR notation — not a valid IP literal
+    "1",             # integer string accepted by ip_address() but non-canonical
+])
+def test_normalize_mdns_advertise_host_rejects_unusable(value) -> None:
+    assert _normalize_mdns_advertise_host(value) is None
+
+
+@pytest.mark.parametrize("value", [
+    "192.168.1.10",
+    "10.0.0.1",
+    "172.16.0.5",
+])
+def test_normalize_mdns_advertise_host_accepts_routable_ipv4(value) -> None:
+    assert _normalize_mdns_advertise_host(value) == value
+
+
+def test_normalize_mdns_advertise_host_strips_whitespace() -> None:
+    assert _normalize_mdns_advertise_host("  10.0.0.2  ") == "10.0.0.2"
