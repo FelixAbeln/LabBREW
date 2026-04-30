@@ -57,13 +57,13 @@ def _resolve_advertise_ip(advertise_host: str | None) -> str:
     if not raw_host:
         return _local_ip()
 
-    # If it looks like a literal IPv4, accept only canonical dotted-quad.
+    # If it is a literal IPv4, accept only canonical dotted-quad values.
     try:
-        socket.inet_aton(raw_host)
+        ipaddress.IPv4Address(raw_host)
         if _is_usable_ipv4(raw_host):
             return raw_host
         return _local_ip()
-    except OSError:
+    except ValueError:
         pass
 
     # Hostname: resolve to IPv4, apply same usability filter.
