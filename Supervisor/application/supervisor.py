@@ -34,8 +34,9 @@ def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
     if not value:
         return None
 
-    # Accept only canonical dotted-quad IPv4 literals or hostnames that resolve
-    # to one.  IPv6 literals / addresses are not supported by the advertiser.
+    # Accept canonical dotted-quad IPv4 literals directly. Hostname-like
+    # non-IP strings may also be passed through for later resolution by the
+    # advertiser. IPv6 literals / addresses are not supported.
     try:
         # Raises ValueError for non-IP strings; OSError never raised here.
         parsed = ipaddress.ip_address(value)
