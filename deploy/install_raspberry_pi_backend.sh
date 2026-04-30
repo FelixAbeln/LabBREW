@@ -736,7 +736,8 @@ Description=LabBREW backend supervisor
 After=network-online.target avahi-daemon.service bluetooth.service dbus.service
 Wants=network-online.target avahi-daemon.service bluetooth.service dbus.service
 RequiresMountsFor=$INSTALL_DIR
-StartLimitIntervalSec=0
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
