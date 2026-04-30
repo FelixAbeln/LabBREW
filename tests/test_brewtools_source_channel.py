@@ -82,3 +82,25 @@ def test_brewtools_build_raw_frame_rejects_non_integer_channel() -> None:
 
     with pytest.raises(BrewtoolsCanSourceError, match="expected an integer"):
         source._build_raw_frame(0x123, b"\x01")
+
+
+def test_brewtools_connect_transport_reuses_channel_validation_for_kvaser(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.brewtools import service as brewtools_service
+
+    class _FakeKvaserTransport:
+        def __init__(self, **_kwargs):
+            return None
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(brewtools_service, "KvaserTransport", _FakeKvaserTransport)
+
+    source = BrewtoolsSource(
+        "brewcan",
+        _FakeClient(),
+        config={"transport": "kvaser", "channel": "abc"},
+    )
+
+    with pytest.raises(BrewtoolsCanSourceError, match="expected an integer"):
+        source._connect_transport()

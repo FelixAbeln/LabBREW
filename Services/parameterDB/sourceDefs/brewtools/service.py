@@ -116,7 +116,7 @@ class BrewtoolsSource(DataSourceBase):
         if transport_name == "kvaser":
             self._transport = KvaserTransport(
                 interface=str(self.config.get("interface", "kvaser")),
-                channel=int(self.config.get("channel", 0)),
+                channel=self._configured_channel(),
                 bitrate=int(self.config.get("bitrate", 500000)),
             )
         elif transport_name == "pcan_gateway_udp":
