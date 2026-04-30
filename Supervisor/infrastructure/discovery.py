@@ -17,7 +17,7 @@ except Exception:
 SERVICE_TYPE = "_fcs._tcp.local."
 
 
-def _is_usable_ipv4(candidate: str) -> bool:
+def is_usable_ipv4(candidate: str) -> bool:
     """Return True only for a canonical dotted-quad IPv4 that is not
     unspecified (0.0.0.0), loopback (127.*), or link-local (169.254.*).
     Other ranges such as private/RFC-1918 are accepted since they are
@@ -37,7 +37,7 @@ def _local_ip() -> str:
     try:
         _, _, host_addresses = socket.gethostbyname_ex(socket.gethostname())
         for candidate in host_addresses:
-            if candidate and _is_usable_ipv4(candidate):
+            if candidate and is_usable_ipv4(candidate):
                 return candidate
     except OSError:
         pass
@@ -46,7 +46,7 @@ def _local_ip() -> str:
     try:
         sock.connect(("8.8.8.8", 80))
         ip = sock.getsockname()[0]
-        if _is_usable_ipv4(ip):
+        if is_usable_ipv4(ip):
             return ip
     except OSError:
         pass
@@ -63,7 +63,7 @@ def _resolve_advertise_ip(advertise_host: str | None) -> str:
     # If it is a literal IPv4, accept only canonical dotted-quad values.
     try:
         ipaddress.IPv4Address(raw_host)
-        if _is_usable_ipv4(raw_host):
+        if is_usable_ipv4(raw_host):
             return raw_host
         return _local_ip()
     except ValueError:
@@ -80,7 +80,7 @@ def _resolve_advertise_ip(advertise_host: str | None) -> str:
         if not sockaddr:
             continue
         candidate = str(sockaddr[0] or "").strip()
-        if candidate and _is_usable_ipv4(candidate):
+        if candidate and is_usable_ipv4(candidate):
             return candidate
 
     return _local_ip()

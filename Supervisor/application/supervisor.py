@@ -11,7 +11,7 @@ from typing import Any
 from ..domain.models import ManagedProcessState, ServiceSpec
 from ..domain.validation import validate_topology
 from ..infrastructure.agent_api import AgentApiServer
-from ..infrastructure.discovery import _is_usable_ipv4
+from ..infrastructure.discovery import is_usable_ipv4
 from ..infrastructure.discovery_adapter import DiscoveryPublisher
 from ..infrastructure.health import tcp_probe
 from ..infrastructure.process_runner import ProcessRunner
@@ -43,7 +43,7 @@ def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
         if parsed.version != 4:
             # IPv6 literal — advertiser only supports IPv4.
             return None
-        return value if _is_usable_ipv4(value) else None
+        return value if is_usable_ipv4(value) else None
     except ValueError:
         pass
 
