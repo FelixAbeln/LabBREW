@@ -178,7 +178,7 @@ def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, str, 
     if serial_no:
         sn_text = f"SN:{serial_no}"
     elif order_no:
-        sn_text = f"SN:{order_no}"
+        sn_text = f"ID:{order_no}"
     else:
         sn_text = ""
     can_count_raw = payload.get("CAN_count")
