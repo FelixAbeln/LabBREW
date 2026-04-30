@@ -267,7 +267,6 @@ def test_discover_kvaser_channels_subtitle_includes_device_name_and_serial(monke
     monkeypatch.setattr(kvaser_mod, "can", fake_can, raising=False)
 
     # Patch the import inside the function by replacing the module-level name
-    import importlib
     import sys
     sys.modules["can"] = fake_can
     try:
