@@ -9,6 +9,7 @@ from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsSourceSpe
 from Services.parameterDB.sourceDefs.brewtools.transports.base import TransportDiscoveryCandidate
 from Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway import (
     TYPE_CLASSIC_CRC,
+    discover_peak_gateways,
     parse_gateway_packet,
 )
 
@@ -73,7 +74,7 @@ def test_brewtools_ui_transport_fields_are_adaptive() -> None:
     gateway_bind = next(field for field in fields if field.get("key") == "config.gateway_bind_host")
 
     assert interface.get("visible_when") == {"config.transport": "kvaser"}
-    assert channel.get("visible_when") == {"config.transport": "kvaser"}
+    assert channel.get("visible_when") == {"config.transport": ["kvaser", "pcan_gateway_udp"]}
     assert bitrate.get("visible_when") == {"config.transport": "kvaser"}
     assert gateway_host.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
     assert gateway_tx.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
@@ -85,9 +86,20 @@ def test_brewtools_default_config_exposes_both_transport_families() -> None:
     config = BrewtoolsSourceSpec().default_config()
     assert config["transport"] == "kvaser"
     assert config["interface"] == "kvaser"
+    assert config["channel"] == 0
     assert config["gateway_host"] == "192.168.0.30"
     assert config["gateway_tx_port"] == 55002
     assert config["gateway_rx_port"] == 55001
+
+
+def test_brewtools_ui_shows_channel_for_peak_and_kvaser() -> None:
+    ui = get_brewtools_ui_spec(record={"name": "brewcan", "config": {}}, mode="edit")
+    sections = list(ui.get("edit", {}).get("sections") or [])
+    transport = next(section for section in sections if section.get("title") == "Transport")
+    channel = next(field for field in transport.get("fields", []) if field.get("key") == "config.channel")
+
+    assert channel.get("label") == "Bus / Channel"
+    assert channel.get("visible_when") == {"config.transport": ["kvaser", "pcan_gateway_udp"]}
 
 
 def test_brewtools_ui_module_scan_metadata() -> None:
@@ -158,7 +170,7 @@ def test_brewtools_run_ui_action_filters_unreachable_peak_candidates(monkeypatch
 def test_transport_discovery_candidate_as_dict_preserves_extra_fields() -> None:
     candidate = TransportDiscoveryCandidate(
         title="pcan:192.168.5.31",
-        subtitle="UDP 55002/55001 · PCAN-Ethernet Gateway DR (SN:26869)",
+        subtitle="CAN 0 · PCAN-Ethernet Gateway DR · SN:26869 · UDP 55002/55001",
         source="pcan_gateway_udp",
         transport="pcan_gateway_udp",
         gateway_host="192.168.5.31",
@@ -170,6 +182,43 @@ def test_transport_discovery_candidate_as_dict_preserves_extra_fields() -> None:
 
     assert result["title"] == "pcan:192.168.5.31"
     assert result["identity_serial_no"] == "26869"
+
+
+def test_discover_peak_gateways_emits_one_candidate_per_can_bus(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._gateway_hosts",
+        lambda _payload, _record: ["192.168.5.36"],
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._arp_mac_table",
+        lambda: {"192.168.5.36": "00-11-22-33-44-55"},
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway._json_device_identity",
+        lambda _host, timeout_s: (
+            True,
+            "PCAN-Ethernet Gateway DR",
+            "SN:26869",
+            {
+                "identity_product_name": "PCAN-Ethernet Gateway DR",
+                "identity_order_no": "IPEH-004010",
+                "identity_serial_no": "26869",
+                "identity_source": "json_device",
+                "identity_can_count": 2,
+            },
+        ),
+    )
+
+    result, error = discover_peak_gateways({}, None)
+
+    assert error == ""
+    assert [item.title for item in result] == [
+        "pcan:192.168.5.36:can0",
+        "pcan:192.168.5.36:can1",
+    ]
+    assert [item.channel for item in result] == [0, 1]
+    assert all(item.gateway_host == "192.168.5.36" for item in result)
+    assert all(item.selectable is True for item in result)
 
 
 def test_parse_gateway_packet_rejects_crc_frame_shorter_than_header_plus_crc() -> None:
@@ -191,3 +240,72 @@ def test_parse_gateway_packet_rejects_crc_frame_with_truncated_payload() -> None
 
     with pytest.raises(ValueError, match="payload overruns"):
         parse_gateway_packet(bytes(packet))
+
+
+def test_discover_kvaser_channels_subtitle_includes_device_name_and_serial(monkeypatch) -> None:
+    """discover_kvaser_channels should build a subtitle from device_name, serial, and dongle_channel."""
+    from Services.parameterDB.sourceDefs.brewtools.transports import kvaser as kvaser_mod
+    import types
+
+    fake_can = types.ModuleType("can")
+    fake_can.detect_available_configs = lambda interfaces: [
+        {
+            "interface": "kvaser",
+            "channel": 0,
+            "device_name": "Kvaser Leaf Light v2",
+            "serial": 12345,
+            "dongle_channel": 1,
+        },
+        {
+            "interface": "kvaser",
+            "channel": 1,
+            "device_name": "Kvaser Leaf Light v2",
+            "serial": 12345,
+            "dongle_channel": 2,
+        },
+    ]
+    monkeypatch.setattr(kvaser_mod, "can", fake_can, raising=False)
+
+    # Patch the import inside the function by replacing the module-level name
+    import importlib
+    import sys
+    sys.modules["can"] = fake_can
+    try:
+        from Services.parameterDB.sourceDefs.brewtools.transports.kvaser import discover_kvaser_channels
+        result, warnings = discover_kvaser_channels()
+    finally:
+        del sys.modules["can"]
+
+    assert len(result) == 2
+    assert result[0].title == "kvaser:0"
+    assert result[0].subtitle.startswith("ch1 · ")
+    assert "Kvaser Leaf Light v2" in result[0].subtitle
+    assert "SN:12345" in result[0].subtitle
+    assert result[1].title == "kvaser:1"
+    assert result[1].subtitle.startswith("ch2 · ")
+
+
+def test_discover_kvaser_channels_subtitle_serial_zero_shows_virtual(monkeypatch) -> None:
+    """When serial is 0, the subtitle should say SN:virtual."""
+    import sys
+    import types
+
+    fake_can = types.ModuleType("can")
+    fake_can.detect_available_configs = lambda interfaces: [
+        {
+            "interface": "kvaser",
+            "channel": 0,
+            "device_name": "Kvaser Virtual CAN Driver",
+            "serial": 0,
+            "dongle_channel": 1,
+        },
+    ]
+    sys.modules["can"] = fake_can
+    try:
+        from Services.parameterDB.sourceDefs.brewtools.transports.kvaser import discover_kvaser_channels
+        result, _ = discover_kvaser_channels()
+    finally:
+        del sys.modules["can"]
+
+    assert len(result) == 1
+    assert "SN:virtual" in result[0].subtitle

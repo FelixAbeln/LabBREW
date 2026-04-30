@@ -48,10 +48,26 @@ def discover_kvaser_channels(
         except Exception:
             channel = 0
         bitrate = int(cfg.get("bitrate") or 500000)
+
+        device_name = str(cfg.get("device_name") or "").strip()
+        serial = cfg.get("serial")
+        dongle_channel = cfg.get("dongle_channel")
+
+        subtitle_parts: list[str] = []
+        if dongle_channel is not None:
+            subtitle_parts.append(f"ch{dongle_channel}")
+        if device_name:
+            subtitle_parts.append(device_name)
+        if serial is not None and int(serial) != 0:
+            subtitle_parts.append(f"SN:{serial}")
+        elif serial is not None:
+            subtitle_parts.append("SN:virtual")
+        subtitle = " · ".join(subtitle_parts) if subtitle_parts else "Kvaser channel"
+
         out.append(
             TransportDiscoveryCandidate(
                 title=f"kvaser:{channel_text}",
-                subtitle="Kvaser channel",
+                subtitle=subtitle,
                 source="kvaser",
                 transport="kvaser",
                 interface="kvaser",

@@ -213,7 +213,7 @@ def _transport_section() -> dict:
         "fields": [
             {"key": "config.transport", "label": "Transport", "type": "enum", "required": True, "choices": ["kvaser", "pcan_gateway_udp"]},
             {"key": "config.interface", "label": "Interface", "type": "enum", "required": False, "choices": ["kvaser"], "hint": "Used when transport = kvaser.", "visible_when": {"config.transport": "kvaser"}},
-            {"key": "config.channel", "label": "Channel", "type": "int", "required": False, "hint": "Used when transport = kvaser.", "visible_when": {"config.transport": "kvaser"}},
+            {"key": "config.channel", "label": "Bus / Channel", "type": "int", "required": False, "hint": "Selects which bus this source listens on and sends to. For Kvaser: CAN channel index. For PCAN gateway: bus number (0, 1, …) — frames from other buses are ignored, and outgoing commands target this bus only. Add a second source to use a second bus.", "visible_when": {"config.transport": ["kvaser", "pcan_gateway_udp"]}},
             {"key": "config.bitrate", "label": "Bitrate", "type": "int", "required": False, "hint": "Used when transport = kvaser.", "visible_when": {"config.transport": "kvaser"}},
             {"key": "config.gateway_host", "label": "PCAN Gateway Host", "type": "string", "required": False, "hint": "IP address of PCAN gateway (used when transport = pcan_gateway_udp).", "visible_when": {"config.transport": "pcan_gateway_udp"}},
             {"key": "config.gateway_tx_port", "label": "PCAN Gateway TX Port", "type": "int", "required": True, "hint": "TX port for sending commands (typically 55002, check gateway config).", "visible_when": {"config.transport": "pcan_gateway_udp"}},

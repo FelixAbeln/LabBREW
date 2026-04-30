@@ -144,8 +144,16 @@ class BrewtoolsSource(DataSourceBase):
             except Exception as exc:
                 self._set_error(f"Disconnect failed: {exc}")
 
+    def _configured_channel(self) -> int:
+        return int(self.config.get("channel", 0) or 0)
+
     def _build_raw_frame(self, arb_id: int, data: bytes) -> RawCanFrame:
-        return RawCanFrame(arbitration_id=int(arb_id), data=bytes(data), is_extended_id=True)
+        return RawCanFrame(
+            arbitration_id=int(arb_id),
+            data=bytes(data),
+            is_extended_id=True,
+            channel=self._configured_channel(),
+        )
 
     def _build_pwm_frame(self, *, node_id: int, duty_cycle: float) -> RawCanFrame:
         from .brewtools_can import BrewtoolsCanId, CanFrame, MsgType, NodeType, Priority, RawBody
@@ -487,8 +495,11 @@ class BrewtoolsSource(DataSourceBase):
     def _receive_frames(self, transport: Any, timeout_s: float) -> list[tuple[int, bytes, Any, object | None]]:
         from .brewtools_can import CanFrame, DomainFactory
 
+        channel = self._configured_channel()
         results: list[tuple[int, bytes, Any, object | None]] = []
         for raw in transport.recv_frames(timeout=timeout_s):
+            if int(raw.channel) != channel:
+                continue
             frame = CanFrame.from_can(int(raw.arbitration_id), bytes(raw.data))
             obj = DomainFactory.build(frame)
             results.append((int(raw.arbitration_id), bytes(raw.data), frame, obj))
