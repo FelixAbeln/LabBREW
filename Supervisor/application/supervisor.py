@@ -26,15 +26,44 @@ OPTIONAL_RUNTIME_PACKAGES: tuple[str, ...] = (
 
 
 def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
+    """Return the value if it is safe to hand to the mDNS advertiser (IPv4
+    only), or None to let the advertiser auto-detect a routable address."""
+    import ipaddress
+    import socket
+
     value = str(advertise_host or "").strip()
     if not value:
         return None
-    lowered = value.lower()
-    if lowered in {"0.0.0.0", "::", "localhost"}:
+
+    # Accept only canonical dotted-quad IPv4 literals or hostnames that resolve
+    # to one.  IPv6 literals / addresses are not supported by the advertiser.
+    try:
+        # Raises ValueError for non-IP strings; OSError never raised here.
+        parsed = ipaddress.ip_address(value)
+        # It parsed as an IP address.
+        if parsed.version != 4:
+            # IPv6 literal — advertiser only supports IPv4 via inet_aton.
+            return None
+        # Reject unusable IPv4 literals (unspecified, loopback, link-local).
+        if parsed.is_unspecified or parsed.is_loopback or parsed.is_link_local:
+            return None
+        # Require canonical dotted-quad (rejects integer strings like "1").
+        if str(parsed) != value:
+            return None
+        return value
+    except ValueError:
+        pass
+
+    # Treat as a hostname: verify it resolves to at least one usable IPv4.
+    try:
+        infos = socket.getaddrinfo(value, None, socket.AF_INET, socket.SOCK_DGRAM)
+    except OSError:
         return None
-    if lowered.startswith("127."):
-        return None
-    return value
+    for entry in infos:
+        sockaddr = entry[4]
+        if sockaddr:
+            return value  # Hostname resolves — pass through for later resolution.
+    return None
 
 
 class TopologySupervisor:

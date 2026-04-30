@@ -16,12 +16,25 @@ except Exception:
 SERVICE_TYPE = "_fcs._tcp.local."
 
 
+def _is_usable_ipv4(candidate: str) -> bool:
+    """Return True only for a canonical dotted-quad IPv4 that is routable and
+    reachable by remote hosts (not unspecified, loopback, or link-local)."""
+    try:
+        parsed = ipaddress.IPv4Address(candidate)
+    except ValueError:
+        return False
+    # Reject non-canonical representations (e.g. integer strings like "1").
+    if str(parsed) != candidate:
+        return False
+    return not (parsed.is_unspecified or parsed.is_loopback or parsed.is_link_local)
+
+
 def _local_ip() -> str:
     # Prefer directly enumerated host addresses before route probing.
     try:
         _, _, host_addresses = socket.gethostbyname_ex(socket.gethostname())
         for candidate in host_addresses:
-            if candidate and not candidate.startswith("127."):
+            if candidate and _is_usable_ipv4(candidate):
                 return candidate
     except OSError:
         pass
@@ -30,27 +43,21 @@ def _local_ip() -> str:
     try:
         sock.connect(("8.8.8.8", 80))
         ip = sock.getsockname()[0]
+        if _is_usable_ipv4(ip):
+            return ip
     except OSError:
-        ip = "127.0.0.1"
+        pass
     finally:
         sock.close()
-    return ip
+    return "127.0.0.1"
 
 
 def _resolve_advertise_ip(advertise_host: str | None) -> str:
-    def _is_usable_ipv4(candidate: str) -> bool:
-        try:
-            parsed = ipaddress.ip_address(candidate)
-        except ValueError:
-            return False
-        if parsed.version != 4:
-            return False
-        return not (parsed.is_unspecified or parsed.is_loopback)
-
     raw_host = str(advertise_host or "").strip()
     if not raw_host:
         return _local_ip()
 
+    # If it looks like a literal IPv4, accept only canonical dotted-quad.
     try:
         socket.inet_aton(raw_host)
         if _is_usable_ipv4(raw_host):
@@ -59,6 +66,7 @@ def _resolve_advertise_ip(advertise_host: str | None) -> str:
     except OSError:
         pass
 
+    # Hostname: resolve to IPv4, apply same usability filter.
     try:
         resolved = socket.getaddrinfo(raw_host, None, socket.AF_INET, socket.SOCK_DGRAM)
     except OSError:
