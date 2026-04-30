@@ -139,7 +139,7 @@ The create modal auto-scans for CAN channels using `scan_channels`:
 | `parameter_prefix` | both | Base namespace for generated parameters |
 | `transport` | both | `kvaser` or `pcan_gateway_udp` |
 | `interface` | `kvaser` | python-can interface name (typically `"kvaser"`) |
-| `channel` | both | Kvaser channel index or PEAK gateway bus/channel byte (commonly `0` or `1`) |
+| `channel` | both | Kvaser channel index or, for `pcan_gateway_udp`, the PEAK gateway bus/channel byte. For PEAK gateways this must be an integer in the range `0`–`255` (commonly `0` or `1`); values outside that range may be truncated/wrapped when encoded by the gateway protocol. |
 | `bitrate` | `kvaser` | CAN bitrate, default `500000` |
 | `gateway_host` | `pcan_gateway_udp` | PEAK gateway IP/hostname |
 | `gateway_tx_port` | `pcan_gateway_udp` | UDP TX port (default `55002`) |

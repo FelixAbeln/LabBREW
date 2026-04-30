@@ -58,10 +58,20 @@ def discover_kvaser_channels(
             subtitle_parts.append(f"ch{dongle_channel}")
         if device_name:
             subtitle_parts.append(device_name)
-        if serial is not None and int(serial) != 0:
+        serial_number: int | None = None
+        if serial is not None:
+            try:
+                serial_number = int(serial)
+            except (TypeError, ValueError):
+                serial_number = None
+        if serial_number is not None and serial_number != 0:
             subtitle_parts.append(f"SN:{serial}")
-        elif serial is not None:
+        elif serial_number == 0:
             subtitle_parts.append("SN:virtual")
+        elif serial is not None:
+            serial_text = str(serial).strip()
+            if serial_text:
+                subtitle_parts.append(f"SN:{serial_text}")
         subtitle = " · ".join(subtitle_parts) if subtitle_parts else "Kvaser channel"
 
         out.append(
