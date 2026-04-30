@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsSource
 from Services.parameterDB.sourceDefs.brewtools.transports.base import RawCanFrame
 
