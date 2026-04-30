@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import socket
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -15,16 +17,73 @@ except Exception:
 SERVICE_TYPE = "_fcs._tcp.local."
 
 
+def is_usable_ipv4(candidate: str) -> bool:
+    """Return True only for a canonical dotted-quad IPv4 that is not
+    unspecified (0.0.0.0), loopback (127.*), or link-local (169.254.*).
+    Other ranges such as private/RFC-1918 are accepted since they are
+    reachable within typical lab/home network deployments."""
+    try:
+        parsed = ipaddress.IPv4Address(candidate)
+    except ValueError:
+        return False
+    # Reject non-canonical representations (e.g. integer strings like "1").
+    if str(parsed) != candidate:
+        return False
+    return not (parsed.is_unspecified or parsed.is_loopback or parsed.is_link_local)
+
+
 def _local_ip() -> str:
+    # Prefer directly enumerated host addresses before route probing.
+    try:
+        _, _, host_addresses = socket.gethostbyname_ex(socket.gethostname())
+        for candidate in host_addresses:
+            if candidate and is_usable_ipv4(candidate):
+                return candidate
+    except OSError:
+        pass
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.connect(("8.8.8.8", 80))
         ip = sock.getsockname()[0]
+        if is_usable_ipv4(ip):
+            return ip
     except OSError:
-        ip = "127.0.0.1"
+        pass
     finally:
         sock.close()
-    return ip
+    return "127.0.0.1"
+
+
+def _resolve_advertise_ip(advertise_host: str | None) -> str:
+    raw_host = str(advertise_host or "").strip()
+    if not raw_host:
+        return _local_ip()
+
+    # If it is a literal IPv4, accept only canonical dotted-quad values.
+    try:
+        ipaddress.IPv4Address(raw_host)
+        if is_usable_ipv4(raw_host):
+            return raw_host
+        return _local_ip()
+    except ValueError:
+        pass
+
+    # Hostname: resolve to IPv4, apply same usability filter.
+    try:
+        resolved = socket.getaddrinfo(raw_host, None, socket.AF_INET, socket.SOCK_DGRAM)
+    except OSError:
+        return _local_ip()
+
+    for entry in resolved:
+        sockaddr = entry[4]
+        if not sockaddr:
+            continue
+        candidate = str(sockaddr[0] or "").strip()
+        if candidate and is_usable_ipv4(candidate):
+            return candidate
+
+    return _local_ip()
 
 
 def _hostname() -> str:
@@ -57,24 +116,35 @@ class _DiscoveryListener:
         self.owner._remove_service(name)
 
 
+_IP_RESOLVE_TTL_S: float = 60.0
+
+
 @dataclass(slots=True)
 class MdnsAdvertiser:
     node_id: str
     node_name: str
     port: int
     api_path: str = "/agent/info"
+    advertise_host: str | None = None
     services: tuple[str, ...] = ()
     zeroconf: Any | None = field(init=False, default=None)
     info: Any | None = field(init=False, default=None)
+    _last_ip: str = field(init=False, default="")
+    _last_resolve_monotonic: float = field(init=False, default=0.0)
 
-    def __post_init__(self) -> None:
-        self.zeroconf = Zeroconf() if Zeroconf is not None else None
+    def _resolve_ip_cached(self) -> str:
+        """Return the resolved advertise IP, re-resolving at most once per
+        ``_IP_RESOLVE_TTL_S`` seconds to avoid DNS/socket overhead on every
+        health-loop publish."""
+        now = time.monotonic()
+        if self._last_ip and (now - self._last_resolve_monotonic) < _IP_RESOLVE_TTL_S:
+            return self._last_ip
+        ip = _resolve_advertise_ip(self.advertise_host)
+        self._last_ip = ip
+        self._last_resolve_monotonic = now
+        return ip
 
-    def start(self) -> bool:
-        if self.zeroconf is None or ServiceInfo is None:
-            return False
-
-        ip = _local_ip()
+    def _service_info(self, *, ip: str, services: tuple[str, ...]) -> Any:
         host = _hostname()
         instance_name = f"{self.node_id}.{SERVICE_TYPE}"
         server_name = f"{host}.local."
@@ -84,11 +154,11 @@ class MdnsAdvertiser:
             b"role": b"fermenter_agent",
             b"proto": b"http",
             b"api": self.api_path.encode(),
-            b"services": ",".join(self.services).encode(),
+            b"services": ",".join(services).encode(),
             b"hostname": host.encode(),
         }
 
-        self.info = ServiceInfo(
+        return ServiceInfo(
             type_=SERVICE_TYPE,
             name=instance_name,
             addresses=[socket.inet_aton(ip)],
@@ -96,23 +166,33 @@ class MdnsAdvertiser:
             properties=props,
             server=server_name,
         )
+
+    def __post_init__(self) -> None:
+        self.zeroconf = Zeroconf() if Zeroconf is not None else None
+
+    def start(self) -> bool:
+        if self.zeroconf is None or ServiceInfo is None:
+            return False
+
+        ip = _resolve_advertise_ip(self.advertise_host)
+        self._last_ip = ip
+        self._last_resolve_monotonic = time.monotonic()
+        self.info = self._service_info(ip=ip, services=self.services)
         self.zeroconf.register_service(self.info)
         return True
 
     def update_services(self, services: tuple[str, ...]) -> bool:
         if self.zeroconf is None or self.info is None:
             return False
+        previous_ip = self._last_ip
+        current_ip = self._resolve_ip_cached()
+        ip_changed = current_ip != previous_ip
+        services_changed = services != self.services
+        if not ip_changed and not services_changed:
+            return True
         self.services = services
-        props = dict(self.info.properties or {})
-        props[b"services"] = ",".join(self.services).encode()
-        self.info = ServiceInfo(
-            type_=self.info.type,
-            name=self.info.name,
-            addresses=self.info.addresses,
-            port=self.info.port,
-            properties=props,
-            server=self.info.server,
-        )
+        self._last_ip = current_ip
+        self.info = self._service_info(ip=current_ip, services=self.services)
         self.zeroconf.update_service(self.info)
         return True
 

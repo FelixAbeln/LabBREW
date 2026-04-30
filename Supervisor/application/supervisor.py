@@ -11,6 +11,7 @@ from typing import Any
 from ..domain.models import ManagedProcessState, ServiceSpec
 from ..domain.validation import validate_topology
 from ..infrastructure.agent_api import AgentApiServer
+from ..infrastructure.discovery import is_usable_ipv4
 from ..infrastructure.discovery_adapter import DiscoveryPublisher
 from ..infrastructure.health import tcp_probe
 from ..infrastructure.process_runner import ProcessRunner
@@ -23,6 +24,44 @@ OPTIONAL_RUNTIME_PACKAGES: tuple[str, ...] = (
     "fmpy",
     "pyarrow",
 )
+
+
+def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
+    """Return the value if it is safe to hand to the mDNS advertiser (IPv4
+    literal or resolvable hostname), or None to let the advertiser
+    auto-detect a routable address."""
+    import ipaddress
+
+    value = str(advertise_host or "").strip()
+    if not value:
+        return None
+
+    # Try parsing as an IP literal.  Delegate to the single shared usability
+    # predicate in the discovery module to avoid duplicated validation logic.
+    try:
+        parsed = ipaddress.ip_address(value)
+        if parsed.version != 4:
+            # IPv6 literal — advertiser only supports IPv4.
+            return None
+        return value if is_usable_ipv4(value) else None
+    except ValueError:
+        pass
+
+    # Non-IP string: treat as a hostname and pass through without pre-resolving.
+    # Resolution happens inside the mDNS advertiser at registration/update time,
+    # so a hostname is not silently dropped when DNS is not yet available at boot.
+    if value.lower() == "localhost":
+        # Always loopback — not reachable from remote hosts.
+        return None
+    if ":" in value or "/" in value:
+        # IPv6 literal or CIDR notation — not a valid hostname for this advertiser.
+        return None
+    if value.replace(".", "").isdigit():
+        # Purely numeric string (e.g. "1", "192") — not a valid hostname and
+        # would not have been caught as a literal IP (e.g. on Python 3.14+
+        # where ip_address("1") raises ValueError).
+        return None
+    return value
 
 
 class TopologySupervisor:
@@ -53,8 +92,12 @@ class TopologySupervisor:
         self.resolver = CapabilityResolver()
         self.planner = StartupPlanner()
         self.runner = ProcessRunner(self.root_dir, self.log_dir)
+        mdns_advertise_host = _normalize_mdns_advertise_host(advertise_host)
         self.discovery = DiscoveryPublisher(
-            node_id=node_id, node_name=node_name, port=agent_port
+            node_id=node_id,
+            node_name=node_name,
+            port=agent_port,
+            advertise_host=mdns_advertise_host,
         )
         self.agent_api = AgentApiServer(
             host=agent_host,
