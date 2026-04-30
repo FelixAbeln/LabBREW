@@ -184,12 +184,14 @@ class MdnsAdvertiser:
     def update_services(self, services: tuple[str, ...]) -> bool:
         if self.zeroconf is None or self.info is None:
             return False
+        previous_ip = self._last_ip
         current_ip = self._resolve_ip_cached()
-        ip_changed = current_ip != self._last_ip
+        ip_changed = current_ip != previous_ip
         services_changed = services != self.services
         if not ip_changed and not services_changed:
             return True
         self.services = services
+        self._last_ip = current_ip
         self.info = self._service_info(ip=current_ip, services=self.services)
         self.zeroconf.update_service(self.info)
         return True
