@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from types import SimpleNamespace
 
+import pytest
 from Supervisor.application.supervisor import TopologySupervisor, _normalize_mdns_advertise_host
 
 

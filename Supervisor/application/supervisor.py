@@ -56,6 +56,11 @@ def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
     if ":" in value or "/" in value:
         # IPv6 literal or CIDR notation — not a valid hostname for this advertiser.
         return None
+    if value.replace(".", "").isdigit():
+        # Purely numeric string (e.g. "1", "192") — not a valid hostname and
+        # would not have been caught as a literal IP (e.g. on Python 3.14+
+        # where ip_address("1") raises ValueError).
+        return None
     return value
 
 
