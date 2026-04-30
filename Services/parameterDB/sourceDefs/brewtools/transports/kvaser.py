@@ -62,7 +62,7 @@ def discover_kvaser_channels(
         if serial is not None:
             try:
                 serial_number = int(serial)
-            except (TypeError, ValueError):
+            except Exception:
                 serial_number = None
         if serial_number is not None and serial_number != 0:
             subtitle_parts.append(f"SN:{serial}")
