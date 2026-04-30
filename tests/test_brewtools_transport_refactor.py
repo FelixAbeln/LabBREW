@@ -299,12 +299,17 @@ def test_discover_kvaser_channels_subtitle_serial_zero_shows_virtual(monkeypatch
             "dongle_channel": 1,
         },
     ]
+    missing = object()
+    previous_can = sys.modules.get("can", missing)
     sys.modules["can"] = fake_can
     try:
         from Services.parameterDB.sourceDefs.brewtools.transports.kvaser import discover_kvaser_channels
         result, _ = discover_kvaser_channels()
     finally:
-        del sys.modules["can"]
+        if previous_can is missing:
+            sys.modules.pop("can", None)
+        else:
+            sys.modules["can"] = previous_can
 
     assert len(result) == 1
     assert "SN:virtual" in result[0].subtitle
