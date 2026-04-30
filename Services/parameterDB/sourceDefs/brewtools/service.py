@@ -116,7 +116,7 @@ class BrewtoolsSource(DataSourceBase):
         if transport_name == "kvaser":
             self._transport = KvaserTransport(
                 interface=str(self.config.get("interface", "kvaser")),
-                channel=int(self.config.get("channel", 0)),
+                channel=self._configured_channel(),
                 bitrate=int(self.config.get("bitrate", 500000)),
             )
         elif transport_name == "pcan_gateway_udp":
@@ -144,8 +144,27 @@ class BrewtoolsSource(DataSourceBase):
             except Exception as exc:
                 self._set_error(f"Disconnect failed: {exc}")
 
+    def _configured_channel(self) -> int:
+        raw_channel = self.config.get("channel", 0)
+        try:
+            channel = int(raw_channel or 0)
+        except (TypeError, ValueError) as exc:
+            raise BrewtoolsCanSourceError(
+                f"Invalid channel '{raw_channel}': expected an integer in range 0..255"
+            ) from exc
+        if not 0 <= channel <= 255:
+            raise BrewtoolsCanSourceError(
+                f"Invalid channel '{channel}': expected range 0..255"
+            )
+        return channel
+
     def _build_raw_frame(self, arb_id: int, data: bytes) -> RawCanFrame:
-        return RawCanFrame(arbitration_id=int(arb_id), data=bytes(data), is_extended_id=True)
+        return RawCanFrame(
+            arbitration_id=int(arb_id),
+            data=bytes(data),
+            is_extended_id=True,
+            channel=self._configured_channel(),
+        )
 
     def _build_pwm_frame(self, *, node_id: int, duty_cycle: float) -> RawCanFrame:
         from .brewtools_can import BrewtoolsCanId, CanFrame, MsgType, NodeType, Priority, RawBody
@@ -487,8 +506,11 @@ class BrewtoolsSource(DataSourceBase):
     def _receive_frames(self, transport: Any, timeout_s: float) -> list[tuple[int, bytes, Any, object | None]]:
         from .brewtools_can import CanFrame, DomainFactory
 
+        channel = self._configured_channel()
         results: list[tuple[int, bytes, Any, object | None]] = []
         for raw in transport.recv_frames(timeout=timeout_s):
+            if int(raw.channel) != channel:
+                continue
             frame = CanFrame.from_can(int(raw.arbitration_id), bytes(raw.data))
             obj = DomainFactory.build(frame)
             results.append((int(raw.arbitration_id), bytes(raw.data), frame, obj))

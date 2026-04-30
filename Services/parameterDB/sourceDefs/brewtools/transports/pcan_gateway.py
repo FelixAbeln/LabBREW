@@ -154,7 +154,7 @@ def _mac_oui(mac: str) -> str:
     return "-".join(parts[:3])
 
 
-def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, dict[str, str]]:
+def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, str, dict[str, Any], str]:
     request_payload = {"command": "get", "element": "device"}
     encoded = quote(json.dumps(request_payload, separators=(",", ":")))
     url = f"http://{host}/json.php?jcmd={encoded}"
@@ -162,31 +162,38 @@ def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, dict[
         with urlopen(url, timeout=timeout_s) as response:
             payload = json.loads(response.read().decode("utf-8", errors="replace"))
     except Exception:
-        return False, "", {}
+        return False, "", "", {}, "probe failed"
 
     if not isinstance(payload, dict) or not bool(payload.get("valid")):
-        return False, "", {}
+        return False, "", "", {}, "invalid JSON device response"
 
     product_name = str(payload.get("product_name") or "").strip()
     order_no = str(payload.get("order_no") or "").strip()
     serial_no = str(payload.get("serial_no") or "").strip()
     identity = f"{product_name} {order_no}".lower()
     if "pcan" not in identity and "ipeh-" not in identity:
-        return False, "", {}
+        return False, "", "", {}, "JSON device identity is not PCAN/PEAK"
 
-    id_text = ""
-    if serial_no:
-        id_text = f"SN:{serial_no}"
-    elif order_no:
-        id_text = f"ID:{order_no}"
     label = product_name or "PCAN Gateway"
-    subtitle_identity = f"{label} ({id_text})" if id_text else label
-    return True, subtitle_identity, {
+    if serial_no:
+        sn_text = f"SN:{serial_no}"
+    elif order_no:
+        sn_text = f"ID:{order_no}"
+    else:
+        sn_text = ""
+    can_count_raw = payload.get("CAN_count")
+    try:
+        can_count = max(1, int(can_count_raw))
+    except Exception:
+        can_count = 1
+
+    return True, label, sn_text, {
         "identity_product_name": product_name,
         "identity_order_no": order_no,
         "identity_serial_no": serial_no,
         "identity_source": "json_device",
-    }
+        "identity_can_count": can_count,
+    }, ""
 
 
 def discover_peak_gateways(
@@ -198,53 +205,78 @@ def discover_peak_gateways(
     bind_host = str(payload.get("gateway_bind_host") or "0.0.0.0").strip() or "0.0.0.0"
     timeout_s = float(payload.get("probe_timeout_s") or 0.5)
     worker_count = max(1, min(64, int(payload.get("probe_workers") or 32)))
+    max_can_count = max(1, min(64, int(payload.get("max_can_count") or 8)))
     include_unmatched_hosts = bool(payload.get("include_unmatched_hosts", False))
 
     hosts = _gateway_hosts(payload, record)
     arp_table = _arp_mac_table()
     out: list[TransportDiscoveryCandidate] = []
+    warnings: list[str] = []
 
-    def _probe_host(host: str) -> TransportDiscoveryCandidate:
-        is_json_match, json_msg, json_identity = _json_device_identity(host, timeout_s=min(timeout_s, 0.8))
+    def _probe_host(host: str) -> tuple[list[TransportDiscoveryCandidate], str]:
+        is_json_match, device_label, sn_text, json_identity, failure_reason = _json_device_identity(host, timeout_s=min(timeout_s, 0.8))
         if is_json_match:
-            return TransportDiscoveryCandidate(
+            reported_can_count = max(1, int(json_identity.get("identity_can_count") or 1))
+            can_count = min(reported_can_count, max_can_count)
+            warning = ""
+            if reported_can_count > max_can_count:
+                warning = f"PCAN host {host} reported CAN_count={reported_can_count}; capped to {max_can_count}"
+            candidates: list[TransportDiscoveryCandidate] = []
+            for channel in range(can_count):
+                sub_parts = [f"CAN {channel}", device_label]
+                if sn_text:
+                    sub_parts.append(sn_text)
+                sub_parts.append(f"UDP {tx_port}/{rx_port}")
+                candidates.append(
+                    TransportDiscoveryCandidate(
+                        title=f"pcan:{host}:can{channel}",
+                        subtitle=" · ".join(sub_parts),
+                        source="pcan_gateway_udp",
+                        transport="pcan_gateway_udp",
+                        channel=channel,
+                        gateway_host=host,
+                        gateway_tx_port=tx_port,
+                        gateway_rx_port=rx_port,
+                        gateway_bind_host=bind_host,
+                        selectable=True,
+                        extra={"identity_mac_oui": _mac_oui(arp_table.get(host, "")), **json_identity},
+                    )
+                )
+            return candidates, warning
+
+        return [
+            TransportDiscoveryCandidate(
                 title=f"pcan:{host}",
-                subtitle=f"UDP {tx_port}/{rx_port} · {json_msg}",
+                subtitle=f"UDP {tx_port}/{rx_port}",
                 source="pcan_gateway_udp",
                 transport="pcan_gateway_udp",
                 gateway_host=host,
                 gateway_tx_port=tx_port,
                 gateway_rx_port=rx_port,
                 gateway_bind_host=bind_host,
-                selectable=True,
-                extra={"identity_mac_oui": _mac_oui(arp_table.get(host, "")), **json_identity},
+                selectable=False,
+                error=failure_reason or "JSON device identity is not PCAN/PEAK",
+                extra={"identity_mac_oui": _mac_oui(arp_table.get(host, ""))},
             )
-
-        return TransportDiscoveryCandidate(
-            title=f"pcan:{host}",
-            subtitle=f"UDP {tx_port}/{rx_port}",
-            source="pcan_gateway_udp",
-            transport="pcan_gateway_udp",
-            gateway_host=host,
-            gateway_tx_port=tx_port,
-            gateway_rx_port=rx_port,
-            gateway_bind_host=bind_host,
-            selectable=False,
-            error="JSON device identity is not PCAN/PEAK",
-            extra={"identity_mac_oui": _mac_oui(arp_table.get(host, ""))},
-        )
+        ], ""
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = [executor.submit(_probe_host, host) for host in hosts]
+        futures = {executor.submit(_probe_host, host): host for host in hosts}
         for future in as_completed(futures):
+            host = futures[future]
             try:
-                item = future.result()
-                if item is not None and (item.selectable or include_unmatched_hosts):
-                    out.append(item)
-            except Exception:
-                pass
+                items, warning = future.result()
+                if warning:
+                    warnings.append(warning)
+                for item in items or []:
+                    if item is not None and (item.selectable or include_unmatched_hosts):
+                        out.append(item)
+            except Exception as exc:
+                warnings.append(f"PCAN probe failed for {host}: {exc}")
 
-    return out, ""
+    out.sort(key=lambda item: (str(item.gateway_host or ""), int(item.channel or 0), str(item.title or "")))
+
+    return out, "; ".join(warnings)
 
 
 def _payload_len_from_dlc(dlc: int, is_fd: bool) -> int:

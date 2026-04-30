@@ -139,7 +139,7 @@ The create modal auto-scans for CAN channels using `scan_channels`:
 | `parameter_prefix` | both | Base namespace for generated parameters |
 | `transport` | both | `kvaser` or `pcan_gateway_udp` |
 | `interface` | `kvaser` | python-can interface name (typically `"kvaser"`) |
-| `channel` | `kvaser` | CAN channel index (0-based) |
+| `channel` | both | Kvaser channel index or, for `pcan_gateway_udp`, the PEAK gateway bus/channel byte. For PEAK gateways this must be an integer in the range `0`–`255` (commonly `0` or `1`); values outside that range may be truncated/wrapped when encoded by the gateway protocol. |
 | `bitrate` | `kvaser` | CAN bitrate, default `500000` |
 | `gateway_host` | `pcan_gateway_udp` | PEAK gateway IP/hostname |
 | `gateway_tx_port` | `pcan_gateway_udp` | UDP TX port (default `55002`) |
@@ -160,6 +160,7 @@ source_type: brewtools
 config:
   parameter_prefix: brewcan
   transport: pcan_gateway_udp
+  channel: 0
   gateway_host: 192.168.0.30
   gateway_tx_port: 55002
   gateway_rx_port: 55001
