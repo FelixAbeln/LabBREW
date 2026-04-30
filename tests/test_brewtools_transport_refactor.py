@@ -266,16 +266,17 @@ def test_discover_kvaser_channels_subtitle_includes_device_name_and_serial(monke
         },
     ]
     import sys
-    old_can = sys.modules.get("can")
+    missing = object()
+    previous_can = sys.modules.get("can", missing)
     sys.modules["can"] = fake_can
     try:
         from Services.parameterDB.sourceDefs.brewtools.transports.kvaser import discover_kvaser_channels
         result, _ = discover_kvaser_channels()
     finally:
-        if old_can is None:
-            del sys.modules["can"]
+        if previous_can is missing:
+            sys.modules.pop("can", None)
         else:
-            sys.modules["can"] = old_can
+            sys.modules["can"] = previous_can
 
     assert len(result) == 2
     assert result[0].title == "kvaser:0"
