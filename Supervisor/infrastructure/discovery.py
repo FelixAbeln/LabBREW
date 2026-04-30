@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import ipaddress
 import socket
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -115,6 +116,9 @@ class _DiscoveryListener:
         self.owner._remove_service(name)
 
 
+_IP_RESOLVE_TTL_S: float = 60.0
+
+
 @dataclass(slots=True)
 class MdnsAdvertiser:
     node_id: str
@@ -126,6 +130,19 @@ class MdnsAdvertiser:
     zeroconf: Any | None = field(init=False, default=None)
     info: Any | None = field(init=False, default=None)
     _last_ip: str = field(init=False, default="")
+    _last_resolve_monotonic: float = field(init=False, default=0.0)
+
+    def _resolve_ip_cached(self) -> str:
+        """Return the resolved advertise IP, re-resolving at most once per
+        ``_IP_RESOLVE_TTL_S`` seconds to avoid DNS/socket overhead on every
+        health-loop publish."""
+        now = time.monotonic()
+        if self._last_ip and (now - self._last_resolve_monotonic) < _IP_RESOLVE_TTL_S:
+            return self._last_ip
+        ip = _resolve_advertise_ip(self.advertise_host)
+        self._last_ip = ip
+        self._last_resolve_monotonic = now
+        return ip
 
     def _service_info(self, *, ip: str, services: tuple[str, ...]) -> Any:
         host = _hostname()
@@ -159,6 +176,7 @@ class MdnsAdvertiser:
 
         ip = _resolve_advertise_ip(self.advertise_host)
         self._last_ip = ip
+        self._last_resolve_monotonic = time.monotonic()
         self.info = self._service_info(ip=ip, services=self.services)
         self.zeroconf.register_service(self.info)
         return True
@@ -166,13 +184,12 @@ class MdnsAdvertiser:
     def update_services(self, services: tuple[str, ...]) -> bool:
         if self.zeroconf is None or self.info is None:
             return False
-        current_ip = _resolve_advertise_ip(self.advertise_host)
+        current_ip = self._resolve_ip_cached()
         ip_changed = current_ip != self._last_ip
         services_changed = services != self.services
         if not ip_changed and not services_changed:
             return True
         self.services = services
-        self._last_ip = current_ip
         self.info = self._service_info(ip=current_ip, services=self.services)
         self.zeroconf.update_service(self.info)
         return True

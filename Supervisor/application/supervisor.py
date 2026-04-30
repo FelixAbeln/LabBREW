@@ -11,6 +11,7 @@ from typing import Any
 from ..domain.models import ManagedProcessState, ServiceSpec
 from ..domain.validation import validate_topology
 from ..infrastructure.agent_api import AgentApiServer
+from ..infrastructure.discovery import _is_usable_ipv4
 from ..infrastructure.discovery_adapter import DiscoveryPublisher
 from ..infrastructure.health import tcp_probe
 from ..infrastructure.process_runner import ProcessRunner
@@ -27,36 +28,28 @@ OPTIONAL_RUNTIME_PACKAGES: tuple[str, ...] = (
 
 def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
     """Return the value if it is safe to hand to the mDNS advertiser (IPv4
-    only), or None to let the advertiser auto-detect a routable address."""
+    literal or resolvable hostname), or None to let the advertiser
+    auto-detect a routable address."""
     import ipaddress
 
     value = str(advertise_host or "").strip()
     if not value:
         return None
 
-    # Accept only canonical dotted-quad IPv4 literals or hostnames that resolve
-    # to one.  IPv6 literals / addresses are not supported by the advertiser.
+    # Try parsing as an IP literal.  Delegate to the single shared usability
+    # predicate in the discovery module to avoid duplicated validation logic.
     try:
-        # Raises ValueError for non-IP strings; OSError never raised here.
         parsed = ipaddress.ip_address(value)
-        # It parsed as an IP address.
         if parsed.version != 4:
-            # IPv6 literal — advertiser only supports IPv4 via inet_aton.
+            # IPv6 literal — advertiser only supports IPv4.
             return None
-        # Reject unusable IPv4 literals (unspecified, loopback, link-local).
-        if parsed.is_unspecified or parsed.is_loopback or parsed.is_link_local:
-            return None
-        # Require canonical dotted-quad (rejects integer strings like "1").
-        if str(parsed) != value:
-            return None
-        return value
+        return value if _is_usable_ipv4(value) else None
     except ValueError:
         pass
 
     # Non-IP string: treat as a hostname and pass through without pre-resolving.
     # Resolution happens inside the mDNS advertiser at registration/update time,
-    # so a hostname configured by the user is not silently dropped when DNS is
-    # not yet available at boot.
+    # so a hostname is not silently dropped when DNS is not yet available at boot.
     if value.lower() == "localhost":
         # Always loopback — not reachable from remote hosts.
         return None
