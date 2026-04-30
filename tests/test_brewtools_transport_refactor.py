@@ -206,6 +206,7 @@ def test_discover_peak_gateways_emits_one_candidate_per_can_bus(monkeypatch) -> 
                 "identity_source": "json_device",
                 "identity_can_count": 2,
             },
+            "",
         ),
     )
 
@@ -244,7 +245,7 @@ def test_parse_gateway_packet_rejects_crc_frame_with_truncated_payload() -> None
 
 def test_discover_kvaser_channels_subtitle_includes_device_name_and_serial(monkeypatch) -> None:
     """discover_kvaser_channels should build a subtitle from device_name, serial, and dongle_channel."""
-    from Services.parameterDB.sourceDefs.brewtools.transports import kvaser as kvaser_mod
+    _ = monkeypatch
     import types
 
     fake_can = types.ModuleType("can")
@@ -264,16 +265,17 @@ def test_discover_kvaser_channels_subtitle_includes_device_name_and_serial(monke
             "dongle_channel": 2,
         },
     ]
-    monkeypatch.setattr(kvaser_mod, "can", fake_can, raising=False)
-
-    # Patch the import inside the function by replacing the module-level name
     import sys
+    old_can = sys.modules.get("can")
     sys.modules["can"] = fake_can
     try:
         from Services.parameterDB.sourceDefs.brewtools.transports.kvaser import discover_kvaser_channels
-        result, warnings = discover_kvaser_channels()
+        result, _warnings = discover_kvaser_channels()
     finally:
-        del sys.modules["can"]
+        if old_can is None:
+            del sys.modules["can"]
+        else:
+            sys.modules["can"] = old_can
 
     assert len(result) == 2
     assert result[0].title == "kvaser:0"
@@ -299,12 +301,16 @@ def test_discover_kvaser_channels_subtitle_serial_zero_shows_virtual(monkeypatch
             "dongle_channel": 1,
         },
     ]
+    old_can = sys.modules.get("can")
     sys.modules["can"] = fake_can
     try:
         from Services.parameterDB.sourceDefs.brewtools.transports.kvaser import discover_kvaser_channels
         result, _ = discover_kvaser_channels()
     finally:
-        del sys.modules["can"]
+        if old_can is None:
+            del sys.modules["can"]
+        else:
+            sys.modules["can"] = old_can
 
     assert len(result) == 1
     assert "SN:virtual" in result[0].subtitle

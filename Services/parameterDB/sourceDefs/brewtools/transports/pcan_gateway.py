@@ -154,7 +154,7 @@ def _mac_oui(mac: str) -> str:
     return "-".join(parts[:3])
 
 
-def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, str, dict[str, Any]]:
+def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, str, dict[str, Any], str]:
     request_payload = {"command": "get", "element": "device"}
     encoded = quote(json.dumps(request_payload, separators=(",", ":")))
     url = f"http://{host}/json.php?jcmd={encoded}"
@@ -162,17 +162,17 @@ def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, str, 
         with urlopen(url, timeout=timeout_s) as response:
             payload = json.loads(response.read().decode("utf-8", errors="replace"))
     except Exception:
-        return False, "", "", {}
+        return False, "", "", {}, "probe failed"
 
     if not isinstance(payload, dict) or not bool(payload.get("valid")):
-        return False, "", "", {}
+        return False, "", "", {}, "invalid JSON device response"
 
     product_name = str(payload.get("product_name") or "").strip()
     order_no = str(payload.get("order_no") or "").strip()
     serial_no = str(payload.get("serial_no") or "").strip()
     identity = f"{product_name} {order_no}".lower()
     if "pcan" not in identity and "ipeh-" not in identity:
-        return False, "", "", {}
+        return False, "", "", {}, "JSON device identity is not PCAN/PEAK"
 
     label = product_name or "PCAN Gateway"
     if serial_no:
@@ -193,7 +193,7 @@ def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, str, 
         "identity_serial_no": serial_no,
         "identity_source": "json_device",
         "identity_can_count": can_count,
-    }
+    }, ""
 
 
 def discover_peak_gateways(
@@ -212,7 +212,7 @@ def discover_peak_gateways(
     out: list[TransportDiscoveryCandidate] = []
 
     def _probe_host(host: str) -> list[TransportDiscoveryCandidate]:
-        is_json_match, device_label, sn_text, json_identity = _json_device_identity(host, timeout_s=min(timeout_s, 0.8))
+        is_json_match, device_label, sn_text, json_identity, failure_reason = _json_device_identity(host, timeout_s=min(timeout_s, 0.8))
         if is_json_match:
             can_count = max(1, int(json_identity.get("identity_can_count") or 1))
             candidates: list[TransportDiscoveryCandidate] = []
@@ -249,7 +249,7 @@ def discover_peak_gateways(
                 gateway_rx_port=rx_port,
                 gateway_bind_host=bind_host,
                 selectable=False,
-                error="JSON device identity is not PCAN/PEAK",
+                error=failure_reason or "JSON device identity is not PCAN/PEAK",
                 extra={"identity_mac_oui": _mac_oui(arp_table.get(host, ""))},
             )
         ]
