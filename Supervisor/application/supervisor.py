@@ -54,9 +54,10 @@ def _normalize_mdns_advertise_host(advertise_host: str | None) -> str | None:
     except ValueError:
         pass
 
-    # Non-IP string: treat as a hostname and pass through for later DNS
-    # resolution inside the mDNS advertiser (avoids silent failure when DNS
-    # is not yet available at boot time).
+    # Non-IP string: treat as a hostname and pass through without pre-resolving.
+    # Resolution happens inside the mDNS advertiser at registration/update time,
+    # so a hostname configured by the user is not silently dropped when DNS is
+    # not yet available at boot.
     if value.lower() == "localhost":
         # Always loopback — not reachable from remote hosts.
         return None

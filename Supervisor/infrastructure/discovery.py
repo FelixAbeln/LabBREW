@@ -125,6 +125,7 @@ class MdnsAdvertiser:
     services: tuple[str, ...] = ()
     zeroconf: Any | None = field(init=False, default=None)
     info: Any | None = field(init=False, default=None)
+    _last_ip: str = field(init=False, default="")
 
     def _service_info(self, *, ip: str, services: tuple[str, ...]) -> Any:
         host = _hostname()
@@ -157,6 +158,7 @@ class MdnsAdvertiser:
             return False
 
         ip = _resolve_advertise_ip(self.advertise_host)
+        self._last_ip = ip
         self.info = self._service_info(ip=ip, services=self.services)
         self.zeroconf.register_service(self.info)
         return True
@@ -164,9 +166,14 @@ class MdnsAdvertiser:
     def update_services(self, services: tuple[str, ...]) -> bool:
         if self.zeroconf is None or self.info is None:
             return False
+        current_ip = _resolve_advertise_ip(self.advertise_host)
+        ip_changed = current_ip != self._last_ip
+        services_changed = services != self.services
+        if not ip_changed and not services_changed:
+            return True
         self.services = services
-        ip = _resolve_advertise_ip(self.advertise_host)
-        self.info = self._service_info(ip=ip, services=self.services)
+        self._last_ip = current_ip
+        self.info = self._service_info(ip=current_ip, services=self.services)
         self.zeroconf.update_service(self.info)
         return True
 
