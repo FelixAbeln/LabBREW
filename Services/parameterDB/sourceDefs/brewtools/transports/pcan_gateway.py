@@ -154,7 +154,7 @@ def _mac_oui(mac: str) -> str:
     return "-".join(parts[:3])
 
 
-def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, dict[str, Any]]:
+def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, str, dict[str, Any]]:
     request_payload = {"command": "get", "element": "device"}
     encoded = quote(json.dumps(request_payload, separators=(",", ":")))
     url = f"http://{host}/json.php?jcmd={encoded}"
@@ -162,17 +162,17 @@ def _json_device_identity(host: str, timeout_s: float) -> tuple[bool, str, dict[
         with urlopen(url, timeout=timeout_s) as response:
             payload = json.loads(response.read().decode("utf-8", errors="replace"))
     except Exception:
-        return False, "", {}
+        return False, "", "", {}
 
     if not isinstance(payload, dict) or not bool(payload.get("valid")):
-        return False, "", {}
+        return False, "", "", {}
 
     product_name = str(payload.get("product_name") or "").strip()
     order_no = str(payload.get("order_no") or "").strip()
     serial_no = str(payload.get("serial_no") or "").strip()
     identity = f"{product_name} {order_no}".lower()
     if "pcan" not in identity and "ipeh-" not in identity:
-        return False, "", {}
+        return False, "", "", {}
 
     label = product_name or "PCAN Gateway"
     if serial_no:
