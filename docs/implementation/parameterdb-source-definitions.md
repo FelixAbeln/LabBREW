@@ -17,6 +17,7 @@ For a full developer guide on building a new source type, see
 | tilt_hydrometer | Read one Tilt color and publish gravity/temperature/status | HTTP TiltBridge or direct BLE | BLE scan + TiltBridge HTTP |
 | brewtools | Read Brewtools CAN measurements and expose command outputs | Kvaser CAN (python-can) and PCAN UDP gateway | Kvaser channel detect + UDP subnet probe |
 | modbus_relay | Control and read Modbus TCP relay boards | Modbus TCP | TCP port scan + Modbus probe |
+| papago_meteo | Read PAPAGO Meteo ETH weather station values | Modbus TCP input registers | TCP port scan + Modbus probe |
 | labps3005dn | Control and monitor LABPS3005DN style bench PSU | serial | — |
 | digital_twin | Run FMU-backed digital twin and publish outputs | local FMU runtime | — |
 
@@ -197,6 +198,88 @@ The create modal auto-scans for relay boards using `scan_relays`:
 | `timeout` | yes | `1.5` | Modbus request timeout in seconds |
 | `update_interval_s` | no | `0.25` | Poll interval |
 | `reconnect_delay_s` | no | `2.0` | Delay before reconnect after failure |
+
+---
+
+## papago_meteo
+
+Reads PAPAGO Meteo ETH weather station values over Modbus TCP input registers and publishes selected measurements plus health/status signals.
+
+### Auto-discovery
+
+The create modal auto-scans for stations using `scan_papago_meteo`:
+
+1. Builds host candidates from manual host input, optional CIDR, or local /24 auto-discovery (plus localhost).
+2. Probes candidate host+port combinations for open TCP.
+3. For open targets, runs a Modbus snapshot probe for one or more unit IDs.
+4. Only reachable stations are shown as cards.
+5. Click **Use This Station** to populate `host`, `port`, and `unit_id`.
+
+### Published signals
+
+By default the source publishes:
+
+- `sensor_a_value_1`
+- `sensor_a_value_2`
+- `sensor_a_value_3`
+- `wind_direction_deg`
+- `wind_speed_m_s`
+
+Additional Sensor B values are available but disabled by default. Each enabled quantity can also publish a `.quality` signal.
+
+Status signals are always published:
+
+- `connected`
+- `last_error`
+- `last_sync`
+- `device_time`
+- `sensor_a_status`
+- `sensor_a_type`
+- `sensor_b_status`
+- `sensor_b_type`
+- `wind_sensor_status`
+
+### Config keys
+
+| Key | Required | Default | Description |
+|---|---|---|---|
+| `parameter_prefix` | yes | `papago` | Namespace for generated parameters |
+| `host` | yes | `127.0.0.1` | PAPAGO Meteo host/IP |
+| `port` | yes | `502` | Modbus TCP port |
+| `unit_id` | yes | `1` | Modbus unit/slave ID |
+| `timeout` | yes | `1.5` | Modbus request timeout in seconds |
+| `update_interval_s` | no | `2.0` | Poll interval |
+| `reconnect_delay_s` | no | `2.0` | Delay before reconnect after failure |
+| `prefer_float` | no | `false` | Prefer IEEE754 float register decoding when available |
+| `quantities` | no | `{}` | Optional per-quantity enable/parameter/quality mapping |
+
+Optional status parameter overrides:
+
+- `connected_param`
+- `last_error_param`
+- `last_sync_param`
+- `device_time_param`
+- `sensor_a_status_param`
+- `sensor_a_type_param`
+- `sensor_b_status_param`
+- `sensor_b_type_param`
+- `wind_sensor_status_param`
+
+### Example
+
+```yaml
+name: weather_01
+source_type: papago_meteo
+config:
+  parameter_prefix: weather
+  host: 192.168.0.45
+  port: 502
+  unit_id: 1
+  timeout: 1.5
+  update_interval_s: 2.0
+  reconnect_delay_s: 2.0
+  prefer_float: false
+```
 
 ---
 

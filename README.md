@@ -118,6 +118,7 @@ LabBREW is not just a controller or dashboard.
 - `tilt_hydrometer` (Tilt Bridge HTTP and direct BLE, including Tilt Pro scaling)
 - `brewtools` (Brewtools CAN transport framework with two transport modes: direct Kvaser CANlib or PEAK/PCAN Ethernet Gateway via UDP)
 - `modbus_relay` (Modbus TCP relay boards)
+- `papago_meteo` (PAPAGO Meteo ETH weather station over Modbus TCP)
 - `labps3005dn` (serial bench PSU integration)
 - `digital_twin` (FMU-based runtime twin)
 
@@ -148,6 +149,7 @@ LabBREW is not just a controller or dashboard.
 | [Architecture](./docs/api/architecture.md) | Service dependency chain, communication protocols, data-flow diagrams |
 | [Frontend Documentation](./docs/frontend/README.md) | React UI — features, tech stack, setup, and source layout |
 | [ParameterDB Source Definitions](./docs/implementation/parameterdb-source-definitions.md) | Built-in datasource types, hardware/protocol coverage, and Tilt BLE notes |
+| [PAPAGO Meteo Source](./docs/implementation/papago-meteo-source.md) | PAPAGO Meteo ETH datasource config, scan flow, quantities, and troubleshooting |
 | [ParameterDB + Relationship Setup Guide](./docs/frontend/parameterdb-relationship-setup.md) | Frontend workflow to set up ParameterDB entities and graph relationships |
 | [PostgreSQL Persistence Testing Guide](./docs/POSTGRES_PERSISTENCE_TESTING.md) | Set up and test PostgreSQL backends for parameter snapshots, datasource configs, and control rules |
 | [BrewSupervisor Gateway API](./docs/api/brewsupervisor-api.md) | Central gateway: fermenter discovery, dashboard, scenario package import — **start here for frontend work** |
