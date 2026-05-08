@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..bodies import FloatBody
+from ..bodies import FloatBody, RawBody
 from ..frame import CanFrame
 from .base import node_id_from_frame
 
@@ -76,11 +76,16 @@ class RpmMeasurement:
 
 
 def decode_rpm(frame: CanFrame) -> RpmMeasurement | None:
-    if not isinstance(frame.body, FloatBody):
-        return None
-    return RpmMeasurement(
-        node_id_from_frame(frame), frame.body.value, frame.body.subindex
-    )
+    if isinstance(frame.body, FloatBody):
+        return RpmMeasurement(
+            node_id_from_frame(frame), frame.body.value, frame.body.subindex
+        )
+    if isinstance(frame.body, RawBody) and len(frame.body.raw) >= 4:
+        rpm_value = int.from_bytes(frame.body.raw[:4], "big", signed=False)
+        return RpmMeasurement(
+            node_id_from_frame(frame), float(rpm_value), frame.body.subindex
+        )
+    return None
 
 
 @dataclass(frozen=True)

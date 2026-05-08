@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .bodies import CalibrationAckBody, FloatBody, NodeIdBody
+from .bodies import CalibrationAckBody, FloatBody, NodeIdBody, RawBody
 from .domain_factory import DomainFactory
 from .enums import MsgType
 from .frame import CanFrame
@@ -125,9 +125,12 @@ def handle_level(frame: CanFrame) -> LevelMeasurement | None:
 
 
 def handle_rpm(frame: CanFrame) -> RpmMeasurement | None:
-    if not isinstance(frame.body, FloatBody):
-        return None
-    return RpmMeasurement(_node_id(frame), frame.body.value, frame.body.subindex)
+    if isinstance(frame.body, FloatBody):
+        return RpmMeasurement(_node_id(frame), frame.body.value, frame.body.subindex)
+    if isinstance(frame.body, RawBody) and len(frame.body.raw) >= 4:
+        rpm_value = int.from_bytes(frame.body.raw[:4], "big", signed=False)
+        return RpmMeasurement(_node_id(frame), float(rpm_value), frame.body.subindex)
+    return None
 
 
 def handle_min(frame: CanFrame) -> MinValue | None:
