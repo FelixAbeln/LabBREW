@@ -899,3 +899,233 @@ def test_tilt_battery_weeks_persists_last_known_value_when_missing() -> None:
 
     battery_values = [value for name, value in client.calls if name == "tilt.battery_weeks"]
     assert battery_values[-2:] == [12.0, 12.0]
+
+
+# ---------------------------------------------------------------------------
+# PAPAGO Meteo ETH
+# ---------------------------------------------------------------------------
+
+def test_papago_meteo_register_decode() -> None:
+    import struct
+    from Services.parameterDB.sourceDefs.papago_meteo.service import (
+        _u16,
+        _i16,
+        _float32,
+        _decode_ntp_time,
+        _decode_quantity,
+        QuantitySpec,
+    )
+
+    regs = [0] * 20
+    regs[0] = 0xABCD
+    assert _u16(regs, 0) == 0xABCD
+
+    regs[1] = 0x8000
+    assert _i16(regs, 1) == -32768
+    regs[2] = 0x7FFF
+    assert _i16(regs, 2) == 32767
+
+    # IEEE 754 float: 1.5 = 0x3FC00000 → hi=0x3FC0, lo=0x0000
+    regs[5] = 0x3FC0
+    regs[6] = 0x0000
+    assert abs(_float32(regs, 5) - 1.5) < 1e-6
+
+    # NTP timestamp: 0 → empty string
+    assert _decode_ntp_time([0] * 20, 0) == ""
+
+    # NTP: seconds since 1900-01-01 for 2000-01-01T00:00:00Z = 3155673600
+    ntp_val = 3155673600
+    regs[10] = (ntp_val >> 16) & 0xFFFF
+    regs[11] = ntp_val & 0xFFFF
+    ts = _decode_ntp_time(regs, 10)
+    assert ts.startswith("2000-01-01")
+    assert ts.endswith("Z")
+
+    # _decode_quantity: status=0 (ok), int_x10=150 → value=15.0
+    spec = QuantitySpec(
+        key="test",
+        status_register=0,
+        int_x10_register=1,
+        float_register=None,
+        unit_register=None,
+        default_unit="C",
+        label="Test",
+    )
+    regs[0] = 0   # status ok
+    regs[1] = 150
+    result = _decode_quantity(regs, spec)
+    assert result["value"] == 15.0
+    assert result["quality"] == "ok"
+    assert result["unit"] == "C"
+
+    # status=2 (overflow) → value is None
+    regs[0] = 2
+    result = _decode_quantity(regs, spec)
+    assert result["value"] is None
+    assert result["quality"] == "overflow"
+
+
+def test_papago_meteo_source_ensure_parameters_creates_expected_params() -> None:
+    from Services.parameterDB.sourceDefs.papago_meteo.service import PapagoMeteoSource
+
+    created: list[str] = []
+
+    class FakeClient:
+        def create_parameter(self, name: str, *_args, **_kwargs):
+            created.append(name)
+        def update_config(self, *_a, **_kw): pass
+        def update_metadata(self, *_a, **_kw): pass
+        def set_value(self, *_a, **_kw): pass
+
+    source = PapagoMeteoSource(
+        "meteo",
+        FakeClient(),
+        config={"host": "127.0.0.1", "parameter_prefix": "wx"},
+    )
+    source.ensure_parameters()
+
+    # default-enabled quantities: sensor_a_value_1/2/3, wind_direction_deg, wind_speed_m_s
+    assert "wx.sensor_a.value_1" in created
+    assert "wx.sensor_a.value_2" in created
+    assert "wx.sensor_a.value_3" in created
+    assert "wx.wind.direction_deg" in created
+    assert "wx.wind.speed_m_s" in created
+    # quality params alongside each measurement
+    assert "wx.sensor_a.value_1.quality" in created
+    # status params
+    assert "wx.connected" in created
+    assert "wx.last_error" in created
+    assert "wx.last_sync" in created
+    assert "wx.device_time" in created
+    # sensor_b disabled by default — not created
+    assert "wx.sensor_b.value_1" not in created
+
+
+def test_papago_meteo_source_publish_snapshot_writes_values() -> None:
+    from Services.parameterDB.sourceDefs.papago_meteo.service import PapagoMeteoSource
+
+    written: dict[str, object] = {}
+
+    class FakeClient:
+        def create_parameter(self, *_a, **_kw): pass
+        def update_config(self, *_a, **_kw): pass
+        def update_metadata(self, *_a, **_kw): pass
+        def set_value(self, name: str, value): written[name] = value
+
+    source = PapagoMeteoSource(
+        "meteo",
+        FakeClient(),
+        config={"host": "127.0.0.1", "parameter_prefix": "wx"},
+    )
+
+    snapshot = {
+        "device_time": "2026-01-01T00:00:00Z",
+        "sensor_a_status": "measuring",
+        "sensor_a_type": "temperature_ds",
+        "sensor_b_status": "not_used",
+        "sensor_b_type": "none",
+        "wind_sensor_status": "measuring",
+        "quantities": {
+            "sensor_a_value_1": {"value": 21.3, "quality": "ok", "unit": "C", "unit_code": 0, "label": "Sensor A Value 1"},
+            "sensor_a_value_2": {"value": None, "quality": "invalid", "unit": "native", "unit_code": 0, "label": "Sensor A Value 2"},
+            "sensor_a_value_3": {"value": 55.0, "quality": "ok", "unit": "native", "unit_code": 0, "label": "Sensor A Value 3"},
+            "sensor_b_value_1": {"value": 1.0, "quality": "ok", "unit": "native", "unit_code": 0, "label": "Sensor B Value 1"},
+            "sensor_b_value_2": {"value": 2.0, "quality": "ok", "unit": "native", "unit_code": 0, "label": "Sensor B Value 2"},
+            "sensor_b_value_3": {"value": 3.0, "quality": "ok", "unit": "native", "unit_code": 0, "label": "Sensor B Value 3"},
+            "wind_direction_deg": {"value": 270.0, "quality": "ok", "unit": "deg", "unit_code": 0, "label": "Wind Direction"},
+            "wind_speed_m_s": {"value": 5.1, "quality": "ok", "unit": "m/s", "unit_code": 0, "label": "Wind Speed"},
+        },
+    }
+
+    source._publish_snapshot(snapshot)
+
+    assert written["wx.sensor_a.value_1"] == 21.3
+    assert written["wx.sensor_a.value_1.quality"] == "ok"
+    assert written["wx.sensor_a.value_2"] is None
+    assert written["wx.wind.direction_deg"] == 270.0
+    assert written["wx.wind.speed_m_s"] == 5.1
+    assert written["wx.device_time"] == "2026-01-01T00:00:00Z"
+    assert written["wx.sensor_a_status"] == "measuring"
+    assert written["wx.wind_sensor_status"] == "measuring"
+    assert written["wx.connected"] is True
+    assert written["wx.last_error"] == ""
+    # sensor_b disabled — should not be published
+    assert "wx.sensor_b.value_1" not in written
+
+
+def test_papago_meteo_ui_module_spec_structure() -> None:
+    from Services.parameterDB.sourceDefs.papago_meteo.ui import get_ui_spec
+
+    ui = get_ui_spec()
+    module = dict(ui.get("module") or {})
+    menu = dict(module.get("menu") or {})
+    run = dict(menu.get("run") or {})
+    action = dict(menu.get("action") or {})
+
+    assert ui["source_type"] == "papago_meteo"
+    assert module.get("replace_form") is True
+    assert menu.get("fields") == []
+    assert run.get("mode") == "auto"
+    assert run.get("cancel_inflight_on_cleanup") is True
+    assert action.get("action") == "scan_papago_meteo"
+
+    # create/edit sections present
+    create_sections = [s["title"] for s in ui["create"]["sections"]]
+    assert "Identity" in create_sections
+    assert "Connection" in create_sections
+    assert "Publishing" in create_sections
+
+    edit_sections = [s["title"] for s in ui["edit"]["sections"]]
+    assert "Status Parameters" in edit_sections
+
+
+def test_papago_meteo_run_ui_action_returns_reachable_only(monkeypatch) -> None:
+    from Services.parameterDB.sourceDefs.papago_meteo import ui as papago_ui
+
+    monkeypatch.setattr(papago_ui, "_candidate_hosts", lambda *_a, **_kw: ["192.168.1.10", "192.168.1.20"])
+    monkeypatch.setattr(papago_ui, "_candidate_ports", lambda *_a, **_kw: [502])
+    monkeypatch.setattr(papago_ui, "_candidate_unit_ids", lambda *_a, **_kw: [1])
+    monkeypatch.setattr(
+        papago_ui,
+        "_discover_open_targets",
+        lambda hosts, ports, timeout: [(host, port) for host in hosts for port in ports],
+    )
+
+    def _fake_probe(host: str, port: int, unit_id: int, timeout: float):
+        if host == "192.168.1.10":
+            return {
+                "host": host, "port": port, "unit_id": unit_id,
+                "reachable": True, "error": "",
+                "sensor_a_status": "measuring", "sensor_a_type": "temperature_ds",
+                "sensor_b_status": "not_used", "sensor_b_type": "none",
+                "wind_sensor_status": "measuring",
+                "quantities": [{"quantity": "wind_speed_m_s", "value": 3.2, "quality": "ok", "unit": "m/s", "label": "Wind Speed"}],
+            }
+        return {"host": host, "port": port, "unit_id": unit_id, "reachable": False, "error": "timeout", "quantities": []}
+
+    monkeypatch.setattr(papago_ui, "_probe_host_port", _fake_probe)
+
+    result = papago_ui.run_ui_action("scan", payload={})
+
+    assert result["ok"] is True
+    assert result["action"] == "scan_papago_meteo"
+    assert result["scanned"] == 2
+    assert result["open_targets"] == 2
+    assert len(result["candidates"]) == 1
+    assert result["candidates"][0]["host"] == "192.168.1.10"
+    assert result["candidates"][0]["reachable"] is True
+
+
+def test_papago_meteo_run_ui_action_rejects_unknown_action() -> None:
+    from Services.parameterDB.sourceDefs.papago_meteo.ui import run_ui_action
+
+    with pytest.raises(ValueError, match="Unsupported papago_meteo UI action"):
+        run_ui_action("unknown_action", payload={})
+
+
+def test_papago_meteo_get_ui_spec_control_mode_returns_empty_controls() -> None:
+    from Services.parameterDB.sourceDefs.papago_meteo.ui import get_ui_spec
+
+    spec = get_ui_spec(mode="control")
+    assert spec["source_type"] == "papago_meteo"
+    assert spec["controls"] == []

@@ -34,11 +34,13 @@ class BrewtoolsSource(DataSourceBase):
         self._transport = None
         self._codec_ready = False
         self._last_pwm_by_node: dict[int, int] = {}
+        self._last_pwm_sent_at_s: dict[int, float] = {}
         self._last_density_request_s: dict[int, float] = {}
         self._seen_agitator_nodes: set[int] = set()
         self._seen_density_nodes: set[int] = set()
         self._seen_pressure_nodes: set[int] = set()
         self._known_parameters: set[str] = set()
+        self._tx_count = 0
 
     def _prefix(self) -> str:
         return str(self.config.get("parameter_prefix", self.name)).strip() or self.name
@@ -218,6 +220,22 @@ class BrewtoolsSource(DataSourceBase):
         arb_id, data = frame.to_can()
         return self._build_raw_frame(arb_id, data)
 
+    def _send_frame(self, transport: Any, frame: RawCanFrame) -> None:
+        try:
+            transport.send_frame(frame)
+            self._tx_count += 1
+            arb_id = int(frame.arbitration_id)
+            self._set_status("tx_count", self._tx_count)
+            self._set_status("last_tx_utc", self._utc_now())
+            self._set_status("last_tx_can_id", hex(arb_id))
+            self._set_status("last_tx_msg_type", arb_id & 0xFF)
+            self._set_status("last_tx_node_id", (arb_id >> 8) & 0x07)
+            self._set_status("last_tx_data", bytes(frame.data).hex(" "))
+            self._set_status("last_tx_error", "")
+        except Exception as exc:
+            self._set_status("last_tx_error", str(exc))
+            raise
+
     def ensure_parameters(self) -> None:
         owned = self.build_owned_metadata(device="brewtools_can")
         for key, default in [
@@ -229,6 +247,13 @@ class BrewtoolsSource(DataSourceBase):
             ("last_msg_type", ""),
             ("last_node_id", 0),
             ("transport", self._transport_name()),
+            ("tx_count", 0),
+            ("last_tx_utc", ""),
+            ("last_tx_can_id", ""),
+            ("last_tx_msg_type", 0),
+            ("last_tx_node_id", 0),
+            ("last_tx_data", ""),
+            ("last_tx_error", ""),
         ]:
             self._ensure_parameter_once(
                 self._status_param(key),
@@ -451,12 +476,26 @@ class BrewtoolsSource(DataSourceBase):
                     self.client.set_value(pressure_status_param, status)
 
     def _apply_outputs(self, transport: Any) -> None:
-        for node_id in sorted(self._seen_agitator_nodes):
+        # TX should work on cold start when agitator nodes are explicitly configured,
+        # even before an incoming RPM frame has been observed for discovery.
+        node_ids = sorted(set(self._seen_agitator_nodes) | set(self._agitator_nodes()))
+        now_s = time.monotonic()
+        resend_interval_s = max(0.1, float(self.config.get("gateway_output_refresh_s", 1.0)))
+        use_periodic_refresh = self._transport_name() == "pcan_gateway_udp"
+        for node_id in node_ids:
+            if node_id not in self._seen_agitator_nodes:
+                self._note_agitator_node(node_id)
             desired = max(0, min(100, round(self._coerce_float(self.client.get_value(self._pwm_param(node_id), 0.0), 0.0))))
-            if self._last_pwm_by_node.get(node_id) == desired:
+            last_sent_value = self._last_pwm_by_node.get(node_id)
+            should_send = last_sent_value != desired
+            if not should_send and use_periodic_refresh:
+                last_sent_at = self._last_pwm_sent_at_s.get(node_id, 0.0)
+                should_send = (now_s - last_sent_at) >= resend_interval_s
+            if not should_send:
                 continue
-            transport.send_frame(self._build_pwm_frame(node_id=node_id, duty_cycle=desired))
+            self._send_frame(transport, self._build_pwm_frame(node_id=node_id, duty_cycle=desired))
             self._last_pwm_by_node[node_id] = desired
+            self._last_pwm_sent_at_s[node_id] = now_s
 
     def _apply_density_commands(self, transport: Any) -> None:
         from .brewtools_can import NodeType
@@ -465,12 +504,13 @@ class BrewtoolsSource(DataSourceBase):
             trigger = self.client.get_value(self._density_calibrate_param(node_id), False)
             if trigger:
                 sg = self._coerce_float(self.client.get_value(self._density_calibrate_sg_param(node_id), 1.000), 1.000)
-                transport.send_frame(
+                self._send_frame(
+                    transport,
                     self._build_calibration_frame(
                         node_id=node_id,
                         receiver_node_type=int(NodeType.NODE_TYPE_DENSITY_SENSOR),
                         value=sg,
-                    )
+                    ),
                 )
                 self.client.set_value(self._density_calibrate_param(node_id), False)
                 self.client.set_value(self._density_calibrate_status_param(node_id), "calibrating")
@@ -481,12 +521,13 @@ class BrewtoolsSource(DataSourceBase):
         for node_id in sorted(self._seen_pressure_nodes):
             trigger = self.client.get_value(self._pressure_calibrate_param(node_id), False)
             if trigger:
-                transport.send_frame(
+                self._send_frame(
+                    transport,
                     self._build_calibration_frame(
                         node_id=node_id,
                         receiver_node_type=int(NodeType.NODE_TYPE_PRESSURE_SENSOR),
                         value=0.0,
-                    )
+                    ),
                 )
                 self.client.set_value(self._pressure_calibrate_param(node_id), False)
                 self.client.set_value(self._pressure_calibrate_status_param(node_id), "calibrating")
@@ -500,7 +541,10 @@ class BrewtoolsSource(DataSourceBase):
             last_sent = self._last_density_request_s.get(node_id, 0.0)
             if now_s - last_sent < interval_s:
                 continue
-            transport.send_frame(self._build_start_measurement_frame(node_id=node_id, receiver_node_type=receiver_type))
+            self._send_frame(
+                transport,
+                self._build_start_measurement_frame(node_id=node_id, receiver_node_type=receiver_type),
+            )
             self._last_density_request_s[node_id] = now_s
 
     def _receive_frames(self, transport: Any, timeout_s: float) -> list[tuple[int, bytes, Any, object | None]]:
@@ -531,6 +575,7 @@ class BrewtoolsSource(DataSourceBase):
             except Exception as exc:
                 self._disconnect_transport()
                 self._last_pwm_by_node.clear()
+                self._last_pwm_sent_at_s.clear()
                 self._last_density_request_s.clear()
                 self._set_error(str(exc))
                 if self.sleep(reconnect_delay_s):
@@ -568,6 +613,7 @@ class BrewtoolsSourceSpec(DataSourceSpec):
             "pressure_nodes": [],
             "agitator_nodes": [],
             "initial_pwm": 0.0,
+            "gateway_output_refresh_s": 1.0,
             "gateway_host": "192.168.0.30",
             "gateway_tx_port": 55002,
             "gateway_rx_port": 55001,

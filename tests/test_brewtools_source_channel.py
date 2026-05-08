@@ -8,8 +8,14 @@ from Services.parameterDB.sourceDefs.brewtools.transports.base import RawCanFram
 
 
 class _FakeClient:
+    def __init__(self):
+        self.values = {}
+
     def set_value(self, _name, _value):
         return None
+
+    def get_value(self, name, default=None):
+        return self.values.get(name, default)
 
 
 def test_brewtools_build_raw_frame_uses_configured_channel() -> None:
@@ -104,3 +110,33 @@ def test_brewtools_connect_transport_reuses_channel_validation_for_kvaser(monkey
 
     with pytest.raises(BrewtoolsCanSourceError, match="expected an integer"):
         source._connect_transport()
+
+
+def test_apply_outputs_uses_configured_agitator_nodes_without_discovery() -> None:
+    client = _FakeClient()
+    source = BrewtoolsSource(
+        "brewcan",
+        client,
+        config={
+            "transport": "pcan_gateway_udp",
+            "parameter_prefix": "brewcan",
+            "channel": 0,
+            "agitator_nodes": [0],
+        },
+    )
+
+    client.values["brewcan.agitator.0.set_pwm"] = 40
+
+    class _FakeTransport:
+        def __init__(self):
+            self.sent = []
+
+        def send_frame(self, frame):
+            self.sent.append(frame)
+
+    transport = _FakeTransport()
+    source._apply_outputs(transport)
+
+    assert len(transport.sent) == 1
+    assert transport.sent[0].arbitration_id == 0x840301B
+    assert transport.sent[0].data == b"\x00\x28"
