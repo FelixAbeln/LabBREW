@@ -419,6 +419,9 @@ class PeakGatewayUdpTransport(CanTransport):
 
     def send_frame(self, frame: RawCanFrame) -> None:
         payload = build_gateway_frame(frame)
+        arb_id = int(frame.arbitration_id)
+        payload_hex = payload.hex()
+        print(f"[PCAN_TX] CAN_ID=0x{arb_id:08X}, len={len(payload)}, payload_hex={payload_hex[:60]}...")
         self._sock.sendto(payload, (self.remote_host, self.remote_port))
 
     def recv_frames(self, timeout: float | None = None) -> list[RawCanFrame]:
