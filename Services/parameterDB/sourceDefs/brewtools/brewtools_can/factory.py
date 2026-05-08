@@ -36,12 +36,15 @@ def register_default_bodies() -> None:
         MsgType.MSG_TYPE_PRESSURE,
         MsgType.MSG_TYPE_DENSITY,
         MsgType.MSG_TYPE_LEVEL,
-        MsgType.MSG_TYPE_RPM,
         MsgType.MSG_TYPE_MIN,
         MsgType.MSG_TYPE_MAX,
     ]
     for t in float_types:
         BodyFactory.register(t, FloatBody)
+
+    # Firmware variants may encode RPM as subindex + u32 big-endian.
+    # Keep raw bytes so the domain decoder can support both encodings.
+    BodyFactory.register(MsgType.MSG_TYPE_RPM, RawBody)
 
     BodyFactory.register(MsgType.MSG_TYPE_NODE_ID, NodeIdBody)
     BodyFactory.register(MsgType.MSG_TYPE_CALIBRATION_ACK, CalibrationAckBody)
