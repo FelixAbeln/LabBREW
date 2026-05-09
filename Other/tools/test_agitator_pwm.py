@@ -1,18 +1,23 @@
 """
 Standalone test script — sends Brewtools PWM frames to the PCAN gateway and
-listens for incoming CAN frames (e.g. RPM) on the RX port.
+optionally listens for incoming CAN frames (e.g. RPM) on the RX port.
 
 Usage:
     python test_agitator_pwm.py [pwm_percent] [channel]   # defaults: 25, 0
     python test_agitator_pwm.py [pwm_percent] [channel] --tx-only
+    python test_agitator_pwm.py [pwm_percent] [channel] --rx
+    python test_agitator_pwm.py --control-only
+    python test_agitator_pwm.py 25 0 --host 192.168.5.37 --tx-port 55002 --rx
 
 The script:
 1. Builds the exact same UDP packet that service.py produces
-2. Sends it to the gateway (TX port 55002)
-3. Listens briefly on RX port 55001 and decodes any frames received
+2. Sends it to the gateway (TX port)
+3. Optionally probes TCP control port (default 45321) with HEJ request
+4. Optionally listens briefly on RX port and decodes any frames received
 
 No LabBREW imports needed — all encoding is inlined here.
 """
+import argparse
 import socket
 import struct
 import sys
@@ -22,6 +27,7 @@ import time
 GATEWAY_HOST  = "192.168.5.37"
 GATEWAY_TX_PORT = 55002   # PC → gateway → CAN
 GATEWAY_RX_PORT = 55001   # CAN → gateway → PC
+GATEWAY_CONTROL_PORT = 45321  # TCP control-plane
 
 # ── Brewtools CAN constants ───────────────────────────────────────────────────
 # CAN ID for PWM to agitator node 0:
@@ -104,15 +110,72 @@ def decode_rpm(data: bytes) -> str:
     return f"raw={data.hex()}"
 
 
+def probe_control_port(host: str, port: int, timeout_s: float) -> bool:
+    """Connect to gateway control port and attempt a HEJ exchange."""
+    req = b"<HEJ_REQ pver=2.1.1 uver=1.7.2>"
+    print(f"\n[CTRL] Probing TCP control plane {host}:{port} (timeout {timeout_s:.1f}s)")
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout_s) as sock:
+            print("[CTRL] TCP connect: OK")
+            sock.settimeout(timeout_s)
+            sock.sendall(req)
+            print(f"[CTRL] Sent HEJ_REQ: {req.decode('ascii')}")
+            data = sock.recv(4096)
+            text = data.decode("ascii", errors="replace") if data else ""
+            if not text:
+                print("[CTRL] No response payload.")
+                return True
+            print(f"[CTRL] RX: {text}")
+            if "HEJ_CNF" in text:
+                print("[CTRL] HEJ handshake: OK")
+                return True
+            print("[CTRL] Connected but response did not include HEJ_CNF.")
+            return True
+    except Exception as exc:
+        print(f"[CTRL] FAILED: {exc}")
+        return False
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Send Brewtools PWM frames to PCAN gateway and optionally verify control/RX flow.")
+    parser.add_argument("pwm_percent", nargs="?", type=int, default=25)
+    parser.add_argument("channel", nargs="?", type=int, default=0)
+    parser.add_argument("--host", default=GATEWAY_HOST, help="Gateway host/IP")
+    parser.add_argument("--tx-port", type=int, default=GATEWAY_TX_PORT, help="Gateway UDP TX port (PC -> gateway)")
+    parser.add_argument("--rx-port", type=int, default=GATEWAY_RX_PORT, help="Gateway UDP RX port (gateway -> PC)")
+    parser.add_argument("--control-port", type=int, default=GATEWAY_CONTROL_PORT, help="Gateway TCP control port")
+    parser.add_argument("--rx-timeout", type=float, default=3.0, help="RX listen duration in seconds")
+    parser.add_argument("--tcp-timeout", type=float, default=1.5, help="TCP control probe timeout in seconds")
+    parser.add_argument("--tx-only", action="store_true", help="Only send UDP PWM frames")
+    parser.add_argument("--rx", action="store_true", help="After TX, bind/listen on UDP RX port")
+    parser.add_argument("--control-only", action="store_true", help="Only test TCP control-plane connectivity/HEJ")
+    parser.add_argument(
+        "--control-check",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable or disable TCP control-plane probe",
+    )
+    return parser.parse_args(argv)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    pwm_pct = int(sys.argv[1]) if len(sys.argv) > 1 else 25
-    channel = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-    tx_only = "--tx-only" in sys.argv
+    args = parse_args(sys.argv[1:])
+    pwm_pct = int(args.pwm_percent)
+    channel = int(args.channel)
+    tx_only = bool(args.tx_only) or (not bool(args.rx))
+
+    if args.control_check or args.control_only:
+        control_ok = probe_control_port(args.host, args.control_port, args.tcp_timeout)
+        if args.control_only:
+            raise SystemExit(0 if control_ok else 2)
+
     print(f"Target PWM: {pwm_pct}%")
     print(f"CAN channel: {channel}")
     print(f"Mode:       {'TX-only' if tx_only else 'TX+RX'}")
-    print(f"Gateway:    {GATEWAY_HOST}  TX→{GATEWAY_TX_PORT}  RX←{GATEWAY_RX_PORT}")
+    print(
+        f"Gateway:    {args.host}  TX→{args.tx_port}  RX←{args.rx_port}  CTRL:{args.control_port}"
+    )
 
     # Build the PWM frame
     payload = build_pwm_payload(pwm_pct)
@@ -123,12 +186,12 @@ def main():
 
     # TX socket → gateway
     tx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    tx_sock.sendto(udp_frame, (GATEWAY_HOST, GATEWAY_TX_PORT))
+    tx_sock.sendto(udp_frame, (args.host, args.tx_port))
     print("[TX] Sent.")
 
     # Send again with a small delay (some gateways need a moment)
     time.sleep(0.1)
-    tx_sock.sendto(udp_frame, (GATEWAY_HOST, GATEWAY_TX_PORT))
+    tx_sock.sendto(udp_frame, (args.host, args.tx_port))
     print("[TX] Sent again (2nd).")
 
     if tx_only:
@@ -136,13 +199,21 @@ def main():
         print("\nDone (TX-only).")
         return
 
-    # RX socket — listen for CAN frames coming back from the bus
+    # RX socket — listen for CAN frames coming back from the bus.
+    # If RX port is already occupied (e.g. by supervisor), keep TX test successful.
     rx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    rx_sock.bind(("0.0.0.0", GATEWAY_RX_PORT))
-    rx_sock.settimeout(3.0)
+    try:
+        rx_sock.bind(("0.0.0.0", args.rx_port))
+    except OSError as exc:
+        rx_sock.close()
+        print(f"\n[RX] Skipped: could not bind :{args.rx_port} ({exc}).")
+        print("[RX] Another process is already listening. TX already sent successfully.")
+        print("\nDone (TX-only fallback).")
+        return
+    rx_sock.settimeout(args.rx_timeout)
 
-    print(f"\n[RX] Listening on :{GATEWAY_RX_PORT} for 3 s ...")
-    deadline = time.time() + 3.0
+    print(f"\n[RX] Listening on :{args.rx_port} for {args.rx_timeout:.1f} s ...")
+    deadline = time.time() + args.rx_timeout
     count = 0
     while time.time() < deadline:
         remaining = deadline - time.time()

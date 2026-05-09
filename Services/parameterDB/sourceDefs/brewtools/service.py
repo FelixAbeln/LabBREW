@@ -34,6 +34,7 @@ class BrewtoolsSource(DataSourceBase):
         self._transport = None
         self._codec_ready = False
         self._last_pwm_by_node: dict[int, int] = {}
+        self._last_pwm_sent_at_s: dict[int, float] = {}
         self._last_density_request_s: dict[int, float] = {}
         self._seen_agitator_nodes: set[int] = set()
         self._seen_density_nodes: set[int] = set()
@@ -123,6 +124,24 @@ class BrewtoolsSource(DataSourceBase):
             self._transport = PeakGatewayUdpTransport(
                 remote_host=str(self.config.get("gateway_host", "192.168.0.30")),
                 remote_port=int(self.config.get("gateway_tx_port", 55002)),
+                control_port=int(self.config.get("gateway_control_port", 45321)),
+                control_enabled=bool(self.config.get("gateway_control_enabled", True)),
+                route_name=str(self.config.get("gateway_route_name", "rt2")),
+                route_state=str(self.config.get("gateway_route_state", "0x88000002")),
+                auth_token=str(self.config.get("gateway_auth_token", "")),
+                auth_id=str(self.config.get("gateway_auth_id", "(c) PEAK-System")),
+                send_fw_dev_probes=bool(self.config.get("gateway_send_fw_dev_probes", True)),
+                control_tick_s=float(self.config.get("gateway_control_tick_s", 1.0)),
+                control_timeout_s=float(self.config.get("gateway_control_timeout_s", 1.5)),
+                rx_control_enabled=bool(self.config.get("gateway_rx_control_enabled", True)),
+                rx_route_name=str(self.config.get("gateway_rx_route_name", "rt1")),
+                rx_route_state=str(self.config.get("gateway_rx_route_state", "0x08000002")),
+                rx_auth_token=str(self.config.get("gateway_rx_auth_token", "99D5D2B95B487D70F31CB7F8A34D61624C87C75FFBC4CD855C23A25EE6E4DB8F")),
+                rx_auth_id=str(self.config.get("gateway_rx_auth_id", "(c) PEAK-System")),
+                rx_update_state=str(self.config.get("gateway_rx_update_state", "0xc000002")),
+                rx_send_fw_dev_probes=True,
+                rx_control_tick_s=float(self.config.get("gateway_control_tick_s", 1.0)),
+                rx_control_timeout_s=float(self.config.get("gateway_control_timeout_s", 1.5)),
                 local_host=str(self.config.get("gateway_bind_host", "0.0.0.0")),
                 local_port=int(self.config.get("gateway_rx_port", 55001)),
                 socket_timeout=float(self.config.get("recv_timeout_s", 0.1)),
@@ -454,15 +473,20 @@ class BrewtoolsSource(DataSourceBase):
                     self.client.set_value(pressure_status_param, status)
 
     def _apply_outputs(self, transport: Any) -> None:
+        now_s = time.monotonic()
+        resend_interval_s = max(0.05, float(self.config.get("pwm_resend_interval_s", 0.2)))
         target_nodes = set(self._seen_agitator_nodes)
         target_nodes.update(self._agitator_nodes())
         for node_id in sorted(target_nodes):
             self._ensure_agitator_param(node_id)
             desired = max(0, min(100, round(self._coerce_float(self.client.get_value(self._pwm_param(node_id), 0.0), 0.0))))
-            if self._last_pwm_by_node.get(node_id) == desired:
+            last_value = self._last_pwm_by_node.get(node_id)
+            last_sent_s = self._last_pwm_sent_at_s.get(node_id, 0.0)
+            if last_value == desired and (now_s - last_sent_s) < resend_interval_s:
                 continue
             transport.send_frame(self._build_pwm_frame(node_id=node_id, duty_cycle=desired))
             self._last_pwm_by_node[node_id] = desired
+            self._last_pwm_sent_at_s[node_id] = now_s
 
     def _apply_density_commands(self, transport: Any) -> None:
         from .brewtools_can import NodeType
@@ -537,6 +561,7 @@ class BrewtoolsSource(DataSourceBase):
             except Exception as exc:
                 self._disconnect_transport()
                 self._last_pwm_by_node.clear()
+                self._last_pwm_sent_at_s.clear()
                 self._last_density_request_s.clear()
                 self._set_error(str(exc))
                 if self.sleep(reconnect_delay_s):
@@ -577,6 +602,21 @@ class BrewtoolsSourceSpec(DataSourceSpec):
             "gateway_host": "192.168.0.30",
             "gateway_tx_port": 55002,
             "gateway_rx_port": 55001,
+            "gateway_control_port": 45321,
+            "gateway_control_enabled": True,
+            "gateway_route_name": "rt2",
+            "gateway_route_state": "0x88000002",
+            "gateway_auth_token": "F908DB674DB61329D710E4F9248160634C87C75FFBC4CD855C23A25EE6E4DB8F",
+            "gateway_auth_id": "(c) PEAK-System",
+            "gateway_send_fw_dev_probes": True,
+            "gateway_control_tick_s": 1.0,
+            "gateway_control_timeout_s": 1.5,
+            "gateway_rx_control_enabled": True,
+            "gateway_rx_route_name": "rt1",
+            "gateway_rx_route_state": "0x08000002",
+            "gateway_rx_auth_token": "99D5D2B95B487D70F31CB7F8A34D61624C87C75FFBC4CD855C23A25EE6E4DB8F",
+            "gateway_rx_auth_id": "(c) PEAK-System",
+            "gateway_rx_update_state": "0xc000002",
             "gateway_bind_host": "0.0.0.0",
         }
 

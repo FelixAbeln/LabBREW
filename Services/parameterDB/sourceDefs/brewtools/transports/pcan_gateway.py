@@ -7,6 +7,7 @@ import subprocess
 import select
 import socket
 import struct
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ipaddress import ip_network
@@ -40,6 +41,8 @@ FD_LEN_TO_DLC = {
     64: 15,
 }
 DLC_TO_FD_LEN = {v: k for k, v in FD_LEN_TO_DLC.items()}
+
+DEFAULT_ROUTE_AUTH_TOKEN = "F908DB674DB61329D710E4F9248160634C87C75FFBC4CD855C23A25EE6E4DB8F"
 
 
 def _local_ipv4_addresses() -> list[str]:
@@ -202,6 +205,7 @@ def discover_peak_gateways(
 ) -> tuple[list[TransportDiscoveryCandidate], str]:
     tx_port = int(payload.get("gateway_tx_port") or 55002)
     rx_port = int(payload.get("gateway_rx_port") or 55001)
+    control_port = int(payload.get("gateway_control_port") or 45321)
     bind_host = str(payload.get("gateway_bind_host") or "0.0.0.0").strip() or "0.0.0.0"
     timeout_s = float(payload.get("probe_timeout_s") or 0.5)
     worker_count = max(1, min(64, int(payload.get("probe_workers") or 32)))
@@ -237,6 +241,7 @@ def discover_peak_gateways(
                         gateway_host=host,
                         gateway_tx_port=tx_port,
                         gateway_rx_port=rx_port,
+                        gateway_control_port=control_port,
                         gateway_bind_host=bind_host,
                         selectable=True,
                         extra={"identity_mac_oui": _mac_oui(arp_table.get(host, "")), **json_identity},
@@ -253,6 +258,7 @@ def discover_peak_gateways(
                 gateway_host=host,
                 gateway_tx_port=tx_port,
                 gateway_rx_port=rx_port,
+                gateway_control_port=control_port,
                 gateway_bind_host=bind_host,
                 selectable=False,
                 error=failure_reason or "JSON device identity is not PCAN/PEAK",
@@ -403,23 +409,372 @@ class PeakGatewayUdpTransport(CanTransport):
         *,
         remote_host: str,
         remote_port: int,
+        control_port: int = 45321,
+        control_enabled: bool = True,
+        route_name: str = "rt2",
+        route_state: str = "0x88000002",
+        auth_token: str = DEFAULT_ROUTE_AUTH_TOKEN,
+        auth_id: str = "(c) PEAK-System",
+        send_fw_dev_probes: bool = True,
+        control_tick_s: float = 1.0,
+        control_timeout_s: float = 1.5,
+        rx_control_enabled: bool = True,
+        rx_route_name: str = "rt1",
+        rx_route_state: str = "0x08000002",
+        rx_auth_token: str = "99D5D2B95B487D70F31CB7F8A34D61624C87C75FFBC4CD855C23A25EE6E4DB8F",
+        rx_auth_id: str = "(c) PEAK-System",
+        rx_update_state: str = "0xc000002",
+        rx_send_fw_dev_probes: bool = True,
+        rx_control_tick_s: float = 1.0,
+        rx_control_timeout_s: float = 1.5,
         local_host: str = "0.0.0.0",
         local_port: int = 0,
         socket_timeout: float | None = None,
     ) -> None:
         self.remote_host = str(remote_host)
         self.remote_port = int(remote_port)
+        self.control_port = int(control_port)
+        self.control_enabled = bool(control_enabled)
+        self.route_name = str(route_name)
+        self.route_state = str(route_state)
+        self.auth_token = str(auth_token or "")
+        self.auth_id = str(auth_id)
+        self.send_fw_dev_probes = bool(send_fw_dev_probes)
+        self.control_tick_s = max(0.2, float(control_tick_s))
+        self.control_timeout_s = max(0.2, float(control_timeout_s))
+        self.rx_control_enabled = bool(rx_control_enabled)
+        self.rx_route_name = str(rx_route_name)
+        self.rx_route_state = str(rx_route_state)
+        self.rx_auth_token = str(rx_auth_token or "")
+        self.rx_auth_id = str(rx_auth_id)
+        self.rx_update_state = str(rx_update_state)
+        self.rx_send_fw_dev_probes = bool(rx_send_fw_dev_probes)
+        self.rx_control_tick_s = max(0.2, float(rx_control_tick_s))
+        self.rx_control_timeout_s = max(0.2, float(rx_control_timeout_s))
         self.local_host = str(local_host)
         self.local_port = int(local_port)
+        self._ctrl_sock: socket.socket | None = None
+        self._rx_listener_sock: socket.socket | None = None
+        self._rx_ctrl_sock: socket.socket | None = None
+        self._rx_ctrl_buffer = ""
+        self._rx_lock = threading.Lock()
+        self._active_route_state = self.route_state
+        self._next_control_tick_s = 0.0
+        self._rx_active_route_state = self.rx_route_state
+        self._next_rx_control_tick_s = 0.0
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if socket_timeout is not None:
             self._sock.settimeout(float(socket_timeout))
         self._sock.bind((self.local_host, self.local_port))
+        
+        # Initialize RX listener socket early so gateway can connect immediately
+        if self.rx_control_enabled:
+            self._open_rx_control_listener()
 
     def close(self) -> None:
+        if self._ctrl_sock is not None:
+            try:
+                self._ctrl_sock.close()
+            except Exception:
+                pass
+            self._ctrl_sock = None
+        if self._rx_ctrl_sock is not None:
+            try:
+                self._rx_ctrl_sock.close()
+            except Exception:
+                pass
+            self._rx_ctrl_sock = None
+        if self._rx_listener_sock is not None:
+            try:
+                self._rx_listener_sock.close()
+            except Exception:
+                pass
+            self._rx_listener_sock = None
         self._sock.close()
 
+    def _ctrl_send(self, payload: bytes) -> None:
+        if self._ctrl_sock is None:
+            raise RuntimeError("PCAN control socket is not connected")
+        self._ctrl_sock.sendall(payload)
+
+    def _ctrl_recv_until(self, required: str, timeout_s: float | None = None) -> str:
+        if self._ctrl_sock is None:
+            raise RuntimeError("PCAN control socket is not connected")
+        limit_s = self.control_timeout_s if timeout_s is None else max(0.1, float(timeout_s))
+        deadline = time.monotonic() + limit_s
+        text = ""
+        while time.monotonic() < deadline:
+            try:
+                data = self._ctrl_sock.recv(4096)
+            except socket.timeout:
+                continue
+            except Exception as exc:
+                raise RuntimeError(f"PCAN control receive failed: {exc}") from exc
+            if not data:
+                raise RuntimeError("PCAN control connection closed by gateway")
+            chunk = data.decode("ascii", "replace")
+            text += chunk
+            if required in text:
+                return text
+        raise RuntimeError(f"PCAN control timeout waiting for {required}")
+
+    @staticmethod
+    def _extract_attr(text: str, key: str) -> str:
+        quoted = re.search(rf'{re.escape(key)}="([^"]*)"', text)
+        if quoted:
+            return quoted.group(1)
+        bare = re.search(rf"{re.escape(key)}=([^\s>]+)", text)
+        return bare.group(1) if bare else ""
+
+    def _build_route_req(self) -> bytes:
+        # Format: state as hex value, numeric attrs unquoted, string attrs quoted
+        # CAN params match PCAN gateway defaults: 1Mbps, sample point 75%, etc.
+        state_hex = int(self.route_state, 0) if isinstance(self.route_state, str) else self.route_state
+        msg = (
+            f'<ROUTE_REQ kver=2.3.20 mac=0C:72:4B:4A:57:52 partno="IPES-004100" '
+            f'devicename="LABBREW-TRANSPORT" name="{self.route_name}" '
+            f'state=0x{state_hex:08x} can="can0" bus_state=0x0 fpp=15 ifisup=1 '
+            f'can_state=0 bitrate=1000000 sample_point=750 tq=125 prop_seg=2 '
+            f'phase_seg1=3 phase_seg2=2 sjw=1 brp=3 clkhz=24000000 restart_ms=1 '
+            f'warn_limit=-1 listen_only=0 tripple_sampling=0 port={self.remote_port} '
+            f'proto="udp">'
+        )
+        return msg.encode("ascii")
+
+    def _build_route_auth_req(self) -> bytes:
+        msg = f'<ROUTE_AUTH_REQ rtauth="{self.auth_token}" id="{self.auth_id}">'
+        return msg.encode("ascii")
+
+    def _build_rx_route_req(self) -> bytes:
+        # Format: state as hex value, numeric attrs unquoted, string attrs quoted
+        # CAN params match PCAN gateway defaults: 1Mbps, sample point 75%, etc.
+        state_hex = int(self.rx_route_state, 0) if isinstance(self.rx_route_state, str) else self.rx_route_state
+        msg = (
+            f'<ROUTE_REQ kver=2.3.20 mac=0C:72:4B:4A:57:52 partno="IPES-004100" '
+            f'devicename="LABBREW-TRANSPORT" name="{self.rx_route_name}" '
+            f'state=0x{state_hex:08x} can="can0" bus_state=0x0 fpp=15 ifisup=1 '
+            f'can_state=0 bitrate=1000000 sample_point=750 tq=125 prop_seg=2 '
+            f'phase_seg1=3 phase_seg2=2 sjw=1 brp=3 clkhz=24000000 restart_ms=1 '
+            f'warn_limit=-1 listen_only=0 tripple_sampling=0 port={self.local_port} '
+            f'proto="udp">'
+        )
+        return msg.encode("ascii")
+
+    def _build_rx_route_auth_req(self) -> bytes:
+        msg = f'<ROUTE_AUTH_REQ rtauth="{self.rx_auth_token}" id="{self.rx_auth_id}">'
+        return msg.encode("ascii")
+
+    def _build_rx_route_update_req(self) -> bytes:
+        state = self.rx_update_state or self._rx_active_route_state
+        msg = (
+            f'<ROUTE_UPDATE_REQ status="0" name="{self.rx_route_name}" '
+            f'can="can0" fpp="15" state="{state}">'
+        )
+        return msg.encode("ascii")
+
+    def _build_route_update_req(self) -> bytes:
+        msg = (
+            f'<ROUTE_UPDATE_REQ status="0" name="{self.route_name}" '
+            f'can="can0" fpp="15" state="{self._active_route_state}">'
+        )
+        return msg.encode("ascii")
+
+    def _open_control_session(self) -> None:
+        try:
+            self._ctrl_sock = socket.create_connection((self.remote_host, self.control_port), timeout=self.control_timeout_s)
+            self._ctrl_sock.settimeout(self.control_timeout_s)
+        except Exception as exc:
+            self._ctrl_sock = None
+            raise RuntimeError(f"PCAN control connect failed to {self.remote_host}:{self.control_port}: {exc}") from exc
+
+        self._ctrl_send(b"<HEJ_REQ pver=2.1.1 uver=1.7.2>")
+        _ = self._ctrl_recv_until("HEJ_CNF")
+
+        self._ctrl_send(self._build_route_req())
+        route_cnf_text = self._ctrl_recv_until("ROUTE_CNF")
+        route_cnf_match = re.search(r"<ROUTE_CNF[^>]*>", route_cnf_text)
+        route_cnf = route_cnf_match.group(0) if route_cnf_match else route_cnf_text
+        status_txt = self._extract_attr(route_cnf, "status") or "0"
+        try:
+            status = int(status_txt)
+        except Exception:
+            status = -1
+        if status != 0:
+            errno = self._extract_attr(route_cnf, "errno") or "?"
+            errmsg = self._extract_attr(route_cnf, "errmsg") or "route rejected"
+            raise RuntimeError(f"PCAN route rejected: status={status} errno={errno} errmsg={errmsg}")
+
+        state = self._extract_attr(route_cnf, "state")
+        if state:
+            self._active_route_state = state
+
+        if self.auth_token:
+            self._ctrl_send(self._build_route_auth_req())
+            auth_text = self._ctrl_recv_until("ROUTE_AUTH_CNF")
+            auth_match = re.search(r"<ROUTE_AUTH_CNF[^>]*>", auth_text)
+            auth_cnf = auth_match.group(0) if auth_match else auth_text
+            auth_status_txt = self._extract_attr(auth_cnf, "status") or "0"
+            try:
+                auth_status = int(auth_status_txt)
+            except Exception:
+                auth_status = -1
+            if auth_status != 0:
+                raise RuntimeError(f"PCAN route auth rejected: status={auth_status_txt}")
+
+        self._ctrl_send(self._build_route_update_req())
+        if self.send_fw_dev_probes:
+            self._ctrl_send(b"<FW_INFO_REQ>")
+            self._ctrl_send(b"<DEV_GET_ID_REQ>")
+
+        self._next_control_tick_s = time.monotonic() + self.control_tick_s
+
+    def _open_rx_control_listener(self) -> None:
+        try:
+            self._rx_listener_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._rx_listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._rx_listener_sock.bind((self.local_host, self.control_port))
+            self._rx_listener_sock.listen(1)
+            self._rx_listener_sock.settimeout(0.1)
+        except Exception as exc:
+            self._rx_listener_sock = None
+            raise RuntimeError(f"PCAN RX control listen failed on {self.local_host}:{self.control_port}: {exc}") from exc
+
+    def _rx_send(self, payload: bytes) -> None:
+        if self._rx_ctrl_sock is None:
+            return
+        self._rx_ctrl_sock.sendall(payload)
+
+    def _build_rx_route_cnf(self) -> bytes:
+        msg = (
+            f'<ROUTE_CNF status="0" kver="0.0.0" mac="0C:72:4B:4A:57:52" partno="IPES-004100" '
+            f'serno="0" name="{self.rx_route_name}" devicename="LABBREW-TRANSPORT" '
+            f'can="can0" fpp="15" state="{self.rx_route_state}" nonces="1189146542">'
+        )
+        return msg.encode("ascii")
+
+    def _build_rx_route_auth_cnf(self) -> bytes:
+        return b'<ROUTE_AUTH_CNF noncec="4294937910" id="(c) PEAK-System">'
+
+    @staticmethod
+    def _build_fw_info_cnf() -> bytes:
+        return b"<FW_INFO_CNF status=0 pver=2.1.1 uver=1.7.2 kver=2.3.20 lver=50a2fh fwver=3.0.1>"
+
+    @staticmethod
+    def _build_dev_get_id_cnf() -> bytes:
+        return b"<DEV_GET_ID_CNF device_id=4294967295>"
+
+    @staticmethod
+    def _build_can_info_cnf() -> bytes:
+        return (
+            b'<CAN_INFO_CNF can="can0" ifisup=1 can_state=0 bitrate=1000000 sample_point=750 '
+            b'tq=125 prop_seg=2 phase_seg1=3 phase_seg2=2 sjw=1 brp=3 clkhz=24000000 '
+            b'restart_ms=1 warn_limit=-1 listen_only=0 tripple_sampling=0 status=0>'
+        )
+
+    def _handle_rx_control_tags(self, text: str) -> None:
+        tags = re.findall(r"<[^>]+>", text)
+        for tag in tags:
+            if tag.startswith("<HEJ_REQ"):
+                self._rx_send(b'<HEJ_CNF pver="2.0.2" uver="1.0.2">')
+            elif tag.startswith("<ROUTE_REQ"):
+                self._rx_send(self._build_rx_route_cnf())
+            elif tag.startswith("<ROUTE_AUTH_REQ"):
+                self._rx_send(self._build_rx_route_auth_cnf())
+            elif tag.startswith("<FW_INFO_REQ"):
+                self._rx_send(self._build_fw_info_cnf())
+            elif tag.startswith("<DEV_GET_ID_REQ"):
+                self._rx_send(self._build_dev_get_id_cnf())
+            elif tag.startswith("<CAN_INFO_REQ"):
+                self._rx_send(self._build_can_info_cnf())
+            elif tag.startswith("<ROUTE_UPDATE_CNF"):
+                continue
+
+    def _ensure_control_session(self) -> None:
+        if not self.control_enabled:
+            return
+        if self._ctrl_sock is None:
+            self._open_control_session()
+            return
+        now = time.monotonic()
+        if now < self._next_control_tick_s:
+            return
+        try:
+            self._ctrl_send(self._build_route_update_req())
+            self._ctrl_send(b'<CAN_INFO_REQ can="can0">')
+            _ = self._ctrl_recv_until("CAN_INFO_CNF")
+        except Exception as exc:
+            if self._ctrl_sock is not None:
+                try:
+                    self._ctrl_sock.close()
+                except Exception:
+                    pass
+            self._ctrl_sock = None
+            raise RuntimeError(f"PCAN control session lost: {exc}") from exc
+        self._next_control_tick_s = now + self.control_tick_s
+
+    def _ensure_rx_control_session(self) -> None:
+        if not self.rx_control_enabled:
+            return
+        with self._rx_lock:
+            if self._rx_listener_sock is None:
+                try:
+                    self._open_rx_control_listener()
+                except Exception:
+                    return
+
+            if self._rx_ctrl_sock is None:
+                try:
+                    conn, addr = self._rx_listener_sock.accept()
+                    conn.settimeout(0.1)
+                    self._rx_ctrl_sock = conn
+                    self._rx_ctrl_buffer = ""
+                    self._next_rx_control_tick_s = time.monotonic() + self.rx_control_tick_s
+                except socket.timeout:
+                    return
+                except Exception:
+                    return
+
+            if self._rx_ctrl_sock is None:
+                return
+
+            try:
+                chunk = self._rx_ctrl_sock.recv(4096)
+                if chunk:
+                    self._rx_ctrl_buffer += chunk.decode("ascii", "replace")
+                    if ">" in self._rx_ctrl_buffer:
+                        complete = self._rx_ctrl_buffer.rsplit(">", 1)
+                        self._handle_rx_control_tags(complete[0] + ">")
+                        self._rx_ctrl_buffer = complete[1]
+                else:
+                    raise RuntimeError("PCAN RX control connection closed by gateway")
+            except socket.timeout:
+                pass
+            except Exception:
+                try:
+                    self._rx_ctrl_sock.close()
+                except Exception:
+                    pass
+                self._rx_ctrl_sock = None
+                self._rx_ctrl_buffer = ""
+                return
+
+            now = time.monotonic()
+            if now >= self._next_rx_control_tick_s:
+                try:
+                    self._rx_send(self._build_rx_route_update_req())
+                except Exception:
+                    try:
+                        self._rx_ctrl_sock.close()
+                    except Exception:
+                        pass
+                    self._rx_ctrl_sock = None
+                    self._rx_ctrl_buffer = ""
+                    return
+                self._next_rx_control_tick_s = now + self.rx_control_tick_s
+
     def send_frame(self, frame: RawCanFrame) -> None:
+        self._ensure_control_session()
+        self._ensure_rx_control_session()
         payload = build_gateway_frame(frame)
         arb_id = int(frame.arbitration_id)
         payload_hex = payload.hex()
@@ -427,6 +782,8 @@ class PeakGatewayUdpTransport(CanTransport):
         self._sock.sendto(payload, (self.remote_host, self.remote_port))
 
     def recv_frames(self, timeout: float | None = None) -> list[RawCanFrame]:
+        self._ensure_control_session()
+        self._ensure_rx_control_session()
         if timeout is None:
             packet, _addr = self._sock.recvfrom(4096)
             return parse_gateway_packet(packet)
