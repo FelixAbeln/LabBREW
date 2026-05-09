@@ -12,6 +12,15 @@ class _FakeClient:
         return None
 
 
+class _RecordingClient:
+    def __init__(self) -> None:
+        self.values: dict[str, object] = {}
+
+    def set_value(self, name, value):
+        self.values[str(name)] = value
+        return None
+
+
 def test_brewtools_build_raw_frame_uses_configured_channel() -> None:
     source = BrewtoolsSource(
         "brewcan",
@@ -104,3 +113,21 @@ def test_brewtools_connect_transport_reuses_channel_validation_for_kvaser(monkey
 
     with pytest.raises(BrewtoolsCanSourceError, match="expected an integer"):
         source._connect_transport()
+
+
+def test_brewtools_run_sets_last_error_on_route_rejection(monkeypatch) -> None:
+    client = _RecordingClient()
+    source = BrewtoolsSource(
+        "brewcan",
+        client,
+        config={"transport": "pcan_gateway_udp", "parameter_prefix": "brewcan"},
+    )
+
+    monkeypatch.setattr(source, "should_stop", lambda: False)
+    monkeypatch.setattr(source, "sleep", lambda _seconds: True)
+    monkeypatch.setattr(source, "_connect_transport", lambda: (_ for _ in ()).throw(RuntimeError("PCAN route rejected: status=1 errno=87 errmsg=Too many users")))
+
+    source.run()
+
+    last_error = client.values.get("brewcan.last_error", "")
+    assert "Too many users" in str(last_error)

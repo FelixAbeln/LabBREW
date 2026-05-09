@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import socket
 import struct
 
 import pytest
 
 from Services.parameterDB.sourceDefs.brewtools.ui import get_ui_spec as get_brewtools_ui_spec
 from Services.parameterDB.sourceDefs.brewtools.service import BrewtoolsSourceSpec
-from Services.parameterDB.sourceDefs.brewtools.transports.base import TransportDiscoveryCandidate
+from Services.parameterDB.sourceDefs.brewtools.transports.base import RawCanFrame, TransportDiscoveryCandidate
 from Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway import (
+    PeakGatewayUdpTransport,
     TYPE_CLASSIC_CRC,
     discover_peak_gateways,
     parse_gateway_packet,
@@ -71,6 +73,20 @@ def test_brewtools_ui_transport_fields_are_adaptive() -> None:
     gateway_host = next(field for field in fields if field.get("key") == "config.gateway_host")
     gateway_tx = next(field for field in fields if field.get("key") == "config.gateway_tx_port")
     gateway_rx = next(field for field in fields if field.get("key") == "config.gateway_rx_port")
+    gateway_control = next(field for field in fields if field.get("key") == "config.gateway_control_port")
+    gateway_control_enabled = next(field for field in fields if field.get("key") == "config.gateway_control_enabled")
+    gateway_route_name = next(field for field in fields if field.get("key") == "config.gateway_route_name")
+    gateway_route_state = next(field for field in fields if field.get("key") == "config.gateway_route_state")
+    gateway_auth_token = next(field for field in fields if field.get("key") == "config.gateway_auth_token")
+    gateway_auth_id = next(field for field in fields if field.get("key") == "config.gateway_auth_id")
+    gateway_send_fw_dev = next(field for field in fields if field.get("key") == "config.gateway_send_fw_dev_probes")
+    gateway_control_tick = next(field for field in fields if field.get("key") == "config.gateway_control_tick_s")
+    gateway_control_timeout = next(field for field in fields if field.get("key") == "config.gateway_control_timeout_s")
+    gateway_rx_control_enabled = next(field for field in fields if field.get("key") == "config.gateway_rx_control_enabled")
+    gateway_rx_route_name = next(field for field in fields if field.get("key") == "config.gateway_rx_route_name")
+    gateway_rx_route_state = next(field for field in fields if field.get("key") == "config.gateway_rx_route_state")
+    gateway_rx_auth_token = next(field for field in fields if field.get("key") == "config.gateway_rx_auth_token")
+    gateway_rx_update_state = next(field for field in fields if field.get("key") == "config.gateway_rx_update_state")
     gateway_bind = next(field for field in fields if field.get("key") == "config.gateway_bind_host")
 
     assert interface.get("visible_when") == {"config.transport": "kvaser"}
@@ -79,6 +95,20 @@ def test_brewtools_ui_transport_fields_are_adaptive() -> None:
     assert gateway_host.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
     assert gateway_tx.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
     assert gateway_rx.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_control.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_control_enabled.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_route_name.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_route_state.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_auth_token.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_auth_id.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_send_fw_dev.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_control_tick.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_control_timeout.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_rx_control_enabled.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_rx_route_name.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_rx_route_state.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_rx_auth_token.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_rx_update_state.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
     assert gateway_bind.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
 
 
@@ -90,6 +120,80 @@ def test_brewtools_default_config_exposes_both_transport_families() -> None:
     assert config["gateway_host"] == "192.168.0.30"
     assert config["gateway_tx_port"] == 55002
     assert config["gateway_rx_port"] == 55001
+    assert config["gateway_control_port"] == 45321
+    assert config["gateway_control_enabled"] is True
+    assert config["gateway_route_name"] == "rt2"
+    assert config["gateway_route_state"] == "0x88000002"
+    assert config["gateway_auth_token"]
+    assert config["gateway_auth_id"] == "(c) PEAK-System"
+    assert config["gateway_send_fw_dev_probes"] is True
+    assert config["gateway_control_tick_s"] == 1.0
+    assert config["gateway_control_timeout_s"] == 1.5
+    assert config["gateway_rx_control_enabled"] is True
+    assert config["gateway_rx_route_name"] == "rt1"
+    assert config["gateway_rx_route_state"] == "0x08000002"
+    assert config["gateway_rx_auth_token"]
+    assert config["gateway_rx_auth_id"] == "(c) PEAK-System"
+    assert config["gateway_rx_update_state"] == "0xc000002"
+
+
+def test_peak_transport_raises_clear_error_on_route_rejection(monkeypatch) -> None:
+    class _FakeUdpSocket:
+        def __init__(self) -> None:
+            self.timeout = None
+
+        def settimeout(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        def bind(self, _addr: tuple[str, int]) -> None:
+            return
+
+        def sendto(self, _payload: bytes, _addr: tuple[str, int]) -> None:
+            return
+
+        def close(self) -> None:
+            return
+
+    class _FakeCtrlSocket:
+        def __init__(self) -> None:
+            self.timeout = None
+            self.responses = [
+                b"<HEJ_CNF uver=1.7.2 pver=2.1.1>",
+                b'<ROUTE_CNF status=1 errno=87 errmsg="Too many users">',
+            ]
+
+        def settimeout(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        def sendall(self, _payload: bytes) -> None:
+            return
+
+        def recv(self, _n: int) -> bytes:
+            if self.responses:
+                return self.responses.pop(0)
+            raise socket.timeout()
+
+        def close(self) -> None:
+            return
+
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway.socket.socket",
+        lambda *_args, **_kwargs: _FakeUdpSocket(),
+    )
+    monkeypatch.setattr(
+        "Services.parameterDB.sourceDefs.brewtools.transports.pcan_gateway.socket.create_connection",
+        lambda *_args, **_kwargs: _FakeCtrlSocket(),
+    )
+
+    transport = PeakGatewayUdpTransport(
+        remote_host="192.168.5.37",
+        remote_port=55002,
+        control_port=45321,
+        auth_token="",
+        rx_control_enabled=False,
+    )
+    with pytest.raises(RuntimeError, match="Too many users"):
+        transport.send_frame(RawCanFrame(arbitration_id=0x0840301B, data=b""))
 
 
 def test_brewtools_ui_shows_channel_for_peak_and_kvaser() -> None:
@@ -108,6 +212,8 @@ def test_brewtools_ui_module_scan_metadata() -> None:
     menu = dict(module.get("menu") or {})
     run = dict(menu.get("run") or {})
     action = dict(menu.get("action") or {})
+    result = dict(menu.get("result") or {})
+    apply_map = dict(result.get("apply_map") or {})
 
     assert module.get("id") == "brewtoolsCanDiscovery"
     assert module.get("replace_form") is True
@@ -115,6 +221,16 @@ def test_brewtools_ui_module_scan_metadata() -> None:
     assert run.get("mode") == "auto"
     assert run.get("cancel_inflight_on_cleanup") is True
     assert action.get("action") == "scan_channels"
+    assert apply_map.get("gateway_control_port") == "gateway_control_port"
+    assert apply_map.get("gateway_control_enabled") == "gateway_control_enabled"
+    assert apply_map.get("gateway_route_name") == "gateway_route_name"
+    assert apply_map.get("gateway_route_state") == "gateway_route_state"
+    assert apply_map.get("gateway_auth_token") == "gateway_auth_token"
+    assert apply_map.get("gateway_rx_control_enabled") == "gateway_rx_control_enabled"
+    assert apply_map.get("gateway_rx_route_name") == "gateway_rx_route_name"
+    assert apply_map.get("gateway_rx_route_state") == "gateway_rx_route_state"
+    assert apply_map.get("gateway_rx_auth_token") == "gateway_rx_auth_token"
+    assert apply_map.get("gateway_rx_update_state") == "gateway_rx_update_state"
 
 
 def test_brewtools_run_ui_action_scans_kvaser_and_peak(monkeypatch) -> None:
