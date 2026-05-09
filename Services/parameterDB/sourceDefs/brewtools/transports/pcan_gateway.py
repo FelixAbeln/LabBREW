@@ -297,8 +297,10 @@ def _encode_flags(frame: RawCanFrame) -> int:
         flags |= 0x0020
     if frame.is_fd and frame.error_state_indicator:
         flags |= 0x0040
+    # PEAK gateway format uses low bits for frame kind on classic CAN:
+    # 0x0000 standard, 0x0001 RTR, 0x0002 extended.
     if frame.is_extended_id:
-        flags |= 0x0200
+        flags |= 0x0002
     if not frame.is_fd and frame.is_remote_frame:
         flags |= 0x8000
     return flags
