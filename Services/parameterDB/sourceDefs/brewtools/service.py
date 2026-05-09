@@ -454,7 +454,10 @@ class BrewtoolsSource(DataSourceBase):
                     self.client.set_value(pressure_status_param, status)
 
     def _apply_outputs(self, transport: Any) -> None:
-        for node_id in sorted(self._seen_agitator_nodes):
+        target_nodes = set(self._seen_agitator_nodes)
+        target_nodes.update(self._agitator_nodes())
+        for node_id in sorted(target_nodes):
+            self._ensure_agitator_param(node_id)
             desired = max(0, min(100, round(self._coerce_float(self.client.get_value(self._pwm_param(node_id), 0.0), 0.0))))
             if self._last_pwm_by_node.get(node_id) == desired:
                 continue
