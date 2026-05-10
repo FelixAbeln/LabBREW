@@ -25,7 +25,7 @@ def _make_pid(_store, extra_config=None):
     return plugin.create("reactor.pid", config=cfg, value=0.0)
 
 
-def _make_dbc(store, extra_config=None):
+def _make_dbc(_store, extra_config=None):
     plugin = DeadbandPlugin()
     cfg = {
         "pv": "reactor.pv",
