@@ -154,7 +154,13 @@ class PIDPlugin(PluginSpec):
                 "out_min": {"type": "number"},
                 "out_max": {"type": "number"},
                 "manual_out": {"type": "number"},
-                "disabled_value": {"type": ["number", "null"]},
+                "disabled_value": {
+                    "anyOf": [
+                        {"type": "number"},
+                        {"type": "null"},
+                        {"type": "string", "const": ""},
+                    ]
+                },
                 "output_params": {"type": ["array", "string"]},
             },
             "required": ["pv", "sp"],
