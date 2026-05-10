@@ -12,7 +12,7 @@ def _ctx(store: ParameterStore, *, dt: float = 0.1):
     return SimpleNamespace(store=store, dt=dt)
 
 
-def _make_pid(store, extra_config=None):
+def _make_pid(_store, extra_config=None):
     plugin = PIDPlugin()
     cfg = {
         "pv": "reactor.pv",
@@ -38,6 +38,54 @@ def _make_dbc(store, extra_config=None):
     if extra_config:
         cfg.update(extra_config)
     return plugin.create("reactor.dbc", config=cfg, value=False)
+
+
+def test_pid_plugin_config_contract_exposes_disabled_value() -> None:
+    plugin = PIDPlugin()
+
+    cfg = plugin.default_config()
+    assert "disabled_value" in cfg
+    assert cfg["disabled_value"] is None
+
+    schema = plugin.schema()
+    disabled_value = schema["properties"]["disabled_value"]
+    assert "anyOf" in disabled_value
+    options = disabled_value["anyOf"]
+    assert {"type": "number"} in options
+    assert {"type": "null"} in options
+    assert any(
+        isinstance(option, dict)
+        and option.get("type") == "string"
+        and "anyOf" in option
+        for option in options
+    )
+
+
+def test_deadband_plugin_config_contract_exposes_disabled_value() -> None:
+    plugin = DeadbandPlugin()
+
+    cfg = plugin.default_config()
+    assert "disabled_value" in cfg
+    assert cfg["disabled_value"] is None
+
+    schema = plugin.schema()
+    disabled_value = schema["properties"]["disabled_value"]
+    assert "anyOf" in disabled_value
+    options = disabled_value["anyOf"]
+    assert {"type": ["boolean", "null"]} in options
+    token_option = next(
+        option
+        for option in options
+        if isinstance(option, dict) and option.get("type") == "string"
+    )
+    assert token_option.get("enum") == [
+        "",
+        "true",
+        "false",
+        "hold",
+        "force_off",
+        "force_on",
+    ]
 
 
 def test_pid_disable_no_disabled_value_latches_output() -> None:
