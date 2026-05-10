@@ -24,7 +24,7 @@ def get_ui_spec() -> dict:
                     "off_offset": 1.0,
                     "direction": "below",
                     "enable_param": "",
-                    "disabled_value": None,
+                    "disabled_value": "false",
                 },
                 "metadata": {},
             },
@@ -121,12 +121,12 @@ def get_ui_spec() -> dict:
                             "key": "config.disabled_value",
                             "label": "Disabled Output",
                             "type": "enum",
-                            "options": [None, False, True],
+                            "options": ["hold", "force_off", "force_on"],
                             "help": (
-                                "Output to drive when the controller is disabled. "
-                                "Use None to keep the previous output unchanged, "
-                                "False to drive the output off, or "
-                                "True to drive the output on."
+                                "Output behavior when the controller is disabled. "
+                                "Use 'hold' to keep the previous output unchanged, "
+                                "'force_off' to drive the output off, or "
+                                "'force_on' to drive the output on."
                             ),
                         },
                     ],
@@ -200,7 +200,7 @@ def get_ui_spec() -> dict:
                             "key": "config.disabled_value",
                             "label": "Disabled Output",
                             "type": "enum",
-                            "options": [None, False, True],
+                            "options": ["hold", "force_off", "force_on"],
                             "option_labels": ["Hold last output", "Force Off", "Force On"],
                         },
                     ],
