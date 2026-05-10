@@ -121,13 +121,13 @@ def get_ui_spec() -> dict:
                             "key": "config.disabled_value",
                             "label": "Disabled Output",
                             "type": "enum",
-                            "options": ["hold", "force_off", "force_on"],
+                            "options": ["", "false", "true"],
                             "option_labels": ["Hold last output", "Force Off", "Force On"],
                             "help": (
                                 "Output behavior when the controller is disabled. "
-                                "Use 'hold' to keep the previous output unchanged, "
-                                "'force_off' to drive the output off, or "
-                                "'force_on' to drive the output on."
+                                "Choose 'Hold last output' to keep the previous "
+                                "output unchanged, 'Force Off' to drive the output "
+                                "off, or 'Force On' to drive the output on."
                             ),
                         },
                     ],
