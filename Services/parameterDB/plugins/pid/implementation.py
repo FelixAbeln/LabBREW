@@ -180,7 +180,13 @@ class PIDPlugin(PluginSpec):
                     "anyOf": [
                         {"type": "number"},
                         {"type": "null"},
-                        {"type": "string", "enum": ["", "true", "false"]},
+                        {
+                            "type": "string",
+                            "anyOf": [
+                                {"enum": ["", "true", "false"]},
+                                {"pattern": r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$"},
+                            ],
+                        },
                     ]
                 },
                 "output_params": {"type": ["array", "string"]},
