@@ -24,6 +24,7 @@ def get_ui_spec() -> dict:
                     "off_offset": 1.0,
                     "direction": "below",
                     "enable_param": "",
+                    "disabled_value": None,
                 },
                 "metadata": {},
             },
@@ -116,6 +117,19 @@ def get_ui_spec() -> dict:
                                 "dead zone and preventing chatter."
                             ),
                         },
+                        {
+                            "key": "config.disabled_value",
+                            "label": "Disabled Output",
+                            "type": "enum",
+                            "options": ["", "hold", "force_off", "force_on"],
+                            "help": (
+                                "Output behavior when the controller is disabled. "
+                                "Use '' for the default disabled behavior, "
+                                "'hold' to keep the previous output unchanged, "
+                                "'force_off' to drive the output off, or "
+                                "'force_on' to drive the output on."
+                            ),
+                        },
                     ],
                 },
             ],
@@ -182,6 +196,12 @@ def get_ui_spec() -> dict:
                             "label": "Off Offset",
                             "type": "float",
                             "required": True,
+                        },
+                        {
+                            "key": "config.disabled_value",
+                            "label": "Disabled Output",
+                            "type": "enum",
+                            "options": ["", "hold", "force_off", "force_on"],
                         },
                     ],
                 },

@@ -51,6 +51,32 @@ class PIDParameter(ParameterBase):
             enabled = bool(store.get_value(enable_param, True))
         self.state["enabled"] = enabled
         if not enabled:
+            disabled_value = cfg.get("disabled_value")
+            # Blank/null means "hold last output" while disabled.
+            if disabled_value is None:
+                self.state.pop("last_error", None)
+                return
+            if isinstance(disabled_value, str):
+                token = disabled_value.strip().lower()
+                if token == "":
+                    self.state.pop("last_error", None)
+                    return
+                if token == "false":
+                    self.value = 0.0
+                    self.state.pop("last_error", None)
+                    return
+                if token == "true":
+                    self.value = 1.0
+                    self.state.pop("last_error", None)
+                    return
+
+            try:
+                self.value = float(disabled_value)
+                self.state.pop("last_error", None)
+            except (TypeError, ValueError):
+                self.state["last_error"] = (
+                    "pid invalid 'disabled_value'; expected number, 'true'/'false', or blank"
+                )
             return
 
         mode = "auto"
@@ -130,6 +156,7 @@ class PIDPlugin(PluginSpec):
             "out_min": 0.0,
             "out_max": 100.0,
             "manual_out": 0.0,
+            "disabled_value": None,
             "output_params": [],
         }
 
@@ -149,6 +176,19 @@ class PIDPlugin(PluginSpec):
                 "out_min": {"type": "number"},
                 "out_max": {"type": "number"},
                 "manual_out": {"type": "number"},
+                "disabled_value": {
+                    "anyOf": [
+                        {"type": "number"},
+                        {"type": "null"},
+                        {
+                            "type": "string",
+                            "anyOf": [
+                                {"enum": ["", "true", "false"]},
+                                {"pattern": r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$"},
+                            ],
+                        },
+                    ]
+                },
                 "output_params": {"type": ["array", "string"]},
             },
             "required": ["pv", "sp"],

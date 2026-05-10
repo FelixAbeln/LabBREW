@@ -42,7 +42,44 @@ class DeadbandParameter(ParameterBase):
             enabled = bool(store.get_value(enable_param, True))
         self.state["enabled"] = bool(enabled)
         if not enabled:
-            self.state.pop("last_error", None)
+            disabled_value = cfg.get("disabled_value")
+            if disabled_value is None:
+                self.state.pop("last_error", None)
+                return
+
+            if isinstance(disabled_value, bool):
+                self.value = disabled_value
+                self.state.pop("last_error", None)
+                return
+
+            if isinstance(disabled_value, str):
+                token = disabled_value.strip().lower()
+                if token == "":
+                    self.state.pop("last_error", None)
+                    return
+                if token == "hold":
+                    self.state.pop("last_error", None)
+                    return
+                if token == "true":
+                    self.value = True
+                    self.state.pop("last_error", None)
+                    return
+                if token == "false":
+                    self.value = False
+                    self.state.pop("last_error", None)
+                    return
+                if token == "force_on":
+                    self.value = True
+                    self.state.pop("last_error", None)
+                    return
+                if token == "force_off":
+                    self.value = False
+                    self.state.pop("last_error", None)
+                    return
+
+            self.state["last_error"] = (
+                "deadband invalid 'disabled_value'; expected bool, hold/force token, 'true'/'false', or blank"
+            )
             return
 
         pv = float(store.get_value(pv_name, 0.0))
@@ -102,6 +139,7 @@ class DeadbandPlugin(PluginSpec):
             "off_offset": 1.0,
             "direction": "below",
             "enable_param": "",
+            "disabled_value": None,
             "output_params": [],
         }
 
@@ -116,6 +154,22 @@ class DeadbandPlugin(PluginSpec):
                 "deadband": {"type": "number"},
                 "direction": {"type": "string", "enum": ["below", "above"]},
                 "enable_param": {"type": "string"},
+                "disabled_value": {
+                    "anyOf": [
+                        {"type": ["boolean", "null"]},
+                        {
+                            "type": "string",
+                            "enum": [
+                                "",
+                                "true",
+                                "false",
+                                "hold",
+                                "force_off",
+                                "force_on",
+                            ],
+                        },
+                    ]
+                },
                 "output_params": {"type": ["array", "string"]},
             },
             "required": ["pv", "sp"],

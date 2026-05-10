@@ -147,7 +147,7 @@
     "updated_at": "2026-04-19T15:00:27.613054+00:00"
   },
   "02": {
-    "active_tab": "custom-tab-m9vyyzj5",
+    "active_tab": "custom-tab-fo65jvll",
     "control_card_order": [],
     "fermenter_name": "Fermenter-Node-02",
     "tabs": [
@@ -209,7 +209,7 @@
             "id": "widget-z61pz5fe",
             "rows": 2,
             "type": "control-field:source%3ABrewtools:auto%3Abrewcan.pressure.0.calibrate",
-            "x": 9,
+            "x": 5,
             "y": 4
           },
           {
@@ -219,6 +219,14 @@
             "type": "data-snapshot",
             "x": 1,
             "y": 6
+          },
+          {
+            "cols": 4,
+            "id": "widget-b2pxd7zn",
+            "rows": 2,
+            "type": "control-field:manual%3Acustom-map:manual_set_allow_Gas",
+            "x": 9,
+            "y": 4
           }
         ]
       },
@@ -269,6 +277,6 @@
         ]
       }
     ],
-    "updated_at": "2026-04-19T18:39:07.322950+00:00"
+    "updated_at": "2026-05-10T16:08:29.694731+00:00"
   }
 }
