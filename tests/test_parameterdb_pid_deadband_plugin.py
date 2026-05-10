@@ -280,3 +280,21 @@ def test_deadband_disable_with_force_on_token_drives_true() -> None:
 
     assert param.state["enabled"] is False
     assert param.get_signal_value() is True
+
+
+def test_deadband_disable_with_force_off_token_drives_false() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=8.0))
+    store.add(StaticParameter("reactor.sp", value=10.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    # Mixed case and padding verify token normalization path.
+    param = _make_dbc(store, {"disabled_value": "  FoRcE_OfF  "})
+    param.scan(_ctx(store))
+    assert param.get_signal_value() is True
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store))
+
+    assert param.state["enabled"] is False
+    assert param.get_signal_value() is False
