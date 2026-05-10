@@ -169,7 +169,11 @@ function SourceModulePanel({ fermenterId, sourceType, sourceName, moduleSpec, dr
   function isItemSelected(item) {
     const config = draft?.config ?? {};
     const identityKeys = Array.isArray(resultSpec?.selected_identity_keys)
-      ? resultSpec.selected_identity_keys.filter((key) => typeof key === 'string' && key.trim())
+      ? [...new Set(
+        resultSpec.selected_identity_keys
+          .map((key) => (typeof key === 'string' ? key.trim() : ''))
+          .filter(Boolean),
+      )]
       : [];
     if (identityKeys.length > 0) {
       const pairs = identityKeys
