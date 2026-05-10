@@ -51,6 +51,10 @@ class PIDParameter(ParameterBase):
             enabled = bool(store.get_value(enable_param, True))
         self.state["enabled"] = enabled
         if not enabled:
+            disabled_value = cfg.get("disabled_value")
+            if disabled_value is not None and disabled_value != "":
+                self.value = float(disabled_value)
+            self.state.pop("last_error", None)
             return
 
         mode = "auto"

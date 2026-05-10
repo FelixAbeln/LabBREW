@@ -32,6 +32,7 @@ def get_ui_spec() -> dict:
                     "out_min": 0.0,
                     "out_max": 100.0,
                     "manual_out": 0.0,
+                    "disabled_value": None,
                 },
                 "metadata": {},
             },
@@ -164,6 +165,15 @@ def get_ui_spec() -> dict:
                                 "output parameter is wired."
                             ),
                         },
+                        {
+                            "key": "config.disabled_value",
+                            "label": "Disabled Output",
+                            "type": "float",
+                            "help": (
+                                "Optional output to drive when the controller "
+                                "is disabled. Leave blank to hold the last output."
+                            ),
+                        },
                     ],
                 },
             ],
@@ -257,6 +267,11 @@ def get_ui_spec() -> dict:
                         {
                             "key": "config.manual_out",
                             "label": "Manual Output",
+                            "type": "float",
+                        },
+                        {
+                            "key": "config.disabled_value",
+                            "label": "Disabled Output",
                             "type": "float",
                         },
                     ],

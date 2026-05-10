@@ -1,0 +1,109 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from Services.parameterDB.parameterdb_service.store import ParameterStore
+from Services.parameterDB.plugins.deadband.implementation import DeadbandPlugin
+from Services.parameterDB.plugins.pid.implementation import PIDPlugin
+from Services.parameterDB.plugins.static.implementation import StaticParameter
+
+
+def _ctx(store: ParameterStore, *, dt: float = 0.1):
+    return SimpleNamespace(store=store, dt=dt)
+
+
+def _make_pid(store, extra_config=None):
+    plugin = PIDPlugin()
+    cfg = {
+        "pv": "reactor.pv",
+        "sp": "reactor.sp",
+        "enable_param": "reactor.enable",
+        "kp": 2.0,
+    }
+    if extra_config:
+        cfg.update(extra_config)
+    return plugin.create("reactor.pid", config=cfg, value=0.0)
+
+
+def _make_dbc(store, extra_config=None):
+    plugin = DeadbandPlugin()
+    cfg = {
+        "pv": "reactor.pv",
+        "sp": "reactor.sp",
+        "enable_param": "reactor.enable",
+        "on_offset": 1.0,
+        "off_offset": 0.5,
+        "direction": "below",
+    }
+    if extra_config:
+        cfg.update(extra_config)
+    return plugin.create("reactor.dbc", config=cfg, value=False)
+
+
+def test_pid_disable_no_disabled_value_latches_output() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=10.0))
+    store.add(StaticParameter("reactor.sp", value=20.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_pid(store)
+    param.scan(_ctx(store, dt=1.0))
+    last_output = float(param.get_signal_value())
+    assert last_output == 20.0
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store, dt=1.0))
+
+    assert param.state["enabled"] is False
+    assert float(param.get_signal_value()) == last_output  # latched
+
+
+def test_pid_disable_with_disabled_value_drives_that_value() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=10.0))
+    store.add(StaticParameter("reactor.sp", value=20.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_pid(store, {"disabled_value": 0.0})
+    param.scan(_ctx(store, dt=1.0))
+    assert float(param.get_signal_value()) == 20.0
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store, dt=1.0))
+
+    assert param.state["enabled"] is False
+    assert float(param.get_signal_value()) == 0.0
+
+
+def test_deadband_disable_no_disabled_value_latches_output() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=8.0))
+    store.add(StaticParameter("reactor.sp", value=10.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_dbc(store)
+    param.scan(_ctx(store))
+    assert param.get_signal_value() is True  # pv below sp-on_offset → on
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store))
+
+    assert param.state["enabled"] is False
+    assert param.get_signal_value() is True  # latched at True
+
+
+def test_deadband_disable_with_disabled_value_drives_that_value() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=8.0))
+    store.add(StaticParameter("reactor.sp", value=10.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_dbc(store, {"disabled_value": False})
+    param.scan(_ctx(store))
+    assert param.get_signal_value() is True
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store))
+
+    assert param.state["enabled"] is False
+    assert param.get_signal_value() is False

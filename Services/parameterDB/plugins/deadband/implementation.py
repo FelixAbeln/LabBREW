@@ -42,6 +42,9 @@ class DeadbandParameter(ParameterBase):
             enabled = bool(store.get_value(enable_param, True))
         self.state["enabled"] = bool(enabled)
         if not enabled:
+            disabled_value = cfg.get("disabled_value")
+            if disabled_value is not None and disabled_value != "":
+                self.value = bool(disabled_value)
             self.state.pop("last_error", None)
             return
 
