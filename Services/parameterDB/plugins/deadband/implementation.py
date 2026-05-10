@@ -43,9 +43,32 @@ class DeadbandParameter(ParameterBase):
         self.state["enabled"] = bool(enabled)
         if not enabled:
             disabled_value = cfg.get("disabled_value")
+            if disabled_value is None:
+                self.state.pop("last_error", None)
+                return
+
             if isinstance(disabled_value, bool):
                 self.value = disabled_value
-            self.state.pop("last_error", None)
+                self.state.pop("last_error", None)
+                return
+
+            if isinstance(disabled_value, str):
+                token = disabled_value.strip().lower()
+                if token == "":
+                    self.state.pop("last_error", None)
+                    return
+                if token == "true":
+                    self.value = True
+                    self.state.pop("last_error", None)
+                    return
+                if token == "false":
+                    self.value = False
+                    self.state.pop("last_error", None)
+                    return
+
+            self.state["last_error"] = (
+                "deadband invalid 'disabled_value'; expected bool, 'true'/'false', or blank"
+            )
             return
 
         pv = float(store.get_value(pv_name, 0.0))

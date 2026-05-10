@@ -81,7 +81,7 @@ def test_pid_disable_with_invalid_disabled_value_keeps_latched() -> None:
     store.add(StaticParameter("reactor.sp", value=20.0))
     store.add(StaticParameter("reactor.enable", value=True))
 
-    param = _make_pid(store, {"disabled_value": "false"})
+    param = _make_pid(store, {"disabled_value": "banana"})
     param.scan(_ctx(store, dt=1.0))
     assert float(param.get_signal_value()) == 20.0
 
@@ -228,3 +228,21 @@ def test_deadband_disable_with_string_disabled_value_true_drives_true() -> None:
 
     assert param.state["enabled"] is False
     assert param.get_signal_value() is True
+
+
+def test_deadband_disable_with_invalid_string_disabled_value_latches() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=8.0))
+    store.add(StaticParameter("reactor.sp", value=10.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_dbc(store, {"disabled_value": "banana"})
+    param.scan(_ctx(store))
+    assert param.get_signal_value() is True
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store))
+
+    assert param.state["enabled"] is False
+    assert param.get_signal_value() is True
+    assert "disabled_value" in str(param.state.get("last_error", ""))

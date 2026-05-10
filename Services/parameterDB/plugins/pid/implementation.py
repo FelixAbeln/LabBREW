@@ -56,16 +56,26 @@ class PIDParameter(ParameterBase):
             if disabled_value is None:
                 self.state.pop("last_error", None)
                 return
-            if isinstance(disabled_value, str) and disabled_value.strip() == "":
-                self.state.pop("last_error", None)
-                return
+            if isinstance(disabled_value, str):
+                token = disabled_value.strip().lower()
+                if token == "":
+                    self.state.pop("last_error", None)
+                    return
+                if token == "false":
+                    self.value = 0.0
+                    self.state.pop("last_error", None)
+                    return
+                if token == "true":
+                    self.value = 1.0
+                    self.state.pop("last_error", None)
+                    return
 
             try:
                 self.value = float(disabled_value)
                 self.state.pop("last_error", None)
             except (TypeError, ValueError):
                 self.state["last_error"] = (
-                    "pid invalid 'disabled_value'; expected number or blank"
+                    "pid invalid 'disabled_value'; expected number, 'true'/'false', or blank"
                 )
             return
 
@@ -170,7 +180,7 @@ class PIDPlugin(PluginSpec):
                     "anyOf": [
                         {"type": "number"},
                         {"type": "null"},
-                        {"type": "string", "const": ""},
+                        {"type": "string", "enum": ["", "true", "false"]},
                     ]
                 },
                 "output_params": {"type": ["array", "string"]},
