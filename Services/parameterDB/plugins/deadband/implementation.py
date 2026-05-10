@@ -123,7 +123,12 @@ class DeadbandPlugin(PluginSpec):
                 "deadband": {"type": "number"},
                 "direction": {"type": "string", "enum": ["below", "above"]},
                 "enable_param": {"type": "string"},
-                "disabled_value": {"type": ["boolean", "null"]},
+                "disabled_value": {
+                    "anyOf": [
+                        {"type": ["boolean", "null"]},
+                        {"type": "string", "enum": ["true", "false", ""]},
+                    ]
+                },
                 "output_params": {"type": ["array", "string"]},
             },
             "required": ["pv", "sp"],
