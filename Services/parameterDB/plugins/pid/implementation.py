@@ -52,9 +52,21 @@ class PIDParameter(ParameterBase):
         self.state["enabled"] = enabled
         if not enabled:
             disabled_value = cfg.get("disabled_value")
-            if disabled_value is not None and disabled_value != "":
+            # Blank/null means "hold last output" while disabled.
+            if disabled_value is None:
+                self.state.pop("last_error", None)
+                return
+            if isinstance(disabled_value, str) and disabled_value.strip() == "":
+                self.state.pop("last_error", None)
+                return
+
+            try:
                 self.value = float(disabled_value)
-            self.state.pop("last_error", None)
+                self.state.pop("last_error", None)
+            except (TypeError, ValueError):
+                self.state["last_error"] = (
+                    "pid invalid 'disabled_value'; expected number or blank"
+                )
             return
 
         mode = "auto"

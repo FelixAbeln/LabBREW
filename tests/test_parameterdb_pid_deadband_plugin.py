@@ -75,6 +75,24 @@ def test_pid_disable_with_disabled_value_drives_that_value() -> None:
     assert float(param.get_signal_value()) == 0.0
 
 
+def test_pid_disable_with_invalid_disabled_value_keeps_latched() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=10.0))
+    store.add(StaticParameter("reactor.sp", value=20.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_pid(store, {"disabled_value": "false"})
+    param.scan(_ctx(store, dt=1.0))
+    assert float(param.get_signal_value()) == 20.0
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store, dt=1.0))
+
+    assert param.state["enabled"] is False
+    assert float(param.get_signal_value()) == 20.0
+    assert "disabled_value" in str(param.state.get("last_error", ""))
+
+
 def test_deadband_disable_no_disabled_value_latches_output() -> None:
     store = ParameterStore()
     store.add(StaticParameter("reactor.pv", value=8.0))
