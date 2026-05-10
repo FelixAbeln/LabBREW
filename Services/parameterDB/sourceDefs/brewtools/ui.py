@@ -287,7 +287,9 @@ def get_ui_spec(record: dict | None = None, mode: str | None = None) -> dict:
         "display_name": "Brewtools CAN",
         "description": (
             "Receives Brewtools CAN measurements over Kvaser or a PCAN UDP gateway "
-            "and mirrors them into parameters, with optional agitator PWM commands and density polling."
+            "and mirrors them into parameters, with optional agitator PWM commands and density polling. "
+            "Advanced PCAN handshake controls are intentionally hidden from the standard form and "
+            "can be enabled only via out-of-band config editing (config.gateway_dev_options=true)."
         ),
         "module": {
             "id": "brewtoolsCanDiscovery",
