@@ -43,11 +43,8 @@ class DeadbandParameter(ParameterBase):
         self.state["enabled"] = bool(enabled)
         if not enabled:
             disabled_value = cfg.get("disabled_value")
-            if disabled_value is not None and disabled_value != "":
-                if isinstance(disabled_value, str):
-                    self.value = disabled_value.strip().lower() not in ("false", "0", "")
-                else:
-                    self.value = bool(disabled_value)
+            if isinstance(disabled_value, bool):
+                self.value = disabled_value
             self.state.pop("last_error", None)
             return
 
@@ -123,7 +120,12 @@ class DeadbandPlugin(PluginSpec):
                 "deadband": {"type": "number"},
                 "direction": {"type": "string", "enum": ["below", "above"]},
                 "enable_param": {"type": "string"},
-                "disabled_value": {"type": ["boolean", "null"]},
+                "disabled_value": {
+                    "anyOf": [
+                        {"type": ["boolean", "null"]},
+                        {"type": "string", "enum": ["true", "false", ""]},
+                    ]
+                },
                 "output_params": {"type": ["array", "string"]},
             },
             "required": ["pv", "sp"],
