@@ -201,7 +201,7 @@ def get_ui_spec() -> dict:
                             "key": "config.disabled_value",
                             "label": "Disabled Output",
                             "type": "enum",
-                            "options": ["hold", "force_off", "force_on"],
+                            "options": ["", "false", "true"],
                             "option_labels": ["Hold last output", "Force Off", "Force On"],
                         },
                     ],
