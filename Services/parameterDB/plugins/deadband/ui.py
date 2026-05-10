@@ -124,9 +124,10 @@ def get_ui_spec() -> dict:
                             "options": ["", "hold", "force_off", "force_on"],
                             "help": (
                                 "Output behavior when the controller is disabled. "
-                                "Choose 'Hold last output' to keep the previous "
-                                "output unchanged, 'Force Off' to drive the output "
-                                "off, or 'Force On' to drive the output on."
+                                "Use '' for the default disabled behavior, "
+                                "'hold' to keep the previous output unchanged, "
+                                "'force_off' to drive the output off, or "
+                                "'force_on' to drive the output on."
                             ),
                         },
                     ],
