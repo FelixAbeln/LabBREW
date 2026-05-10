@@ -42,8 +42,6 @@ FD_LEN_TO_DLC = {
 }
 DLC_TO_FD_LEN = {v: k for k, v in FD_LEN_TO_DLC.items()}
 
-DEFAULT_ROUTE_AUTH_TOKEN = "F908DB674DB61329D710E4F9248160634C87C75FFBC4CD855C23A25EE6E4DB8F"
-
 
 def _local_ipv4_addresses() -> list[str]:
     hosts: list[str] = []
@@ -230,10 +228,9 @@ def discover_peak_gateways(
                 sub_parts = [f"CAN {channel}", device_label]
                 if sn_text:
                     sub_parts.append(sn_text)
-                sub_parts.append(f"UDP {tx_port}/{rx_port}")
                 candidates.append(
                     TransportDiscoveryCandidate(
-                        title=f"pcan:{host}:can{channel}",
+                        title=f"{host} · CAN {channel}",
                         subtitle=" · ".join(sub_parts),
                         source="pcan_gateway_udp",
                         transport="pcan_gateway_udp",
@@ -251,8 +248,8 @@ def discover_peak_gateways(
 
         return [
             TransportDiscoveryCandidate(
-                title=f"pcan:{host}",
-                subtitle=f"UDP {tx_port}/{rx_port}",
+                title=host,
+                subtitle="Identity probe failed",
                 source="pcan_gateway_udp",
                 transport="pcan_gateway_udp",
                 gateway_host=host,
@@ -413,7 +410,7 @@ class PeakGatewayUdpTransport(CanTransport):
         control_enabled: bool = True,
         route_name: str = "rt2",
         route_state: str = "0x88000002",
-        auth_token: str = DEFAULT_ROUTE_AUTH_TOKEN,
+        auth_token: str = "",
         auth_id: str = "(c) PEAK-System",
         send_fw_dev_probes: bool = True,
         control_tick_s: float = 1.0,
@@ -421,7 +418,7 @@ class PeakGatewayUdpTransport(CanTransport):
         rx_control_enabled: bool = True,
         rx_route_name: str = "rt1",
         rx_route_state: str = "0x08000002",
-        rx_auth_token: str = "99D5D2B95B487D70F31CB7F8A34D61624C87C75FFBC4CD855C23A25EE6E4DB8F",
+        rx_auth_token: str = "",
         rx_auth_id: str = "(c) PEAK-System",
         rx_update_state: str = "0xc000002",
         rx_send_fw_dev_probes: bool = True,
@@ -619,7 +616,11 @@ class PeakGatewayUdpTransport(CanTransport):
             except Exception:
                 auth_status = -1
             if auth_status != 0:
-                raise RuntimeError(f"PCAN route auth rejected: status={auth_status_txt}")
+                errno = self._extract_attr(auth_cnf, "errno") or "?"
+                errmsg = self._extract_attr(auth_cnf, "errmsg") or "auth rejected"
+                raise RuntimeError(
+                    f"PCAN route auth rejected: status={auth_status_txt} errno={errno} errmsg={errmsg}"
+                )
 
         self._ctrl_send(self._build_route_update_req())
         if self.send_fw_dev_probes:

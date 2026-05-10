@@ -95,21 +95,67 @@ def test_brewtools_ui_transport_fields_are_adaptive() -> None:
     assert gateway_host.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
     assert gateway_tx.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
     assert gateway_rx.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_control.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_control_enabled.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_route_name.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_route_state.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_auth_token.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_auth_id.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_send_fw_dev.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_control_tick.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_control_timeout.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_rx_control_enabled.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_rx_route_name.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_rx_route_state.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_rx_auth_token.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_rx_update_state.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
-    assert gateway_bind.get("visible_when") == {"config.transport": "pcan_gateway_udp"}
+    assert gateway_control.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_control_enabled.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert not any(field.get("key") == "config.gateway_dev_options" for field in fields)
+    assert gateway_route_name.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_route_state.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_auth_token.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_auth_id.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_send_fw_dev.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_control_tick.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_control_timeout.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_rx_control_enabled.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_rx_route_name.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_rx_route_state.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_rx_auth_token.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_rx_update_state.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
+    assert gateway_bind.get("visible_when") == {
+        "config.transport": "pcan_gateway_udp",
+        "config.gateway_dev_options": "true",
+    }
 
 
 def test_brewtools_default_config_exposes_both_transport_families() -> None:
@@ -122,9 +168,10 @@ def test_brewtools_default_config_exposes_both_transport_families() -> None:
     assert config["gateway_rx_port"] == 55001
     assert config["gateway_control_port"] == 45321
     assert config["gateway_control_enabled"] is True
+    assert config["gateway_dev_options"] is False
     assert config["gateway_route_name"] == "rt2"
     assert config["gateway_route_state"] == "0x88000002"
-    assert config["gateway_auth_token"]
+    assert config["gateway_auth_token"] == ""
     assert config["gateway_auth_id"] == "(c) PEAK-System"
     assert config["gateway_send_fw_dev_probes"] is True
     assert config["gateway_control_tick_s"] == 1.0
@@ -132,7 +179,7 @@ def test_brewtools_default_config_exposes_both_transport_families() -> None:
     assert config["gateway_rx_control_enabled"] is True
     assert config["gateway_rx_route_name"] == "rt1"
     assert config["gateway_rx_route_state"] == "0x08000002"
-    assert config["gateway_rx_auth_token"]
+    assert config["gateway_rx_auth_token"] == ""
     assert config["gateway_rx_auth_id"] == "(c) PEAK-System"
     assert config["gateway_rx_update_state"] == "0xc000002"
 
@@ -221,16 +268,20 @@ def test_brewtools_ui_module_scan_metadata() -> None:
     assert run.get("mode") == "auto"
     assert run.get("cancel_inflight_on_cleanup") is True
     assert action.get("action") == "scan_channels"
-    assert apply_map.get("gateway_control_port") == "gateway_control_port"
-    assert apply_map.get("gateway_control_enabled") == "gateway_control_enabled"
-    assert apply_map.get("gateway_route_name") == "gateway_route_name"
-    assert apply_map.get("gateway_route_state") == "gateway_route_state"
-    assert apply_map.get("gateway_auth_token") == "gateway_auth_token"
-    assert apply_map.get("gateway_rx_control_enabled") == "gateway_rx_control_enabled"
-    assert apply_map.get("gateway_rx_route_name") == "gateway_rx_route_name"
-    assert apply_map.get("gateway_rx_route_state") == "gateway_rx_route_state"
-    assert apply_map.get("gateway_rx_auth_token") == "gateway_rx_auth_token"
-    assert apply_map.get("gateway_rx_update_state") == "gateway_rx_update_state"
+    assert result.get("selected_identity_keys") == ["transport", "gateway_host", "interface", "channel"]
+    assert apply_map.get("gateway_host") == "gateway_host"
+    assert "gateway_tx_port" not in apply_map
+    assert "gateway_rx_port" not in apply_map
+    assert "gateway_control_port" not in apply_map
+    assert "gateway_control_enabled" not in apply_map
+    assert "gateway_route_name" not in apply_map
+    assert "gateway_route_state" not in apply_map
+    assert "gateway_auth_token" not in apply_map
+    assert "gateway_rx_control_enabled" not in apply_map
+    assert "gateway_rx_route_name" not in apply_map
+    assert "gateway_rx_route_state" not in apply_map
+    assert "gateway_rx_auth_token" not in apply_map
+    assert "gateway_rx_update_state" not in apply_map
 
 
 def test_brewtools_run_ui_action_scans_kvaser_and_peak(monkeypatch) -> None:
@@ -286,7 +337,7 @@ def test_brewtools_run_ui_action_filters_unreachable_peak_candidates(monkeypatch
 def test_transport_discovery_candidate_as_dict_preserves_extra_fields() -> None:
     candidate = TransportDiscoveryCandidate(
         title="pcan:192.168.5.31",
-        subtitle="CAN 0 · PCAN-Ethernet Gateway DR · SN:26869 · UDP 55002/55001",
+        subtitle="CAN 0 · PCAN-Ethernet Gateway DR · SN:26869",
         source="pcan_gateway_udp",
         transport="pcan_gateway_udp",
         gateway_host="192.168.5.31",
@@ -330,8 +381,12 @@ def test_discover_peak_gateways_emits_one_candidate_per_can_bus(monkeypatch) -> 
 
     assert error == ""
     assert [item.title for item in result] == [
-        "pcan:192.168.5.36:can0",
-        "pcan:192.168.5.36:can1",
+        "192.168.5.36 · CAN 0",
+        "192.168.5.36 · CAN 1",
+    ]
+    assert [item.subtitle for item in result] == [
+        "CAN 0 · PCAN-Ethernet Gateway DR · SN:26869",
+        "CAN 1 · PCAN-Ethernet Gateway DR · SN:26869",
     ]
     assert [item.channel for item in result] == [0, 1]
     assert all(item.gateway_host == "192.168.5.36" for item in result)
