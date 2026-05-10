@@ -24,7 +24,7 @@ def get_ui_spec() -> dict:
                     "off_offset": 1.0,
                     "direction": "below",
                     "enable_param": "",
-                    "disabled_value": "false",
+                    "disabled_value": "hold",
                 },
                 "metadata": {},
             },
@@ -122,6 +122,7 @@ def get_ui_spec() -> dict:
                             "label": "Disabled Output",
                             "type": "enum",
                             "options": ["hold", "force_off", "force_on"],
+                            "option_labels": ["Hold last output", "Force Off", "Force On"],
                             "help": (
                                 "Output behavior when the controller is disabled. "
                                 "Use 'hold' to keep the previous output unchanged, "

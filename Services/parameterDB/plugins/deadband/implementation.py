@@ -57,6 +57,9 @@ class DeadbandParameter(ParameterBase):
                 if token == "":
                     self.state.pop("last_error", None)
                     return
+                if token == "hold":
+                    self.state.pop("last_error", None)
+                    return
                 if token == "true":
                     self.value = True
                     self.state.pop("last_error", None)
@@ -65,9 +68,17 @@ class DeadbandParameter(ParameterBase):
                     self.value = False
                     self.state.pop("last_error", None)
                     return
+                if token == "force_on":
+                    self.value = True
+                    self.state.pop("last_error", None)
+                    return
+                if token == "force_off":
+                    self.value = False
+                    self.state.pop("last_error", None)
+                    return
 
             self.state["last_error"] = (
-                "deadband invalid 'disabled_value'; expected bool, 'true'/'false', or blank"
+                "deadband invalid 'disabled_value'; expected bool, hold/force token, 'true'/'false', or blank"
             )
             return
 
@@ -146,7 +157,17 @@ class DeadbandPlugin(PluginSpec):
                 "disabled_value": {
                     "anyOf": [
                         {"type": ["boolean", "null"]},
-                        {"type": "string", "enum": ["true", "false", ""]},
+                        {
+                            "type": "string",
+                            "enum": [
+                                "",
+                                "true",
+                                "false",
+                                "hold",
+                                "force_off",
+                                "force_on",
+                            ],
+                        },
                     ]
                 },
                 "output_params": {"type": ["array", "string"]},

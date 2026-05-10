@@ -215,13 +215,13 @@ def test_deadband_disable_with_string_disabled_value_false_drives_false() -> Non
 
 def test_deadband_disable_with_string_disabled_value_true_drives_true() -> None:
     store = ParameterStore()
-    store.add(StaticParameter("reactor.pv", value=8.0))
+    store.add(StaticParameter("reactor.pv", value=12.0))
     store.add(StaticParameter("reactor.sp", value=10.0))
     store.add(StaticParameter("reactor.enable", value=True))
 
     param = _make_dbc(store, {"disabled_value": "true"})
     param.scan(_ctx(store))
-    assert param.get_signal_value() is True
+    assert param.get_signal_value() is False
 
     store.set_value("reactor.enable", False)
     param.scan(_ctx(store))
@@ -246,3 +246,37 @@ def test_deadband_disable_with_invalid_string_disabled_value_latches() -> None:
     assert param.state["enabled"] is False
     assert param.get_signal_value() is True
     assert "disabled_value" in str(param.state.get("last_error", ""))
+
+
+def test_deadband_disable_with_hold_token_latches_output() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=8.0))
+    store.add(StaticParameter("reactor.sp", value=10.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_dbc(store, {"disabled_value": "hold"})
+    param.scan(_ctx(store))
+    assert param.get_signal_value() is True
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store))
+
+    assert param.state["enabled"] is False
+    assert param.get_signal_value() is True
+
+
+def test_deadband_disable_with_force_on_token_drives_true() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("reactor.pv", value=12.0))
+    store.add(StaticParameter("reactor.sp", value=10.0))
+    store.add(StaticParameter("reactor.enable", value=True))
+
+    param = _make_dbc(store, {"disabled_value": "force_on"})
+    param.scan(_ctx(store))
+    assert param.get_signal_value() is False
+
+    store.set_value("reactor.enable", False)
+    param.scan(_ctx(store))
+
+    assert param.state["enabled"] is False
+    assert param.get_signal_value() is True
