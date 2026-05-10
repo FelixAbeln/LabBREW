@@ -249,7 +249,7 @@ def discover_peak_gateways(
         return [
             TransportDiscoveryCandidate(
                 title=host,
-                subtitle="Gateway detected; identity probe failed",
+                subtitle="Identity probe failed",
                 source="pcan_gateway_udp",
                 transport="pcan_gateway_udp",
                 gateway_host=host,
