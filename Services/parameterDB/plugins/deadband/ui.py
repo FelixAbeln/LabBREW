@@ -120,10 +120,16 @@ def get_ui_spec() -> dict:
                         {
                             "key": "config.disabled_value",
                             "label": "Disabled Output",
-                            "type": "bool",
+                            "type": "enum",
+                            "options": [None, False, True],
+                            "option_labels": [
+                                "Hold last output",
+                                "Force Off",
+                                "Force On",
+                            ],
                             "help": (
-                                "Optional output to drive when the controller "
-                                "is disabled. Leave blank to hold the last output."
+                                "Output to drive when the controller is disabled. "
+                                "Select 'Hold last output' to keep the previous output unchanged."
                             ),
                         },
                     ],
@@ -196,7 +202,9 @@ def get_ui_spec() -> dict:
                         {
                             "key": "config.disabled_value",
                             "label": "Disabled Output",
-                            "type": "bool",
+                            "type": "enum",
+                            "options": [None, False, True],
+                            "option_labels": ["Hold last output", "Force Off", "Force On"],
                         },
                     ],
                 },
