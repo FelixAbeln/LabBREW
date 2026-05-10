@@ -201,7 +201,6 @@ def get_ui_spec() -> dict:
                             "label": "Disabled Output",
                             "type": "enum",
                             "options": ["", "hold", "force_off", "force_on"],
-                            "option_labels": ["Default", "Hold last output", "Force Off", "Force On"],
                         },
                     ],
                 },
