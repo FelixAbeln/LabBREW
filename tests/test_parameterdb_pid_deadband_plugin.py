@@ -175,7 +175,7 @@ def test_deadband_disable_with_disabled_value_drives_that_value() -> None:
     assert param.get_signal_value() is False
 
 
-def test_pid_disable_with_string_disabled_value_hold_latches_output() -> None:
+def test_pid_disable_with_string_disabled_value_blank_latches_output() -> None:
     store = ParameterStore()
     store.add(StaticParameter("reactor.pv", value=10.0))
     store.add(StaticParameter("reactor.sp", value=20.0))
@@ -227,7 +227,7 @@ def test_pid_disable_with_string_disabled_value_true_drives_one() -> None:
     assert float(param.get_signal_value()) == 1.0
 
 
-def test_deadband_disable_with_string_disabled_value_hold_latches_output() -> None:
+def test_deadband_disable_with_string_disabled_value_blank_latches_output() -> None:
     store = ParameterStore()
     store.add(StaticParameter("reactor.pv", value=8.0))
     store.add(StaticParameter("reactor.sp", value=10.0))
