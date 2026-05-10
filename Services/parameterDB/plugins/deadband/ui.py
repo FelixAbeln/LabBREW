@@ -24,7 +24,7 @@ def get_ui_spec() -> dict:
                     "off_offset": 1.0,
                     "direction": "below",
                     "enable_param": "",
-                    "disabled_value": "hold",
+                    "disabled_value": "",
                 },
                 "metadata": {},
             },
