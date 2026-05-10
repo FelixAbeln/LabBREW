@@ -167,11 +167,22 @@ function SourceModulePanel({ fermenterId, sourceType, sourceName, moduleSpec, dr
   }
 
   function isItemSelected(item) {
+    const config = draft?.config ?? {};
+    const identityKeys = Array.isArray(resultSpec?.selected_identity_keys)
+      ? resultSpec.selected_identity_keys.filter((key) => typeof key === 'string' && key.trim())
+      : [];
+    if (identityKeys.length > 0) {
+      const pairs = identityKeys
+        .map((key) => [key, key])
+        .filter(([, itemKey]) => item?.[itemKey] !== undefined && item?.[itemKey] !== '');
+      if (!pairs.length) return false;
+      return pairs.every(([configKey, itemKey]) => valuesMatch(config?.[configKey], item?.[itemKey]));
+    }
+
     const applyMap = resultSpec?.apply_map;
     if (!applyMap || typeof applyMap !== 'object') return false;
     const pairs = Object.entries(applyMap).filter(([, itemKey]) => typeof itemKey === 'string');
     if (!pairs.length) return false;
-    const config = draft?.config ?? {};
     return pairs.every(([configKey, itemKey]) => valuesMatch(config?.[configKey], item?.[itemKey]));
   }
 

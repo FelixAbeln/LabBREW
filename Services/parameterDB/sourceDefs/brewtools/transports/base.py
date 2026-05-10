@@ -34,7 +34,7 @@ class TransportDiscoveryCandidate:
     gateway_control_enabled: bool = True
     gateway_route_name: str = "rt2"
     gateway_route_state: str = "0x88000002"
-    gateway_auth_token: str = "F908DB674DB61329D710E4F9248160634C87C75FFBC4CD855C23A25EE6E4DB8F"
+    gateway_auth_token: str = ""
     gateway_auth_id: str = "(c) PEAK-System"
     gateway_send_fw_dev_probes: bool = True
     gateway_control_tick_s: float = 1.0
@@ -42,7 +42,7 @@ class TransportDiscoveryCandidate:
     gateway_rx_control_enabled: bool = True
     gateway_rx_route_name: str = "rt1"
     gateway_rx_route_state: str = "0x08000002"
-    gateway_rx_auth_token: str = "99D5D2B95B487D70F31CB7F8A34D61624C87C75FFBC4CD855C23A25EE6E4DB8F"
+    gateway_rx_auth_token: str = ""
     gateway_rx_auth_id: str = "(c) PEAK-System"
     gateway_rx_update_state: str = "0xc000002"
     gateway_bind_host: str = "0.0.0.0"
