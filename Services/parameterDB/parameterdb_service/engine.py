@@ -755,10 +755,10 @@ class ScanEngine:
 
             missing_dependencies, invalid_dependencies, stale_dependencies = self._dependency_status(name)
             # Plugins opting in here are intentionally allowed to evaluate even when
-            # an upstream dependency is invalid or stale. Those plugins own the
-            # resulting validity semantics for their output.
+            # an upstream dependency is missing, invalid, or stale. Those plugins own
+            # the resulting validity semantics for their output.
             allow_invalid_dependencies = param.allow_invalid_dependencies()
-            if missing_dependencies or (invalid_dependencies and not allow_invalid_dependencies):
+            if (missing_dependencies or invalid_dependencies) and not allow_invalid_dependencies:
                 self._clear_database_pipeline_state(param)
                 dependency_failures = list(
                     dict.fromkeys([*missing_dependencies, *invalid_dependencies])
