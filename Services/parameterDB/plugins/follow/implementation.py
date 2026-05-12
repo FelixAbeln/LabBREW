@@ -13,6 +13,21 @@ class FollowParameter(ParameterBase):
     def _source_name(self) -> str:
         return str(self.config.get("source") or "").strip()
 
+    def _latch_on_invalid(self) -> bool:
+        raw = self.config.get("latch_on_invalid", True)
+        if isinstance(raw, bool):
+            return raw
+        if raw is None:
+            return True
+        if isinstance(raw, (int, float)):
+            return raw != 0
+        token = str(raw).strip().lower()
+        if token in {"", "1", "true", "on", "yes", "enabled"}:
+            return True
+        if token in {"0", "false", "off", "no", "disabled"}:
+            return False
+        return True
+
     def dependencies(self) -> list[str]:
         source_name = self._source_name()
         return [source_name] if source_name else []
@@ -36,7 +51,7 @@ class FollowParameter(ParameterBase):
         source_value = source_param.get_value()
         source_invalid = source_param.state.get("parameter_valid") is False
         source_reasons = list(source_param.state.get("parameter_invalid_reasons") or [])
-        latch_on_invalid = bool(self.config.get("latch_on_invalid", True))
+        latch_on_invalid = self._latch_on_invalid()
 
         if source_invalid:
             self.state["source"] = source_name

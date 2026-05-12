@@ -98,6 +98,52 @@ def test_follow_plugin_can_pass_through_invalid_source_when_latch_disabled() -> 
     assert param.state["latched"] is False
 
 
+def test_follow_plugin_string_false_disables_latching() -> None:
+    store = ParameterStore()
+    source = StaticParameter("source", value=1.111)
+    store.add(source)
+
+    plugin = FollowPlugin()
+    param = plugin.create(
+        "density.latched",
+        config={"source": "source", "latch_on_invalid": "false"},
+        value=0.0,
+    )
+
+    param.scan(_ctx(store))
+    source.set_value(0.0)
+    source.state["parameter_valid"] = False
+    source.state["parameter_invalid_reasons"] = ["plausibility"]
+
+    param.scan(_ctx(store))
+
+    assert float(param.get_signal_value()) == 0.0
+    assert param.state["latched"] is False
+
+
+def test_follow_plugin_string_true_enables_latching() -> None:
+    store = ParameterStore()
+    source = StaticParameter("source", value=1.111)
+    store.add(source)
+
+    plugin = FollowPlugin()
+    param = plugin.create(
+        "density.latched",
+        config={"source": "source", "latch_on_invalid": "true"},
+        value=0.0,
+    )
+
+    param.scan(_ctx(store))
+    source.set_value(0.0)
+    source.state["parameter_valid"] = False
+    source.state["parameter_invalid_reasons"] = ["plausibility"]
+
+    param.scan(_ctx(store))
+
+    assert float(param.get_signal_value()) == 1.111
+    assert param.state["latched"] is True
+
+
 def test_follow_plugin_dependencies_include_source() -> None:
     plugin = FollowPlugin()
     param = plugin.create("density.latched", config={"source": "brewcan.density.0"})
