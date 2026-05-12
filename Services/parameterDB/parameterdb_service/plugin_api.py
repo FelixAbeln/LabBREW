@@ -108,7 +108,9 @@ class ParameterBase(ABC):
         return []
 
     def allow_invalid_dependencies(self) -> bool:
-        """Whether scan() should still run when dependencies exist but are invalid."""
+        """Whether scan() should still run when dependencies exist but are
+        invalid, stale, or otherwise unavailable to the engine's normal
+        dependency-validity checks."""
         return False
 
     def write_targets(self) -> list[str]:
