@@ -108,7 +108,8 @@ class ParameterBase(ABC):
         return []
 
     def allow_invalid_dependencies(self) -> bool:
-        """Whether scan() should still run when dependencies exist but are invalid.
+        """Whether scan() should still run when dependencies are invalid, stale,
+        or otherwise blocked by normal dependency gating.
 
         Opting in also bypasses dependency-stale gating in the engine and other
         normal dependency-validity checks. Plugins that return True are responsible
