@@ -234,9 +234,9 @@ class BrewtoolsSource(DataSourceBase):
             secondary_node_id=int(node_id),
             msg_type=MsgType.MSG_TYPE_START_MEASUREMENT_CMD,
         )
-        # Per Brewtools docs: "the data in the message can be left empty".
-        # Only the subindex byte is sent (raw=b"" → 1 byte total: 0x00).
-        frame = CanFrame(can_id=can_id, body=RawBody(subindex=0, raw=b""))
+        # Firmware command style matches subindex + u32 value (big-endian).
+        # Use value=1 as the start trigger.
+        frame = CanFrame(can_id=can_id, body=RawBody(subindex=0, raw=(1).to_bytes(4, "big")))
         arb_id, data = frame.to_can()
         return self._build_raw_frame(arb_id, data)
 
