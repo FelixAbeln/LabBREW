@@ -28,14 +28,15 @@ class FollowParameter(ParameterBase):
             return
 
         try:
-            source_param = store._get_runtime_param(source_name)
+            source_record = store.get_record(source_name)
+            source_value = store.get_value(source_name)
         except KeyError:
             self.state["last_error"] = f"missing source parameter '{source_name}'"
             return
 
-        source_value = source_param.get_value()
-        source_invalid = source_param.state.get("parameter_valid") is False
-        source_reasons = list(source_param.state.get("parameter_invalid_reasons") or [])
+        source_state = dict(source_record.get("state") or {})
+        source_invalid = source_state.get("parameter_valid") is False
+        source_reasons = list(source_state.get("parameter_invalid_reasons") or [])
         latch_on_invalid = bool(self.config.get("latch_on_invalid", True))
 
         if source_invalid:
