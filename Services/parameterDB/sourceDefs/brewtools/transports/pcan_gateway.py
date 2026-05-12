@@ -701,8 +701,9 @@ class PeakGatewayUdpTransport(CanTransport):
             return
         try:
             self._ctrl_send(self._build_route_update_req())
-            self._ctrl_send(b'<CAN_INFO_REQ can="can0">')
-            _ = self._ctrl_recv_until("CAN_INFO_CNF")
+            # ROUTE_UPDATE_REQ is sufficient to maintain the route; CAN_INFO_REQ/CNF
+            # is not required and its blocking recv previously caused ~5s dead periods
+            # when the gateway was slow to reply.
         except Exception as exc:
             if self._ctrl_sock is not None:
                 try:
