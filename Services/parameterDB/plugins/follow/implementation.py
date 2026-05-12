@@ -10,16 +10,19 @@ class FollowParameter(ParameterBase):
     display_name = "Follow"
     description = "Mirrors a source parameter and can hold the last good value when the source becomes invalid."
 
+    def _source_name(self) -> str:
+        return str(self.config.get("source") or "").strip()
+
     def dependencies(self) -> list[str]:
-        source = self.config.get("source")
-        return [str(source)] if source else []
+        source_name = self._source_name()
+        return [source_name] if source_name else []
 
     def allow_invalid_dependencies(self) -> bool:
         return True
 
     def scan(self, ctx) -> None:
         store = ctx.store
-        source_name = str(self.config.get("source") or "").strip()
+        source_name = self._source_name()
         if not source_name:
             self.state["last_error"] = "follow requires 'source'"
             return

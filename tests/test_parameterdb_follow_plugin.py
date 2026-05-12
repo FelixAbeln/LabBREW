@@ -3,7 +3,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from Services.parameterDB.parameterdb_service.engine import ScanEngine
-from Services.parameterDB.parameterdb_service.engine import ScanEngine
 from Services.parameterDB.parameterdb_service.store import ParameterStore
 from Services.parameterDB.plugins.follow.implementation import FollowPlugin
 from Services.parameterDB.plugins.static.implementation import StaticParameter
@@ -106,6 +105,13 @@ def test_follow_plugin_dependencies_include_source() -> None:
     assert param.dependencies() == ["brewcan.density.0"]
 
 
+def test_follow_plugin_dependencies_strip_source_name() -> None:
+    plugin = FollowPlugin()
+    param = plugin.create("density.latched", config={"source": "  brewcan.density.0  "})
+
+    assert param.dependencies() == ["brewcan.density.0"]
+
+
 def test_follow_plugin_updates_scan_graph_dependency_order() -> None:
     store = ParameterStore()
     store.add(StaticParameter("brewcan.density.0", value=1.05))
@@ -125,6 +131,24 @@ def test_follow_plugin_updates_scan_graph_dependency_order() -> None:
     assert graph["scan_order"].index("brewcan.density.0") < graph["scan_order"].index(
         "brewcan.density.0.latched"
     )
+
+
+def test_follow_plugin_graph_uses_stripped_source_name() -> None:
+    store = ParameterStore()
+    store.add(StaticParameter("brewcan.density.0", value=1.05))
+
+    plugin = FollowPlugin()
+    follower = plugin.create(
+        "brewcan.density.0.latched",
+        config={"source": "  brewcan.density.0  "},
+        value=0.0,
+    )
+    store.add(follower)
+
+    engine = ScanEngine(period_s=0.01, store=store)
+    graph = engine.graph_info()
+
+    assert graph["dependencies"]["brewcan.density.0.latched"] == ["brewcan.density.0"]
 
 
 def test_follow_plugin_default_config_and_schema_contract() -> None:
