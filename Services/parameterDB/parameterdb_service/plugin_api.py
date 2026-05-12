@@ -107,6 +107,10 @@ class ParameterBase(ABC):
         """Parameters this object reads from during scan()."""
         return []
 
+    def allow_invalid_dependencies(self) -> bool:
+        """Whether scan() should still run when dependencies exist but are invalid."""
+        return False
+
     def write_targets(self) -> list[str]:
         """Parameters this object may write to during scan()."""
         return []

@@ -14,6 +14,9 @@ class FollowParameter(ParameterBase):
         source = self.config.get("source")
         return [str(source)] if source else []
 
+    def allow_invalid_dependencies(self) -> bool:
+        return True
+
     def scan(self, ctx) -> None:
         store = ctx.store
         source_name = str(self.config.get("source") or "").strip()

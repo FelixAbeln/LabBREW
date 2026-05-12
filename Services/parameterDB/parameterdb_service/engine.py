@@ -754,7 +754,8 @@ class ScanEngine:
                 param.state.pop("parameter_invalid_reasons", None)
 
             missing_dependencies, invalid_dependencies, stale_dependencies = self._dependency_status(name)
-            if missing_dependencies or invalid_dependencies:
+            allow_invalid_dependencies = param.allow_invalid_dependencies()
+            if missing_dependencies or (invalid_dependencies and not allow_invalid_dependencies):
                 self._clear_database_pipeline_state(param)
                 dependency_failures = list(
                     dict.fromkeys([*missing_dependencies, *invalid_dependencies])
@@ -772,7 +773,7 @@ class ScanEngine:
                 self.store.publish_scan_state(param.name, dict(param.state))
                 continue
 
-            if stale_dependencies:
+            if stale_dependencies and not allow_invalid_dependencies:
                 self._clear_database_pipeline_state(param)
                 param.state["parameter_valid"] = False
                 param.state["parameter_invalid_reasons"] = ["dependency_stale"]
