@@ -644,8 +644,17 @@ ensure_run_user() {
 }
 
 sync_repository() {
+  local data_backup_dir=''
+
   log "Copying repository to $INSTALL_DIR"
   mkdir -p "$INSTALL_DIR"
+
+  # Preserve runtime state across updates while still allowing a clean rsync --delete.
+  if [[ -d "$INSTALL_DIR/data" ]]; then
+    data_backup_dir="$(mktemp -d /tmp/labbrew-data-backup.XXXXXX)"
+    rsync -a "$INSTALL_DIR/data/" "$data_backup_dir/"
+  fi
+
   rsync -a --delete \
     --exclude '.venv/' \
     --exclude '.pytest_cache/' \
@@ -655,6 +664,12 @@ sync_repository() {
     --exclude 'htmlcov/' \
     --exclude 'logs/' \
     "$SOURCE_DIR/" "$INSTALL_DIR/"
+
+  if [[ -n "$data_backup_dir" && -d "$data_backup_dir" ]]; then
+    mkdir -p "$INSTALL_DIR/data"
+    rsync -a "$data_backup_dir/" "$INSTALL_DIR/data/"
+    rm -rf "$data_backup_dir"
+  fi
 }
 
 prepare_topology_config() {
@@ -744,7 +759,7 @@ Type=simple
 User=$RUN_USER
 Group=$RUN_GROUP
 WorkingDirectory=$INSTALL_DIR
-ExecStartPre=/bin/bash -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin; IP_BIN=$(command -v ip || true); if [ -z "$IP_BIN" ]; then exit 1; fi; for i in $(seq 1 60); do if "$IP_BIN" -4 -o addr show scope global up | grep -q .; then exit 0; fi; sleep 1; done; exit 1'
+ExecStartPre=/bin/bash -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin; IP_BIN=\$(command -v ip || true); if [ -z "\$IP_BIN" ]; then exit 1; fi; for i in \$(seq 1 60); do if "\$IP_BIN" -4 -o addr show scope global up | grep -q .; then exit 0; fi; sleep 1; done; exit 1'
 ExecStart=$WRAPPER_PATH
 Restart=always
 RestartSec=10
