@@ -107,19 +107,6 @@ class ParameterBase(ABC):
         """Parameters this object reads from during scan()."""
         return []
 
-    def allow_invalid_dependencies(self) -> bool:
-        """Whether scan() should still run when existing dependencies are invalid
-        or stale.
-
-        Opting in bypasses dependency-stale gating in the engine and other normal
-        dependency-validity checks for dependencies that are present. Missing
-        dependencies are still treated as a hard stop by the engine. Plugins that
-        return True are responsible for interpreting dependency validity/state in
-        scan() and for deciding what downstream-visible validity semantics should
-        be.
-        """
-        return False
-
     def write_targets(self) -> list[str]:
         """Parameters this object may write to during scan()."""
         return []
