@@ -110,9 +110,10 @@ class ParameterBase(ABC):
     def allow_invalid_dependencies(self) -> bool:
         """Whether scan() should still run when dependencies exist but are invalid.
 
-        Opting in also bypasses dependency-stale gating in the engine. Plugins that
-        return True are responsible for interpreting dependency validity/state in
-        scan() and for deciding what downstream-visible validity semantics should be.
+        Opting in also bypasses dependency-stale gating in the engine and other
+        normal dependency-validity checks. Plugins that return True are responsible
+        for interpreting dependency validity/state in scan() and for deciding what
+        downstream-visible validity semantics should be.
         """
         return False
 
